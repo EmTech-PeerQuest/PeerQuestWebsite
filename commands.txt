@@ -1,53 +1,19 @@
-git checkout your-branch
-git pull origin your-branch
-git fetch origin
-git merge origin/main
-
-git add .
-git commit -m "Resolved merge conflicts from main"
-
-git push origin your-branch
-
-
-git checkout dev_Esteron
-git pull origin dev_Esteron
-git fetch origin
-git merge origin/main
-
-git checkout dev_Esteron
-git add .
-git commit -m "TEXT TEXT"
-git push -u origin dev_Esteron
-
-
-
-REAL REAL REAL
-git checkout dev_Sample-Feature
-
-git checkout [Feature_Branch]
-git pull origin [Feature_Branch]
-
-git checkout [dev_Branch]
-git merge [dev_Branch]
-
+////////// Start Backend //////////
+py -m venv venv
+.\venv\Scripts\activate
 pip install -r requirements.txt
-npm install
-git checkout your-branch
-git pull origin your-branch
-git fetch origin
-git merge origin/main
-
-git add .
-git commit -m "Resolved merge conflicts from main"
-
-git push origin your-branch
+python.exe -m pip install --upgrade pip
+py manage.py runserver
 
 
-git checkout dev_Esteron
-git pull origin dev_Esteron
-git fetch origin
-git merge origin/main
 
+////////// Start Frontend //////////
+npm install --legacy-peer-deps
+npm run dev
+
+
+
+////////// Push in Branch //////////
 git checkout dev_Esteron
 git add .
 git commit -m "TEXT TEXT"
@@ -55,11 +21,19 @@ git push -u origin dev_Esteron
 
 
 
-REAL REAL REAL
-git checkout dev_Sample-Feature
-
+////////// Combine dev_branch into Feature_Branch //////////
 git checkout [Feature_Branch]
 git pull origin [Feature_Branch]
 
 git checkout [dev_Branch]
 git merge [dev_Branch]
+
+
+
+////////// Combine main into your-branch //////////
+git checkout your-branch
+git pull origin your-branch
+git fetch origin
+git merge origin/main
+
+
