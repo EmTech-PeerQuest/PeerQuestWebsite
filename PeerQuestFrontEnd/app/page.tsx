@@ -1,28 +1,28 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Navbar } from "@/components/navbar"
-import { Hero } from "@/components/hero"
-import { QuestBoard } from "@/components/quest-board"
-import { GuildHall } from "@/components/guild-hall"
-import { Settings } from "@/components/settings"
+import { Navbar } from '@/components/ui/navbar'
+import { Hero } from '@/components/ui/hero'
+import { QuestBoard } from '@/components/quests/quest-board'
+import { GuildHall } from '@/components/guilds/guild-hall'
+import { Settings } from '@/components/settings/settings'
 import { About } from "@/components/about"
-import { AuthModal } from "@/components/auth-modal"
-import { PostQuestModal } from "@/components/post-quest-modal"
-import { EnhancedCreateGuildModal } from "@/components/enhanced-create-guild-modal"
-import { QuestDetailsModal } from "@/components/quest-details-modal"
-import { ApplicationsModal } from "@/components/applications-modal"
-import { EditQuestModal } from "@/components/edit-quest-modal"
-import { GoldSystemModal } from "@/components/gold-system-modal"
-import { Toast } from "@/components/toast"
-import { Footer } from "@/components/footer"
-import { Profile } from "@/components/profile"
+import { AuthModal } from '@/components/auth/auth-modal'
+import { PostQuestModal } from '@/components/quests/post-quest-modal'
+import { EnhancedCreateGuildModal } from '@/components/guilds/enhanced-create-guild-modal'
+import { QuestDetailsModal } from '@/components/quests/quest-details-modal'
+import { ApplicationsModal } from '@/components/modals/applications-modal'
+import { EditQuestModal } from '@/components/guilds/edit-quest-modal'
+import { GoldSystemModal } from '@/components/gold/gold-system-modal'
+import { Toast } from '@/components/ui/toast'
+import { Footer } from '@/components/ui/footer'
+import { Profile } from '@/components/auth/profile'
 import { UserSearch } from "@/components/user-search"
-import { MessagingSystem } from "@/components/messaging-system"
-import { QuestManagement } from "@/components/quest-management"
-import { EnhancedGuildManagement } from "@/components/enhanced-guild-management"
-import { AdminPanel } from "@/components/admin-panel"
-import { AIChatbot } from "@/components/ai-chatbot"
+import { MessagingSystem } from '@/components/messaging/messaging-system'
+import { QuestManagement } from '@/components/quests/quest-management'
+import { EnhancedGuildManagement } from '@/components/guilds/enhanced-guild-management'
+import { AdminPanel } from '@/components/admin/admin-panel'
+import { AIChatbot } from '@/components/ai/ai-chatbot'
 import type { User, Quest, Guild, GuildApplication } from "@/lib/types"
 import { mockUsers, mockQuests, mockGuilds } from "@/lib/mock-data"
 import { authService } from "@/lib/auth-service"
