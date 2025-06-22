@@ -1,0 +1,174 @@
+PEERQUEST TAVERN - FLOWCHART DEFINITION GUIDE
+=============================================
+
+HOW TO CREATE FLOWCHARTS FOR THIS PROJECT
+=========================================
+
+FLOWCHART SYMBOLS TO USE:
+------------------------
+[Rectangle] = Process/Action
+[Diamond] = Decision Point
+[Oval] = Start/End Point
+[Circle] = Connector
+[Parallelogram] = Input/Output
+[Document] = Data/File
+[Database] = Data Storage
+
+MAIN APPLICATION FLOW:
+---------------------
+Start → Landing Page → Authentication Check → Dashboard/Home
+
+USER AUTHENTICATION FLOW:
+-------------------------
+[Start] → [User clicks Login/Register] → [AuthModal opens] → 
+[User selects Login/Register/Forgot Password] → 
+<Login Selected?> → Yes → [Enter credentials] → [Validate] → 
+<Valid?> → Yes → [Set user session] → [Close modal] → [Redirect to dashboard]
+<Valid?> → No → [Show error message] → [Return to login form]
+<Register Selected?> → Yes → [Enter user details] → [Validate] → 
+<Valid?> → Yes → [Create account] → [Set user session] → [Close modal] → [Redirect to dashboard]
+<Forgot Password?> → Yes → [Enter email] → [Send reset link] → [Show success message]
+
+QUEST SYSTEM FLOW:
+-----------------
+Quest Creation:
+[User clicks "Post Quest"] → [PostQuestModal opens] → [Fill form] → 
+[Validate data] → <Valid?> → Yes → [Save quest] → [Show success] → [Close modal]
+<Valid?> → No → [Show validation errors] → [Return to form]
+
+Quest Application:
+[User views quest] → [Click "Apply"] → [QuestDetailsModal opens] → 
+[Click "Apply for Quest"] → [Fill application] → [Submit] → 
+[Save application] → [Notify quest owner] → [Show success message]
+
+Quest Management:
+[Quest Owner] → [QuestManagement] → [View applications] → 
+[Select applicant] → <Approve?> → Yes → [Update application status] → [Notify applicant]
+<Approve?> → No → [Reject application] → [Notify applicant]
+
+GUILD SYSTEM FLOW:
+-----------------
+Guild Creation:
+[User clicks "Create Guild"] → [CreateGuildModal opens] → [Fill form] → 
+[Upload emblem] → [Validate] → <Valid?> → Yes → [Create guild] → [Set user as leader] → [Close modal]
+<Valid?> → No → [Show errors] → [Return to form]
+
+Guild Joining:
+[User views guild] → [Click "Join Guild"] → [Fill application] → 
+[Submit] → [Save application] → [Notify guild leaders] → [Show success]
+
+Guild Management:
+[Guild Leader] → [GuildManagement] → [View applications] → 
+[Select applicant] → <Approve?> → Yes → [Add to guild] → [Notify applicant]
+<Approve?> → No → [Reject] → [Notify applicant]
+
+MESSAGING SYSTEM FLOW:
+---------------------
+[User opens messages] → [MessagingSystem loads] → [Display conversations] → 
+[User selects conversation] → [Load messages] → [Display chat] → 
+[User types message] → [Send] → [Save to database] → [Update UI] → [Notify recipient]
+
+NOTIFICATION SYSTEM FLOW:
+------------------------
+[Event occurs] → [Create notification] → [Save to database] → 
+[Check if user online] → <Online?> → Yes → [Show real-time notification]
+<Online?> → No → [Store for later] → [Show when user logs in]
+
+ADMIN PANEL FLOW:
+----------------
+[Admin login] → [Check admin role] → <Is Admin?> → Yes → [Show AdminPanel]
+<Is Admin?> → No → [Deny access] → [Show error]
+
+[AdminPanel] → [Select action] → 
+<Manage Users?> → [User management interface]
+<Manage Quests?> → [Quest moderation interface]
+<Manage Guilds?> → [Guild management interface]
+<View Reports?> → [Reports dashboard]
+
+PROFILE MANAGEMENT FLOW:
+-----------------------
+[User clicks profile] → [Profile component loads] → [Display user data] → 
+[User clicks edit] → [Settings modal opens] → [Modify data] → 
+[Save changes] → [Validate] → <Valid?> → Yes → [Update database] → [Show success]
+<Valid?> → No → [Show errors] → [Return to form]
+
+GOLD SYSTEM FLOW:
+----------------
+[User clicks gold] → [GoldSystemModal opens] → [Display packages] → 
+[User selects package] → [Proceed to payment] → [Process payment] → 
+<Payment Success?> → Yes → [Add gold to account] → [Show success]
+<Payment Success?> → No → [Show error] → [Return to selection]
+
+SEARCH SYSTEM FLOW:
+------------------
+[User enters search] → [Validate input] → <Valid?> → Yes → [Query database] → 
+[Filter results] → [Display results] → [User selects result] → [Navigate to detail]
+<Valid?> → No → [Show validation message]
+
+ERROR HANDLING FLOW:
+-------------------
+[Error occurs] → [Log error] → [Check error type] → 
+<Network Error?> → [Show network error message] → [Retry option]
+<Validation Error?> → [Show field-specific errors] → [Highlight fields]
+<Server Error?> → [Show generic error] → [Contact support option]
+<Authentication Error?> → [Clear session] → [Redirect to login]
+
+DATA FLOW PATTERNS:
+------------------
+Component → Service → API → Database → API → Service → Component
+
+State Management Flow:
+[User Action] → [Update Local State] → [Call Service] → [Update Database] → 
+[Return Response] → [Update UI State] → [Re-render Component]
+
+NAVIGATION FLOW:
+---------------
+[Current Page] → [User clicks navigation] → [Route change] → 
+[Load new component] → [Fetch required data] → [Render page]
+
+RESPONSIVE DESIGN FLOW:
+----------------------
+[Page loads] → [Detect screen size] → <Mobile?> → Yes → [Load mobile layout]
+<Mobile?> → No → <Tablet?> → Yes → [Load tablet layout]
+<Tablet?> → No → [Load desktop layout]
+
+SECURITY FLOW:
+-------------
+[User request] → [Check authentication] → <Authenticated?> → No → [Redirect to login]
+<Authenticated?> → Yes → [Check authorization] → <Authorized?> → No → [Show access denied]
+<Authorized?> → Yes → [Process request] → [Return response]
+
+HOW TO DRAW THE FLOWCHARTS:
+--------------------------
+1. Start with the main user journey
+2. Identify decision points (diamond shapes)
+3. Show all possible paths (Yes/No branches)
+4. Include error handling paths
+5. Use consistent symbols throughout
+6. Add labels to all connections
+7. Group related processes in swimlanes
+8. Use colors to differentiate user types (Admin, Regular User, Guest)
+9. Include data flow arrows
+10. Add notes for complex business logic
+
+RECOMMENDED FLOWCHART TOOLS:
+---------------------------
+- Lucidchart
+- Draw.io (now diagrams.net)
+- Miro
+- Figma
+- Microsoft Visio
+- Creately
+
+FLOWCHART BEST PRACTICES:
+------------------------
+- Keep it simple and readable
+- Use standard flowchart symbols
+- Maintain consistent spacing
+- Label all decision points clearly
+- Show error paths in red
+- Use different colors for different user roles
+- Include a legend for symbols used
+- Break complex flows into multiple diagrams
+- Number the steps for reference
+- Include start and end points for each flow

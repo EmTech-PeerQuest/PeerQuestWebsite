@@ -1,0 +1,150 @@
+# === Python (Django backend) ===
+backend/__pycache__/
+backend/**/*.py[cod]
+backend/*.sqlite3
+backend/media/
+backend/staticfiles/
+backend/static_cdn/
+backend/local_settings.py
+backend/.env
+backend/db.sqlite3
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+*.py.class
+
+# === Node/React (frontend) ===
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+frontend/.env
+frontend/*.log
+*.tgz
+
+# === Virtual Environments ===
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# === Logs and temp files ===
+*.log
+*.pot
+*.pid
+*.seed
+*.swp
+*.swo
+*.orig
+*.rej
+*.bak
+*.tmp
+*~
+
+# === IDE and OS files ===
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+*.sublime-workspace
+*.sublime-project
+
+# === Testing & Coverage ===
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.cache/
+.pytest_cache/
+.mypy_cache/
+
+# === Django Migrations Cache ===
+**/migrations/*.pyc
+**/migrations/__pycache__/
+
+# === Misc Tools ===
+celerybeat-schedule
+celerybeat.pid
+gunicorn.pid
+*.pem
+Pipfile.lock
+# === PYTHON & DJANGO ===
+backend/__pycache__/
+backend/**/*.py[cod]
+backend/*.sqlite3
+backend/*.log
+backend/media/
+backend/staticfiles/
+backend/static_cdn/
+backend/db.sqlite3
+backend/local_settings.py
+backend/.env
+
+# === VIRTUAL ENVS ===
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# === DOTENV ===
+.env
+.env.*
+
+# === MIGRATIONS CACHE ===
+**/__pycache__/
+**/migrations/__pycache__/
+**/migrations/*.pyc
+
+# === NODE / REACT ===
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+frontend/*.log
+frontend/.env
+
+# === OS & EDITORS ===
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# === LOGS, TEMP & MISC ===
+*.log
+*.pot
+*.pid
+*.seed
+*.swp
+*.swo
+*.orig
+*.rej
+*.bak
+*.tmp
+*~
+
+# === COVERAGE & TEST ===
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.cache/
+.pytest_cache/
+.mypy_cache/
+
+# === OTHER TOOLS ===
+Pipfile.lock
+celerybeat-schedule
+celerybeat.pid
+gunicorn.pid
+*.pem

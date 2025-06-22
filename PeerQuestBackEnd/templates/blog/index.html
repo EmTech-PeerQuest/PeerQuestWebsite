@@ -1,0 +1,116 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tavern Waiting Page</title>
+    <link rel="stylesheet" href="{% static 'tavern.css' %}">
+</head>
+<body>
+    <div class="tavern-container">  
+        <!-- Stone wall texture base -->
+        <div class="wall-base"></div>
+        
+        <!-- Wooden beam structure -->
+        <div class="beam-structure">
+            <!-- Horizontal beams -->
+            <div class="beam-horizontal beam-top"></div>
+            <div class="beam-horizontal beam-mid"></div>
+            <div class="beam-horizontal beam-bottom"></div>
+            
+            <!-- Vertical support beams -->
+            <div class="beam-vertical beam-left"></div>
+            <div class="beam-vertical beam-right"></div>
+            <div class="beam-vertical beam-center-left"></div>
+            <div class="beam-vertical beam-center-right"></div>
+        </div>
+        
+        <!-- Stone wall texture overlay -->
+        <div class="stone-overlay">
+            <div class="stone-gradient"></div>
+            <div class="stone-pattern"></div>
+        </div>
+        
+        <!-- Flickering candlelight effects -->
+        <div class="lighting-effects">
+            <!-- Main fireplace glow (left side) -->
+            <div class="fireplace-glow"></div>
+            
+            <!-- Candle sconces -->
+            <div class="candle-sconce candle-1"></div>
+            <div class="candle-sconce candle-2"></div>
+            <div class="candle-sconce candle-3"></div>
+            
+            <!-- Lantern light (center-right) -->
+            <div class="lantern-light"></div>
+        </div>
+        
+        <!-- Smoke and atmosphere -->
+        <div class="atmosphere">
+            <div class="smoke smoke-1"></div>
+            <div class="smoke smoke-2"></div>
+            
+            <!-- Atmospheric haze -->
+            <div class="haze-vertical"></div>
+            <div class="haze-horizontal"></div>
+        </div>
+        
+        <!-- Floating dust particles in light beams -->
+        <div class="dust-particles">
+            <div class="dust dust-1"></div>
+            <div class="dust dust-2"></div>
+            <div class="dust dust-3"></div>
+            <div class="dust dust-4"></div>
+            <div class="dust dust-5"></div>
+            <div class="dust dust-6"></div>
+        </div>
+        
+        <!-- Wooden table silhouettes -->
+        <div class="table table-left"></div>
+        <div class="table table-right"></div>
+        
+        <!-- Main content -->
+        <div class="content">
+            <div class="text-container">
+                <!-- Main waiting message -->
+                <div class="main-message">
+                    <h1 class="title">
+                        <span class="subtitle">Welcome, weary traveler...</span>
+                        <span class="main-title">The Back Room</span>
+                    </h1>
+                    
+                    <p class="description">
+                        You find yourself in the dimly lit corner of the guild hall, where shadows dance 
+                        between ancient wooden beams and candlelight flickers against stone walls. 
+                        The tavern keeper motions for you to wait here while your table is prepared.
+                    </p>
+                </div>
+                
+                <!-- Loading indicator -->
+                <div class="loading-section">
+                    <div class="loading-dots">
+                        <div class="dot dot-1"></div>
+                        <div class="dot dot-2"></div>
+                        <div class="dot dot-3"></div>
+                    </div>
+                    <span class="loading-text">Preparing your table...</span>
+                </div>
+                
+                <!-- Decorative elements -->
+                <div class="decorative-section">
+                    <div class="line-top"></div>
+                    <div class="line-bottom"></div>
+                    
+                    <p class="quote">
+                        "The finest ales and tales await those who are patient."
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Floor shadow gradient -->
+        <div class="floor-shadow"></div>
+    </div>
+</body>
+</html>

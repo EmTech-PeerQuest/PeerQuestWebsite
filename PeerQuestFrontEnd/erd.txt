@@ -1,0 +1,330 @@
+PEERQUEST TAVERN - ENTITY RELATIONSHIP DIAGRAM (ERD) DEFINITION
+===============================================================
+
+DATABASE ENTITIES AND RELATIONSHIPS
+===================================
+
+PRIMARY ENTITIES:
+----------------
+
+1. USERS
+   - user_id (PK, INT, AUTO_INCREMENT)
+   - username (VARCHAR(50), UNIQUE, NOT NULL)
+   - email (VARCHAR(100), UNIQUE, NOT NULL)
+   - password_hash (VARCHAR(255), NOT NULL)
+   - first_name (VARCHAR(50))
+   - last_name (VARCHAR(50))
+   - avatar_url (VARCHAR(255))
+   - bio (TEXT)
+   - level (INT, DEFAULT 1)
+   - experience_points (INT, DEFAULT 0)
+   - gold_balance (DECIMAL(10,2), DEFAULT 0.00)
+   - is_admin (BOOLEAN, DEFAULT FALSE)
+   - is_active (BOOLEAN, DEFAULT TRUE)
+   - created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP)
+   - updated_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP ON UPDATE)
+   - last_login (TIMESTAMP)
+
+2. QUESTS
+   - quest_id (PK, INT, AUTO_INCREMENT)
+   - title (VARCHAR(200), NOT NULL)
+   - description (TEXT, NOT NULL)
+   - category (ENUM('Programming', 'Design', 'Writing', 'Marketing', 'Other'))
+   - difficulty (ENUM('Easy', 'Medium', 'Hard'))
+   - reward_gold (DECIMAL(8,2), NOT NULL)
+   - reward_xp (INT, NOT NULL)
+   - status (ENUM('Open', 'In Progress', 'Completed', 'Cancelled'), DEFAULT 'Open')
+   - max_participants (INT, DEFAULT 1)
+   - deadline (DATETIME)
+   - created_by (FK, INT, REFERENCES users(user_id))
+   - assigned_to (FK, INT, REFERENCES users(user_id), NULL)
+   - created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP)
+   - updated_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP ON UPDATE)
+   - completed_at (TIMESTAMP, NULL)
+
+3. GUILDS
+   - guild_id (PK, INT, AUTO_INCREMENT)
+   - name (VARCHAR(100), UNIQUE, NOT NULL)
+   - description (TEXT)
+   - emblem_url (VARCHAR(255))
+   - specialization (VARCHAR(100))
+   - max_members (INT, DEFAULT 50)
+   - is_public (BOOLEAN, DEFAULT TRUE)
+   - created_by (FK, INT, REFERENCES users(user_id))
+   - created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP)
+   - updated_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP ON UPDATE)
+
+4. USER_SKILLS
+   - skill_id (PK, INT, AUTO_INCREMENT)
+   - user_id (FK, INT, REFERENCES users(user_id))
+   - skill_name (VARCHAR(50), NOT NULL)
+   - proficiency_level (ENUM('Beginner', 'Intermediate', 'Advanced', 'Expert'))
+   - created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP)
+
+5. QUEST_APPLICATIONS
+   - application_id (PK, INT, AUTO_INCREMENT)
+   - quest_id (FK, INT, REFERENCES quests(quest_id))
+   - applicant_id (FK, INT, REFERENCES users(user_id))
+   - message (TEXT)
+   - status (ENUM('Pending', 'Approved', 'Rejected'), DEFAULT 'Pending')
+   - applied_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP)
+   - reviewed_at (TIMESTAMP, NULL)
+   - reviewed_by (FK, INT, REFERENCES users(user_id), NULL)
+
+6. GUILD_MEMBERSHIPS
+   - membership_id (PK, INT, AUTO_INCREMENT)
+   - guild_id (FK, INT, REFERENCES guilds(guild_id))
+   - user_id (FK, INT, REFERENCES users(user_id))
+   - role (ENUM('Member', 'Officer', 'Leader'), DEFAULT 'Member')
+   - joined_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP)
+   - left_at (TIMESTAMP, NULL)
+   - is_active (BOOLEAN, DEFAULT TRUE)
+
+7. GUILD_APPLICATIONS
+   - application_id (PK, INT, AUTO_INCREMENT)
+   - guild_id (FK, INT, REFERENCES guilds(guild_id))
+   - applicant_id (FK, INT, REFERENCES users(user_id))
+   - message (TEXT)
+   - status (ENUM('Pending', 'Approved', 'Rejected'), DEFAULT 'Pending')
+   - applied_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP)
+   - reviewed_at (TIMESTAMP, NULL)
+   - reviewed_by (FK, INT, REFERENCES users(user_id), NULL)
+
+8. MESSAGES
+   - message_id (PK, INT, AUTO_INCREMENT)
+   - sender_id (FK, INT, REFERENCES users(user_id))
+   - recipient_id (FK, INT, REFERENCES users(user_id))
+   - subject (VARCHAR(200))
+   - content (TEXT, NOT NULL)
+   - is_read (BOOLEAN, DEFAULT FALSE)
+   - sent_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP)
+   - read_at (TIMESTAMP, NULL)
+
+9. NOTIFICATIONS
+   - notification_id (PK, INT, AUTO_INCREMENT)
+   - user_id (FK, INT, REFERENCES users(user_id))
+   - type (ENUM('Quest', 'Guild', 'Message', 'System', 'Achievement'))
+   - title (VARCHAR(200), NOT NULL)
+   - message (TEXT, NOT NULL)
+   - is_read (BOOLEAN, DEFAULT FALSE)
+   - created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP)
+   - read_at (TIMESTAMP, NULL)
+
+10. TRANSACTIONS
+    - transaction_id (PK, INT, AUTO_INCREMENT)
+    - user_id (FK, INT, REFERENCES users(user_id))
+    - type (ENUM('Purchase', 'Reward', 'Transfer', 'Refund'))
+    - amount (DECIMAL(10,2), NOT NULL)
+    - description (VARCHAR(255))
+    - quest_id (FK, INT, REFERENCES quests(quest_id), NULL)
+    - created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP)
+
+11. USER_ACHIEVEMENTS
+    - achievement_id (PK, INT, AUTO_INCREMENT)
+    - user_id (FK, INT, REFERENCES users(user_id))
+    - achievement_type (VARCHAR(50), NOT NULL)
+    - achievement_name (VARCHAR(100), NOT NULL)
+    - description (TEXT)
+    - earned_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP)
+
+12. QUEST_REVIEWS
+    - review_id (PK, INT, AUTO_INCREMENT)
+    - quest_id (FK, INT, REFERENCES quests(quest_id))
+    - reviewer_id (FK, INT, REFERENCES users(user_id))
+    - reviewee_id (FK, INT, REFERENCES users(user_id))
+    - rating (INT, CHECK (rating >= 1 AND rating <= 5))
+    - comment (TEXT)
+    - created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP)
+
+RELATIONSHIPS:
+=============
+
+ONE-TO-MANY RELATIONSHIPS:
+-------------------------
+1. users(user_id) → quests(created_by)
+   - One user can create many quests
+
+2. users(user_id) → quests(assigned_to)
+   - One user can be assigned to many quests
+
+3. users(user_id) → guilds(created_by)
+   - One user can create many guilds
+
+4. users(user_id) → user_skills(user_id)
+   - One user can have many skills
+
+5. users(user_id) → quest_applications(applicant_id)
+   - One user can apply to many quests
+
+6. users(user_id) → guild_applications(applicant_id)
+   - One user can apply to many guilds
+
+7. users(user_id) → messages(sender_id)
+   - One user can send many messages
+
+8. users(user_id) → messages(recipient_id)
+   - One user can receive many messages
+
+9. users(user_id) → notifications(user_id)
+   - One user can have many notifications
+
+10. users(user_id) → transactions(user_id)
+    - One user can have many transactions
+
+11. users(user_id) → user_achievements(user_id)
+    - One user can have many achievements
+
+12. quests(quest_id) → quest_applications(quest_id)
+    - One quest can have many applications
+
+13. quests(quest_id) → transactions(quest_id)
+    - One quest can have many related transactions
+
+14. quests(quest_id) → quest_reviews(quest_id)
+    - One quest can have many reviews
+
+15. guilds(guild_id) → guild_memberships(guild_id)
+    - One guild can have many members
+
+16. guilds(guild_id) → guild_applications(guild_id)
+    - One guild can have many applications
+
+MANY-TO-MANY RELATIONSHIPS:
+--------------------------
+1. users ↔ guilds (through guild_memberships)
+   - Many users can belong to many guilds
+
+2. users ↔ quests (through quest_applications)
+   - Many users can apply to many quests
+
+ERD SYMBOLS AND NOTATION:
+========================
+
+ENTITY SYMBOLS:
+--------------
+[Rectangle] = Entity (Table)
+[Rectangle with rounded corners] = Weak Entity
+[Diamond] = Relationship
+[Oval] = Attribute
+[Double Oval] = Multivalued Attribute
+[Dashed Oval] = Derived Attribute
+[Underlined] = Primary Key
+[Dashed Underline] = Partial Key
+
+RELATIONSHIP SYMBOLS:
+--------------------
+─── = One-to-One (1:1)
+──< = One-to-Many (1:M)
+>──< = Many-to-Many (M:N)
+──○ = Optional (Zero or One)
+──● = Mandatory (One or More)
+
+CARDINALITY NOTATION:
+--------------------
+1 = Exactly One
+0..1 = Zero or One
+1..* = One or Many
+0..* = Zero or Many
+M = Many
+N = Many
+
+INDEXES FOR PERFORMANCE:
+=======================
+PRIMARY INDEXES:
+- users(user_id)
+- quests(quest_id)
+- guilds(guild_id)
+- messages(message_id)
+- notifications(notification_id)
+
+SECONDARY INDEXES:
+- users(username)
+- users(email)
+- quests(created_by)
+- quests(status)
+- quests(category)
+- guild_memberships(user_id, guild_id)
+- quest_applications(quest_id, applicant_id)
+- messages(recipient_id, is_read)
+- notifications(user_id, is_read)
+
+COMPOSITE INDEXES:
+- quest_applications(quest_id, status)
+- guild_applications(guild_id, status)
+- transactions(user_id, created_at)
+- notifications(user_id, created_at)
+
+BUSINESS RULES:
+==============
+1. A user cannot apply to the same quest twice
+2. A user cannot join the same guild twice
+3. Quest creators cannot apply to their own quests
+4. Guild creators are automatically leaders of their guilds
+5. Only guild leaders and officers can approve applications
+6. Quest rewards are only distributed upon completion
+7. Users must have sufficient gold balance for transactions
+8. Deleted users should have their data anonymized, not removed
+9. Quest deadlines must be in the future when created
+10. Guild names must be unique across the platform
+
+CONSTRAINTS:
+===========
+UNIQUE CONSTRAINTS:
+- users(username)
+- users(email)
+- guilds(name)
+- guild_memberships(guild_id, user_id) WHERE is_active = TRUE
+- quest_applications(quest_id, applicant_id)
+- guild_applications(guild_id, applicant_id) WHERE status = 'Pending'
+
+CHECK CONSTRAINTS:
+- users.level >= 1
+- users.experience_points >= 0
+- users.gold_balance >= 0
+- quests.reward_gold > 0
+- quests.reward_xp > 0
+- quests.max_participants >= 1
+- quest_reviews.rating BETWEEN 1 AND 5
+- transactions.amount != 0
+
+FOREIGN KEY CONSTRAINTS:
+- All FK relationships maintain referential integrity
+- ON DELETE CASCADE for dependent records
+- ON DELETE SET NULL for optional references
+
+HOW TO CREATE THE ERD:
+=====================
+1. Start with main entities (Users, Quests, Guilds)
+2. Add attributes to each entity
+3. Identify primary keys (underline them)
+4. Add relationships between entities
+5. Specify cardinality for each relationship
+6. Add foreign keys
+7. Include weak entities if any
+8. Add constraints and business rules
+9. Optimize with indexes
+10. Review and validate the design
+
+RECOMMENDED ERD TOOLS:
+=====================
+- MySQL Workbench
+- pgAdmin (for PostgreSQL)
+- Lucidchart
+- Draw.io (diagrams.net)
+- dbdiagram.io
+- ERDPlus
+- Visual Paradigm
+- Creately
+
+ERD BEST PRACTICES:
+==================
+1. Use clear, descriptive entity names
+2. Follow consistent naming conventions
+3. Normalize to reduce redundancy
+4. Document all relationships clearly
+5. Include all necessary constraints
+6. Use appropriate data types
+7. Consider performance implications
+8. Plan for scalability
+9. Document business rules
+10. Validate with stakeholders
