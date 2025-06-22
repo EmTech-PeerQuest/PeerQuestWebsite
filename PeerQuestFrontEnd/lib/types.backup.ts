@@ -6,17 +6,7 @@ export interface User {
   isBanned?: boolean;
   banReason?: string;
   roles?: string[];
-  createdAt?: string;
-  level?: number;
-  xp?: number;
-  gold?: number;
-  completedQuests?: number;
-  createdQuests?: number;
-  joinedGuilds?: number;
-  createdGuilds?: number;
-  bio?: string;
 }
-
 
 
 export interface Quest {
@@ -26,15 +16,7 @@ export interface Quest {
   status?: string;
   reward?: number;
   requirements?: string[];
-  createdAt?: string;
-  category?: string;
-  poster?: {
-    avatar?: string;
-    name?: string;
-    username?: string;
-  };
 }
-
 
 
 export interface Guild {
@@ -42,14 +24,8 @@ export interface Guild {
   name: string;
   description?: string;
   requirements?: string[];
-  createdAt?: string;
-  emblem?: string;
-  specialization?: string;
-  members?: number;
-  funds?: number;
   poster?: {
     username?: string;
     avatar?: string;
-    name?: string;
   };
 }

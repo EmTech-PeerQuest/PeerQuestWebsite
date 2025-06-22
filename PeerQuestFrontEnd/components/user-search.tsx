@@ -3,8 +3,8 @@
 import { useState } from "react"
 import { Search, Filter, ChevronDown, ChevronUp } from "lucide-react"
 import type { User, Quest, Guild } from "@/lib/types"
-import { UserProfileModal } from "./user-profile-modal"
-import { MessagingModal } from "./messaging-modal"
+import { UserProfileModal } from '@/components/auth/user-profile-modal'
+import { MessagingModal } from '@/components/messaging/messaging-modal'
 
 interface UserSearchProps {
   users: User[]
