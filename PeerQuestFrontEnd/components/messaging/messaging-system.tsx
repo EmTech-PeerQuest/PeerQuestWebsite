@@ -5,7 +5,6 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Search, Send, MoreVertical, Info, Paperclip, X, Download, FileText, ImageIcon, ArrowLeft } from "lucide-react"
 import type { User } from "@/lib/types"
-import { mockUsers, mockMessages, mockConversations } from "@/lib/mock-data"
 
 interface MessagingSystemProps {
   currentUser: User | null

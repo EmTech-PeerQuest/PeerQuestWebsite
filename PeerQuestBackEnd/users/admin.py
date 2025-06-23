@@ -1,32 +1,25 @@
 from django.contrib import admin
-from users.models import NewUser
 from django.contrib.auth.admin import UserAdmin
-from django.forms import TextInput, Textarea, CharField
-from django import forms
-from django.db import models
+from .models import NewUser
 
-
-class UserAdminConfig(UserAdmin):
+@admin.register(NewUser)
+class CustomUserAdmin(UserAdmin):
     model = NewUser
-    search_fields = ('email', 'user_name', 'first_name',)
-    list_filter = ('email', 'user_name', 'first_name', 'is_active', 'is_staff')
-    ordering = ('-start_date',)
-    list_display = ('id', 'email', 'user_name', 'first_name',
-                    'is_active', 'is_staff', 'start_date')
+    list_display = ('email', 'username', 'is_staff', 'is_active', 'level', 'xp')
+    list_filter = ('is_staff', 'is_active', 'level')
+    search_fields = ('email', 'username')
+    ordering = ('email',)
+
     fieldsets = (
-        (None, {'fields': ('email', 'user_name', 'first_name',)}),
-        ('Permissions', {'fields': ('is_staff', 'is_active')}),
-        ('Personal', {'fields': ('about',)}),
+        (None, {'fields': ('email', 'username', 'password')}),
+        ('Permissions', {'fields': ('is_staff', 'is_active', 'is_superuser', 'groups', 'user_permissions')}),
+        ('Important dates', {'fields': ('last_login', 'date_joined')}),
+        ('Gamification', {'fields': ('xp', 'level', 'avatar')}),
     )
-    formfield_overrides = {
-        models.TextField: {'widget': Textarea(attrs={'rows': 20, 'cols': 60})},
-    }
+
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'user_name', 'first_name', 'password1', 'password2', 'is_active', 'is_staff')}
-         ),
+            'fields': ('email', 'username', 'password1', 'password2', 'is_staff', 'is_active')}
+        ),
     )
-
-
-admin.site.register(NewUser, UserAdminConfig)

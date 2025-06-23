@@ -20,20 +20,24 @@ export interface User {
 
 
 export interface Quest {
-  id: string | number;
-  title: string;
-  description?: string;
-  status?: string;
-  reward?: number;
-  requirements?: string[];
-  createdAt?: string;
-  category?: string;
-  poster?: {
-    avatar?: string;
-    name?: string;
-    username?: string;
-  };
+  id: number
+  title: string
+  description: string
+  category: string
+  difficulty: 'easy' | 'medium' | 'hard'
+  reward: number
+  xp: number
+  status: 'open' | 'in_progress' | 'completed'
+  poster: User
+  createdAt: string // or `Date` if you're consistent
+  deadline: string  // same here
+  applicants: any[]
+  isGuildQuest?: boolean
+  guildId?: number
+  guildReward?: number
+  completedAt?: string
 }
+
 
 
 
@@ -52,4 +56,14 @@ export interface Guild {
     avatar?: string;
     name?: string;
   };
+}
+
+export interface GuildApplication {
+  id: number
+  userId: number
+  username: string
+  avatar?: string
+  message: string
+  status: 'pending' | 'accepted' | 'rejected'
+  appliedAt: Date
 }

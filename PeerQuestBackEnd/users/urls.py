@@ -1,9 +1,15 @@
 from django.urls import path
-from .views import CustomUserCreate,CurrentUserView
-
-app_name = 'users'
+from .views import (
+    CurrentUserView,
+    UpdateProfileView,         # <-- corrected name
+    PublicProfileView
+)
 
 urlpatterns = [
-    path('register/', CustomUserCreate.as_view(), name="create_user"),
-    path('me/', CurrentUserView.as_view(), name='current-user'),
+    # Authenticated user endpoints
+    path('me/', CurrentUserView.as_view(), name='user-detail'),
+    path('me/update/', UpdateProfileView.as_view(), name='user-update'),  # <-- corrected class
+
+    # Public profile view by username
+    path('profile/<str:username>/', PublicProfileView.as_view(), name='public-profile'),
 ]
