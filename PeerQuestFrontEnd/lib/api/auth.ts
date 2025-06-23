@@ -1,8 +1,8 @@
-import axios from 'axios';
+import axios from "axios"
 
-const axiosAuth = axios.create({
-  baseURL: 'http://localhost:8000', // Backend URL
-  withCredentials: true,            // Enables cookie-based auth
-});
+const axiosInstance = axios.create({
+  baseURL: "http://localhost:8000", // or your Django backend URL
+  withCredentials: true // if you're using cookies/session auth
+})
 
-export default axiosAuth;
+export default axiosInstance

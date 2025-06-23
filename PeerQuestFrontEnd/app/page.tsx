@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Navbar } from '@/components/ui/navbar'
 import { Hero } from '@/components/ui/hero'
 import { QuestBoard } from '@/components/quests/quest-board'
@@ -16,21 +16,32 @@ import { UserSearch } from '@/components/user-search'
 import { MessagingSystem } from '@/components/messaging/messaging-system'
 import { QuestManagement } from '@/components/quests/quest-management'
 import { EnhancedGuildManagement } from '@/components/guilds/enhanced-guild-management'
+import { AIChatbot } from '@/components/ai/ai-chatbot'
 import type { User, Quest, Guild, GuildApplication } from "@/lib/types"
+import { authService } from '@/lib/auth-service'
+import { fetchInitialData } from '@/lib/api/init-data'
+
+declare global {
+  interface Window {
+    openAuthModal?: () => void
+  }
+}
 
 export default function Home() {
   const [activeSection, setActiveSection] = useState<string>("home")
   const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [toast, setToast] = useState<{ message: string; type: string } | null>(null)
+  const [toast, setToast] = useState<{ message: string; type: "foreground" | "background" } | null>(null)
   const [quests, setQuests] = useState<Quest[]>([])
   const [guilds, setGuilds] = useState<Guild[]>([])
   const [guildApplications, setGuildApplications] = useState<GuildApplication[]>([])
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false)
   const [authMode, setAuthMode] = useState<"login" | "register" | "forgot">("login")
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const showToast = (message: string, type = "info") => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 5000)
+  const showToast = (message: string, type?: string) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+    setToast({ message, type: (type as "foreground" | "background") || "foreground" })
+    toastTimeoutRef.current = setTimeout(() => setToast(null), 5000)
   }
 
   useEffect(() => {
@@ -38,10 +49,34 @@ export default function Home() {
       setAuthMode("login")
       setShowAuthModal(true)
     }
-
     return () => {
       window.openAuthModal = undefined
     }
+  }, [])
+
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        const user = await authService.getCurrentUser()
+        const data = await fetchInitialData()
+        if (user) setCurrentUser(user)
+        if (data) {
+          setQuests(data.quests || [])
+          setGuilds(data.guilds || [])
+          setGuildApplications(data.guildApplications || [])
+        }
+      } catch (err: any) {
+        if (err.response?.status === 401) {
+          authService.logout()
+          setCurrentUser(null)
+          showToast("Session expired. Please log in again.", "foreground")
+        } else {
+          console.error("Initialization failed", err)
+          showToast("Failed to fetch initial data.", "foreground")
+        }
+      }
+    }
+    initialize()
   }, [])
 
   return (
@@ -51,17 +86,18 @@ export default function Home() {
           currentUser={currentUser}
           setActiveSection={setActiveSection}
           handleLogout={() => {
+            authService.logout()
             setCurrentUser(null)
             setActiveSection("home")
-            showToast("You have been logged out.", "info")
+            showToast("You have been logged out.", "foreground")
           }}
           openAuthModal={() => {
             setAuthMode("login")
             setShowAuthModal(true)
           }}
-          openGoldPurchaseModal={() => showToast("Gold purchase modal placeholder", "info")}
-          openPostQuestModal={() => showToast("Post quest modal placeholder", "info")}
-          openCreateGuildModal={() => showToast("Create guild modal placeholder", "info")}
+          openGoldPurchaseModal={() => {}}
+          openPostQuestModal={() => {}}
+          openCreateGuildModal={() => {}}
         />
 
         {activeSection === "home" && (
@@ -83,10 +119,10 @@ export default function Home() {
           <QuestBoard
             quests={quests}
             currentUser={currentUser}
-            openQuestDetails={() => showToast("Quest details modal placeholder", "info")}
-            openPostQuestModal={() => showToast("Post quest modal placeholder", "info")}
-            openApplications={() => showToast("Applications modal placeholder", "info")}
-            openEditQuestModal={() => showToast("Edit quest modal placeholder", "info")}
+            openQuestDetails={() => {}}
+            openPostQuestModal={() => {}}
+            openApplications={() => {}}
+            openEditQuestModal={() => {}}
           />
         )}
 
@@ -94,8 +130,8 @@ export default function Home() {
           <GuildHall
             guilds={guilds}
             currentUser={currentUser}
-            openCreateGuildModal={() => showToast("Create guild modal placeholder", "info")}
-            handleApplyForGuild={() => showToast("Apply to guild placeholder", "info")}
+            openCreateGuildModal={() => {}}
+            handleApplyForGuild={() => {}}
             showToast={showToast}
           />
         )}
@@ -135,7 +171,7 @@ export default function Home() {
           <QuestManagement
             quests={quests}
             currentUser={currentUser}
-            onQuestStatusChange={() => showToast("Status changed", "success")}
+            onQuestStatusChange={() => {}}
             setQuests={setQuests}
             showToast={showToast}
           />
@@ -147,12 +183,12 @@ export default function Home() {
             guildApplications={guildApplications}
             currentUser={currentUser}
             showToast={showToast}
-            onViewGuild={() => showToast("View guild", "info")}
-            onEditGuild={() => showToast("Edit guild", "info")}
-            onDeleteGuild={() => showToast("Delete guild", "info")}
-            onApproveApplication={() => showToast("Approve application", "success")}
-            onRejectApplication={() => showToast("Reject application", "info")}
-            onManageMembers={() => showToast("Manage members", "info")}
+            onViewGuild={() => {}}
+            onEditGuild={() => {}}
+            onDeleteGuild={() => {}}
+            onApproveApplication={() => {}}
+            onRejectApplication={() => {}}
+            onManageMembers={() => {}}
           />
         )}
 
@@ -171,6 +207,8 @@ export default function Home() {
 
         {activeSection === "about" && <About />}
 
+        <AIChatbot currentUser={currentUser} />
+
         <Footer />
 
         <AuthModal
@@ -178,13 +216,39 @@ export default function Home() {
           onClose={() => setShowAuthModal(false)}
           mode={authMode}
           setMode={setAuthMode}
-          onLogin={() => showToast("Login logic placeholder", "success")}
-          onRegister={() => showToast("Register logic placeholder", "success")}
-          onForgotPassword={() => showToast("Forgot password placeholder", "info")}
+          onLogin={async (credentials) => {
+            try {
+              const user = await authService.login(credentials.email, credentials.password)
+              setCurrentUser(user)
+              setShowAuthModal(false)
+              showToast("Welcome back to the PeerQuest Tavern!", "foreground")
+            } catch (err: any) {
+              showToast(err.message || "Login failed.", "foreground")
+            }
+          }}
+          onRegister={async (data) => {
+            try {
+              const user = await authService.register(data.username, data.email, data.password)
+              setCurrentUser(user)
+              setShowAuthModal(false)
+              showToast("Registration successful!", "foreground")
+            } catch (err: any) {
+              showToast(err.message || "Registration failed.", "foreground")
+            }
+          }}
+          onForgotPassword={async (email) => {
+            try {
+              await authService.forgotPassword(email)
+              showToast("Password reset email sent.", "foreground")
+              setAuthMode("login")
+            } catch (err: any) {
+              showToast(err.message || "Password reset failed.", "foreground")
+            }
+          }}
         />
 
-        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        {toast && <Toast variant={toast.type} title={toast.message} onClose={() => setToast(null)} />}
       </main>
     </ToastProvider>
   )
-} 
+}
