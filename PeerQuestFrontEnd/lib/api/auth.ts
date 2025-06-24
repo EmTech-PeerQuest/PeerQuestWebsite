@@ -6,3 +6,11 @@ const axiosInstance = axios.create({
 })
 
 export default axiosInstance
+
+export const loginWithGoogle = async (code: string) => {
+  const response = await axios.post(`${API_URL}/users/google/`, { code })
+  return {
+    user: response.data.user,
+    token: response.data.access
+  }
+}

@@ -256,7 +256,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                   className={`w-full px-3 py-2 border ${
                     formErrors.email ? "border-red-500" : "border-[#CDAA7D]"
                   } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                  placeholder="ENTER YOUR EMAIL"
+                  placeholder="Enter your email"
                   value={loginForm.email}
                   onChange={(e) => setLoginForm((prev) => ({ ...prev, email: e.target.value }))}
                 />
@@ -270,7 +270,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     className={`w-full px-3 py-2 border ${
                       formErrors.password ? "border-red-500" : "border-[#CDAA7D]"
                     } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                    placeholder="••••••••"
+                    placeholder="Enter your password"
                     value={loginForm.password}
                     onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
                   />
@@ -293,14 +293,14 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                   className="w-4 h-4 text-[#8B75AA] border-[#CDAA7D] rounded focus:ring-[#8B75AA]"
                 />
                 <label htmlFor="remember-me" className="ml-2 text-sm text-[#2C1A1D]">
-                  REMEMBER ME
+                  Remember me
                 </label>
               </div>
               <button
                 onClick={handleLogin}
                 className="w-full bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
               >
-                LOGIN
+                Login
               </button>
               <div className="text-center">
                 <button
@@ -310,14 +310,9 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                   }}
                   className="text-[#8B75AA] hover:underline text-sm"
                 >
-                  FORGOT PASSWORD?
+                  Forgot password?
                 </button>
               </div>
-              <div className="text-center text-[#8B75AA] text-sm">OR LOGIN WITH</div>
-              <button className="w-full border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors flex items-center justify-center gap-2">
-                <span className="text-lg">G</span>
-                CONTINUE WITH GOOGLE
-              </button>
             </>
           )}
 
@@ -330,7 +325,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                   className={`w-full px-3 py-2 border ${
                     formErrors.username ? "border-red-500" : "border-[#CDAA7D]"
                   } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                  placeholder="CHOOSE A USERNAME"
+                  placeholder="Choose a username"
                   value={registerForm.username}
                   onChange={(e) => setRegisterForm((prev) => ({ ...prev, username: e.target.value }))}
                 />
@@ -344,7 +339,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                   className={`w-full px-3 py-2 border ${
                     formErrors.email ? "border-red-500" : "border-[#CDAA7D]"
                   } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                  placeholder="ENTER YOUR EMAIL"
+                  placeholder="Enter your email"
                   value={registerForm.email}
                   onChange={(e) => setRegisterForm((prev) => ({ ...prev, email: e.target.value }))}
                 />
@@ -359,7 +354,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     className={`w-full px-3 py-2 border ${
                       formErrors.password ? "border-red-500" : "border-[#CDAA7D]"
                     } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                    placeholder="CREATE A PASSWORD"
+                    placeholder="Create a password"
                     value={registerForm.password}
                     onChange={(e) => setRegisterForm((prev) => ({ ...prev, password: e.target.value }))}
                   />
@@ -382,7 +377,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     className={`w-full px-3 py-2 border ${
                       formErrors.confirmPassword ? "border-red-500" : "border-[#CDAA7D]"
                     } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                    placeholder="CONFIRM YOUR PASSWORD"
+                    placeholder="Confirm your password"
                     value={registerForm.confirmPassword}
                     onChange={(e) => setRegisterForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
                   />
@@ -464,7 +459,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     onClick={() => setRegisterForm((prev) => ({ ...prev, gender: "male" }))}
                   >
                     <span className="mr-2">♂</span>
-                    MALE
+                    Male
                   </button>
 
                   <button
@@ -475,7 +470,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     onClick={() => setRegisterForm((prev) => ({ ...prev, gender: "female" }))}
                   >
                     <span className="mr-2">♀</span>
-                    FEMALE
+                    Female
                   </button>
                 </div>
               </div>
@@ -493,8 +488,8 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                   />
                 </div>
                 <label htmlFor="terms" className="ml-2 text-sm text-[#8B75AA]">
-                  BY CLICKING SIGN UP, YOU ARE AGREEING TO THE <span className="underline">TERMS OF USE</span> AND{" "}
-                  <span className="underline">PRIVACY POLICY</span>.
+                  By clicking register, you are agreeing to the <span className="underline">Terms of Use</span> and{" "}
+                  <span className="underline">Privacy Policy</span>.
                 </label>
               </div>
               {formErrors.agreeToTerms && <p className="text-red-500 text-xs">{formErrors.agreeToTerms}</p>}
@@ -503,13 +498,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                 onClick={handleRegister}
                 className="w-full bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
               >
-                REGISTER
-              </button>
-
-              <div className="text-center text-[#8B75AA] text-sm">OR REGISTER WITH</div>
-              <button className="w-full border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors flex items-center justify-center gap-2">
-                <span className="text-lg">G</span>
-                CONTINUE WITH GOOGLE
+                Register
               </button>
             </>
           )}
@@ -523,14 +512,14 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                   className={`w-full px-3 py-2 border ${
                     formErrors.email ? "border-red-500" : "border-[#CDAA7D]"
                   } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                  placeholder="ENTER YOUR REGISTERED EMAIL"
+                  placeholder="Enter your registered email"
                   value={forgotForm.email}
                   onChange={(e) => setForgotForm((prev) => ({ ...prev, email: e.target.value }))}
                 />
                 {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
               </div>
               <p className="text-sm text-[#8B75AA]">
-                ENTER YOUR EMAIL ADDRESS AND WE'LL SEND YOU A LINK TO RESET YOUR PASSWORD.
+                Enter your email address and we'll send you a link to reset your password.
               </p>
               <div className="flex gap-3">
                 <button
@@ -540,13 +529,13 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                   }}
                   className="flex-1 border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors"
                 >
-                  CANCEL
+                  Cancel
                 </button>
                 <button
                   onClick={handleForgotPassword}
                   className="flex-1 bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
                 >
-                  SEND RESET LINK
+                  Send Reset Link
                 </button>
               </div>
             </>
