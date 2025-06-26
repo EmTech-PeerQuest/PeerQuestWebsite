@@ -19,6 +19,12 @@ INSTALLED_APPS = [
 
     # Your apps
     'users',
+    'quests',
+    'guilds',
+    'messaging',
+    'notifications',
+    'applications',
+    'xp',
 
     # OAuth stack
     'oauth2_provider',

@@ -24,8 +24,9 @@ urlpatterns = [
     # OAuth2 endpoints (Google OAuth2 via drf-social-oauth2)
     path('auth/', include('drf_social_oauth2.urls', namespace='drf')),
 
-    # Users app
+    # API endpoints
     path('api/users/', include('users.urls')),
+    path('api/quests/', include('quests.urls')),
 
     # API Docs (Swagger + Redoc)
     path('docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
