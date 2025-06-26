@@ -16,6 +16,10 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'drf_yasg',
+    'channels',
+    'channels_redis',  # For WebSocket support
+    'messaging',
+    'xp'
 
     # Your apps
     'users',
@@ -144,3 +148,6 @@ DJRESTAUTH_TOKEN_MODEL = None
 
 # Default primary key type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Channels settings
+ASGI_APPLICATION = 'PeerQuestBackend.core.asgi.application'
