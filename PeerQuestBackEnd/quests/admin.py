@@ -14,11 +14,11 @@ class QuestCategoryAdmin(admin.ModelAdmin):
 class QuestAdmin(admin.ModelAdmin):
     list_display = [
         'title', 'creator', 'status', 'difficulty', 'category', 
-        'xp_reward', 'participant_count', 'created_at', 'due_date', 'deadline_status_display', 'completed_at'
+        'xp_reward', 'gold_reward', 'participant_count', 'created_at', 'due_date', 'deadline_status_display', 'completed_at'
     ]
     list_filter = ['status', 'difficulty', 'category', 'created_at']
     search_fields = ['title', 'description', 'creator__username']
-    readonly_fields = ['slug', 'created_at', 'updated_at', 'participant_count']
+    readonly_fields = ['slug', 'created_at', 'updated_at', 'participant_count', 'completed_at']
     prepopulated_fields = {}  # We handle slug generation in the model
     
     fieldsets = (
@@ -26,19 +26,19 @@ class QuestAdmin(admin.ModelAdmin):
             'fields': ('title', 'short_description', 'description', 'category')
         }),
         ('Quest Settings', {
-            'fields': ('difficulty', 'status', 'xp_reward', 'estimated_time', 'max_participants')
+            'fields': ('difficulty', 'status', 'xp_reward', 'gold_reward', 'estimated_time', 'max_participants')
         }),
         ('Creator & Participants', {
             'fields': ('creator', 'participant_count')
         }),
         ('Dates', {
-            'fields': ('due_date', 'completed_at')
+            'fields': ('due_date',)
         }),
         ('Content', {
             'fields': ('requirements', 'resources')
         }),
         ('System Fields', {
-            'fields': ('slug', 'created_at', 'updated_at'),
+            'fields': ('slug', 'created_at', 'updated_at', 'completed_at'),
             'classes': ('collapse',)
         })
     )

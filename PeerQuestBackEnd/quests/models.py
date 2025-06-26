@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 
 class QuestCategory(models.Model):
@@ -50,6 +51,11 @@ class Quest(models.Model):
     
     # Quest rewards and requirements
     xp_reward = models.PositiveIntegerField(choices=XP_REWARD_CHOICES, default=50, help_text="XP points awarded upon completion")
+    gold_reward = models.PositiveIntegerField(
+        default=0, 
+        validators=[MinValueValidator(0), MaxValueValidator(999)],
+        help_text="Gold coins awarded upon completion (0-999)"
+    )
     estimated_time = models.PositiveIntegerField(help_text="Estimated time in minutes")
     max_participants = models.PositiveIntegerField(default=1, help_text="Maximum number of participants")
     
@@ -72,7 +78,7 @@ class Quest(models.Model):
     due_date = models.DateField(null=True, blank=True, help_text="Deadline date for quest completion")
     completed_at = models.DateTimeField(null=True, blank=True)
     
-    # Quest content
+    # Quest content / FOR CHECKING
     requirements = models.TextField(blank=True, help_text="What needs to be done to complete this quest")
     resources = models.TextField(blank=True, help_text="Links, files, or resources needed for the quest")
     
