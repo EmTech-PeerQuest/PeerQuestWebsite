@@ -12,10 +12,10 @@ class QuestCategoryAdmin(admin.ModelAdmin):
 @admin.register(Quest)
 class QuestAdmin(admin.ModelAdmin):
     list_display = [
-        'title', 'creator', 'status', 'difficulty', 'category', 'priority', 
+        'title', 'creator', 'status', 'difficulty', 'category', 
         'xp_reward', 'participant_count', 'created_at', 'start_date', 'due_date', 'completed_at'
     ]
-    list_filter = ['status', 'difficulty', 'priority', 'category', 'created_at']
+    list_filter = ['status', 'difficulty', 'category', 'created_at']
     search_fields = ['title', 'description', 'creator__username']
     readonly_fields = ['slug', 'created_at', 'updated_at', 'participant_count']
     prepopulated_fields = {}  # We handle slug generation in the model
@@ -25,7 +25,7 @@ class QuestAdmin(admin.ModelAdmin):
             'fields': ('title', 'short_description', 'description', 'category')
         }),
         ('Quest Settings', {
-            'fields': ('difficulty', 'priority', 'status', 'xp_reward', 'estimated_time', 'max_participants')
+            'fields': ('difficulty', 'status', 'xp_reward', 'estimated_time', 'max_participants')
         }),
         ('Creator & Participants', {
             'fields': ('creator', 'participant_count')

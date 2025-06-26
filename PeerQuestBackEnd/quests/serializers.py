@@ -54,7 +54,7 @@ class QuestListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Quest
         fields = [
-            'id', 'title', 'short_description', 'difficulty', 'priority',
+            'id', 'title', 'short_description', 'difficulty',
             'status', 'xp_reward', 'estimated_time', 'max_participants',
             'creator', 'category', 'created_at', 'due_date', 'slug',
             'participant_count', 'can_accept_participants'
@@ -78,7 +78,7 @@ class QuestDetailSerializer(serializers.ModelSerializer):
         model = Quest
         fields = [
             'id', 'title', 'description', 'short_description', 'category',
-            'difficulty', 'priority', 'status', 'xp_reward', 'estimated_time',
+            'difficulty', 'status', 'xp_reward', 'estimated_time',
             'max_participants', 'creator', 'participants_detail', 'created_at',
             'updated_at', 'start_date', 'due_date', 'completed_at',
             'requirements', 'resources', 'slug', 'participant_count',
@@ -94,7 +94,7 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
         model = Quest
         fields = [
             'id', 'title', 'description', 'short_description', 'category',
-            'difficulty', 'priority', 'status', 'xp_reward', 'estimated_time',
+            'difficulty', 'status', 'xp_reward', 'estimated_time',
             'max_participants', 'creator', 'start_date', 'due_date',
             'requirements', 'resources'
         ]

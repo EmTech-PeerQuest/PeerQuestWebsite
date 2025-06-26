@@ -31,14 +31,12 @@ class Quest(models.Model):
         ('easy', 'Easy'),
         ('medium', 'Medium'),
         ('hard', 'Hard'),
-        ('expert', 'Expert'),
     ]
 
-    PRIORITY_CHOICES = [
-        ('low', 'Low'),
-        ('medium', 'Medium'),
-        ('high', 'High'),
-        ('urgent', 'Urgent'),
+    XP_REWARD_CHOICES = [
+        (50, '50 XP'),
+        (75, '75 XP'),
+        (150, '150 XP'),
     ]
 
     # Basic quest information
@@ -49,11 +47,10 @@ class Quest(models.Model):
     # Quest metadata
     category = models.ForeignKey(QuestCategory, on_delete=models.PROTECT, default=1)
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, default='easy')
-    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
     
     # Quest rewards and requirements
-    xp_reward = models.PositiveIntegerField(default=100, help_text="XP points awarded upon completion")
+    xp_reward = models.PositiveIntegerField(choices=XP_REWARD_CHOICES, default=50, help_text="XP points awarded upon completion")
     estimated_time = models.PositiveIntegerField(help_text="Estimated time in minutes")
     max_participants = models.PositiveIntegerField(default=1, help_text="Maximum number of participants")
     
