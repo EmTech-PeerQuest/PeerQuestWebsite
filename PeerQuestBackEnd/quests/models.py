@@ -18,13 +18,12 @@ class QuestCategory(models.Model):
 class Quest(models.Model):
     class QuestObjects(models.Manager):
         def get_queryset(self):
-            return super().get_queryset().filter(status='active')
+            return super().get_queryset().filter(status='open')
 
     STATUS_CHOICES = [
-        ('draft', 'Draft'),
-        ('active', 'Active'),
+        ('in-progress', 'In-Progress'),
+        ('open', 'Open'),
         ('completed', 'Completed'),
-        ('archived', 'Archived'),
     ]
 
     DIFFICULTY_CHOICES = [
@@ -47,7 +46,7 @@ class Quest(models.Model):
     # Quest metadata
     category = models.ForeignKey(QuestCategory, on_delete=models.PROTECT, default=1)
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, default='easy')
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='draft')
+    status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='open')
     
     # Quest rewards and requirements
     xp_reward = models.PositiveIntegerField(choices=XP_REWARD_CHOICES, default=50, help_text="XP points awarded upon completion")
@@ -70,8 +69,7 @@ class Quest(models.Model):
     # Timestamps
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
-    start_date = models.DateTimeField(null=True, blank=True)
-    due_date = models.DateTimeField(null=True, blank=True)
+    due_date = models.DateField(null=True, blank=True, help_text="Deadline date for quest completion")
     completed_at = models.DateTimeField(null=True, blank=True)
     
     # Quest content
@@ -113,7 +111,39 @@ class Quest(models.Model):
 
     @property
     def can_accept_participants(self):
-        return self.participant_count < self.max_participants and self.status == 'active'
+        return self.participant_count < self.max_participants and self.status == 'open'
+
+    @property
+    def days_until_deadline(self):
+        """Returns the number of days until the deadline"""
+        if not self.due_date:
+            return None
+        
+        from datetime import date
+        today = date.today()
+        deadline = self.due_date
+        
+        days_diff = (deadline - today).days
+        return days_diff
+
+    @property
+    def deadline_status(self):
+        """Returns a human-readable deadline status"""
+        if not self.due_date:
+            return "No deadline set"
+        
+        days = self.days_until_deadline
+        
+        if days < 0:
+            return f"Overdue by {abs(days)} day{'s' if abs(days) != 1 else ''}"
+        elif days == 0:
+            return "Due today"
+        elif days == 1:
+            return "Due tomorrow"
+        elif days <= 7:
+            return f"Due in {days} days"
+        else:
+            return f"Due in {days} days"
 
 
 class QuestParticipant(models.Model):
