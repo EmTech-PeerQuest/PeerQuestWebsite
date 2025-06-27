@@ -39,10 +39,16 @@ class Quest(models.Model):
         (150, '150 XP'),
     ]
 
+    # Mapping of difficulty to XP rewards
+    DIFFICULTY_XP_MAPPING = {
+        'easy': 50,
+        'medium': 75,
+        'hard': 150,
+    }
+
     # Basic quest information
     title = models.CharField(max_length=200)
     description = models.TextField()
-    short_description = models.CharField(max_length=300, help_text="Brief description for quest cards")
     
     # Quest metadata
     category = models.ForeignKey(QuestCategory, on_delete=models.PROTECT, default=1)
@@ -101,6 +107,10 @@ class Quest(models.Model):
         return f"{self.title} ({self.get_status_display()})"
 
     def save(self, *args, **kwargs):
+        # Automatically set XP reward based on difficulty
+        if self.difficulty in self.DIFFICULTY_XP_MAPPING:
+            self.xp_reward = self.DIFFICULTY_XP_MAPPING[self.difficulty]
+        
         if not self.slug:
             from django.utils.text import slugify
             import uuid
@@ -118,7 +128,7 @@ class Quest(models.Model):
     @property
     def can_accept_participants(self):
         return self.participant_count < self.max_participants and self.status == 'open'
-
+    
     @property
     def days_until_deadline(self):
         """Returns the number of days until the deadline"""
@@ -150,6 +160,111 @@ class Quest(models.Model):
             return f"Due in {days} days"
         else:
             return f"Due in {days} days"
+
+    @property
+    def truncated_description(self):
+        """Returns a truncated version of the description for quest cards"""
+        max_length = 150  # Adjust this to control truncation length
+        if len(self.description) <= max_length:
+            return self.description
+        
+        # Find the last space before the cutoff to avoid cutting words
+        truncated = self.description[:max_length]
+        last_space = truncated.rfind(' ')
+        
+        if last_space > 0:
+            truncated = truncated[:last_space]
+        
+        return truncated + "..."
+
+    def get_truncated_description(self, max_length=150):
+        """
+        Get truncated description with customizable length
+        Args:
+            max_length (int): Maximum characters before truncation
+        Returns:
+            str: Truncated description with ellipsis if needed
+        """
+        if len(self.description) <= max_length:
+            return self.description
+        
+        # Find the last space before the cutoff to avoid cutting words
+        truncated = self.description[:max_length]
+        last_space = truncated.rfind(' ')
+        
+        if last_space > 0:
+            truncated = truncated[:last_space]
+        
+        return truncated + "..."
+
+    @property
+    def recommended_xp_for_difficulty(self):
+        """Returns the recommended XP reward for the current difficulty"""
+        return self.DIFFICULTY_XP_MAPPING.get(self.difficulty, 50)
+
+    @classmethod
+    def update_xp_rewards_by_difficulty(cls):
+        """
+        Class method to update existing quests' XP rewards based on their difficulty.
+        This can be used to apply the new difficulty-XP mapping to existing quests.
+        """
+        updated_count = 0
+        for quest in cls.objects.all():
+            if quest.difficulty in cls.DIFFICULTY_XP_MAPPING:
+                expected_xp = cls.DIFFICULTY_XP_MAPPING[quest.difficulty]
+                if quest.xp_reward != expected_xp:
+                    quest.xp_reward = expected_xp
+                    quest.save()
+                    updated_count += 1
+        return updated_count
+
+    def complete_quest(self, completion_reason="Quest completed"):
+        """
+        Complete the quest and automatically award XP to all participants.
+        
+        Args:
+            completion_reason: Reason for quest completion
+            
+        Returns:
+            dict: Summary of completion results
+        """
+        from django.utils import timezone
+        
+        if self.status == 'completed':
+            return {"error": "Quest is already completed"}
+        
+        # Update quest status
+        self.status = 'completed'
+        self.completed_at = timezone.now()
+        self.save()
+        
+        # Get all active participants
+        participants = QuestParticipant.objects.filter(
+            quest=self,
+            status__in=['joined', 'in_progress']
+        )
+        
+        completion_results = []
+        
+        # Complete all participants
+        for participant in participants:
+            participant.status = 'completed'
+            participant.completed_at = timezone.now()
+            participant.save()  # This triggers the XP award signal
+            
+            completion_results.append({
+                "user": participant.user.username,
+                "xp_awarded": self.xp_reward
+            })
+        
+        return {
+            "quest_title": self.title,
+            "completion_reason": completion_reason,
+            "participants_completed": len(completion_results),
+            "xp_per_participant": self.xp_reward,
+            "total_xp_awarded": self.xp_reward * len(completion_results),
+            "participant_results": completion_results
+        }
 
 
 class QuestParticipant(models.Model):

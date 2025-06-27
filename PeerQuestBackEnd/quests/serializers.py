@@ -45,20 +45,39 @@ class QuestSubmissionSerializer(serializers.ModelSerializer):
 
 
 class QuestListSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for quest lists"""
+    """Lightweight serializer for quest lists with truncated description"""
     creator = UserBasicSerializer(read_only=True)
     category = QuestCategorySerializer(read_only=True)
     participant_count = serializers.ReadOnlyField()
     can_accept_participants = serializers.ReadOnlyField()
+    description = serializers.SerializerMethodField()
 
     class Meta:
         model = Quest
         fields = [
-            'id', 'title', 'short_description', 'difficulty',
+            'id', 'title', 'description', 'difficulty',
             'status', 'xp_reward', 'estimated_time', 'max_participants',
             'creator', 'category', 'created_at', 'due_date', 'slug',
             'participant_count', 'can_accept_participants'
         ]
+    
+    def get_description(self, obj):
+        """Return truncated description for quest cards"""
+        if not obj.description:
+            return ""
+        
+        max_length = 150
+        if len(obj.description) <= max_length:
+            return obj.description
+        
+        # Find the last space within the limit to avoid cutting words
+        truncated = obj.description[:max_length]
+        last_space = truncated.rfind(' ')
+        
+        if last_space > 0:
+            truncated = truncated[:last_space]
+        
+        return truncated + "..."
 
 
 class QuestDetailSerializer(serializers.ModelSerializer):
@@ -77,7 +96,7 @@ class QuestDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Quest
         fields = [
-            'id', 'title', 'description', 'short_description', 'category',
+            'id', 'title', 'description', 'category',
             'difficulty', 'status', 'xp_reward', 'estimated_time',
             'max_participants', 'creator', 'participants_detail', 'created_at',
             'updated_at', 'start_date', 'due_date', 'completed_at',
@@ -93,7 +112,7 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Quest
         fields = [
-            'id', 'title', 'description', 'short_description', 'category',
+            'id', 'title', 'description', 'category',
             'difficulty', 'status', 'xp_reward', 'estimated_time',
             'max_participants', 'creator', 'start_date', 'due_date',
             'requirements', 'resources'

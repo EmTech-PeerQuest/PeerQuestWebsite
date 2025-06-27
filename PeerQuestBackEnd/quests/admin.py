@@ -18,15 +18,17 @@ class QuestAdmin(admin.ModelAdmin):
     ]
     list_filter = ['status', 'difficulty', 'category', 'created_at']
     search_fields = ['title', 'description', 'creator__username']
-    readonly_fields = ['slug', 'created_at', 'updated_at', 'participant_count', 'completed_at']
+    readonly_fields = ['slug', 'created_at', 'updated_at', 'participant_count', 'completed_at', 'xp_reward']
     prepopulated_fields = {}  # We handle slug generation in the model
+    actions = ['update_xp_rewards_by_difficulty']
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('title', 'short_description', 'description', 'category')
+            'fields': ('title', 'description', 'category')
         }),
         ('Quest Settings', {
-            'fields': ('difficulty', 'status', 'xp_reward', 'gold_reward', 'estimated_time', 'max_participants')
+            'fields': ('difficulty', 'status', 'xp_reward', 'gold_reward', 'estimated_time', 'max_participants'),
+            'description': 'XP reward is automatically set based on difficulty: Easy=50 XP, Medium=75 XP, Hard=150 XP'
         }),
         ('Creator & Participants', {
             'fields': ('creator', 'participant_count')
@@ -51,6 +53,24 @@ class QuestAdmin(admin.ModelAdmin):
         return obj.deadline_status
     
     deadline_status_display.short_description = 'Deadline Status'
+
+    def update_xp_rewards_by_difficulty(self, request, queryset):
+        """Admin action to update XP rewards for selected quests based on their difficulty"""
+        updated_count = 0
+        for quest in queryset:
+            if quest.difficulty in Quest.DIFFICULTY_XP_MAPPING:
+                expected_xp = Quest.DIFFICULTY_XP_MAPPING[quest.difficulty]
+                if quest.xp_reward != expected_xp:
+                    quest.xp_reward = expected_xp
+                    quest.save()
+                    updated_count += 1
+        
+        self.message_user(
+            request,
+            f"Successfully updated XP rewards for {updated_count} quest(s) based on their difficulty."
+        )
+    
+    update_xp_rewards_by_difficulty.short_description = "Update XP rewards based on difficulty"
 
 
 @admin.register(QuestParticipant)
