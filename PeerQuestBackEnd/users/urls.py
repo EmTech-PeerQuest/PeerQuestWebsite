@@ -2,7 +2,8 @@ from django.urls import path
 from .views import (
     CurrentUserView,
     UpdateProfileView,         # <-- corrected name
-    PublicProfileView
+    PublicProfileView,
+    RegisterUserView           # <-- added import for registration view
 )
 
 urlpatterns = [
@@ -12,4 +13,7 @@ urlpatterns = [
 
     # Public profile view by username
     path('profile/<str:username>/', PublicProfileView.as_view(), name='public-profile'),
+
+    # Registration endpoint
+    path('register/', RegisterUserView.as_view(), name='user-register'),
 ]

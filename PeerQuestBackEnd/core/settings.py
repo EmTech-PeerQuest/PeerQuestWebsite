@@ -17,7 +17,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'drf_yasg',
     'channels',
-    'channels_redis',  # For WebSocket support
     'messaging',
     'xp',
 
@@ -36,9 +35,9 @@ INSTALLED_APPS = [
 
 # Middleware
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -129,6 +128,7 @@ REST_FRAMEWORK = {
 
 
 # CORS
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -150,4 +150,9 @@ DJRESTAUTH_TOKEN_MODEL = None
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Channels settings
-ASGI_APPLICATION = 'PeerQuestBackend.core.asgi.application'
+ASGI_APPLICATION = 'core.asgi.application'
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    }
+}

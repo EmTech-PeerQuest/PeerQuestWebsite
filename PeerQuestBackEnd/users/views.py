@@ -22,14 +22,23 @@ class UpdateProfileView(generics.UpdateAPIView):
     """
     Allows user to update their username or avatar.
     """
+    permission_classes = [permissions.IsAuthenticated]
+
     queryset = NewUser.objects.all()
     serializer_class = UpdateProfileSerializer
-    permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
         return self.request.user
 
 class PublicProfileView(generics.RetrieveAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
     queryset = NewUser.objects.all()
     serializer_class = PublicUserSerializer
     lookup_field = 'username'
+
+class RegisterUserView(generics.CreateAPIView):
+    permission_classes = [permissions.AllowAny]
+
+    queryset = NewUser.objects.all()
+    serializer_class = CustomUserSerializer

@@ -37,10 +37,41 @@ interface Conversation {
   unread_count: number
 }
 
+const TEST_CONVERSATION_ID = 1; // Change this to a valid conversation ID in your DB
+
+// CORS fix: Make sure to set credentials true in axios
+axios.defaults.withCredentials = true;
+
+// Hardcoded users for testing (add required fields)
+const HARDCODED_USERS: User[] = [
+  { id: 1, username: 'Alice', email: 'alice@example.com', level: 5 },
+  { id: 2, username: 'Bob', email: 'bob@example.com', level: 3 },
+  { id: 3, username: 'Charlie', email: 'charlie@example.com', level: 2 },
+];
+
+// Hardcoded conversations for testing
+const HARDCODED_CONVERSATIONS: Conversation[] = [
+  {
+    id: 1,
+    participants: [HARDCODED_USERS[0], HARDCODED_USERS[1]],
+    last_message: 'Hey Bob!',
+    last_message_date: '2025-06-27T10:00:00Z',
+    unread_count: 0,
+  },
+  {
+    id: 2,
+    participants: [HARDCODED_USERS[0], HARDCODED_USERS[2]],
+    last_message: 'Hi Charlie!',
+    last_message_date: '2025-06-27T09:00:00Z',
+    unread_count: 1,
+  },
+];
+
 export function MessagingSystem({ currentUser: initialUser, showToast }: MessagingSystemProps) {
-  const [currentUser, setCurrentUser] = useState<User | null>(initialUser)
-  const [conversations, setConversations] = useState<Conversation[]>([])
-  const [activeConversation, setActiveConversation] = useState<number | null>(null)
+  // Use hardcoded users and conversations for testing
+  const [currentUser, setCurrentUser] = useState<User | null>(HARDCODED_USERS[0])
+  const [conversations, setConversations] = useState<Conversation[]>(HARDCODED_CONVERSATIONS)
+  const [activeConversation, setActiveConversation] = useState<number | null>(TEST_CONVERSATION_ID)
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
   const [searchQuery, setSearchQuery] = useState("")

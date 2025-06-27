@@ -1,9 +1,13 @@
-# from django.utils import timezone
+from django.utils import timezone
 # from notifications.models import Notification
-# # from user_achievements.models import UserAchievement
+# from user_achievements.models import UserAchievement
 
-# def calculate_level(xp):
-#     return int((xp ** 0.5) // 2 + 1)
+def calculate_level(xp):
+    return int((xp ** 0.5) // 2 + 1)
+
+async def award_xp(user, amount=10, reason=""):
+    # Minimal stub for XP awarding, safe for async call from consumers
+    pass
 
 # async def award_xp(user, amount=10, reason=""):
 #     user.experience_points += amount
