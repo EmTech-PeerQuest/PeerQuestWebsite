@@ -8,7 +8,9 @@ from django.contrib.auth import get_user_model
 # PeerQuestBackEnd/messaging/consumers.py
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.room_group_name = "global_chat"  # Can be dynamic later
+        # Use room_name from the URL for per-room chat
+        self.room_name = self.scope['url_route']['kwargs']['room_name']
+        self.room_group_name = f"chat_{self.room_name}"
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
@@ -23,24 +25,27 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def receive(self, text_data):
         data = json.loads(text_data)
-        sender_id = data['sender_id']
-        recipient_id = data['recipient_id']
-        content = data['content']
+        sender_id = data.get('sender_id') or data.get('sender')
+        recipient_id = data.get('recipient_id')
+        content = data.get('content') or data.get('message')
 
-        # Save message to DB
-        message = Message.objects.create(
-            sender_id=sender_id,
-            recipient_id=recipient_id,
-            content=content,
-            sent_at=timezone.now()
-        )
+        # Save message to DB if all info is present
+        if sender_id and recipient_id and content:
+            message = Message.objects.create(
+                sender_id=sender_id,
+                recipient_id=recipient_id,
+                content=content,
+                sent_at=timezone.now()
+            )
+            # Award XP (imported from xp/utils.py)
+            User = get_user_model()
+            sender = User.objects.get(id=sender_id)
+            await award_xp(sender, amount=10, reason='Chat message')
+            sent_at = str(message.sent_at)
+        else:
+            sent_at = str(timezone.now())
 
-        # Award XP (imported from xp/utils.py)
-        User = get_user_model()
-        sender = User.objects.get(id=sender_id)
-        await award_xp(sender, amount=10, reason='Chat message')
-
-        # Broadcast to everyone (or only recipient if private)
+        # Broadcast to everyone in the room
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -49,7 +54,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     'sender_id': sender_id,
                     'recipient_id': recipient_id,
                     'content': content,
-                    'sent_at': str(message.sent_at),
+                    'sent_at': sent_at,
                 }
             }
         )

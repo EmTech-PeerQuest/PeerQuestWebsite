@@ -11,6 +11,8 @@ pip install django-oauth-toolkit
 pip install drf-social-oauth2
 pip install google-auth
 pip install Pillow
+pip install channels
+pip install channels_redis
 py manage.py runserver
 
 

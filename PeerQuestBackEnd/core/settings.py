@@ -19,7 +19,7 @@ INSTALLED_APPS = [
     'channels',
     'channels_redis',  # For WebSocket support
     'messaging',
-    'xp'
+    'xp',
 
     # Your apps
     'users',

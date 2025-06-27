@@ -162,5 +162,105 @@ export function MessagingSystem({ currentUser: initialUser, showToast }: Messagi
     )
   }
 
-  return <div className="text-center text-gray-500">Messaging UI here</div>
+  // Basic WebSocket chat UI example
+  // NOTE: Replace 'ws://localhost:8000/ws/chat/general/' with your actual backend WebSocket URL
+  const [ws, setWs] = useState<WebSocket | null>(null)
+
+  useEffect(() => {
+    if (activeConversation === null) return
+    // Example: use conversation id as room name
+    const socket = new WebSocket(`ws://localhost:8000/ws/chat/${activeConversation}/`)
+    setWs(socket)
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data)
+      setMessages((prev) => [...prev, data])
+    }
+    socket.onclose = () => {
+      setWs(null)
+    }
+    return () => {
+      socket.close()
+    }
+  }, [activeConversation])
+
+  const handleWebSocketSend = () => {
+    if (ws && newMessage.trim()) {
+      ws.send(JSON.stringify({
+        message: newMessage,
+        sender: currentUser.id,
+        conversation: activeConversation
+      }))
+      setNewMessage("")
+    }
+  }
+
+  return (
+    <div className="flex h-[600px] border rounded-lg overflow-hidden">
+      {/* Conversation List */}
+      <div className="w-1/3 border-r bg-[#F4F0E6] p-4 overflow-y-auto">
+        <input
+          type="text"
+          placeholder="Search..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          className="w-full mb-4 px-2 py-1 border rounded"
+        />
+        <ul>
+          {filteredConversations.map(convo => {
+            const other = getOtherParticipant(convo)
+            return (
+              <li
+                key={convo.id}
+                className={`p-2 rounded cursor-pointer mb-2 ${activeConversation === convo.id ? 'bg-[#CDAA7D] text-white' : 'hover:bg-[#e5d6c2]'}`}
+                onClick={() => handleConversationSelect(convo.id)}
+              >
+                <div className="font-bold">{other?.username || 'Unknown'}</div>
+                <div className="text-xs text-gray-500">{convo.last_message}</div>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+      {/* Chat Area */}
+      <div className="flex-1 flex flex-col bg-white">
+        {activeConversation === null ? (
+          <div className="flex-1 flex items-center justify-center text-gray-400">
+            Select a conversation to start chatting.
+          </div>
+        ) : (
+          <>
+            <div className="flex-1 p-4 overflow-y-auto">
+              {messages.map((msg, idx) => (
+                <div key={idx} className={`mb-2 flex ${msg.sender.id === currentUser.id ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`px-3 py-2 rounded-lg max-w-xs ${msg.sender.id === currentUser.id ? 'bg-[#8B75AA] text-white' : 'bg-gray-200 text-gray-800'}`}>
+                    <div>{msg.content}</div>
+                    <div className="text-xs mt-1 opacity-70">{formatTime(msg.created_at)}</div>
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+            <div className="p-4 border-t flex gap-2">
+              <input
+                type="text"
+                value={newMessage}
+                onChange={e => setNewMessage(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleWebSocketSend() }}
+                placeholder="Type a message..."
+                className="flex-1 px-3 py-2 border rounded"
+              />
+              <button
+                onClick={handleWebSocketSend}
+                className="px-4 py-2 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699]"
+                disabled={!newMessage.trim() || !ws}
+              >
+                <Send size={18} />
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
 }
