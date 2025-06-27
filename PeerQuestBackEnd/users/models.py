@@ -3,7 +3,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 import uuid
 
-class NewUser(AbstractUser):
+class User(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     avatar_url = models.URLField(max_length=255, blank=True, null=True)
     bio = models.TextField(blank=True)
@@ -46,7 +46,7 @@ class UserSkill(models.Model):
         EXPERT = 'expert', _('Expert')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(NewUser, on_delete=models.CASCADE, related_name='skills')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='skills')
     skill_name = models.CharField(max_length=50)
     skill_category = models.CharField(max_length=50, blank=True)
     proficiency_level = models.CharField(max_length=12, choices=ProficiencyLevel.choices)
@@ -66,7 +66,7 @@ class UserAchievement(models.Model):
         LEGENDARY = 'legendary', _('Legendary')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(NewUser, on_delete=models.CASCADE, related_name='achievements')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='achievements')
     achievement_type = models.CharField(max_length=50)
     achievement_name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
