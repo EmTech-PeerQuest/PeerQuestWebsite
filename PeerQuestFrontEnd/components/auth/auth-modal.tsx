@@ -8,18 +8,19 @@ interface AuthModalProps {
   mode: "login" | "register" | "forgot"
   setMode: (mode: "login" | "register" | "forgot") => void
   onClose: () => void
-  onLogin: (credentials: { email: string; password: string }) => void
+  onLogin: (credentials: { username: string; password: string }) => void
   onRegister: (userData: { username: string; email: string; password: string; confirmPassword: string }) => void
   onForgotPassword?: (email: string) => void
 }
 
 export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister, onForgotPassword }: AuthModalProps) {
-  const [showPassword, setShowPassword] = useState(false)
+  const [showLoginPassword, setShowLoginPassword] = useState(false)
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
   const [loginForm, setLoginForm] = useState({
-    email: "",
+    username: "",
     password: "",
     rememberMe: false,
   })
@@ -56,10 +57,10 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   const validateLoginForm = () => {
     const errors: Record<string, string> = {}
 
-    if (!loginForm.email) {
-      errors.email = "Email is required"
-    } else if (!validateEmail(loginForm.email)) {
-      errors.email = "Please enter a valid email"
+    if (!loginForm.username) {
+      errors.username = "Username is required"
+    } else if (loginForm.username.length < 3) {
+      errors.username = "Username must be at least 3 characters"
     }
 
     if (!loginForm.password) {
@@ -123,7 +124,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   const handleLogin = () => {
     if (validateLoginForm()) {
       onLogin({
-        email: loginForm.email,
+        username: loginForm.username, // send as username for JWT
         password: loginForm.password,
       })
     }
@@ -250,36 +251,42 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           {mode === "login" && (
             <>
               <div>
-                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">EMAIL</label>
+                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">USERNAME</label>
                 <input
-                  type="email"
+                  type="text"
                   className={`w-full px-3 py-2 border ${
-                    formErrors.email ? "border-red-500" : "border-[#CDAA7D]"
+                    formErrors.username ? "border-red-500" : "border-[#CDAA7D]"
                   } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                  placeholder="ENTER YOUR EMAIL"
-                  value={loginForm.email}
-                  onChange={(e) => setLoginForm((prev) => ({ ...prev, email: e.target.value }))}
+                  placeholder="ENTER YOUR USERNAME"
+                  value={loginForm.username}
+                  onChange={(e) => setLoginForm((prev) => ({ ...prev, username: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleLogin()
+                  }}
                 />
-                {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
+                {formErrors.username && <p className="text-red-500 text-xs mt-1">{formErrors.username}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-[#2C1A1D] mb-2">PASSWORD</label>
                 <div className="relative">
                   <input
-                    type={showPassword ? "text" : "password"}
+                    type={showLoginPassword ? "text" : "password"}
                     className={`w-full px-3 py-2 border ${
                       formErrors.password ? "border-red-500" : "border-[#CDAA7D]"
                     } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
                     placeholder="••••••••"
                     value={loginForm.password}
                     onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleLogin()
+                    }}
                   />
                   <button
                     type="button"
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#8B75AA]"
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => setShowLoginPassword(!showLoginPassword)}
                   >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
                 {formErrors.password && <p className="text-red-500 text-xs mt-1">{formErrors.password}</p>}
@@ -314,7 +321,14 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                 </button>
               </div>
               <div className="text-center text-[#8B75AA] text-sm">OR LOGIN WITH</div>
-              <button className="w-full border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors flex items-center justify-center gap-2">
+              <button
+                className="w-full border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors flex items-center justify-center gap-2 mt-2"
+                onClick={() => {
+                  // You may want to implement Google login logic here
+                  window.location.href = "/api/auth/google";
+                }}
+                type="button"
+              >
                 <span className="text-lg">G</span>
                 CONTINUE WITH GOOGLE
               </button>
@@ -333,6 +347,9 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                   placeholder="CHOOSE A USERNAME"
                   value={registerForm.username}
                   onChange={(e) => setRegisterForm((prev) => ({ ...prev, username: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleRegister()
+                  }}
                 />
                 {formErrors.username && <p className="text-red-500 text-xs mt-1">{formErrors.username}</p>}
               </div>
@@ -347,6 +364,9 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                   placeholder="ENTER YOUR EMAIL"
                   value={registerForm.email}
                   onChange={(e) => setRegisterForm((prev) => ({ ...prev, email: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleRegister()
+                  }}
                 />
                 {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
               </div>
@@ -355,25 +375,27 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                 <label className="block text-sm font-medium text-[#2C1A1D] mb-2">PASSWORD</label>
                 <div className="relative">
                   <input
-                    type={showPassword ? "text" : "password"}
+                    type={showRegisterPassword ? "text" : "password"}
                     className={`w-full px-3 py-2 border ${
                       formErrors.password ? "border-red-500" : "border-[#CDAA7D]"
                     } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
                     placeholder="CREATE A PASSWORD"
                     value={registerForm.password}
                     onChange={(e) => setRegisterForm((prev) => ({ ...prev, password: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRegister()
+                    }}
                   />
                   <button
                     type="button"
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#8B75AA]"
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => setShowRegisterPassword(!showRegisterPassword)}
                   >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showRegisterPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
                 {formErrors.password && <p className="text-red-500 text-xs mt-1">{formErrors.password}</p>}
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-[#2C1A1D] mb-2">CONFIRM PASSWORD</label>
                 <div className="relative">
@@ -385,6 +407,9 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     placeholder="CONFIRM YOUR PASSWORD"
                     value={registerForm.confirmPassword}
                     onChange={(e) => setRegisterForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRegister()
+                    }}
                   />
                   <button
                     type="button"
@@ -502,14 +527,9 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
               <button
                 onClick={handleRegister}
                 className="w-full bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
+                type="button"
               >
                 REGISTER
-              </button>
-
-              <div className="text-center text-[#8B75AA] text-sm">OR REGISTER WITH</div>
-              <button className="w-full border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors flex items-center justify-center gap-2">
-                <span className="text-lg">G</span>
-                CONTINUE WITH GOOGLE
               </button>
             </>
           )}

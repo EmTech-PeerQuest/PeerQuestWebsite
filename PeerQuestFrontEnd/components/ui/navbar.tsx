@@ -190,7 +190,9 @@ export function Navbar({
                     className="flex items-center focus:outline-none"
                   >
                     <div className="w-8 h-8 bg-[#8B75AA] rounded-full flex items-center justify-center text-white">
-                      {currentUser.avatar}
+                      {currentUser.avatar
+                        ? currentUser.avatar
+                        : currentUser.username?.[0]?.toUpperCase() || "H"}
                     </div>
                   </button>
 

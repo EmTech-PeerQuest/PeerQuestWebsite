@@ -1,31 +1,12 @@
-# users/serializers.py
-
 from rest_framework import serializers
-from .models import NewUser
+from .models import User
 
-
-class CustomUserSerializer(serializers.ModelSerializer):
+class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
-        model = NewUser
+        model = User
         fields = [
-            'id',
-            'email',
-            'username',
-            'avatar',
-            'xp',
-            'level',
-            'is_staff',
-            'date_joined',
+            "id", "username", "email", "avatar_url", "bio",
+            "level", "experience_points", "gold_balance",
+            "preferred_language", "timezone", "notification_preferences", "privacy_settings"
         ]
-        read_only_fields = ['id', 'xp', 'level', 'is_staff', 'date_joined']
-
-
-class UpdateProfileSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = NewUser
-        fields = ['username', 'avatar']
-
-class PublicUserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = NewUser
-        fields = ['username', 'avatar', 'xp', 'level']
+        read_only_fields = ["id", "email", "level", "experience_points", "gold_balance"]

@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -19,16 +20,12 @@ INSTALLED_APPS = [
 
     # Your apps
     'users',
-    'quests',
-    'guilds',
-    'messaging',
-    'notifications',
-    'applications',
-    'xp',
 
     # DRF and tools
     'rest_framework',
     'corsheaders',
+
+    'django_filters',
 ]
 
 # Middleware
@@ -101,30 +98,66 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Custom User Model
-AUTH_USER_MODEL = 'users.NewUser'
-
-# Standard Django Authentication
+# Authentication backends
 AUTHENTICATION_BACKENDS = (
-    'django.contrib.auth.backends.ModelBackend',  # Default Django authentication
+    'django.contrib.auth.backends.ModelBackend',              # Default Django
 )
 
 # DRF Settings - Session Authentication only
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework.authentication.SessionAuthentication',
-    ),
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.AllowAny",  # Or IsAuthenticated for protected endpoints
+    ],
+}
+
+AUTH_USER_MODEL = "users.user"
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'UPDATE_LAST_LOGIN': True,
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
 }
 
 
 # CORS
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'X-Requested-With',
+]
+CORS_EXPOSE_HEADERS = [
+    'Content-Type',
+    'X-CSRFToken',
+]
+
+# Add CORS_ALLOW_ALL_ORIGINS = False for explicitness
+CORS_ALLOW_ALL_ORIGINS = False
+
+# Optional: disable token model warnings
+DJRESTAUTH_TOKEN_MODEL = None
 
 # Default primary key type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Add CSRF trusted origins for frontend
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+# Session cookie settings for cross-origin authentication
+SESSION_COOKIE_SAMESITE = "Lax"  # Use "None" if using HTTPS and cross-site
+SESSION_COOKIE_SECURE = False     # Set to True if using HTTPS
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = False
