@@ -126,11 +126,14 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   const handleLogin = async () => {
     if (validateLoginForm()) {
       setAuthLoading(true)
+      setFormErrors({})
       try {
         await onLogin({
           username: loginForm.username,
           password: loginForm.password,
         })
+      } catch (err: any) {
+        setFormErrors({ auth: err?.message || "Login failed. Please try again." })
       } finally {
         setAuthLoading(false)
       }
@@ -140,6 +143,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   const handleRegister = async () => {
     if (validateRegisterForm()) {
       setAuthLoading(true)
+      setFormErrors({})
       try {
         await onRegister({
           username: registerForm.username,
@@ -147,6 +151,59 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           password: registerForm.password,
           confirmPassword: registerForm.confirmPassword,
         })
+      } catch (err: any) {
+        // Robust error handling for duplicate registration
+        let msg = err?.message || "Registration failed. Please try again.";
+        // Helper to recursively extract all string messages from any value, including arrays of objects
+        function extractMessages(val: any): string[] {
+          if (!val) return [];
+          if (typeof val === 'string') return [val];
+          if (Array.isArray(val)) return val.flatMap(extractMessages);
+          if (typeof val === 'object') {
+            // If object has only string values, return them
+            let strings: string[] = [];
+            for (const v of Object.values(val)) {
+              strings = strings.concat(extractMessages(v));
+            }
+            return strings;
+          }
+          return [];
+        }
+        if (err?.response?.data && typeof err.response.data === 'object') {
+          const errorObj = err.response.data;
+          console.log('Registration error object:', errorObj); // Debug: log backend error
+          // Username duplicate
+          const usernameErr = errorObj.username;
+          if (
+            (Array.isArray(usernameErr) && usernameErr.some((m: any) => typeof m === 'string' && m.toLowerCase().includes('already')))
+            || (typeof usernameErr === 'string' && usernameErr.toLowerCase().includes('already'))
+            || (typeof usernameErr === 'object' && JSON.stringify(usernameErr).toLowerCase().includes('already'))
+          ) {
+            setFormErrors({ auth: "That username is already taken. Please choose another." });
+            return;
+          }
+          // Email duplicate
+          const emailErr = errorObj.email;
+          if (
+            (Array.isArray(emailErr) && emailErr.some((m: any) => typeof m === 'string' && m.toLowerCase().includes('already')))
+            || (typeof emailErr === 'string' && emailErr.toLowerCase().includes('already'))
+            || (typeof emailErr === 'object' && JSON.stringify(emailErr).toLowerCase().includes('already'))
+          ) {
+            setFormErrors({ auth: "That email is already registered. Please use another or log in." });
+            return;
+          }
+          // Recursively extract all string messages from errorObj, including nested arrays/objects
+          const allMessages = extractMessages(errorObj);
+          setFormErrors({ auth: allMessages.length ? allMessages.join('\n') : msg });
+          return;
+        }
+        if (typeof msg === 'string' && msg.toLowerCase().includes("username") && msg.toLowerCase().includes("already")) {
+          setFormErrors({ auth: "That username is already taken. Please choose another." });
+        } else if (typeof msg === 'string' && msg.toLowerCase().includes("email") && msg.toLowerCase().includes("already")) {
+          setFormErrors({ auth: "That email is already registered. Please use another or log in." });
+        } else {
+          setFormErrors({ auth: typeof msg === 'string' && msg ? msg : 'Registration failed. Please try again.' });
+        }
       } finally {
         setAuthLoading(false)
       }
@@ -275,7 +332,15 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
             {formErrors.auth && (
               <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded flex items-center">
                 <AlertCircle size={16} className="mr-2" />
-                <span>{formErrors.auth}</span>
+                {formErrors.auth.includes('\n') ? (
+                  <ul className="list-disc pl-4">
+                    {formErrors.auth.split('\n').map((line, idx) => (
+                      <li key={idx}>{line}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <span>{formErrors.auth}</span>
+                )}
               </div>
             )}
 
