@@ -1,7 +1,9 @@
 'use client';
 import { createContext, useContext, useEffect, useState } from 'react';
-import { login as apiLogin, register as apiRegister, fetchUser as fetchUserApi, logout as apiLogout } from '@/lib/api/auth';
+import { login as apiLogin, register as apiRegister, fetchUser as fetchUserApi, logout as apiLogout, TokenInvalidError } from '@/lib/api/auth';
 import { useRouter } from 'next/navigation';
+import ThemedLoading from '@/components/ui/themed-loading';
+import { toast } from '@/hooks/use-toast';
 
 interface User {
   id: string;
@@ -41,8 +43,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(res.data);
       localStorage.setItem('user', JSON.stringify(res.data));
     } catch (err) {
-      setUser(null);
-      localStorage.removeItem('user');
+      if (err instanceof TokenInvalidError) {
+        // Token invalid/expired: auto-logout and notify
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('user');
+        setUser(null);
+        toast({
+          title: 'Session expired',
+          description: 'Your session has expired. Please log in again.',
+          variant: 'destructive',
+        });
+        router.push('/');
+      } else {
+        setUser(null);
+        localStorage.removeItem('user');
+      }
     } finally {
       setLoading(false);
     }
@@ -56,13 +71,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const register = async (data: { username: string; email: string; password: string; confirmPassword?: string }) => {
-    await apiRegister(data);
     // Optionally auto-login after register
     await login({ username: data.username, password: data.password });
   };
 
   const logout = () => {
     localStorage.removeItem('access_token');
+    localStorage.removeItem('user');
     setUser(null);
     router.push('/');
   };
@@ -78,7 +93,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <AuthContext.Provider value={{ user, login, register, logout }}>
-      {loading ? <div className="min-h-screen flex items-center justify-center">Loading...</div> : children}
+      {loading ? <ThemedLoading /> : children}
     </AuthContext.Provider>
   );
 };

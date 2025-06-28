@@ -2,13 +2,21 @@ import axios from "axios";
 
 const API_BASE = "http://localhost:8000";
 
+// Custom error for invalid/expired JWT
+export class TokenInvalidError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TokenInvalidError";
+  }
+}
+
 // JWT login
 export const login = async (username: string, password: string) => {
   try {
     const response = await axios.post(`${API_BASE}/api/token/`, { username, password });
     return response;
   } catch (error: any) {
-    alert('Login API error: ' + (error?.response?.data?.detail || error?.message));
+    // Let other errors bubble up
     throw error;
   }
 };
@@ -29,7 +37,6 @@ export const register = async (userData: {
     });
     return response;
   } catch (error: any) {
-    alert('Register API error: ' + JSON.stringify(error?.response?.data?.errors || error?.response?.data?.detail || error?.response?.data || error?.message));
     throw error;
   }
 };
@@ -42,7 +49,14 @@ export const fetchUser = async (token: string) => {
     });
     return response;
   } catch (error: any) {
-    alert('Fetch user API error: ' + (error?.response?.data?.detail || error?.message));
+    // Detect JWT errors
+    const detail = error?.response?.data?.detail || "";
+    if (
+      error?.response?.status === 401 &&
+      (detail.includes("token not valid") || detail.includes("token has expired") || detail.includes("credentials were not provided"))
+    ) {
+      throw new TokenInvalidError(detail || "Token not valid");
+    }
     throw error;
   }
 };

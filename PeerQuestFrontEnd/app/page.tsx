@@ -16,6 +16,8 @@ import { AuthModal } from '@/components/auth/auth-modal';
 import { Settings } from '@/components/settings/settings';
 import { useRouter } from 'next/navigation';
 import Profile from './profile/page';
+import Spinner from '@/components/ui/spinner';
+import LoadingModal from '@/components/ui/loading-modal';
 
 import type { User, Quest, Guild, GuildApplication } from "@/lib/types"
 import { fetchInitialData } from '@/lib/api/init-data'
@@ -31,6 +33,13 @@ export default function Home() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login');
   const router = useRouter();
+
+  // Ensure home section is shown after logout
+  useEffect(() => {
+    if (!currentUser) {
+      setActiveSection("home");
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     let isMounted = true;
@@ -67,10 +76,18 @@ export default function Home() {
       }
     }
     setActiveSection(section);
-  }
+  };
+
+  // Memoize data loaded state for each section
+  const questsLoaded = quests.length > 0 || !loading;
+  const guildsLoaded = guilds.length > 0 || !loading;
+
+  // Only show loading modal for initial data load (not after login/register)
+  const showInitialLoading = loading && !currentUser;
 
   return (
     <ToastProvider>
+      {showInitialLoading && <LoadingModal message="Loading your adventure..." />}
       <main className="min-h-screen bg-[#F4F0E6]">
         <Navbar
           currentUser={currentUser}
@@ -85,15 +102,18 @@ export default function Home() {
         {activeSection === "home" && (
           <Hero
             currentUser={currentUser}
-            openAuthModal={() => {}}
-            openRegisterModal={() => {}}
+            openAuthModal={() => setShowAuthModal(true)}
+            openRegisterModal={() => setActiveSection("about")}
             navigateToSection={setActiveSection}
           />
         )}
 
         {activeSection === "quest-board" && (
-          loading ? (
-            <div className="p-8 text-center text-gray-500">Loading quests...</div>
+          !questsLoaded ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <Spinner />
+              <div className="mt-4 text-[#8B75AA] text-lg font-medium">Loading quests...</div>
+            </div>
           ) : (
             <QuestBoard
               quests={quests}
@@ -107,8 +127,11 @@ export default function Home() {
         )}
 
         {activeSection === "guild-hall" && (
-          loading ? (
-            <div className="p-8 text-center text-gray-500">Loading guilds...</div>
+          !guildsLoaded ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <Spinner />
+              <div className="mt-4 text-[#8B75AA] text-lg font-medium">Loading guilds...</div>
+            </div>
           ) : (
             <GuildHall
               guilds={guilds}
