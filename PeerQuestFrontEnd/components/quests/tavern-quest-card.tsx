@@ -181,26 +181,36 @@ export function TavernQuestCard({
           {/* Deadline */}
           {quest.due_date && (
             <div className="flex items-center gap-2 text-gray-600">
-              <Clock className="w-4 h-4" />
+              <Clock className="w-4 h-4 text-[#8B75AA]" />
               <span className="text-sm">
-                <span className="font-medium">Deadline:</span> {formatDeadline(quest.due_date)}
+                <span className="font-medium text-[#8B75AA]">Deadline:</span> <span className="text-[#8B75AA] font-bold">{formatDeadline(quest.due_date)}</span>
               </span>
             </div>
           )}
           
           {/* Posted by */}
           <div className="flex items-center gap-2 text-gray-600">
-            <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
-              <span className="text-white text-xs font-bold">q</span>
-            </div>
+            {(quest.creator as any).avatar ? (
+              <img 
+                src={(quest.creator as any).avatar} 
+                alt={quest.creator.username}
+                className="w-4 h-4 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-4 h-4 bg-purple-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-[10px] font-bold">
+                  {quest.creator.username.charAt(0).toUpperCase()}
+                </span>
+              </div>
+            )}
             <span className="text-sm">
-              <span className="font-medium">Posted by</span>
+              <span className="font-medium">Posted by</span> {quest.creator.username}
             </span>
           </div>
           
           {/* Applications */}
           <div className="flex items-center gap-2 text-gray-600">
-            <Users className="w-4 h-4" />
+            <Users className="w-4 h-4 text-gray-500" />
             <span className="text-sm">
               <span className="font-medium">{applicationCount} Application{applicationCount !== 1 ? 's' : ''}</span>
             </span>

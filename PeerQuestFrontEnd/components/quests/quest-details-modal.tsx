@@ -51,22 +51,33 @@ export function QuestDetailsModal({
 
     if (!currentUser) return
 
-    if (quest.applicants.some((app) => app.userId === currentUser.id)) {
+    if (quest.participants_detail?.some((p) => p.user.id === currentUser.id)) {
       showToast("You have already applied for this quest", "error")
       return
     }
 
-    const application = {
+    const newParticipant = {
       id: Date.now(),
-      userId: currentUser.id,
-      username: currentUser.username,
-      avatar: currentUser.avatar,
-      appliedAt: new Date(),
-      status: "pending" as const,
-      message: "I'm interested in this quest and believe I have the skills to complete it successfully.",
+      user: {
+        id: typeof currentUser.id === 'string' ? parseInt(currentUser.id) : currentUser.id,
+        username: currentUser.username || '',
+        email: currentUser.email,
+        level: currentUser.level,
+        xp: currentUser.xp
+      },
+      status: "joined" as const,
+      joined_at: new Date().toISOString(),
+      progress_notes: "Applied for this quest"
     }
 
-    setQuests((prev) => prev.map((q) => (q.id === questId ? { ...q, applicants: [...q.applicants, application] } : q)))
+    setQuests((prev) => prev.map((q) => 
+      q.id === questId 
+        ? { 
+            ...q, 
+            participants_detail: [...(q.participants_detail || []), newParticipant]
+          } 
+        : q
+    ))
 
     showToast("Application submitted successfully!")
     onClose()
@@ -81,7 +92,7 @@ export function QuestDetailsModal({
     }
   }
 
-  const isQuestOwner = currentUser && quest.poster.id === currentUser.id
+  const isQuestOwner = currentUser && quest.creator && quest.creator.id === currentUser.id
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -118,22 +129,24 @@ export function QuestDetailsModal({
             {/* Quest Meta Information */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-[#F4F0E6] rounded-lg">
               <div className="flex items-center gap-2 text-sm">
-                {getCategoryIcon(quest.category)}
+                {getCategoryIcon(quest.category.name.toLowerCase())}
                 <span className="font-medium text-[#2C1A1D]">
-                  {quest.category.charAt(0).toUpperCase() + quest.category.slice(1)}
+                  {quest.category.name.charAt(0).toUpperCase() + quest.category.name.slice(1)}
                 </span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <CircleDollarSign size={16} className="text-[#CDAA7D]" />
-                <span className="font-bold text-[#2C1A1D]">{quest.reward} Gold</span>
+                <span className="font-bold text-[#2C1A1D]">300 Gold</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
-                <Star size={16} className="text-[#8B75AA]" />
-                <span className="font-bold text-[#8B75AA]">{quest.xp} XP</span>
+                <div className="w-8 h-8 bg-[#8B75AA] rounded-full flex items-center justify-center">
+                  <Star size={16} className="text-white" />
+                </div>
+                <span className="font-bold text-[#8B75AA]">{quest.xp_reward} XP</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <Clock size={16} className="text-[#8B75AA]" />
-                <span className="font-medium text-[#8B75AA]">{formatTimeRemaining(quest.deadline)}</span>
+                <span className="font-medium text-[#8B75AA]">{quest.due_date ? new Date(quest.due_date).toLocaleDateString() : 'No deadline'}</span>
               </div>
             </div>
 
@@ -144,11 +157,11 @@ export function QuestDetailsModal({
             </div>
 
             {/* Requirements */}
-            {quest.requirements && quest.requirements.length > 0 && (
+            {quest.requirements && Array.isArray(quest.requirements) && quest.requirements.length > 0 && (
               <div>
                 <h4 className="text-lg font-bold mb-3 text-[#2C1A1D] font-serif">Requirements</h4>
                 <ul className="space-y-2">
-                  {quest.requirements.map((req, index) => (
+                  {quest.requirements.map((req: string, index: number) => (
                     <li key={index} className="flex items-start gap-3">
                       <span className="w-2 h-2 bg-[#8B75AA] rounded-full mt-2 flex-shrink-0"></span>
                       <span className="text-[#2C1A1D]">{req}</span>
@@ -163,21 +176,21 @@ export function QuestDetailsModal({
               <h4 className="text-lg font-bold mb-3 text-[#2C1A1D] font-serif">Quest Giver</h4>
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-gradient-to-br from-[#8B75AA] to-[#7A6699] rounded-full flex items-center justify-center text-white text-lg font-bold">
-                  {quest.poster.avatar}
+                  {quest.creator.username.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <div className="font-semibold text-[#2C1A1D] text-lg">{quest.poster.name}</div>
+                  <div className="font-semibold text-[#2C1A1D] text-lg">{quest.creator.username}</div>
                   <div className="text-sm text-[#8B75AA]">Quest Giver</div>
                 </div>
               </div>
             </div>
 
             {/* Applications Count (for quest owner) */}
-            {isQuestOwner && quest.applicants && quest.applicants.length > 0 && (
+            {isQuestOwner && quest.participants_detail && quest.participants_detail.length > 0 && (
               <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
                 <h4 className="text-lg font-bold mb-2 text-blue-800">Applications</h4>
                 <p className="text-blue-700">
-                  {quest.applicants.length} {quest.applicants.length === 1 ? "person has" : "people have"} applied for
+                  {quest.participants_detail.length} {quest.participants_detail.length === 1 ? "person has" : "people have"} applied for
                   this quest.
                 </p>
               </div>
@@ -211,11 +224,11 @@ export function QuestDetailsModal({
               <button
                 onClick={() => applyForQuest(quest.id)}
                 className="px-6 py-2 bg-[#8B75AA] text-white rounded-lg hover:bg-[#7A6699] transition-colors font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!isAuthenticated || quest.applicants.some((app) => app.userId === currentUser?.id)}
+                disabled={!isAuthenticated || quest.participants_detail?.some((p) => p.user.id === currentUser?.id)}
               >
                 {!isAuthenticated
                   ? "Login to Apply"
-                  : quest.applicants.some((app) => app.userId === currentUser?.id)
+                  : quest.participants_detail?.some((p) => p.user.id === currentUser?.id)
                     ? "Already Applied"
                     : "Apply for Quest"}
               </button>

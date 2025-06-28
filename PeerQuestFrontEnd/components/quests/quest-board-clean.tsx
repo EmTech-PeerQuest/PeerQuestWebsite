@@ -4,17 +4,16 @@ import { useState, useEffect } from "react"
 import { Search, Filter, Plus, RefreshCw } from "lucide-react"
 import type { Quest } from "@/lib/types"
 import { QuestAPI, QuestCategory, QuestFilters } from "@/lib/api/quests"
-import QuestCard from "./quest-card"
+import TavernQuestCard from "./tavern-quest-card"
 import QuestForm from "./quest-form"
+import { QuestDetailsModal } from "./quest-details-modal"
 
 interface QuestBoardProps {
   currentUser: any
-  openQuestDetails: (quest: Quest) => void
 }
 
 export function QuestBoard({
   currentUser,
-  openQuestDetails,
 }: QuestBoardProps) {
   const [quests, setQuests] = useState<Quest[]>([])
   const [categories, setCategories] = useState<QuestCategory[]>([])
@@ -22,6 +21,8 @@ export function QuestBoard({
   const [refreshing, setRefreshing] = useState(false)
   const [showQuestForm, setShowQuestForm] = useState(false)
   const [editingQuest, setEditingQuest] = useState<Quest | null>(null)
+  const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null)
+  const [showQuestDetails, setShowQuestDetails] = useState(false)
   
   const [filters, setFilters] = useState<QuestFilters>({
     search: "",
@@ -108,6 +109,16 @@ export function QuestBoard({
     setShowQuestForm(true)
   }
 
+  const handleOpenQuestDetails = (quest: Quest) => {
+    setSelectedQuest(quest)
+    setShowQuestDetails(true)
+  }
+
+  const handleCloseQuestDetails = () => {
+    setSelectedQuest(null)
+    setShowQuestDetails(false)
+  }
+
   const handleFilterChange = (key: keyof QuestFilters, value: string) => {
     setFilters(prev => ({
       ...prev,
@@ -141,9 +152,9 @@ export function QuestBoard({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Quest Board</h1>
-          <p className="text-gray-600 mt-1">
-            Discover and join quests to earn XP and level up
+          <h2 className="text-3xl sm:text-4xl font-bold text-amber-900 font-serif">Quest Board</h2>
+          <p className="text-purple-500 mt-2 font-medium">
+            Discover opportunities to showcase your skills and collaborate
           </p>
         </div>
         
@@ -239,11 +250,11 @@ export function QuestBoard({
       {quests.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {quests.map(quest => (
-            <QuestCard
+            <TavernQuestCard
               key={quest.id}
               quest={quest}
               currentUser={currentUser}
-              onViewDetails={openQuestDetails}
+              onViewDetails={handleOpenQuestDetails}
               onJoinQuest={handleJoinQuest}
               onLeaveQuest={handleLeaveQuest}
               onEditQuest={handleEditQuest}
@@ -282,6 +293,23 @@ export function QuestBoard({
         }}
         onSuccess={handleQuestFormSuccess}
         isEditing={!!editingQuest}
+      />
+
+      {/* Quest Details Modal */}
+      <QuestDetailsModal
+        isOpen={showQuestDetails}
+        onClose={handleCloseQuestDetails}
+        quest={selectedQuest}
+        currentUser={currentUser}
+        isAuthenticated={!!currentUser}
+        setQuests={setQuests}
+        showToast={(message: string, type?: string) => {
+          console.log(`Toast: ${message} (${type})`)
+        }}
+        setAuthModalOpen={(open: boolean) => {
+          console.log('Auth modal:', open)
+        }}
+        openEditQuestModal={handleEditQuest}
       />
     </div>
   )

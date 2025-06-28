@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Navbar } from '@/components/ui/navbar'
 import { Hero } from '@/components/ui/hero'
-import { QuestBoard } from '@/components/quests/quest-board'
+import { QuestBoard } from '@/components/quests/quest-board-clean'
 import { GuildHall } from '@/components/guilds/guild-hall'
 import { About } from "@/components/about"
 import { Footer } from '@/components/ui/footer'
@@ -116,12 +116,7 @@ export default function Home() {
             </div>
           ) : (
             <QuestBoard
-              quests={quests}
               currentUser={currentUser}
-              openQuestDetails={() => {}}
-              openPostQuestModal={() => {}}
-              openApplications={() => {}}
-              openEditQuestModal={() => {}}
             />
           )
         )}
