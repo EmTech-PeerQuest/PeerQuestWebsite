@@ -51,7 +51,7 @@ class Quest(models.Model):
     description = models.TextField()
     
     # Quest metadata
-    category = models.ForeignKey(QuestCategory, on_delete=models.PROTECT, default=1)
+    category = models.ForeignKey(QuestCategory, on_delete=models.PROTECT, default=2)
     difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, default='easy')
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='open')
     

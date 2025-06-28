@@ -54,7 +54,7 @@ class QuestCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     queryset = QuestCategory.objects.all()
     serializer_class = QuestCategorySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # Temporarily allow anonymous access
 
 
 # Main Quest ViewSet with full CRUD
@@ -66,7 +66,7 @@ class QuestViewSet(viewsets.ModelViewSet):
     queryset = Quest.objects.all()
     lookup_field = 'slug'
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['title', 'description', 'short_description']
+    search_fields = ['title', 'description']
     ordering_fields = ['created_at', 'due_date', 'xp_reward', 'difficulty']
     ordering = ['-created_at']
 
@@ -78,10 +78,7 @@ class QuestViewSet(viewsets.ModelViewSet):
         return QuestDetailSerializer
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAuthenticated(), IsQuestCreatorOrReadOnly()]
-        elif self.action in ['join_quest', 'leave_quest', 'my_quests']:
-            return [IsAuthenticated()]
+        # Allow all users to access quests (no authentication required)
         return [AllowAny()]
 
     def get_queryset(self):
@@ -181,7 +178,7 @@ class QuestSearchView(generics.ListAPIView):
     serializer_class = QuestListSerializer
     permission_classes = [AllowAny]
     filter_backends = [filters.SearchFilter]
-    search_fields = ['title', 'description', 'short_description', 'requirements']
+    search_fields = ['title', 'description', 'requirements']
 
     def get_queryset(self):
         queryset = Quest.active_quests.all()
@@ -191,8 +188,7 @@ class QuestSearchView(generics.ListAPIView):
         if search:
             queryset = queryset.filter(
                 Q(title__icontains=search) |
-                Q(description__icontains=search) |
-                Q(short_description__icontains=search)
+                Q(description__icontains=search)
             )
         
         # Filter by available spots

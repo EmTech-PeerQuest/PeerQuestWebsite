@@ -50,6 +50,7 @@ class QuestListSerializer(serializers.ModelSerializer):
     category = QuestCategorySerializer(read_only=True)
     participant_count = serializers.ReadOnlyField()
     can_accept_participants = serializers.ReadOnlyField()
+    is_completed = serializers.ReadOnlyField()
     description = serializers.SerializerMethodField()
 
     class Meta:
@@ -57,8 +58,8 @@ class QuestListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'difficulty',
             'status', 'xp_reward', 'estimated_time', 'max_participants',
-            'creator', 'category', 'created_at', 'due_date', 'slug',
-            'participant_count', 'can_accept_participants'
+            'creator', 'category', 'created_at', 'updated_at', 'due_date', 'slug',
+            'participant_count', 'can_accept_participants', 'is_completed'
         ]
     
     def get_description(self, obj):
@@ -99,7 +100,7 @@ class QuestDetailSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'category',
             'difficulty', 'status', 'xp_reward', 'estimated_time',
             'max_participants', 'creator', 'participants_detail', 'created_at',
-            'updated_at', 'start_date', 'due_date', 'completed_at',
+            'updated_at', 'due_date', 'completed_at',
             'requirements', 'resources', 'slug', 'participant_count',
             'can_accept_participants', 'is_completed'
         ]
@@ -107,16 +108,27 @@ class QuestDetailSerializer(serializers.ModelSerializer):
 
 class QuestCreateUpdateSerializer(serializers.ModelSerializer):
     """Serializer for creating and updating quests"""
-    creator = serializers.HiddenField(default=serializers.CurrentUserDefault())
     
     class Meta:
         model = Quest
         fields = [
             'id', 'title', 'description', 'category',
             'difficulty', 'status', 'xp_reward', 'estimated_time',
-            'max_participants', 'creator', 'start_date', 'due_date',
+            'max_participants', 'due_date',
             'requirements', 'resources'
         ]
+
+    def create(self, validated_data):
+        # Set a default user for quest creation
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+    def create(self, validated_data):
+        # Set a default user for quest creation
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        default_user = User.objects.first()  # Use first user as default
+        validated_data['creator'] = default_user
+        return super().create(validated_data)
 
     def validate_max_participants(self, value):
         if value < 1:
@@ -129,9 +141,10 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, data):
-        if data.get('start_date') and data.get('due_date'):
-            if data['start_date'] >= data['due_date']:
-                raise serializers.ValidationError("Due date must be after start date.")
+        if data.get('due_date'):
+            from datetime import date
+            if data['due_date'] <= date.today():
+                raise serializers.ValidationError("Due date must be in the future.")
         return data
 
 
@@ -175,8 +188,8 @@ class QuestSubmissionCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("You can only submit for your own quest participation.")
         
         # Ensure the quest is active
-        if value.quest.status != 'active':
-            raise serializers.ValidationError("Cannot submit to an inactive quest.")
+        if value.quest.status not in ['open', 'in-progress']:
+            raise serializers.ValidationError("Cannot submit to a quest that is not active.")
         
         return value
 

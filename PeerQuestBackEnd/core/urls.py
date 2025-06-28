@@ -21,9 +21,6 @@ urlpatterns = [
     path('', TemplateView.as_view(template_name="blog/index.html")),
     path('admin/', admin.site.urls),
 
-    # OAuth2 endpoints (Google OAuth2 via drf-social-oauth2)
-    path('auth/', include('drf_social_oauth2.urls', namespace='drf')),
-
     # API endpoints
     path('api/users/', include('users.urls')),
     path('api/quests/', include('quests.urls')),
