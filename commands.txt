@@ -11,7 +11,7 @@ pip install django-oauth-toolkit
 pip install drf-social-oauth2
 pip install google-auth
 pip install Pillow
-pip install django-filters
+pip install django-filter
 pip install djangorestframework-simplejwt
 py manage.py runserver
 
