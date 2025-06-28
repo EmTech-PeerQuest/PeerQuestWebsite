@@ -2,11 +2,21 @@ import { Quest } from '@/lib/types'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
-// Helper function to get headers (no authentication needed)
+// Helper function to get headers with authentication
 const getAuthHeaders = () => {
-  return {
+  const headers: { [key: string]: string } = {
     'Content-Type': 'application/json',
   }
+  
+  // Add authentication token if available
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('access_token')
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+  }
+  
+  return headers
 }
 
 // Types for API responses

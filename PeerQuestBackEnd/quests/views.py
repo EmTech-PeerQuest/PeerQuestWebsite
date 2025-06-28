@@ -78,7 +78,10 @@ class QuestViewSet(viewsets.ModelViewSet):
         return QuestDetailSerializer
 
     def get_permissions(self):
-        # Allow all users to access quests (no authentication required)
+        # Require authentication for creating, updating, and deleting quests
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated()]
+        # Allow all users to view quests
         return [AllowAny()]
 
     def get_queryset(self):

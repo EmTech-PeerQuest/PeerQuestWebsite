@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Search, Filter, Plus, RefreshCw } from "lucide-react"
 import type { Quest } from "@/lib/types"
 import { QuestAPI, QuestCategory, QuestFilters } from "@/lib/api/quests"
-import QuestCard from "./quest-card"
+import TavernQuestCard from "./tavern-quest-card"
 import QuestForm from "./quest-form"
 
 interface QuestBoardProps {
@@ -239,7 +239,7 @@ export function QuestBoard({
       {quests.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {quests.map(quest => (
-            <QuestCard
+            <TavernQuestCard
               key={quest.id}
               quest={quest}
               currentUser={currentUser}

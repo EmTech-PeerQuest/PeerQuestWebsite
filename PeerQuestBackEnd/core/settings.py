@@ -21,10 +21,6 @@ INSTALLED_APPS = [
     # Your apps
     'users',
     'quests',
-    'guilds',
-    'messaging',
-    'notifications',
-    'applications',
     'xp',
 
     # DRF and tools
@@ -140,6 +136,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'X-Requested-With',
+    'Authorization',
 ]
 CORS_EXPOSE_HEADERS = [
     'Content-Type',

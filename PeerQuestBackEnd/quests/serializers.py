@@ -13,6 +13,8 @@ class QuestCategorySerializer(serializers.ModelSerializer):
 
 class UserBasicSerializer(serializers.ModelSerializer):
     """Basic user info for quest displays"""
+    xp = serializers.IntegerField(source='experience_points', read_only=True)
+    
     class Meta:
         model = User
         fields = ['id', 'username', 'email', 'level', 'xp']
@@ -119,15 +121,15 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
-        # Set a default user for quest creation
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-    def create(self, validated_data):
-        # Set a default user for quest creation
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        default_user = User.objects.first()  # Use first user as default
-        validated_data['creator'] = default_user
+        # Set the creator to the current authenticated user
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            validated_data['creator'] = request.user
+        else:
+            # Fallback to first user if no authenticated user (for testing)
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            validated_data['creator'] = User.objects.first()
         return super().create(validated_data)
 
     def validate_max_participants(self, value):
