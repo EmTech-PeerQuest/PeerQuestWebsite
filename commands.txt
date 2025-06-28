@@ -1,19 +1,20 @@
 ////////// Copy-Paste Friendly Setup Commands //////////
-# Backend (Windows, PowerShell):
+
+############ Backend ############
 py -m venv venv
 .\venv\Scripts\activate
 python.exe -m pip install --upgrade pip
 pip install -r requirements.txt
-
-# Database setup (Django):
 py manage.py makemigrations
 py manage.py migrate
 py manage.py createsuperuser  # (optional, for admin access)
 py manage.py runserver
 
-# Frontend:
+############ Frontend ############
 npm install --legacy-peer-deps
 npm run dev
+
+////////// Copy-Paste Friendly Setup Commands //////////
 
 # To add a new Python package:
 pip install <package-name>
@@ -27,13 +28,23 @@ npm install <package-name>
 # Create and activate virtual environment
 py -m venv venv
 .\venv\Scripts\activate
+
 # Upgrade pip and install all dependencies from requirements.txt
 python.exe -m pip install --upgrade pip
 pip install -r requirements.txt
+
 # To add new dependencies, use:
 # pip install <package-name>
+
 # Then update requirements.txt:
 # pip freeze > requirements.txt
+
+# Database setup (Django):
+py manage.py makemigrations
+py manage.py migrate
+py manage.py createsuperuser  # (optional, for admin access)
+py manage.py runserver
+
 # Run the Django server
 py manage.py runserver
 
