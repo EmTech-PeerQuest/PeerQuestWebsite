@@ -12,7 +12,7 @@ py manage.py createsuperuser  # (optional, for admin access)
 py manage.py runserver
 
 # Frontend:
-npm install
+npm install --legacy-peer-deps
 npm run dev
 
 # To add a new Python package:
