@@ -1,10 +1,14 @@
-
 ////////// Copy-Paste Friendly Setup Commands //////////
 # Backend (Windows, PowerShell):
 py -m venv venv
 .\venv\Scripts\activate
 python.exe -m pip install --upgrade pip
 pip install -r requirements.txt
+
+# Database setup (Django):
+py manage.py makemigrations
+py manage.py migrate
+py manage.py createsuperuser  # (optional, for admin access)
 py manage.py runserver
 
 # Frontend:
@@ -49,7 +53,7 @@ npm run dev
 git checkout dev_Esteron
 git add .
 git commit -m "TEXT TEXT"   
-git push -u origin dev_Esteron
+git push -u origin dev_Esteron/AuthProfile
 
 
 
