@@ -12,6 +12,7 @@ interface TavernQuestCardProps {
   onJoinQuest?: (quest: Quest) => void
   onLeaveQuest?: (quest: Quest) => void
   onEditQuest?: (quest: Quest) => void
+  onViewApplications?: (quest: Quest) => void
   showActions?: boolean
 }
 
@@ -22,6 +23,7 @@ export function TavernQuestCard({
   onJoinQuest,
   onLeaveQuest,
   onEditQuest,
+  onViewApplications,
   showActions = true
 }: TavernQuestCardProps) {
   const [isLoading, setIsLoading] = useState(false)
@@ -227,6 +229,16 @@ export function TavernQuestCard({
               <Eye className="w-4 h-4" />
               View Details
             </button>
+            
+            {isCreator && onViewApplications && (
+              <button
+                onClick={() => onViewApplications(quest)}
+                className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-purple-600 rounded hover:bg-purple-700 transition-colors"
+              >
+                <Users className="w-4 h-4" />
+                Apps
+              </button>
+            )}
             
             {isCreator && onEditQuest && (
               <button

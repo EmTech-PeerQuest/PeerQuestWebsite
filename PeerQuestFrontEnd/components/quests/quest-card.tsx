@@ -12,6 +12,7 @@ interface QuestCardProps {
   onJoinQuest?: (quest: Quest) => void
   onLeaveQuest?: (quest: Quest) => void
   onEditQuest?: (quest: Quest) => void
+  onViewApplications?: (quest: Quest) => void
   showActions?: boolean
 }
 
@@ -22,6 +23,7 @@ export function QuestCard({
   onJoinQuest,
   onLeaveQuest,
   onEditQuest,
+  onViewApplications,
   showActions = true
 }: QuestCardProps) {
   const [isLoading, setIsLoading] = useState(false)
@@ -169,10 +171,20 @@ export function QuestCard({
               View Details
             </button>
             
+            {isCreator && onViewApplications && (
+              <button
+                onClick={() => onViewApplications(quest)}
+                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 border border-transparent rounded-md hover:bg-purple-700 transition-colors flex items-center gap-2"
+              >
+                <User className="w-4 h-4" />
+                Apps
+              </button>
+            )}
+            
             {isCreator && onEditQuest && (
               <button
                 onClick={() => onEditQuest(quest)}
-                className="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-white bg-amber-500 border border-transparent rounded-md hover:bg-amber-600 transition-colors"
               >
                 Edit
               </button>

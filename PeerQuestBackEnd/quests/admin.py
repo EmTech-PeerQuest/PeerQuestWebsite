@@ -27,7 +27,7 @@ class QuestAdmin(admin.ModelAdmin):
             'fields': ('title', 'description', 'category')
         }),
         ('Quest Settings', {
-            'fields': ('difficulty', 'status', 'xp_reward', 'gold_reward', 'estimated_time', 'max_participants'),
+            'fields': ('difficulty', 'status', 'xp_reward', 'gold_reward', 'max_participants'),
             'description': 'XP reward is automatically set based on difficulty: Easy=50 XP, Medium=75 XP, Hard=150 XP'
         }),
         ('Creator & Participants', {

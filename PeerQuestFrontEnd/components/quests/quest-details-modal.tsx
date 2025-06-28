@@ -3,6 +3,7 @@
 import { X, CircleDollarSign, Star, Clock, Palette, Code, PenTool } from "lucide-react"
 import type { Quest, User } from "@/lib/types"
 import { formatTimeRemaining, getDifficultyClass } from "@/lib/utils"
+import { QuestAPI } from "@/lib/api/quests"
 
 interface QuestDetailsModalProps {
   isOpen: boolean
@@ -42,7 +43,7 @@ export function QuestDetailsModal({
     }
   }
 
-  const applyForQuest = (questId: number) => {
+  const applyForQuest = async (questId: number) => {
     if (!isAuthenticated) {
       showToast("Please log in to apply for quests", "error")
       setAuthModalOpen(true)
@@ -56,31 +57,40 @@ export function QuestDetailsModal({
       return
     }
 
-    const newParticipant = {
-      id: Date.now(),
-      user: {
-        id: typeof currentUser.id === 'string' ? parseInt(currentUser.id) : currentUser.id,
-        username: currentUser.username || '',
-        email: currentUser.email,
-        level: currentUser.level,
-        xp: currentUser.xp
-      },
-      status: "joined" as const,
-      joined_at: new Date().toISOString(),
-      progress_notes: "Applied for this quest"
+    try {
+      // Use the actual API call
+      await QuestAPI.joinQuest(quest.slug)
+      
+      // Update local state after successful API call
+      const newParticipant = {
+        id: Date.now(),
+        user: {
+          id: typeof currentUser.id === 'string' ? parseInt(currentUser.id) : currentUser.id,
+          username: currentUser.username || '',
+          email: currentUser.email,
+          level: currentUser.level,
+          xp: currentUser.xp
+        },
+        status: "joined" as const,
+        joined_at: new Date().toISOString(),
+        progress_notes: "Applied for this quest"
+      }
+
+      setQuests((prev) => prev.map((q) => 
+        q.id === questId 
+          ? { 
+              ...q, 
+              participants_detail: [...(q.participants_detail || []), newParticipant]
+            } 
+          : q
+      ))
+
+      showToast("Application submitted successfully!")
+      onClose()
+    } catch (error) {
+      console.error('Failed to apply for quest:', error)
+      showToast("Failed to apply for quest. Please try again.", "error")
     }
-
-    setQuests((prev) => prev.map((q) => 
-      q.id === questId 
-        ? { 
-            ...q, 
-            participants_detail: [...(q.participants_detail || []), newParticipant]
-          } 
-        : q
-    ))
-
-    showToast("Application submitted successfully!")
-    onClose()
   }
 
   const handleManageQuest = () => {

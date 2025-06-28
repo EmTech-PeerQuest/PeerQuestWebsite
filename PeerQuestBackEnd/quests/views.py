@@ -87,6 +87,14 @@ class QuestViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Quest.objects.all()
         
+        # Get the search query first
+        search = self.request.query_params.get('search', None)
+        if search:
+            queryset = queryset.filter(
+                Q(title__icontains=search) |
+                Q(description__icontains=search)
+            )
+        
         # Filter by status
         status_filter = self.request.query_params.get('status', None)
         if status_filter:

@@ -109,10 +109,17 @@ export function QuestBoard({
     setShowQuestDetails(false)
   }
 
+  const handleViewApplications = (quest: Quest) => {
+    // For now, just open quest details - can be enhanced later to show applications modal
+    console.log('Viewing applications for quest:', quest.title)
+    setSelectedQuest(quest)
+    setShowQuestDetails(true)
+  }
+
   const handleFilterChange = (key: keyof QuestFilters, value: string) => {
     setFilters(prev => ({
       ...prev,
-      [key]: value === "ALL" || value === "" ? undefined : value.toLowerCase()
+      [key]: value === "ALL" || value === "" ? undefined : value
     }))
   }
 
@@ -240,6 +247,7 @@ export function QuestBoard({
               onJoinQuest={handleJoinQuest}
               onLeaveQuest={handleLeaveQuest}
               onEditQuest={handleEditQuest}
+              onViewApplications={handleViewApplications}
               showActions={true}
             />
           ))}
