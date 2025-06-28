@@ -134,9 +134,9 @@ export function QuestDetailsModal({
                   {quest.category.name.charAt(0).toUpperCase() + quest.category.name.slice(1)}
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <CircleDollarSign size={16} className="text-[#CDAA7D]" />
-                <span className="font-bold text-[#2C1A1D]">300 Gold</span>
+              <div className="flex items-center gap-2 text-sm opacity-40 pointer-events-none select-none">
+                <CircleDollarSign size={16} className="text-gray-400" />
+                <span className="font-bold text-gray-500">Coming Soon</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <div className="w-8 h-8 bg-[#8B75AA] rounded-full flex items-center justify-center">

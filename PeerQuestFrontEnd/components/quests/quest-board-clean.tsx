@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Filter, Plus, RefreshCw } from "lucide-react"
+import { Search, Filter, Edit } from "lucide-react"
 import type { Quest } from "@/lib/types"
 import { QuestAPI, QuestCategory, QuestFilters } from "@/lib/api/quests"
 import TavernQuestCard from "./tavern-quest-card"
@@ -18,7 +18,6 @@ export function QuestBoard({
   const [quests, setQuests] = useState<Quest[]>([])
   const [categories, setCategories] = useState<QuestCategory[]>([])
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
   const [showQuestForm, setShowQuestForm] = useState(false)
   const [editingQuest, setEditingQuest] = useState<Quest | null>(null)
   const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null)
@@ -66,15 +65,6 @@ export function QuestBoard({
       setQuests(questsData.results || questsData)
     } catch (error) {
       console.error('Failed to load quests:', error)
-    }
-  }
-
-  const handleRefresh = async () => {
-    setRefreshing(true)
-    try {
-      await loadQuests()
-    } finally {
-      setRefreshing(false)
     }
   }
 
@@ -159,89 +149,81 @@ export function QuestBoard({
         </div>
         
         <div className="flex gap-3">
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 disabled:opacity-50 transition-colors"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-          
           {currentUser && (
             <button
               onClick={() => {
                 setEditingQuest(null)
                 setShowQuestForm(true)
               }}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-purple-400 border border-transparent rounded-md hover:bg-purple-500 transition-colors"
             >
-              <Plus className="w-4 h-4" />
-              Create Quest
+              <Edit className="w-4 h-4" />
+              Post a Quest
             </button>
           )}
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* Search and Filters */}
+      <div className="bg-white border-2 border-amber-200 rounded-lg p-4">
+        <div className="space-y-4">
           {/* Search */}
-          <div className="lg:col-span-2">
-            <div className="relative">
-              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search quests..."
-                value={filters.search || ""}
-                onChange={(e) => handleFilterChange("search", e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+          <div className="relative">
+            <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search quests by title or description..."
+              value={filters.search || ""}
+              onChange={(e) => handleFilterChange("search", e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900"
+            />
+          </div>
+
+          {/* Filter Dropdowns */}
+          <div className="flex items-center gap-4">
+            {/* Category Filter */}
+            <div className="flex flex-col">
+              <select
+                value={filters.category || ""}
+                onChange={(e) => handleFilterChange("category", e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-sm text-gray-900 min-w-[140px]"
+              >
+                <option value="">All Categories</option>
+                {categories.map(category => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
 
-          {/* Category Filter */}
-          <div>
-            <select
-              value={filters.category || ""}
-              onChange={(e) => handleFilterChange("category", e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Categories</option>
-              {categories.map(category => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </div>
+            {/* Difficulty Filter */}
+            <div className="flex flex-col">
+              <select
+                value={filters.difficulty || ""}
+                onChange={(e) => handleFilterChange("difficulty", e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-sm text-gray-900 min-w-[140px]"
+              >
+                <option value="">All Difficulties</option>
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+              </select>
+            </div>
 
-          {/* Difficulty Filter */}
-          <div>
-            <select
-              value={filters.difficulty || ""}
-              onChange={(e) => handleFilterChange("difficulty", e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Difficulties</option>
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </select>
-          </div>
-
-          {/* Status Filter */}
-          <div>
-            <select
-              value={filters.status || ""}
-              onChange={(e) => handleFilterChange("status", e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Statuses</option>
-              <option value="open">Open</option>
-              <option value="in-progress">In Progress</option>
-              <option value="completed">Completed</option>
-            </select>
+            {/* Status Filter */}
+            <div className="flex flex-col">
+              <select
+                value={filters.status || ""}
+                onChange={(e) => handleFilterChange("status", e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-sm text-gray-900 min-w-[120px]"
+              >
+                <option value="">All Statuses</option>
+                <option value="open">Open</option>
+                <option value="in-progress">In Progress</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>

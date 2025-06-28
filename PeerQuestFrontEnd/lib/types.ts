@@ -31,7 +31,7 @@ export interface Quest {
   difficulty: 'easy' | 'medium' | 'hard'
   status: 'open' | 'in-progress' | 'completed'
   xp_reward: number
-  estimated_time: number
+  gold_reward?: number
   max_participants: number
   creator: {
     id: number

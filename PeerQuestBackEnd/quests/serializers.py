@@ -59,7 +59,7 @@ class QuestListSerializer(serializers.ModelSerializer):
         model = Quest
         fields = [
             'id', 'title', 'description', 'difficulty',
-            'status', 'xp_reward', 'estimated_time', 'max_participants',
+            'status', 'xp_reward', 'gold_reward', 'max_participants',
             'creator', 'category', 'created_at', 'updated_at', 'due_date', 'slug',
             'participant_count', 'can_accept_participants', 'is_completed'
         ]
@@ -100,7 +100,7 @@ class QuestDetailSerializer(serializers.ModelSerializer):
         model = Quest
         fields = [
             'id', 'title', 'description', 'category',
-            'difficulty', 'status', 'xp_reward', 'estimated_time',
+            'difficulty', 'status', 'xp_reward', 'gold_reward',
             'max_participants', 'creator', 'participants_detail', 'created_at',
             'updated_at', 'due_date', 'completed_at',
             'requirements', 'resources', 'slug', 'participant_count',
@@ -115,7 +115,7 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
         model = Quest
         fields = [
             'id', 'title', 'description', 'category',
-            'difficulty', 'status', 'xp_reward', 'estimated_time',
+            'difficulty', 'status', 'xp_reward', 'gold_reward',
             'max_participants', 'due_date',
             'requirements', 'resources'
         ]
@@ -140,6 +140,13 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
     def validate_xp_reward(self, value):
         if value < 0:
             raise serializers.ValidationError("XP reward cannot be negative.")
+        return value
+
+    def validate_gold_reward(self, value):
+        if value < 0:
+            raise serializers.ValidationError("Gold reward cannot be negative.")
+        if value > 999:
+            raise serializers.ValidationError("Gold reward cannot exceed 999.")
         return value
 
     def validate(self, data):

@@ -126,11 +126,6 @@ export function QuestCard({
             </div>
             
             <div className="flex items-center gap-1">
-              <Clock className="w-4 h-4" />
-              <span>{quest.estimated_time}m</span>
-            </div>
-            
-            <div className="flex items-center gap-1">
               <Users className="w-4 h-4" />
               <span>{quest.participant_count}/{quest.max_participants}</span>
             </div>

@@ -62,7 +62,7 @@ class Quest(models.Model):
         validators=[MinValueValidator(0), MaxValueValidator(999)],
         help_text="Gold coins awarded upon completion (0-999)"
     )
-    estimated_time = models.PositiveIntegerField(help_text="Estimated time in minutes")
+    # estimated_time field removed - no longer needed
     max_participants = models.PositiveIntegerField(default=1, help_text="Maximum number of participants")
     
     # Quest creator and participants

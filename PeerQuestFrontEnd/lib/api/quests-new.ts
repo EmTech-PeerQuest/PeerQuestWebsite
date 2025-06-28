@@ -69,11 +69,11 @@ export interface CreateQuestData {
   description: string
   category: number
   difficulty: 'easy' | 'medium' | 'hard'
-  estimated_time: number
   max_participants: number
   due_date?: string
   requirements?: string
   resources?: string
+  gold_reward?: number
 }
 
 export interface UpdateQuestData extends Partial<CreateQuestData> {

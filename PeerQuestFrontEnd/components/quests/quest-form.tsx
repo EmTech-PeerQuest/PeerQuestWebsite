@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, Calendar, Clock, Users, Star } from "lucide-react"
+import { X, Calendar, Users, Star } from "lucide-react"
 import { Quest } from "@/lib/types"
 import { QuestAPI, QuestCategory, CreateQuestData, UpdateQuestData } from "@/lib/api/quests"
 
@@ -19,13 +19,14 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     description: "",
     category: 1,
     difficulty: "easy" as const,
-    estimated_time: 30,
     max_participants: 1,
     due_date: "",
     requirements: "",
     resources: "",
   })
   
+  const [goldReward, setGoldReward] = useState<number>(0)
+  const [postAs, setPostAs] = useState<'individual' | 'guild'>('individual')
   const [categories, setCategories] = useState<QuestCategory[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -51,12 +52,13 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
         description: quest.description,
         category: quest.category.id,
         difficulty: quest.difficulty,
-        estimated_time: quest.estimated_time,
         max_participants: quest.max_participants,
         due_date: quest.due_date ? quest.due_date.split('T')[0] : "",
         requirements: quest.requirements || "",
         resources: quest.resources || "",
       })
+      setGoldReward(quest.gold_reward || 0)
+      setPostAs('individual') // Default to individual for now since guild functionality isn't implemented
     } else {
       // Reset form for new quest
       setFormData({
@@ -64,12 +66,13 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
         description: "",
         category: categories.length > 0 ? categories[0].id : 1,
         difficulty: "easy",
-        estimated_time: 30,
         max_participants: 1,
         due_date: "",
         requirements: "",
         resources: "",
       })
+      setGoldReward(0)
+      setPostAs('individual')
     }
   }, [isEditing, quest, categories])
 
@@ -83,11 +86,18 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
 
       if (isEditing && quest) {
         // Update existing quest
-        const updateData: UpdateQuestData = { ...formData }
+        const updateData: UpdateQuestData = { 
+          ...formData
+          // gold_reward: goldReward // Disabled for now
+        }
         result = await QuestAPI.updateQuest(quest.slug, updateData)
       } else {
         // Create new quest
-        result = await QuestAPI.createQuest(formData)
+        const createData: CreateQuestData = {
+          ...formData
+          // gold_reward: goldReward // Disabled for now
+        }
+        result = await QuestAPI.createQuest(createData)
       }
 
       onSuccess(result)
@@ -112,7 +122,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'category' || name === 'estimated_time' || name === 'max_participants' 
+      [name]: name === 'category' || name === 'max_participants' 
         ? parseInt(value) 
         : value
     }))
@@ -136,34 +146,44 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">
-              {isEditing ? 'Edit Quest' : 'Create New Quest'}
-            </h2>
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Gradient Header */}
+        <div className="bg-gradient-to-r from-purple-500 to-amber-500 p-6 rounded-t-xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-white">
+                {isEditing ? 'Edit Quest' : 'Post a New Quest'}
+              </h2>
+              <p className="text-white/90 mt-1">
+                Share your quest with the tavern community
+              </p>
+            </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-white/90 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full"
             >
               <X className="w-6 h-6" />
             </button>
           </div>
+        </div>
 
+        <div className="p-6 bg-amber-50">
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* General Error */}
             {errors.general && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <p className="text-sm text-red-600">{errors.general}</p>
               </div>
             )}
 
             {/* Title */}
             <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
-                Quest Title *
+              <label htmlFor="title" className="flex items-center text-sm font-semibold text-amber-800 mb-2">
+                <div className="w-6 h-6 bg-amber-600 rounded-full flex items-center justify-center mr-3">
+                  <span className="text-white text-xs">📝</span>
+                </div>
+                QUEST TITLE
               </label>
               <input
                 type="text"
@@ -171,17 +191,20 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter quest title"
+                className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400"
+                placeholder="Enter a compelling title for your quest"
                 required
               />
-              {errors.title && <p className="mt-1 text-sm text-red-600">{errors.title}</p>}
+              {errors.title && <p className="mt-2 text-sm text-red-600">{errors.title}</p>}
             </div>
 
             {/* Description */}
             <div>
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
-                Description *
+              <label htmlFor="description" className="flex items-center text-sm font-semibold text-amber-800 mb-2">
+                <div className="w-6 h-6 bg-amber-600 rounded-full flex items-center justify-center mr-3">
+                  <span className="text-white text-xs">👥</span>
+                </div>
+                QUEST DESCRIPTION
               </label>
               <textarea
                 id="description"
@@ -189,115 +212,202 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                 value={formData.description}
                 onChange={handleChange}
                 rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Describe what needs to be done..."
+                className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 resize-none"
+                placeholder="Describe your quest in detail. What needs to be done? What are the requirements?"
                 required
               />
-              {errors.description && <p className="mt-1 text-sm text-red-600">{errors.description}</p>}
+              {errors.description && <p className="mt-2 text-sm text-red-600">{errors.description}</p>}
             </div>
 
-            {/* Row 1: Category and Difficulty */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">
-                  Category *
-                </label>
-                <select
-                  id="category"
-                  name="category"
-                  value={formData.category}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
-                  {categories.map(category => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.category && <p className="mt-1 text-sm text-red-600">{errors.category}</p>}
-              </div>
-
-              <div>
-                <label htmlFor="difficulty" className="block text-sm font-medium text-gray-700 mb-2">
-                  Difficulty *
-                </label>
-                <select
-                  id="difficulty"
-                  name="difficulty"
-                  value={formData.difficulty}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
-                  <option value="easy">Easy (50 XP)</option>
-                  <option value="medium">Medium (75 XP)</option>
-                  <option value="hard">Hard (150 XP)</option>
-                </select>
-                {errors.difficulty && <p className="mt-1 text-sm text-red-600">{errors.difficulty}</p>}
-              </div>
-            </div>
-
-            {/* Row 2: Time and Participants */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="estimated_time" className="block text-sm font-medium text-gray-700 mb-2">
-                  <Clock className="w-4 h-4 inline mr-1" />
-                  Estimated Time (minutes) *
-                </label>
-                <input
-                  type="number"
-                  id="estimated_time"
-                  name="estimated_time"
-                  value={formData.estimated_time}
-                  onChange={handleChange}
-                  min="1"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-                {errors.estimated_time && <p className="mt-1 text-sm text-red-600">{errors.estimated_time}</p>}
-              </div>
-
-              <div>
-                <label htmlFor="max_participants" className="block text-sm font-medium text-gray-700 mb-2">
-                  <Users className="w-4 h-4 inline mr-1" />
-                  Max Participants *
-                </label>
-                <input
-                  type="number"
-                  id="max_participants"
-                  name="max_participants"
-                  value={formData.max_participants}
-                  onChange={handleChange}
-                  min="1"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-                {errors.max_participants && <p className="mt-1 text-sm text-red-600">{errors.max_participants}</p>}
-              </div>
-            </div>
-
-            {/* Due Date */}
+            {/* Category */}
             <div>
-              <label htmlFor="due_date" className="block text-sm font-medium text-gray-700 mb-2">
-                <Calendar className="w-4 h-4 inline mr-1" />
-                Due Date (optional)
+              <label htmlFor="category" className="block text-sm font-semibold text-amber-800 mb-2">
+                CATEGORY
+              </label>
+              <select
+                id="category"
+                name="category"
+                value={formData.category}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900"
+                required
+              >
+                <option value="">Select Category</option>
+                {categories.map(category => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+              {errors.category && <p className="mt-2 text-sm text-red-600">{errors.category}</p>}
+            </div>
+
+            {/* Difficulty Level */}
+            <div>
+              <label className="block text-sm font-semibold text-amber-800 mb-2">
+                DIFFICULTY LEVEL
+              </label>
+              <div className="space-y-3">
+                <input
+                  type="range"
+                  min="0"
+                  max="2"
+                  value={formData.difficulty === 'easy' ? 0 : formData.difficulty === 'medium' ? 1 : 2}
+                  onChange={(e) => {
+                    const difficultyMap = ['easy', 'medium', 'hard']
+                    setFormData(prev => ({ ...prev, difficulty: difficultyMap[parseInt(e.target.value)] as 'easy' | 'medium' | 'hard' }))
+                  }}
+                  className="w-full h-2 bg-gradient-to-r from-green-400 via-orange-400 to-red-500 rounded-lg appearance-none cursor-pointer slider"
+                  style={{
+                    background: 'linear-gradient(to right, #22c55e, #fbbf24, #ef4444)',
+                  }}
+                />
+                <div className={`text-white px-4 py-3 rounded-lg ${
+                  formData.difficulty === 'easy' ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                  formData.difficulty === 'medium' ? 'bg-gradient-to-r from-yellow-400 to-orange-500' :
+                  'bg-gradient-to-r from-red-500 to-red-600'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold uppercase">
+                      {formData.difficulty}
+                    </span>
+                    <span className="font-bold">
+                      {getXPReward(formData.difficulty)} XP
+                    </span>
+                  </div>
+                  <p className="text-sm opacity-90 mt-1">
+                    {formData.difficulty === 'easy' && 'Perfect for beginners'}
+                    {formData.difficulty === 'medium' && 'Moderate challenge'}
+                    {formData.difficulty === 'hard' && 'Expert level required'}
+                    {' '}Reward
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Deadline and Gold Reward */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label htmlFor="due_date" className="flex items-center text-sm font-semibold text-amber-800 mb-2">
+                  <div className="w-6 h-6 bg-amber-600 rounded-full flex items-center justify-center mr-3">
+                    <span className="text-white text-xs">⏰</span>
+                  </div>
+                  DEADLINE
+                </label>
+                <input
+                  type="date"
+                  id="due_date"
+                  name="due_date"
+                  value={formData.due_date}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900"
+                  placeholder="dd/mm/yyyy"
+                />
+                {errors.due_date && <p className="mt-2 text-sm text-red-600">{errors.due_date}</p>}
+              </div>
+
+              <div className="opacity-50 pointer-events-none select-none">
+                <label htmlFor="reward" className="flex items-center text-sm font-semibold text-gray-500 mb-2">
+                  <div className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center mr-3">
+                    <span className="text-white text-xs">🪙</span>
+                  </div>
+                  REWARD (GOLD)
+                </label>
+                <input
+                  type="number"
+                  id="reward"
+                  name="reward"
+                  value={0}
+                  onChange={() => {}} // No-op function
+                  min="0"
+                  max="999"
+                  disabled
+                  tabIndex={-1}
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg bg-gray-50 text-gray-400 cursor-not-allowed opacity-75"
+                  placeholder="Coming Soon"
+                />
+                <p className="mt-1 text-xs text-gray-400">Gold rewards feature coming soon</p>
+              </div>
+            </div>
+
+            {/* Max Participants */}
+            <div>
+              <label htmlFor="max_participants" className="block text-sm font-semibold text-amber-800 mb-2 flex items-center">
+                <Users className="w-4 h-4 mr-2 text-amber-600" />
+                Max Participants *
               </label>
               <input
-                type="date"
-                id="due_date"
-                name="due_date"
-                value={formData.due_date}
+                type="number"
+                id="max_participants"
+                name="max_participants"
+                value={formData.max_participants}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                min="1"
+                className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900"
+                required
               />
-              {errors.due_date && <p className="mt-1 text-sm text-red-600">{errors.due_date}</p>}
+              {errors.max_participants && <p className="mt-2 text-sm text-red-600">{errors.max_participants}</p>}
+            </div>
+
+            {/* Post As Section */}
+            <div>
+              <label className="block text-sm font-semibold text-amber-800 mb-2">
+                POST AS
+              </label>
+              <div className="space-y-3">
+                {/* Individual Option */}
+                <div className="border-2 border-amber-300 rounded-lg p-4 bg-white">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="radio"
+                      name="postAs"
+                      value="individual"
+                      checked={postAs === 'individual'}
+                      onChange={(e) => setPostAs(e.target.value as 'individual' | 'guild')}
+                      className="mr-3 text-amber-600"
+                    />
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center mr-3">
+                        <span className="text-white font-bold">T</span>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-900">Individual (TavernKeeper)</div>
+                        <div className="text-sm text-gray-600">Post as yourself</div>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Guild Representative Option */}
+                <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50 opacity-50 pointer-events-none select-none">
+                  <label className="flex items-center cursor-not-allowed">
+                    <input
+                      type="radio"
+                      name="postAs"
+                      value="guild"
+                      checked={false}
+                      onChange={() => {}} // No-op function
+                      className="mr-3 opacity-50"
+                      disabled
+                      tabIndex={-1}
+                    />
+                    <div className="flex items-center opacity-75">
+                      <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center mr-3">
+                        <span className="text-white font-bold">G</span>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-500">Guild Representative</div>
+                        <div className="text-sm text-gray-400">Post on behalf of a guild (Coming Soon)</div>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
             </div>
 
             {/* Requirements */}
             <div>
-              <label htmlFor="requirements" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="requirements" className="block text-sm font-semibold text-amber-800 mb-2">
                 Requirements (optional)
               </label>
               <textarea
@@ -306,15 +416,15 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                 value={formData.requirements}
                 onChange={handleChange}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 resize-none"
                 placeholder="What skills or prerequisites are needed?"
               />
-              {errors.requirements && <p className="mt-1 text-sm text-red-600">{errors.requirements}</p>}
+              {errors.requirements && <p className="mt-2 text-sm text-red-600">{errors.requirements}</p>}
             </div>
 
             {/* Resources */}
             <div>
-              <label htmlFor="resources" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="resources" className="block text-sm font-semibold text-amber-800 mb-2">
                 Resources (optional)
               </label>
               <textarea
@@ -323,42 +433,29 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                 value={formData.resources}
                 onChange={handleChange}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 resize-none"
                 placeholder="Links, files, or other resources that will help participants"
               />
-              {errors.resources && <p className="mt-1 text-sm text-red-600">{errors.resources}</p>}
-            </div>
-
-            {/* Reward Preview */}
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-              <div className="flex items-center gap-2">
-                <Star className="w-5 h-5 text-blue-600" />
-                <span className="font-medium text-blue-900">
-                  Reward: {getXPReward(formData.difficulty)} XP
-                </span>
-              </div>
-              <p className="text-sm text-blue-700 mt-1">
-                XP is automatically assigned based on difficulty level
-              </p>
+              {errors.resources && <p className="mt-2 text-sm text-red-600">{errors.resources}</p>}
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-4 pt-6">
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 transition-colors"
+                className="flex-1 px-6 py-3 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isLoading}
-                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex-1 px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-amber-500 border border-transparent rounded-lg hover:from-purple-600 hover:to-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isLoading 
                   ? (isEditing ? 'Updating...' : 'Creating...') 
-                  : (isEditing ? 'Update Quest' : 'Create Quest')
+                  : (isEditing ? 'Update Quest' : 'Post Quest')
                 }
               </button>
             </div>

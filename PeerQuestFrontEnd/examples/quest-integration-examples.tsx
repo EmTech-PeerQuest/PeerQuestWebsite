@@ -111,7 +111,6 @@ export async function createQuest() {
       description: "Build a todo app using React hooks and state management",
       category: 1, // Programming category ID
       difficulty: "medium",
-      estimated_time: 120,
       max_participants: 5,
       due_date: "2025-07-15",
       requirements: "Basic JavaScript knowledge required",
