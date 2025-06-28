@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.db import transaction
-from users.models import NewUser
+from users.models import User
 
 
 def award_xp(user, xp_amount, reason="Quest completion"):

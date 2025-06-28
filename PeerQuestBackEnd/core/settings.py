@@ -20,11 +20,16 @@ INSTALLED_APPS = [
 
     # Your apps
     'users',
+    'quests',
+    'guilds',
+    'messaging',
+    'notifications',
+    'applications',
+    'xp',
 
     # DRF and tools
     'rest_framework',
     'corsheaders',
-
     'django_filters',
 ]
 
@@ -113,7 +118,7 @@ REST_FRAMEWORK = {
     ],
 }
 
-AUTH_USER_MODEL = "users.user"
+AUTH_USER_MODEL = "users.User"
 
 from datetime import timedelta
 
