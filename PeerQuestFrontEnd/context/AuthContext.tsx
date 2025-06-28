@@ -71,8 +71,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const register = async (data: { username: string; email: string; password: string; confirmPassword?: string }) => {
-    // Optionally auto-login after register
-    await login({ username: data.username, password: data.password });
+    try {
+      // Call backend registration API
+      await apiRegister(data);
+      // Only login if registration succeeds
+      await login({ username: data.username, password: data.password });
+    } catch (err: any) {
+      // Optionally show a toast or propagate error
+      toast({ title: 'Registration failed', description: err?.message || 'Please try again.', variant: 'destructive' });
+      throw err;
+    }
   };
 
   const logout = () => {
