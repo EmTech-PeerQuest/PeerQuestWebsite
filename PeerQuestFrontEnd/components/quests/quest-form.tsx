@@ -100,6 +100,23 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
         result = await QuestAPI.createQuest(createData)
       }
 
+      // Reset form data after successful creation
+      if (!isEditing) {
+        setFormData({
+          title: "",
+          description: "",
+          category: categories.length > 0 ? categories[0].id : 1,
+          difficulty: "easy",
+          max_participants: 1,
+          due_date: "",
+          requirements: "",
+          resources: "",
+        })
+        setGoldReward(0)
+        setPostAs('individual')
+        setErrors({})
+      }
+
       onSuccess(result)
       onClose()
     } catch (error) {
