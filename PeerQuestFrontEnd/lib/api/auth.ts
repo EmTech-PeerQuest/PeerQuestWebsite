@@ -67,7 +67,8 @@ export const register = async (userData: {
     // Debug: log backend error response
     if (error?.response?.data) {
       console.error("Registration backend error:", error.response.data);
-      // Recursively extract all string messages from any error object/array
+      // Prefer extracting from 'errors' key if present
+      const errorData = error.response.data.errors ?? error.response.data;
       function extractMessages(val: any): string[] {
         if (!val) return [];
         if (typeof val === 'string') return [val];
@@ -75,7 +76,7 @@ export const register = async (userData: {
         if (typeof val === 'object') return Object.values(val).flatMap(extractMessages);
         return [];
       }
-      const allMessages = extractMessages(error.response.data);
+      const allMessages = extractMessages(errorData);
       if (allMessages.length) {
         throw new Error(allMessages.join(' | '));
       }
