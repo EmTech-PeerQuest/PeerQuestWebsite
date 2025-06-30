@@ -5,6 +5,11 @@ import { Navbar } from '@/components/ui/navbar'
 import { Hero } from '@/components/ui/hero'
 import { QuestBoard } from '@/components/quests/quest-board'
 import { GuildHall } from '@/components/guilds/guild-hall'
+import { UserSearch } from '@/components/user-search';
+import { MessagingSystem } from '@/components/messaging/messaging-system';
+import { QuestManagement } from '@/components/quests/quest-management';
+import { AdminPanel } from '@/components/admin/admin-panel';
+import { EnhancedGuildManagement } from '@/components/guilds/enhanced-guild-management';
 import { About } from "@/components/about"
 import { Footer } from '@/components/ui/footer'
 import { ToastProvider } from '@/components/ui/toast'
@@ -15,7 +20,7 @@ import { AIChatbot } from '@/components/ai/ai-chatbot';
 import { AuthModal } from '@/components/auth/auth-modal';
 import { Settings } from '@/components/settings/settings';
 import { useRouter } from 'next/navigation';
-import Profile from './profile/page';
+import { Profile } from '@/components/auth/profile';
 import Spinner from '@/components/ui/spinner';
 import LoadingModal from '@/components/ui/loading-modal';
 
@@ -30,6 +35,11 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const { user: currentUser, login, register, logout } = useAuth();
   const { toast } = useToast();
+  // Adapter for showToast: expects (message: string, type?: string) => void
+  const showToast = (message: string, type: string = "default") => {
+    toast({ title: type === "error" ? "Error" : undefined, description: message, variant: type === "error" ? "destructive" : undefined });
+  };
+  const [currentUserState, setCurrentUser] = useState<User | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login');
   const router = useRouter();
@@ -138,6 +148,7 @@ export default function Home() {
               currentUser={currentUser}
               openCreateGuildModal={() => {}}
               handleApplyForGuild={() => {}}
+              showToast={showToast}
             />
           )
         )}
@@ -146,6 +157,7 @@ export default function Home() {
           <Settings
             user={currentUser}
             updateSettings={(updatedUser) => setCurrentUser({ ...currentUser, ...updatedUser })}
+            showToast={showToast}
           />
         )}
 
@@ -155,11 +167,12 @@ export default function Home() {
             quests={quests}
             guilds={guilds}
             currentUser={currentUser}
+            showToast={showToast}
           />
         )}
 
         {activeSection === "messages" && currentUser && (
-          <MessagingSystem currentUser={currentUser} />
+          <MessagingSystem currentUser={currentUser} showToast={showToast} />
         )}
 
         {activeSection === "quest-management" && currentUser && (
@@ -168,6 +181,7 @@ export default function Home() {
             currentUser={currentUser}
             onQuestStatusChange={() => {}}
             setQuests={setQuests}
+            showToast={showToast}
           />
         )}
 
@@ -182,10 +196,11 @@ export default function Home() {
             onApproveApplication={() => {}}
             onRejectApplication={() => {}}
             onManageMembers={() => {}}
+            showToast={showToast}
           />
         )}
 
-        {activeSection === "admin" && currentUser?.roles?.includes("admin") && (
+        {activeSection === "admin" && currentUser && (
           <AdminPanel
             currentUser={currentUser}
             users={[]}
@@ -194,6 +209,7 @@ export default function Home() {
             setUsers={() => {}}
             setQuests={setQuests}
             setGuilds={setGuilds}
+            showToast={showToast}
           />
         )}
 

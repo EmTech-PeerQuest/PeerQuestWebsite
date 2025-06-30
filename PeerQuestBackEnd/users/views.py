@@ -1,20 +1,16 @@
+
+from rest_framework import generics, permissions
 from rest_framework.generics import RetrieveUpdateAPIView
-from rest_framework.permissions import IsAuthenticated
-from .serializers import UserProfileSerializer
-from django.contrib.auth.password_validation import validate_password
-from rest_framework import serializers
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, serializers
+from django.contrib.auth.password_validation import validate_password
+from .serializers import UserProfileSerializer, CustomUserSerializer, UpdateProfileSerializer, PublicUserSerializer
 from .models import User
-from rest_framework.permissions import AllowAny
 
-<<<<<<< HEAD
-
+# View for current authenticated user
 class CurrentUserView(APIView):
-    """
-    Returns the authenticated user's profile info.
-    """
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
@@ -22,37 +18,36 @@ class CurrentUserView(APIView):
         return Response(serializer.data)
 
 
+# View for updating user profile
 class UpdateProfileView(generics.UpdateAPIView):
-    """
-    Allows user to update their username or avatar.
-    """
     permission_classes = [permissions.IsAuthenticated]
-
-    queryset = NewUser.objects.all()
+    queryset = User.objects.all()
     serializer_class = UpdateProfileSerializer
-=======
+
+
+# View for public profile by username
+class PublicProfileView(generics.RetrieveAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = User.objects.all()
+    serializer_class = PublicUserSerializer
+    lookup_field = 'username'
+
+
+# View for registering a user (old)
+class RegisterUserView(generics.CreateAPIView):
+    permission_classes = [permissions.AllowAny]
+    queryset = User.objects.all()
+    serializer_class = CustomUserSerializer
+
+# User profile view (from other branch)
 class UserProfileView(RetrieveUpdateAPIView):
     serializer_class = UserProfileSerializer
     permission_classes = [IsAuthenticated]
->>>>>>> origin/dev_Esteron/AuthProfile
 
     def get_object(self):
         return self.request.user
 
-<<<<<<< HEAD
-class PublicProfileView(generics.RetrieveAPIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    queryset = NewUser.objects.all()
-    serializer_class = PublicUserSerializer
-    lookup_field = 'username'
-
-class RegisterUserView(generics.CreateAPIView):
-    permission_classes = [permissions.AllowAny]
-
-    queryset = NewUser.objects.all()
-    serializer_class = CustomUserSerializer
-=======
+# Register serializer and view (from other branch)
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     class Meta:
@@ -81,7 +76,7 @@ class RegisterView(APIView):
                         "id": user.id,
                         "username": user.username,
                         "email": user.email,
-                        "avatar_url": user.avatar_url,
+                        "avatar_url": getattr(user, 'avatar_url', None),
                     }
                 }, status=status.HTTP_201_CREATED)
             # Flatten serializer errors to a readable string list
@@ -105,4 +100,5 @@ class RegisterView(APIView):
             return Response({"errors": error_list}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({"errors": [str(e) or "An unexpected error occurred during registration."]}, status=status.HTTP_400_BAD_REQUEST)
->>>>>>> origin/dev_Esteron/AuthProfile
+
+

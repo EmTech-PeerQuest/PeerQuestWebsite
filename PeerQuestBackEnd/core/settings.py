@@ -62,7 +62,20 @@ TEMPLATES = [
     },
 ]
 
+
+# Channels/ASGI
+ASGI_APPLICATION = 'core.asgi.application'
 WSGI_APPLICATION = 'core.wsgi.application'
+# Channels/ASGI
+ASGI_APPLICATION = 'core.asgi.application'
+WSGI_APPLICATION = 'core.wsgi.application'
+
+# Channel Layers (in-memory for dev, Redis for production)
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}
 
 # Database (SQLite for dev)
 DATABASES = {
@@ -95,9 +108,11 @@ USE_I18N = True
 USE_L10N = True
 USE_TZ = True
 
+
 # Static and Media
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / "static"]
+STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
