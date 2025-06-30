@@ -10,8 +10,13 @@ py manage.py makemigrations
 py manage.py migrate
 py manage.py collectstatic  # Collect static files for admin and static assets
 py manage.py createsuperuser  # (optional, for admin access)
+
+-------- For running the Backend ---------
 # py manage.py runserver  # Use this for HTTP-only development
+
 daphne -b 0.0.0.0 -p 8000 core.asgi:application  # Use this for Channels/WebSockets
+
+daphne core.asgi:application # Use this for local development
 
 ############ Frontend ############
 npm install --legacy-peer-deps
