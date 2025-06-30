@@ -71,6 +71,14 @@ class Quest(models.Model):
         on_delete=models.CASCADE, 
         related_name='created_quests'
     )
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_quests',
+        help_text="User currently assigned to this quest"
+    )
     participants = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         through='QuestParticipant',
@@ -100,11 +108,13 @@ class Quest(models.Model):
         indexes = [
             models.Index(fields=['status', 'difficulty']),
             models.Index(fields=['creator', 'status']),
+            models.Index(fields=['assigned_to', 'status']),
             models.Index(fields=['created_at']),
         ]
 
     def __str__(self):
-        return f"{self.title} ({self.get_status_display()})"
+        assigned_info = f" → {self.assigned_to.username}" if self.assigned_to else ""
+        return f"{self.title} ({self.get_status_display()}){assigned_info}"
 
     def save(self, *args, **kwargs):
         # Automatically set XP reward based on difficulty
@@ -128,6 +138,32 @@ class Quest(models.Model):
     @property
     def can_accept_participants(self):
         return self.participant_count < self.max_participants and self.status == 'open'
+    
+    @property
+    def is_assigned(self):
+        """Returns True if the quest is assigned to a specific user"""
+        return self.assigned_to is not None
+    
+    @property
+    def assigned_to_username(self):
+        """Returns the username of the assigned user or None"""
+        return self.assigned_to.username if self.assigned_to else None
+    
+    def assign_to_user(self, user):
+        """Assign the quest to a specific user"""
+        self.assigned_to = user
+        if self.status == 'open':
+            self.status = 'in-progress'
+        self.save()
+        return True
+    
+    def unassign(self):
+        """Remove the assignment from the quest"""
+        self.assigned_to = None
+        if self.status == 'in-progress':
+            self.status = 'open'
+        self.save()
+        return True
     
     @property
     def days_until_deadline(self):

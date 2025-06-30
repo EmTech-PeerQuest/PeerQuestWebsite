@@ -49,6 +49,7 @@ class QuestSubmissionSerializer(serializers.ModelSerializer):
 class QuestListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for quest lists with truncated description"""
     creator = UserBasicSerializer(read_only=True)
+    assigned_to = UserBasicSerializer(read_only=True)
     category = QuestCategorySerializer(read_only=True)
     participant_count = serializers.ReadOnlyField()
     can_accept_participants = serializers.ReadOnlyField()
@@ -60,7 +61,7 @@ class QuestListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'difficulty',
             'status', 'xp_reward', 'gold_reward', 'max_participants',
-            'creator', 'category', 'created_at', 'updated_at', 'due_date', 'slug',
+            'creator', 'assigned_to', 'category', 'created_at', 'updated_at', 'due_date', 'slug',
             'participant_count', 'can_accept_participants', 'is_completed'
         ]
     
@@ -86,6 +87,7 @@ class QuestListSerializer(serializers.ModelSerializer):
 class QuestDetailSerializer(serializers.ModelSerializer):
     """Full quest details including participants and submissions"""
     creator = UserBasicSerializer(read_only=True)
+    assigned_to = UserBasicSerializer(read_only=True)
     category = QuestCategorySerializer(read_only=True)
     participants_detail = QuestParticipantSerializer(
         source='questparticipant_set', 
@@ -101,7 +103,7 @@ class QuestDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'category',
             'difficulty', 'status', 'xp_reward', 'gold_reward',
-            'max_participants', 'creator', 'participants_detail', 'created_at',
+            'max_participants', 'creator', 'assigned_to', 'participants_detail', 'created_at',
             'updated_at', 'due_date', 'completed_at',
             'requirements', 'resources', 'slug', 'participant_count',
             'can_accept_participants', 'is_completed'
@@ -116,7 +118,7 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'category',
             'difficulty', 'status', 'xp_reward', 'gold_reward',
-            'max_participants', 'due_date',
+            'max_participants', 'assigned_to', 'due_date',
             'requirements', 'resources'
         ]
 

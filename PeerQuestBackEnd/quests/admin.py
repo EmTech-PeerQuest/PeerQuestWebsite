@@ -13,11 +13,11 @@ class QuestCategoryAdmin(admin.ModelAdmin):
 @admin.register(Quest)
 class QuestAdmin(admin.ModelAdmin):
     list_display = [
-        'title', 'creator', 'status', 'difficulty', 'category', 
-        'xp_reward', 'gold_reward', 'participant_count', 'created_at', 'due_date', 'deadline_status_display', 'completed_at'
+        'title', 'creator', 'assigned_to', 'status', 'difficulty', 'category', 
+        'xp_reward', 'gold_reward', 'participant_count','max_participants', 'created_at', 'due_date', 'deadline_status_display', 'updated_at', 'completed_at'
     ]
-    list_filter = ['status', 'difficulty', 'category', 'created_at']
-    search_fields = ['title', 'description', 'creator__username']
+    list_filter = ['status', 'difficulty', 'category', 'assigned_to', 'created_at']
+    search_fields = ['title', 'description', 'creator__username', 'assigned_to__username']
     readonly_fields = ['slug', 'created_at', 'updated_at', 'participant_count', 'completed_at', 'xp_reward']
     prepopulated_fields = {}  # We handle slug generation in the model
     actions = ['update_xp_rewards_by_difficulty']
@@ -31,7 +31,7 @@ class QuestAdmin(admin.ModelAdmin):
             'description': 'XP reward is automatically set based on difficulty: Easy=50 XP, Medium=75 XP, Hard=150 XP'
         }),
         ('Creator & Participants', {
-            'fields': ('creator', 'participant_count')
+            'fields': ('creator', 'assigned_to', 'participant_count')
         }),
         ('Dates', {
             'fields': ('due_date',)
