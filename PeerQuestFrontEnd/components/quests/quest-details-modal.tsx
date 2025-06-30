@@ -1,9 +1,11 @@
 "use client"
 
-import { X, CircleDollarSign, Star, Clock, Palette, Code, PenTool, Users } from "lucide-react"
-import type { Quest, User } from "@/lib/types"
+import { useState, useEffect } from "react"
+import { X, CircleDollarSign, Star, Clock, Palette, Code, PenTool, Users, CheckCircle } from "lucide-react"
+import type { Quest, User, Application } from "@/lib/types"
 import { formatTimeRemaining, getDifficultyClass } from "@/lib/utils"
 import { QuestAPI } from "@/lib/api/quests"
+import { getMyApplications } from "@/lib/api/applications"
 
 interface QuestDetailsModalProps {
   isOpen: boolean
@@ -15,6 +17,7 @@ interface QuestDetailsModalProps {
   showToast: (message: string, type?: string) => void
   setAuthModalOpen: (open: boolean) => void
   openEditQuestModal?: (quest: Quest) => void
+  onQuestUpdate?: () => Promise<void>
 }
 
 export function QuestDetailsModal({
@@ -27,7 +30,48 @@ export function QuestDetailsModal({
   showToast,
   setAuthModalOpen,
   openEditQuestModal,
+  onQuestUpdate,
 }: QuestDetailsModalProps) {
+  const [userApplications, setUserApplications] = useState<Application[]>([])
+  const [isLoadingApplications, setIsLoadingApplications] = useState(false)
+
+  // Check if user has already applied for this quest
+  const hasAlreadyApplied = quest ? userApplications.some(app => 
+    app.quest.id === quest.id && app.status === 'pending'
+  ) : false
+
+  // Check if user has an approved application
+  const hasApprovedApplication = quest ? userApplications.some(app => 
+    app.quest.id === quest.id && app.status === 'approved'
+  ) : false
+
+  // Check if user has a rejected application
+  const hasRejectedApplication = quest ? userApplications.some(app => 
+    app.quest.id === quest.id && app.status === 'rejected'
+  ) : false
+
+  // Check if user is already a participant (either through participants_detail or approved application)
+  const isAlreadyParticipant = (quest?.participants_detail?.some((p) => p.user.id === currentUser?.id) || false) || hasApprovedApplication
+
+  // Load user applications when modal opens and user is authenticated
+  useEffect(() => {
+    if (isOpen && isAuthenticated && currentUser) {
+      loadUserApplications()
+    }
+  }, [isOpen, isAuthenticated, currentUser])
+
+  const loadUserApplications = async () => {
+    try {
+      setIsLoadingApplications(true)
+      const applications = await getMyApplications()
+      setUserApplications(applications)
+    } catch (error) {
+      console.error('Failed to load user applications:', error)
+    } finally {
+      setIsLoadingApplications(false)
+    }
+  }
+
   if (!isOpen || !quest) return null
 
   const getCategoryIcon = (category: string) => {
@@ -67,6 +111,24 @@ export function QuestDetailsModal({
       
       console.log('✅ Quest Details Modal - Application submitted successfully')
       showToast("Application submitted successfully!")
+      // Refresh applications to update button state
+      await loadUserApplications()
+      
+      // Refresh quest data to update applications_count
+      if (onQuestUpdate) {
+        // If parent provides a refresh callback, use it to reload fresh data
+        await onQuestUpdate()
+      } else {
+        // Fallback: Update the quest's applications_count locally
+        setQuests(prevQuests => 
+          prevQuests.map(q => 
+            q.id === quest.id 
+              ? { ...q, applications_count: (q.applications_count || 0) + 1 }
+              : q
+          )
+        )
+      }
+      
       onClose()
     } catch (error) {
       console.error('❌ Quest Details Modal - Failed to apply for quest:', error)
@@ -177,6 +239,46 @@ export function QuestDetailsModal({
               </div>
             </div>
 
+            {/* Application Status (for non-owners) */}
+            {!isQuestOwner && isAuthenticated && (isAlreadyParticipant || hasApprovedApplication) && (
+              <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <CheckCircle size={20} className="text-green-700" />
+                  <h4 className="text-lg font-bold text-green-800">Quest Participant</h4>
+                </div>
+                <p className="text-green-700">
+                  {hasApprovedApplication 
+                    ? "Your application has been approved! You are now participating in this quest."
+                    : "You are currently participating in this quest."
+                  }
+                </p>
+              </div>
+            )}
+
+            {!isQuestOwner && isAuthenticated && hasAlreadyApplied && !isAlreadyParticipant && !hasApprovedApplication && (
+              <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock size={20} className="text-amber-700" />
+                  <h4 className="text-lg font-bold text-amber-800">Your Application</h4>
+                </div>
+                <p className="text-amber-700">
+                  You have already applied for this quest. Your application is currently pending review.
+                </p>
+              </div>
+            )}
+
+            {!isQuestOwner && isAuthenticated && hasRejectedApplication && !isAlreadyParticipant && !hasAlreadyApplied && (
+              <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <X size={20} className="text-red-700" />
+                  <h4 className="text-lg font-bold text-red-800">Application Status</h4>
+                </div>
+                <p className="text-red-700">
+                  Your application for this quest was not accepted. You can apply again if the quest is still open.
+                </p>
+              </div>
+            )}
+
             {/* Applications Count (for quest owner) */}
             {isQuestOwner && (
               <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
@@ -218,14 +320,24 @@ export function QuestDetailsModal({
             ) : (
               <button
                 onClick={() => applyForQuest(quest.id)}
-                className="px-6 py-2 bg-[#8B75AA] text-white rounded-lg hover:bg-[#7A6699] transition-colors font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!isAuthenticated || quest.participants_detail?.some((p) => p.user.id === currentUser?.id)}
+                className={`px-6 py-2 rounded-lg font-medium shadow-md transition-colors ${
+                  !isAuthenticated || isAlreadyParticipant || hasAlreadyApplied || isLoadingApplications
+                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
+                    : 'bg-[#8B75AA] text-white hover:bg-[#7A6699]'
+                }`}
+                disabled={!isAuthenticated || isAlreadyParticipant || hasAlreadyApplied || isLoadingApplications}
               >
                 {!isAuthenticated
                   ? "Login to Apply"
-                  : quest.participants_detail?.some((p) => p.user.id === currentUser?.id)
-                    ? "Already Applied"
-                    : "Apply for Quest"}
+                  : isAlreadyParticipant
+                    ? "Already Participating"
+                    : hasAlreadyApplied
+                      ? "Application Pending"
+                      : isLoadingApplications
+                        ? "Loading..."
+                        : hasRejectedApplication
+                          ? "Apply Again"
+                          : "Apply for Quest"}
               </button>
             )}
           </div>

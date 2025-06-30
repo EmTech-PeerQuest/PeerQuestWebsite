@@ -80,25 +80,7 @@ export function QuestBoard({
     }
   }
 
-  const handleJoinQuest = async (quest: Quest) => {
-    try {
-      console.log('🎯 Applying for specific quest:', {
-        questId: quest.id,
-        questTitle: quest.title,
-        questCreator: quest.creator.username
-      })
-      
-      // Use applications API instead of direct join
-      const { createApplication } = await import("@/lib/api/applications")
-      await createApplication(quest.id, "I'm interested in working on this quest.")
-      
-      console.log('✅ Application submitted successfully for quest:', quest.title)
-      await loadQuests() // Refresh to show updated participant count
-    } catch (error) {
-      console.error('❌ Failed to apply for quest:', quest.title, error)
-      throw error
-    }
-  }
+
 
   const handleLeaveQuest = async (quest: Quest) => {
     try {
@@ -263,7 +245,6 @@ export function QuestBoard({
               quest={quest}
               currentUser={currentUser}
               onViewDetails={openQuestDetails}
-              onJoinQuest={handleJoinQuest}
               onLeaveQuest={handleLeaveQuest}
               onEditQuest={handleEditQuest}
               onViewApplications={handleViewApplications}

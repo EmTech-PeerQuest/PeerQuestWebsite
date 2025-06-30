@@ -71,17 +71,7 @@ export function QuestBoard({
     }
   }
 
-  const handleJoinQuest = async (quest: Quest) => {
-    try {
-      // Use applications API instead of direct join
-      const { createApplication } = await import("@/lib/api/applications")
-      await createApplication(quest.id, "I'm interested in working on this quest.")
-      await loadQuests() // Refresh to show updated participant count
-    } catch (error) {
-      console.error('Failed to apply for quest:', error)
-      throw error
-    }
-  }
+
 
   const handleLeaveQuest = async (quest: Quest) => {
     try {
@@ -248,7 +238,6 @@ export function QuestBoard({
               quest={quest}
               currentUser={currentUser}
               onViewDetails={handleOpenQuestDetails}
-              onJoinQuest={handleJoinQuest}
               onLeaveQuest={handleLeaveQuest}
               onEditQuest={handleEditQuest}
               onViewApplications={handleViewApplications}
@@ -304,6 +293,7 @@ export function QuestBoard({
           console.log('Auth modal:', open)
         }}
         openEditQuestModal={handleEditQuest}
+        onQuestUpdate={loadQuests}
       />
 
       {/* Applications Modal */}

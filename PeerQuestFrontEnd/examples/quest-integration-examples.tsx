@@ -72,14 +72,7 @@ export function ExampleQuestList() {
     }
   }
 
-  const handleJoinQuest = async (quest) => {
-    try {
-      await QuestAPI.joinQuest(quest.slug)
-      await loadQuests() // Refresh
-    } catch (error) {
-      console.error('Failed to join quest:', error)
-    }
-  }
+
 
   const handleQuestDetails = (quest) => {
     // Navigate to quest details or open modal
@@ -94,7 +87,6 @@ export function ExampleQuestList() {
           quest={quest}
           currentUser={currentUser}
           onViewDetails={handleQuestDetails}
-          onJoinQuest={handleJoinQuest}
         />
       ))}
     </div>

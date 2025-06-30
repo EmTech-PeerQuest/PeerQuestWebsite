@@ -9,7 +9,6 @@ interface TavernQuestCardProps {
   quest: Quest
   currentUser?: any
   onViewDetails: (quest: Quest) => void
-  onJoinQuest?: (quest: Quest) => void
   onLeaveQuest?: (quest: Quest) => void
   onEditQuest?: (quest: Quest) => void
   onViewApplications?: (quest: Quest) => void
@@ -20,7 +19,6 @@ export function TavernQuestCard({
   quest,
   currentUser,
   onViewDetails,
-  onJoinQuest,
   onLeaveQuest,
   onEditQuest,
   onViewApplications,
@@ -69,21 +67,7 @@ export function TavernQuestCard({
 
   const isCreator = currentUser && quest.creator.id === currentUser.id
   const isParticipant = quest.participants_detail?.some(p => p.user.id === currentUser?.id) || false
-  const canJoin = quest.can_accept_participants && !isCreator && !isParticipant && quest.status === 'open'
   const applicationCount = quest.applications_count || 0
-
-  const handleJoinQuest = async () => {
-    if (!onJoinQuest) return
-    
-    setIsLoading(true)
-    try {
-      await onJoinQuest(quest)
-    } catch (error) {
-      console.error('Failed to join quest:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   const handleLeaveQuest = async () => {
     if (!onLeaveQuest) return
@@ -250,15 +234,7 @@ export function TavernQuestCard({
               </button>
             )}
             
-            {canJoin && onJoinQuest && (
-              <button
-                onClick={handleJoinQuest}
-                disabled={isLoading}
-                className="px-3 py-2 text-sm font-medium text-white bg-emerald-600 rounded hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isLoading ? 'Joining...' : 'Apply'}
-              </button>
-            )}
+
             
             {isParticipant && onLeaveQuest && quest.status !== 'completed' && (
               <button
