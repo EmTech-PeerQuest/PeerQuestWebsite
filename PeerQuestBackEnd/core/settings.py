@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -20,14 +21,11 @@ INSTALLED_APPS = [
     # Your apps
     'users',
 
-    # OAuth stack
-    'oauth2_provider',
-    'social_django',
-    'drf_social_oauth2',
-
     # DRF and tools
     'rest_framework',
     'corsheaders',
+
+    'django_filters',
 ]
 
 # Middleware
@@ -56,8 +54,6 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'social_django.context_processors.backends',
-                'social_django.context_processors.login_redirect',
             ],
         },
     },
@@ -102,45 +98,66 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Custom User Model
-AUTH_USER_MODEL = 'users.NewUser'
-
-# OAuth-Only Authentication
+# Authentication backends
 AUTHENTICATION_BACKENDS = (
-    'social_core.backends.google.GoogleOAuth2',               # Google OAuth
-    'drf_social_oauth2.backends.DjangoOAuth2',                # OAuth2 provider
     'django.contrib.auth.backends.ModelBackend',              # Default Django
 )
 
 # DRF Settings
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'oauth2_provider.contrib.rest_framework.OAuth2Authentication',
-        'drf_social_oauth2.authentication.SocialAuthentication',
-    ),
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.AllowAny",  # Or IsAuthenticated for protected endpoints
+    ],
+}
+
+AUTH_USER_MODEL = "users.user"
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'UPDATE_LAST_LOGIN': True,
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
 }
 
 
 # CORS
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
-
-# Google OAuth Settings
-SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = '<your-google-client-id>'
-SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = '<your-google-client-secret>'
-SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = [
-    'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/userinfo.profile',
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'X-Requested-With',
 ]
-SOCIAL_AUTH_GOOGLE_OAUTH2_EXTRA_DATA = ['first_name', 'last_name']
+CORS_EXPOSE_HEADERS = [
+    'Content-Type',
+    'X-CSRFToken',
+]
+
+# Add CORS_ALLOW_ALL_ORIGINS = False for explicitness
+CORS_ALLOW_ALL_ORIGINS = False
 
 # Optional: disable token model warnings
 DJRESTAUTH_TOKEN_MODEL = None
 
 # Default primary key type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Add CSRF trusted origins for frontend
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+# Session cookie settings for cross-origin authentication
+SESSION_COOKIE_SAMESITE = "Lax"  # Use "None" if using HTTPS and cross-site
+SESSION_COOKIE_SECURE = False     # Set to True if using HTTPS
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = False

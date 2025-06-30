@@ -1,15 +1,7 @@
 from django.urls import path
-from .views import (
-    CurrentUserView,
-    UpdateProfileView,         # <-- corrected name
-    PublicProfileView
-)
+from .views import UserProfileView, RegisterView
 
 urlpatterns = [
-    # Authenticated user endpoints
-    path('me/', CurrentUserView.as_view(), name='user-detail'),
-    path('me/update/', UpdateProfileView.as_view(), name='user-update'),  # <-- corrected class
-
-    # Public profile view by username
-    path('profile/<str:username>/', PublicProfileView.as_view(), name='public-profile'),
+    path("register/", RegisterView.as_view(), name="register"),
+    path("profile/", UserProfileView.as_view(), name="profile"),
 ]
