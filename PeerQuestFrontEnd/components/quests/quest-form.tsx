@@ -17,7 +17,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
   const [formData, setFormData] = useState<CreateQuestData>({
     title: "",
     description: "",
-    category: 1,
+    category: 0, // Default to "Select Category"
     difficulty: "easy" as const,
     max_participants: 1,
     due_date: "",
@@ -64,7 +64,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
       setFormData({
         title: "",
         description: "",
-        category: categories.length > 0 ? categories[0].id : 1,
+        category: 0, // Default to "Select Category"
         difficulty: "easy",
         max_participants: 1,
         due_date: "",
@@ -105,7 +105,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
         setFormData({
           title: "",
           description: "",
-          category: categories.length > 0 ? categories[0].id : 1,
+          category: 0, // Default to "Select Category"
           difficulty: "easy",
           max_participants: 1,
           due_date: "",
@@ -249,7 +249,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                 className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900"
                 required
               >
-                <option value="">Select Category</option>
+                <option value="0">Select Category</option>
                 {categories.map(category => (
                   <option key={category.id} value={category.id}>
                     {category.name}
