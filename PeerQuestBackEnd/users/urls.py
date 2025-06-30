@@ -1,4 +1,5 @@
 from django.urls import path
+<<<<<<< HEAD
 from .views import (
     CurrentUserView,
     UpdateProfileView,         # <-- corrected name
@@ -16,4 +17,11 @@ urlpatterns = [
 
     # Registration endpoint
     path('register/', RegisterUserView.as_view(), name='user-register'),
+=======
+from .views import UserProfileView, RegisterView
+
+urlpatterns = [
+    path("register/", RegisterView.as_view(), name="register"),
+    path("profile/", UserProfileView.as_view(), name="profile"),
+>>>>>>> origin/dev_Esteron/AuthProfile
 ]
