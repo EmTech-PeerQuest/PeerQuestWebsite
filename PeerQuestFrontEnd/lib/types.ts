@@ -104,3 +104,39 @@ export interface GuildApplication {
   status: 'pending' | 'accepted' | 'rejected'
   appliedAt: Date
 }
+
+export interface Application {
+  id: number
+  quest: {
+    id: number
+    title: string
+    difficulty: 'easy' | 'medium' | 'hard'
+    status: 'open' | 'in-progress' | 'completed'
+    xp_reward: number
+    gold_reward: number
+    creator: {
+      id: number
+      username: string
+      email: string
+      level?: number
+      xp?: number
+    }
+    due_date?: string
+  }
+  applicant: {
+    id: number
+    username: string
+    email: string
+    level?: number
+    xp?: number
+  }
+  message: string
+  status: 'pending' | 'approved' | 'rejected'
+  applied_at: string
+  reviewed_at?: string
+  reviewed_by?: {
+    id: number
+    username: string
+    email: string
+  }
+}

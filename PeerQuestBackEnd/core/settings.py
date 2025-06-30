@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     # Your apps
     'users',
     'quests',
+    'applications',
     'xp',
 
     # DRF and tools

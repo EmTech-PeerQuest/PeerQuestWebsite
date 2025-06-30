@@ -1,69 +1,90 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { X, ScrollText, Users, CheckCircle, XCircle, Clock, Star, CircleDollarSign, Calendar } from "lucide-react"
-import type { Quest, User as UserType } from "@/lib/types"
+import type { Application, User as UserType } from "@/lib/types"
 import { getDifficultyClass } from "@/lib/utils"
+import { getMyApplications, getApplicationsToMyQuests, approveApplication, rejectApplication } from "@/lib/api/applications"
 
 interface ApplicationsModalProps {
   isOpen: boolean
   onClose: () => void
-  quests: Quest[]
   currentUser: UserType | null
-  setQuests: (quests: Quest[] | ((prev: Quest[]) => Quest[])) => void
 }
 
-export function ApplicationsModal({ isOpen, onClose, quests, currentUser, setQuests }: ApplicationsModalProps) {
-  if (!isOpen || !currentUser) return null
+export function ApplicationsModal({ isOpen, onClose, currentUser }: ApplicationsModalProps) {
+  const [myApplications, setMyApplications] = useState<Application[]>([])
+  const [applicationsToMyQuests, setApplicationsToMyQuests] = useState<Application[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const myApplications = quests.filter((quest) => quest.applicants.some((app) => app.userId === currentUser.id))
-  const myQuests = quests.filter((quest) => quest.poster.id === currentUser.id && quest.applicants.length > 0)
+  useEffect(() => {
+    if (isOpen && currentUser) {
+      loadApplications()
+    }
+  }, [isOpen, currentUser])
 
-  const handleApproveApplicant = (questId: number, applicantId: number) => {
-    setQuests((prevQuests) =>
-      prevQuests.map((q) => {
-        if (q.id === questId) {
-          return {
-            ...q,
-            status: "in-progress",
-            applicants: q.applicants.map((app) => {
-              if (app.userId === applicantId) {
-                return { ...app, status: "accepted" }
-              } else {
-                return { ...app, status: "rejected" }
-              }
-            }),
-            assignedTo: applicantId,
-          }
-        }
-        return q
-      }),
-    )
+  const loadApplications = async () => {
+    console.log('Loading applications for user:', currentUser?.username)
+    setLoading(true)
+    setError(null)
+    try {
+      const [myApps, appsToMyQuests] = await Promise.all([
+        getMyApplications(),
+        getApplicationsToMyQuests()
+      ])
+      console.log('Applications loaded successfully:', { 
+        myApps: myApps.length, 
+        appsToMyQuests: appsToMyQuests.length
+      })
+      setMyApplications(myApps)
+      setApplicationsToMyQuests(appsToMyQuests)
+    } catch (err) {
+      console.error('Failed to load applications:', err)
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load applications'
+      
+      // More specific error handling
+      if (errorMessage.includes('401') || errorMessage.includes('Authentication')) {
+        setError('Authentication failed. Please log in again.')
+      } else if (errorMessage.includes('403')) {
+        setError('Access denied. You don\'t have permission to view these applications.')
+      } else if (errorMessage.includes('404')) {
+        setError('Applications endpoint not found. Please contact support.')
+      } else if (errorMessage.includes('fetch')) {
+        setError('Network error. Please check your connection and try again.')
+      } else {
+        setError(errorMessage)
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleRejectApplicant = (questId: number, applicantId: number) => {
-    setQuests((prevQuests) =>
-      prevQuests.map((q) => {
-        if (q.id === questId) {
-          return {
-            ...q,
-            applicants: q.applicants.map((app) => {
-              if (app.userId === applicantId) {
-                return { ...app, status: "rejected" }
-              }
-              return app
-            }),
-          }
-        }
-        return q
-      }),
-    )
+  const handleApproveApplicant = async (applicationId: number) => {
+    try {
+      await approveApplication(applicationId)
+      // Reload applications to get updated data
+      loadApplications()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to approve application')
+    }
+  }
+
+  const handleRejectApplicant = async (applicationId: number) => {
+    try {
+      await rejectApplication(applicationId)
+      // Reload applications to get updated data
+      loadApplications()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reject application')
+    }
   }
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case "pending":
         return "bg-amber-100 text-amber-800 border-amber-200"
-      case "accepted":
+      case "approved":
         return "bg-green-100 text-green-800 border-green-200"
       case "rejected":
         return "bg-red-100 text-red-800 border-red-200"
@@ -71,6 +92,8 @@ export function ApplicationsModal({ isOpen, onClose, quests, currentUser, setQue
         return "bg-gray-100 text-gray-800 border-gray-200"
     }
   }
+
+  if (!isOpen || !currentUser) return null
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -92,51 +115,60 @@ export function ApplicationsModal({ isOpen, onClose, quests, currentUser, setQue
         </div>
 
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
-          <div className="grid lg:grid-cols-2 gap-8">
-            {/* My Applications */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-[#8B75AA]/10 rounded-xl">
-                  <ScrollText className="w-6 h-6 text-[#8B75AA]" />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold text-[#2C1A1D] font-serif">My Applications</h3>
-                  <p className="text-[#8B75AA]">Quests you've applied for</p>
-                </div>
-              </div>
+          {error && (
+            <div className="mb-4 p-4 bg-red-100 border border-red-200 text-red-700 rounded-xl">
+              {error}
+            </div>
+          )}
 
-              {myApplications.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-2xl">
-                  <ScrollText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h4 className="text-lg font-semibold text-gray-600 mb-2">No Applications Yet</h4>
-                  <p className="text-gray-500">
-                    You haven't applied for any quests yet. Browse the Quest Board to find opportunities!
-                  </p>
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#8B75AA] mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading applications...</p>
+            </div>
+          ) : (
+            <div className="grid lg:grid-cols-2 gap-8">
+              {/* My Applications */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-[#8B75AA]/10 rounded-xl">
+                    <ScrollText className="w-6 h-6 text-[#8B75AA]" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-[#2C1A1D] font-serif">My Applications</h3>
+                    <p className="text-[#8B75AA]">Quests you've applied for</p>
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {myApplications.map((quest) => {
-                    const myApplication = quest.applicants.find((app) => app.userId === currentUser.id)
-                    return (
+
+                {myApplications.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 rounded-2xl">
+                    <ScrollText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h4 className="text-lg font-semibold text-gray-600 mb-2">No Applications Yet</h4>
+                    <p className="text-gray-500">
+                      You haven't applied for any quests yet. Browse the Quest Board to find opportunities!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {myApplications.map((application) => (
                       <div
-                        key={quest.id}
+                        key={application.id}
                         className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow"
                       >
                         {/* Quest Header */}
                         <div className="flex justify-between items-start mb-4">
                           <div className="flex-1">
-                            <h4 className="text-xl font-bold text-[#2C1A1D] mb-2 font-serif">{quest.title}</h4>
+                            <h4 className="text-xl font-bold text-[#2C1A1D] mb-2 font-serif">{application.quest.title}</h4>
                             <div className="flex flex-wrap items-center gap-3 mb-3">
                               <span
-                                className={`px-3 py-1 rounded-full text-sm font-bold ${getDifficultyClass(quest.difficulty)}`}
+                                className={`px-3 py-1 rounded-full text-sm font-bold ${getDifficultyClass(application.quest.difficulty)}`}
                               >
-                                {quest.difficulty.charAt(0).toUpperCase() + quest.difficulty.slice(1)}
+                                {application.quest.difficulty.charAt(0).toUpperCase() + application.quest.difficulty.slice(1)}
                               </span>
                               <span
-                                className={`px-3 py-1 rounded-full text-sm font-bold border ${getStatusColor(myApplication?.status || "pending")}`}
+                                className={`px-3 py-1 rounded-full text-sm font-bold border ${getStatusColor(application.status)}`}
                               >
-                                {(myApplication?.status || "pending").charAt(0).toUpperCase() +
-                                  (myApplication?.status || "pending").slice(1)}
+                                {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
                               </span>
                             </div>
                           </div>
@@ -148,14 +180,14 @@ export function ApplicationsModal({ isOpen, onClose, quests, currentUser, setQue
                             <CircleDollarSign size={18} className="text-[#CDAA7D]" />
                             <div>
                               <p className="text-xs text-gray-500">Reward</p>
-                              <p className="font-bold text-[#2C1A1D]">{quest.reward} Gold</p>
+                              <p className="font-bold text-[#2C1A1D]">{application.quest.gold_reward} Gold</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
                             <Star size={18} className="text-[#8B75AA]" />
                             <div>
                               <p className="text-xs text-gray-500">XP</p>
-                              <p className="font-bold text-[#8B75AA]">{quest.xp} XP</p>
+                              <p className="font-bold text-[#8B75AA]">{application.quest.xp_reward} XP</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -163,7 +195,7 @@ export function ApplicationsModal({ isOpen, onClose, quests, currentUser, setQue
                             <div>
                               <p className="text-xs text-gray-500">Applied</p>
                               <p className="font-medium text-gray-700">
-                                {myApplication?.appliedAt.toLocaleDateString()}
+                                {new Date(application.applied_at).toLocaleDateString()}
                               </p>
                             </div>
                           </div>
@@ -171,131 +203,151 @@ export function ApplicationsModal({ isOpen, onClose, quests, currentUser, setQue
                             <Clock size={18} className="text-red-500" />
                             <div>
                               <p className="text-xs text-gray-500">Deadline</p>
-                              <p className="font-medium text-gray-700">{quest.deadline.toLocaleDateString()}</p>
+                              <p className="font-medium text-gray-700">
+                                {application.quest.due_date ? new Date(application.quest.due_date).toLocaleDateString() : 'No deadline'}
+                              </p>
                             </div>
                           </div>
                         </div>
 
-                        {/* Quest Description */}
-                        <p className="text-gray-600 mb-4 line-clamp-2">{quest.description}</p>
+                        {/* Application Message */}
+                        {application.message && (
+                          <div className="mb-4">
+                            <p className="text-sm text-gray-500 mb-1">Your message:</p>
+                            <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">{application.message}</p>
+                          </div>
+                        )}
 
                         {/* Quest Poster */}
                         <div className="flex items-center gap-3 p-3 bg-[#F4F0E6] rounded-xl">
                           <div className="w-10 h-10 bg-gradient-to-br from-[#8B75AA] to-[#7A6699] rounded-full flex items-center justify-center text-white font-bold">
-                            {quest.poster.avatar}
+                            {application.quest.creator.username.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-semibold text-[#2C1A1D]">{quest.poster.username}</p>
+                            <p className="font-semibold text-[#2C1A1D]">{application.quest.creator.username}</p>
                             <p className="text-sm text-[#8B75AA]">Quest Giver</p>
                           </div>
                         </div>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Applications to My Quests */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-[#CDAA7D]/10 rounded-xl">
-                  <Users className="w-6 h-6 text-[#CDAA7D]" />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold text-[#2C1A1D] font-serif">Incoming Applications</h3>
-                  <p className="text-[#8B75AA]">Applications to your quests</p>
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {myQuests.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-2xl">
-                  <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h4 className="text-lg font-semibold text-gray-600 mb-2">No Applications Yet</h4>
-                  <p className="text-gray-500">
-                    No one has applied to your quests yet. Make sure your quests are attractive and well-described!
-                  </p>
+              {/* Applications to My Quests */}
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-[#CDAA7D]/10 rounded-xl">
+                    <Users className="w-6 h-6 text-[#CDAA7D]" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-[#2C1A1D] font-serif">Incoming Applications</h3>
+                    <p className="text-[#8B75AA]">Applications to your quests</p>
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-6">
-                  {myQuests.map((quest) => (
-                    <div
-                      key={quest.id}
-                      className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow"
-                    >
-                      {/* Quest Header */}
-                      <div className="mb-6">
-                        <h4 className="text-xl font-bold text-[#2C1A1D] mb-2 font-serif">{quest.title}</h4>
-                        <div className="flex flex-wrap items-center gap-3">
-                          <span
-                            className={`px-3 py-1 rounded-full text-sm font-bold ${getDifficultyClass(quest.difficulty)}`}
-                          >
-                            {quest.difficulty.charAt(0).toUpperCase() + quest.difficulty.slice(1)}
-                          </span>
-                          <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-bold">
-                            {quest.applicants.length} {quest.applicants.length === 1 ? "Applicant" : "Applicants"}
-                          </span>
+
+                {applicationsToMyQuests.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50 rounded-2xl">
+                    <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h4 className="text-lg font-semibold text-gray-600 mb-2">No Applications Yet</h4>
+                    <p className="text-gray-500">
+                      No one has applied to your quests yet. Make sure your quests are attractive and well-described!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Group applications by quest */}
+                    {Object.entries(
+                      applicationsToMyQuests.reduce((acc, app) => {
+                        const questId = app.quest.id;
+                        if (!acc[questId]) {
+                          acc[questId] = {
+                            quest: app.quest,
+                            applications: []
+                          };
+                        }
+                        acc[questId].applications.push(app);
+                        return acc;
+                      }, {} as Record<number, { quest: any; applications: Application[] }>)
+                    ).map(([questId, { quest, applications }]) => (
+                      <div
+                        key={questId}
+                        className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-shadow"
+                      >
+                        {/* Quest Header */}
+                        <div className="mb-6">
+                          <h4 className="text-xl font-bold text-[#2C1A1D] mb-2 font-serif">{quest.title}</h4>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <span
+                              className={`px-3 py-1 rounded-full text-sm font-bold ${getDifficultyClass(quest.difficulty)}`}
+                            >
+                              {quest.difficulty.charAt(0).toUpperCase() + quest.difficulty.slice(1)}
+                            </span>
+                            <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-bold">
+                              {applications.length} {applications.length === 1 ? "Applicant" : "Applicants"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Applicants */}
+                        <div className="space-y-4">
+                          {applications.map((application) => (
+                            <div
+                              key={application.id}
+                              className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-xl"
+                            >
+                              <div className="flex items-center gap-4 flex-1">
+                                <div className="w-12 h-12 bg-gradient-to-br from-[#8B75AA] to-[#7A6699] rounded-full flex items-center justify-center text-white font-bold text-lg">
+                                  {application.applicant.username.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-3 mb-1">
+                                    <h5 className="font-bold text-[#2C1A1D] text-lg">{application.applicant.username}</h5>
+                                    <span
+                                      className={`px-2 py-1 rounded-full text-xs font-bold border ${getStatusColor(application.status)}`}
+                                    >
+                                      {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-500 mb-2">
+                                    Applied {new Date(application.applied_at).toLocaleDateString()}
+                                  </p>
+                                  {application.message && (
+                                    <p className="text-sm text-gray-600 bg-white p-3 rounded-lg border">
+                                      "{application.message}"
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {application.status === "pending" && quest.status === "open" && (
+                                <div className="flex gap-2 sm:flex-col lg:flex-row">
+                                  <button
+                                    onClick={() => handleApproveApplicant(application.id)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-medium"
+                                  >
+                                    <CheckCircle size={16} />
+                                    <span className="hidden sm:inline">Accept</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleRejectApplicant(application.id)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors font-medium"
+                                  >
+                                    <XCircle size={16} />
+                                    <span className="hidden sm:inline">Reject</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
-
-                      {/* Applicants */}
-                      <div className="space-y-4">
-                        {quest.applicants.map((applicant) => (
-                          <div
-                            key={applicant.id}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 rounded-xl"
-                          >
-                            <div className="flex items-center gap-4 flex-1">
-                              <div className="w-12 h-12 bg-gradient-to-br from-[#8B75AA] to-[#7A6699] rounded-full flex items-center justify-center text-white font-bold text-lg">
-                                {applicant.avatar}
-                              </div>
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-1">
-                                  <h5 className="font-bold text-[#2C1A1D] text-lg">{applicant.username}</h5>
-                                  <span
-                                    className={`px-2 py-1 rounded-full text-xs font-bold border ${getStatusColor(applicant.status)}`}
-                                  >
-                                    {applicant.status.charAt(0).toUpperCase() + applicant.status.slice(1)}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-gray-500 mb-2">
-                                  Applied {applicant.appliedAt.toLocaleDateString()}
-                                </p>
-                                {applicant.message && (
-                                  <p className="text-sm text-gray-600 bg-white p-3 rounded-lg border">
-                                    "{applicant.message}"
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-
-                            {applicant.status === "pending" && quest.status === "open" && (
-                              <div className="flex gap-2 sm:flex-col lg:flex-row">
-                                <button
-                                  onClick={() => handleApproveApplicant(quest.id, applicant.userId)}
-                                  className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-medium"
-                                >
-                                  <CheckCircle size={16} />
-                                  <span className="hidden sm:inline">Accept</span>
-                                </button>
-                                <button
-                                  onClick={() => handleRejectApplicant(quest.id, applicant.userId)}
-                                  className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors font-medium"
-                                >
-                                  <XCircle size={16} />
-                                  <span className="hidden sm:inline">Reject</span>
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

@@ -52,44 +52,19 @@ export function QuestDetailsModal({
 
     if (!currentUser) return
 
-    if (quest.participants_detail?.some((p) => p.user.id === currentUser.id)) {
-      showToast("You have already applied for this quest", "error")
-      return
-    }
-
     try {
-      // Use the actual API call
-      await QuestAPI.joinQuest(quest.slug)
+      // Import the applications API
+      const { createApplication } = await import("@/lib/api/applications")
       
-      // Update local state after successful API call
-      const newParticipant = {
-        id: Date.now(),
-        user: {
-          id: typeof currentUser.id === 'string' ? parseInt(currentUser.id) : currentUser.id,
-          username: currentUser.username || '',
-          email: currentUser.email,
-          level: currentUser.level,
-          xp: currentUser.xp
-        },
-        status: "joined" as const,
-        joined_at: new Date().toISOString(),
-        progress_notes: "Applied for this quest"
-      }
-
-      setQuests((prev) => prev.map((q) => 
-        q.id === questId 
-          ? { 
-              ...q, 
-              participants_detail: [...(q.participants_detail || []), newParticipant]
-            } 
-          : q
-      ))
-
+      // Create application with a default message
+      await createApplication(questId, "I'm interested in working on this quest.")
+      
       showToast("Application submitted successfully!")
       onClose()
     } catch (error) {
       console.error('Failed to apply for quest:', error)
-      showToast("Failed to apply for quest. Please try again.", "error")
+      const errorMessage = error instanceof Error ? error.message : "Failed to apply for quest. Please try again."
+      showToast(errorMessage, "error")
     }
   }
 

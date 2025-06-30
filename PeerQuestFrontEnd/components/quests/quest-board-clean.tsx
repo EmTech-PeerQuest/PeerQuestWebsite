@@ -7,6 +7,7 @@ import { QuestAPI, QuestCategory, QuestFilters } from "@/lib/api/quests"
 import TavernQuestCard from "./tavern-quest-card"
 import QuestForm from "./quest-form"
 import { QuestDetailsModal } from "./quest-details-modal"
+import { ApplicationsModal } from "@/components/modals/applications-modal"
 
 interface QuestBoardProps {
   currentUser: any
@@ -22,6 +23,7 @@ export function QuestBoard({
   const [editingQuest, setEditingQuest] = useState<Quest | null>(null)
   const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null)
   const [showQuestDetails, setShowQuestDetails] = useState(false)
+  const [showApplicationsModal, setShowApplicationsModal] = useState(false)
   
   const [filters, setFilters] = useState<QuestFilters>({
     search: "",
@@ -110,10 +112,8 @@ export function QuestBoard({
   }
 
   const handleViewApplications = (quest: Quest) => {
-    // For now, just open quest details - can be enhanced later to show applications modal
     console.log('Viewing applications for quest:', quest.title)
-    setSelectedQuest(quest)
-    setShowQuestDetails(true)
+    setShowApplicationsModal(true)
   }
 
   const handleFilterChange = (key: keyof QuestFilters, value: string) => {
@@ -300,6 +300,13 @@ export function QuestBoard({
           console.log('Auth modal:', open)
         }}
         openEditQuestModal={handleEditQuest}
+      />
+
+      {/* Applications Modal */}
+      <ApplicationsModal
+        isOpen={showApplicationsModal}
+        onClose={() => setShowApplicationsModal(false)}
+        currentUser={currentUser}
       />
     </div>
   )
