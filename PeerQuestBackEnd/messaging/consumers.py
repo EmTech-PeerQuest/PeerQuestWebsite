@@ -11,11 +11,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
         # Use room_name from the URL for per-room chat
         self.room_name = self.scope['url_route']['kwargs']['room_name']
         self.room_group_name = f"chat_{self.room_name}"
-        await self.channel_layer.group_add(
-            self.room_group_name,
-            self.channel_name
-        )
-        await self.accept()
+
+        # Optionally, check authentication (JWT in query string or headers)
+        user = self.scope.get('user')
+        if user and user.is_authenticated:
+            await self.channel_layer.group_add(
+                self.room_group_name,
+                self.channel_name
+            )
+            await self.accept()
+        else:
+            # Optionally, close connection if not authenticated
+            await self.close()
 
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(
@@ -29,6 +36,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
         recipient_id = data.get('recipient_id')
         content = data.get('content') or data.get('message')
 
+        # Optionally, get user from scope for extra security
+        user = self.scope.get('user')
+        if user and user.is_authenticated:
+            sender_id = user.id
+
         # Save message to DB if all info is present
         if sender_id and recipient_id and content:
             message = Message.objects.create(
@@ -39,8 +51,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
             )
             # Award XP (imported from xp/utils.py)
             User = get_user_model()
-            sender = User.objects.get(id=sender_id)
-            await award_xp(sender, amount=10, reason='Chat message')
+            try:
+                sender = User.objects.get(id=sender_id)
+                await award_xp(sender, amount=10, reason='Chat message')
+            except Exception:
+                pass
             sent_at = str(message.sent_at)
         else:
             sent_at = str(timezone.now())

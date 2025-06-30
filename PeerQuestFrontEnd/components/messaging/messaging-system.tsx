@@ -92,31 +92,70 @@ export function MessagingSystem({ currentUser: initialUser, showToast }: Messagi
     return otherParticipant?.username?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false
   })
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [userRes, convoRes] = await Promise.all([
-          axios.get("/api/users/me/"),
-          axios.get("/api/messages/conversations/")
-        ])
-        setCurrentUser(userRes.data)
-        setConversations(convoRes.data)
-      } catch (err: any) {
-        if (err.response?.status === 404) {
-          showToast("Messaging backend not ready", "warning")
-        } else {
-          showToast("Failed to load messaging data", "error")
-        }
-      }
-    }
-    fetchData()
-  }, [])
+  // useEffect(() => {
+  //   const fetchData = async () => {
+  //     try {
+  //       const [userRes, convoRes] = await Promise.all([
+  //         axios.get("/api/users/me/"),
+  //         axios.get("/api/messages/conversations/")
+  //       ])
+  //       setCurrentUser(userRes.data)
+  //       setConversations(convoRes.data)
+  //     } catch (err: any) {
+  //       if (err.response?.status === 404) {
+  //         showToast("Messaging backend not ready", "warning")
+  //       } else {
+  //         showToast("Failed to load messaging data", "error")
+  //       }
+  //     }
+  //   }
+  //   fetchData()
+  // }, [])
+
+
+  // Hardcoded messages for each conversation
+  const HARDCODED_MESSAGES: { [key: number]: Message[] } = {
+    1: [
+      {
+        id: 1,
+        sender: HARDCODED_USERS[0],
+        receiver: HARDCODED_USERS[1],
+        content: "Hey Bob!",
+        created_at: "2025-06-27T10:00:00Z",
+        read: true,
+      },
+      {
+        id: 2,
+        sender: HARDCODED_USERS[1],
+        receiver: HARDCODED_USERS[0],
+        content: "Hi Alice!",
+        created_at: "2025-06-27T10:01:00Z",
+        read: true,
+      },
+    ],
+    2: [
+      {
+        id: 3,
+        sender: HARDCODED_USERS[0],
+        receiver: HARDCODED_USERS[2],
+        content: "Hi Charlie!",
+        created_at: "2025-06-27T09:00:00Z",
+        read: false,
+      },
+      {
+        id: 4,
+        sender: HARDCODED_USERS[2],
+        receiver: HARDCODED_USERS[0],
+        content: "Hello Alice!",
+        created_at: "2025-06-27T09:02:00Z",
+        read: false,
+      },
+    ],
+  }
 
   useEffect(() => {
     if (activeConversation !== null) {
-      axios.get(`/api/messages/conversations/${activeConversation}/messages/`)
-        .then(res => setMessages(res.data))
-        .catch(() => showToast("Failed to load messages", "error"))
+      setMessages(HARDCODED_MESSAGES[activeConversation] || [])
     }
   }, [activeConversation])
 
