@@ -1,6 +1,6 @@
 "use client"
 
-import { X, CircleDollarSign, Star, Clock, Palette, Code, PenTool } from "lucide-react"
+import { X, CircleDollarSign, Star, Clock, Palette, Code, PenTool, Users } from "lucide-react"
 import type { Quest, User } from "@/lib/types"
 import { formatTimeRemaining, getDifficultyClass } from "@/lib/utils"
 import { QuestAPI } from "@/lib/api/quests"
@@ -53,16 +53,23 @@ export function QuestDetailsModal({
     if (!currentUser) return
 
     try {
+      console.log('🎯 Quest Details Modal - Applying for quest:', {
+        questId: questId,
+        questTitle: quest?.title,
+        currentUser: currentUser.username
+      })
+      
       // Import the applications API
       const { createApplication } = await import("@/lib/api/applications")
       
       // Create application with a default message
       await createApplication(questId, "I'm interested in working on this quest.")
       
+      console.log('✅ Quest Details Modal - Application submitted successfully')
       showToast("Application submitted successfully!")
       onClose()
     } catch (error) {
-      console.error('Failed to apply for quest:', error)
+      console.error('❌ Quest Details Modal - Failed to apply for quest:', error)
       const errorMessage = error instanceof Error ? error.message : "Failed to apply for quest. Please try again."
       showToast(errorMessage, "error")
     }
@@ -171,11 +178,14 @@ export function QuestDetailsModal({
             </div>
 
             {/* Applications Count (for quest owner) */}
-            {isQuestOwner && quest.participants_detail && quest.participants_detail.length > 0 && (
+            {isQuestOwner && (
               <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-                <h4 className="text-lg font-bold mb-2 text-blue-800">Applications</h4>
+                <div className="flex items-center gap-2 mb-2">
+                  <Users size={20} className="text-blue-700" />
+                  <h4 className="text-lg font-bold text-blue-800">Applications</h4>
+                </div>
                 <p className="text-blue-700">
-                  {quest.participants_detail.length} {quest.participants_detail.length === 1 ? "person has" : "people have"} applied for
+                  {quest.applications_count} {quest.applications_count === 1 ? "person has" : "people have"} applied for
                   this quest.
                 </p>
               </div>

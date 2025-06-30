@@ -70,7 +70,7 @@ export function TavernQuestCard({
   const isCreator = currentUser && quest.creator.id === currentUser.id
   const isParticipant = quest.participants_detail?.some(p => p.user.id === currentUser?.id) || false
   const canJoin = quest.can_accept_participants && !isCreator && !isParticipant && quest.status === 'open'
-  const applicationCount = quest.participants_detail?.length || 0
+  const applicationCount = quest.applications_count || 0
 
   const handleJoinQuest = async () => {
     if (!onJoinQuest) return

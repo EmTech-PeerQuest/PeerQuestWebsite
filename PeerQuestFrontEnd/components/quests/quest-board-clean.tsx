@@ -24,6 +24,7 @@ export function QuestBoard({
   const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null)
   const [showQuestDetails, setShowQuestDetails] = useState(false)
   const [showApplicationsModal, setShowApplicationsModal] = useState(false)
+  const [selectedQuestForApplications, setSelectedQuestForApplications] = useState<Quest | null>(null)
   
   const [filters, setFilters] = useState<QuestFilters>({
     search: "",
@@ -72,10 +73,12 @@ export function QuestBoard({
 
   const handleJoinQuest = async (quest: Quest) => {
     try {
-      await QuestAPI.joinQuest(quest.slug)
+      // Use applications API instead of direct join
+      const { createApplication } = await import("@/lib/api/applications")
+      await createApplication(quest.id, "I'm interested in working on this quest.")
       await loadQuests() // Refresh to show updated participant count
     } catch (error) {
-      console.error('Failed to join quest:', error)
+      console.error('Failed to apply for quest:', error)
       throw error
     }
   }
@@ -113,6 +116,7 @@ export function QuestBoard({
 
   const handleViewApplications = (quest: Quest) => {
     console.log('Viewing applications for quest:', quest.title)
+    setSelectedQuestForApplications(quest)
     setShowApplicationsModal(true)
   }
 
@@ -305,8 +309,12 @@ export function QuestBoard({
       {/* Applications Modal */}
       <ApplicationsModal
         isOpen={showApplicationsModal}
-        onClose={() => setShowApplicationsModal(false)}
+        onClose={() => {
+          setShowApplicationsModal(false)
+          setSelectedQuestForApplications(null)
+        }}
         currentUser={currentUser}
+        questId={selectedQuestForApplications?.id}
       />
     </div>
   )

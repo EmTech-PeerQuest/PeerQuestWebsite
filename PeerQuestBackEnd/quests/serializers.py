@@ -54,6 +54,7 @@ class QuestListSerializer(serializers.ModelSerializer):
     participant_count = serializers.ReadOnlyField()
     can_accept_participants = serializers.ReadOnlyField()
     is_completed = serializers.ReadOnlyField()
+    applications_count = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
 
     class Meta:
@@ -62,8 +63,12 @@ class QuestListSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'difficulty',
             'status', 'xp_reward', 'gold_reward', 'max_participants',
             'creator', 'assigned_to', 'category', 'created_at', 'updated_at', 'due_date', 'slug',
-            'participant_count', 'can_accept_participants', 'is_completed'
+            'participant_count', 'can_accept_participants', 'is_completed', 'applications_count'
         ]
+    
+    def get_applications_count(self, obj):
+        """Return the number of applications for this quest"""
+        return obj.applications.count()
     
     def get_description(self, obj):
         """Return truncated description for quest cards"""
@@ -97,6 +102,7 @@ class QuestDetailSerializer(serializers.ModelSerializer):
     participant_count = serializers.ReadOnlyField()
     can_accept_participants = serializers.ReadOnlyField()
     is_completed = serializers.ReadOnlyField()
+    applications_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Quest
@@ -106,8 +112,12 @@ class QuestDetailSerializer(serializers.ModelSerializer):
             'max_participants', 'creator', 'assigned_to', 'participants_detail', 'created_at',
             'updated_at', 'due_date', 'completed_at',
             'requirements', 'resources', 'slug', 'participant_count',
-            'can_accept_participants', 'is_completed'
+            'can_accept_participants', 'is_completed', 'applications_count'
         ]
+
+    def get_applications_count(self, obj):
+        """Return the number of applications for this quest"""
+        return obj.applications.count()
 
 
 class QuestCreateUpdateSerializer(serializers.ModelSerializer):

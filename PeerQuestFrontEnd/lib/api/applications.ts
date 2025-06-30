@@ -1,24 +1,7 @@
 import { Application } from '@/lib/types'
+import { handleApiResponse, getAuthHeaders } from './utils'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
-
-// Helper function to get headers with authentication
-const getAuthHeaders = () => {
-  const headers: { [key: string]: string } = {
-    'Content-Type': 'application/json',
-  }
-  
-  // Add authentication token if available
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('access_token')
-    console.log('Auth token found:', token ? 'Yes' : 'No')
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-    }
-  }
-  
-  return headers
-}
 
 export interface ApplicationListResponse {
   results: Application[]
@@ -34,14 +17,11 @@ export const getMyApplications = async (): Promise<Application[]> => {
       headers: getAuthHeaders(),
     })
     
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Authentication required. Please log in.')
-      }
-      throw new Error(`Failed to fetch applications: ${response.status} ${response.statusText}`)
+    if (response.status === 401) {
+      throw new Error('Authentication required. Please log in.')
     }
     
-    const data: ApplicationListResponse = await response.json()
+    const data: ApplicationListResponse = await handleApiResponse<ApplicationListResponse>(response)
     return data.results
   } catch (error) {
     console.error('Error fetching my applications:', error)
@@ -56,14 +36,11 @@ export const getApplicationsToMyQuests = async (): Promise<Application[]> => {
       headers: getAuthHeaders(),
     })
     
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error('Authentication required. Please log in.')
-      }
-      throw new Error(`Failed to fetch applications to my quests: ${response.status} ${response.statusText}`)
+    if (response.status === 401) {
+      throw new Error('Authentication required. Please log in.')
     }
     
-    const data: ApplicationListResponse = await response.json()
+    const data: ApplicationListResponse = await handleApiResponse<ApplicationListResponse>(response)
     return data.results
   } catch (error) {
     console.error('Error fetching applications to my quests:', error)
@@ -74,6 +51,12 @@ export const getApplicationsToMyQuests = async (): Promise<Application[]> => {
 // Create a new application
 export const createApplication = async (questId: number, message: string): Promise<Application> => {
   try {
+    console.log('📤 API Call - Creating application:', {
+      questId: questId,
+      message: message,
+      apiUrl: `${API_BASE_URL}/applications/`
+    })
+    
     const response = await fetch(`${API_BASE_URL}/applications/`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -83,14 +66,11 @@ export const createApplication = async (questId: number, message: string): Promi
       }),
     })
     
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.detail || `Failed to create application: ${response.status}`)
-    }
-    
-    return await response.json()
+    const result = await handleApiResponse<Application>(response)
+    console.log('✅ API Response - Application created:', result)
+    return result
   } catch (error) {
-    console.error('Error creating application:', error)
+    console.error('❌ API Error - Failed to create application:', error)
     throw error
   }
 }
@@ -103,12 +83,7 @@ export const approveApplication = async (applicationId: number): Promise<Applica
       headers: getAuthHeaders(),
     })
     
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.detail || `Failed to approve application: ${response.status}`)
-    }
-    
-    return await response.json()
+    return await handleApiResponse<Application>(response)
   } catch (error) {
     console.error('Error approving application:', error)
     throw error
@@ -123,12 +98,7 @@ export const rejectApplication = async (applicationId: number): Promise<Applicat
       headers: getAuthHeaders(),
     })
     
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.detail || `Failed to reject application: ${response.status}`)
-    }
-    
-    return await response.json()
+    return await handleApiResponse<Application>(response)
   } catch (error) {
     console.error('Error rejecting application:', error)
     throw error

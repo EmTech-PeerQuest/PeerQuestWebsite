@@ -48,6 +48,7 @@ export interface Quest {
   resources?: string
   slug: string
   participant_count: number
+  applications_count: number
   can_accept_participants: boolean
   is_completed: boolean
   participants_detail?: Array<{

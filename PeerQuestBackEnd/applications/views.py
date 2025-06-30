@@ -5,6 +5,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .models import Application
 from .serializers import (
@@ -24,6 +27,20 @@ class ApplicationViewSet(ModelViewSet):
         elif self.action in ['list', 'retrieve']:
             return ApplicationListSerializer
         return ApplicationDetailSerializer
+    
+    def create(self, request, *args, **kwargs):
+        """Create a new application with debug logging"""
+        logger.info(f"Application create request from user: {request.user}")
+        logger.info(f"Request data: {request.data}")
+        
+        try:
+            response = super().create(request, *args, **kwargs)
+            logger.info(f"Application created successfully: {response.data}")
+            return response
+        except Exception as e:
+            logger.error(f"Error creating application: {str(e)}")
+            logger.error(f"Exception type: {type(e)}")
+            raise
     
     def get_queryset(self):
         """Return applications based on the action"""

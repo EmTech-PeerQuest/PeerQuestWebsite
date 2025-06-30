@@ -10,9 +10,10 @@ interface ApplicationsModalProps {
   isOpen: boolean
   onClose: () => void
   currentUser: UserType | null
+  questId?: number // Optional: if provided, only show applications for this specific quest
 }
 
-export function ApplicationsModal({ isOpen, onClose, currentUser }: ApplicationsModalProps) {
+export function ApplicationsModal({ isOpen, onClose, currentUser, questId }: ApplicationsModalProps) {
   const [myApplications, setMyApplications] = useState<Application[]>([])
   const [applicationsToMyQuests, setApplicationsToMyQuests] = useState<Application[]>([])
   const [loading, setLoading] = useState(false)
@@ -22,10 +23,10 @@ export function ApplicationsModal({ isOpen, onClose, currentUser }: Applications
     if (isOpen && currentUser) {
       loadApplications()
     }
-  }, [isOpen, currentUser])
+  }, [isOpen, currentUser, questId])
 
   const loadApplications = async () => {
-    console.log('Loading applications for user:', currentUser?.username)
+    console.log('Loading applications for user:', currentUser?.username, questId ? `for quest ${questId}` : 'for all quests')
     setLoading(true)
     setError(null)
     try {
@@ -35,10 +36,16 @@ export function ApplicationsModal({ isOpen, onClose, currentUser }: Applications
       ])
       console.log('Applications loaded successfully:', { 
         myApps: myApps.length, 
-        appsToMyQuests: appsToMyQuests.length
+        appsToMyQuests: appsToMyQuests.length,
+        questId: questId
       })
-      setMyApplications(myApps)
-      setApplicationsToMyQuests(appsToMyQuests)
+      
+      // Filter applications if questId is provided
+      const filteredMyApps = questId ? myApps.filter(app => app.quest.id === questId) : myApps
+      const filteredAppsToMyQuests = questId ? appsToMyQuests.filter(app => app.quest.id === questId) : appsToMyQuests
+      
+      setMyApplications(filteredMyApps)
+      setApplicationsToMyQuests(filteredAppsToMyQuests)
     } catch (err) {
       console.error('Failed to load applications:', err)
       const errorMessage = err instanceof Error ? err.message : 'Failed to load applications'
@@ -105,8 +112,15 @@ export function ApplicationsModal({ isOpen, onClose, currentUser }: Applications
         <div className="bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] text-white p-6">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-3xl font-bold font-serif mb-2">Quest Applications</h2>
-              <p className="text-white/90">Manage your quest applications and review incoming requests</p>
+              <h2 className="text-3xl font-bold font-serif mb-2">
+                {questId ? 'Quest Applications' : 'All Quest Applications'}
+              </h2>
+              <p className="text-white/90">
+                {questId 
+                  ? 'Applications for this specific quest' 
+                  : 'Manage your quest applications and review incoming requests'
+                }
+              </p>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-xl transition-colors">
               <X size={24} />
@@ -127,27 +141,28 @@ export function ApplicationsModal({ isOpen, onClose, currentUser }: Applications
               <p className="mt-4 text-gray-600">Loading applications...</p>
             </div>
           ) : (
-            <div className="grid lg:grid-cols-2 gap-8">
-              {/* My Applications */}
-              <div className="space-y-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-3 bg-[#8B75AA]/10 rounded-xl">
-                    <ScrollText className="w-6 h-6 text-[#8B75AA]" />
+            <div className={questId ? "space-y-6" : "grid lg:grid-cols-2 gap-8"}>
+              {/* My Applications - only show if not viewing specific quest */}
+              {!questId && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 bg-[#8B75AA]/10 rounded-xl">
+                      <ScrollText className="w-6 h-6 text-[#8B75AA]" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-[#2C1A1D] font-serif">My Applications</h3>
+                      <p className="text-[#8B75AA]">Quests you've applied for</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-2xl font-bold text-[#2C1A1D] font-serif">My Applications</h3>
-                    <p className="text-[#8B75AA]">Quests you've applied for</p>
-                  </div>
-                </div>
 
-                {myApplications.length === 0 ? (
-                  <div className="text-center py-12 bg-gray-50 rounded-2xl">
-                    <ScrollText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <h4 className="text-lg font-semibold text-gray-600 mb-2">No Applications Yet</h4>
-                    <p className="text-gray-500">
-                      You haven't applied for any quests yet. Browse the Quest Board to find opportunities!
-                    </p>
-                  </div>
+                  {myApplications.length === 0 ? (
+                    <div className="text-center py-12 bg-gray-50 rounded-2xl">
+                      <ScrollText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                      <h4 className="text-lg font-semibold text-gray-600 mb-2">No Applications Yet</h4>
+                      <p className="text-gray-500">
+                        You haven't applied for any quests yet. Browse the Quest Board to find opportunities!
+                      </p>
+                    </div>
                 ) : (
                   <div className="space-y-4">
                     {myApplications.map((application) => (
@@ -233,6 +248,7 @@ export function ApplicationsModal({ isOpen, onClose, currentUser }: Applications
                   </div>
                 )}
               </div>
+              )}
 
               {/* Applications to My Quests */}
               <div className="space-y-6">
@@ -241,8 +257,12 @@ export function ApplicationsModal({ isOpen, onClose, currentUser }: Applications
                     <Users className="w-6 h-6 text-[#CDAA7D]" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-[#2C1A1D] font-serif">Incoming Applications</h3>
-                    <p className="text-[#8B75AA]">Applications to your quests</p>
+                    <h3 className="text-2xl font-bold text-[#2C1A1D] font-serif">
+                      {questId ? 'Quest Applications' : 'Incoming Applications'}
+                    </h3>
+                    <p className="text-[#8B75AA]">
+                      {questId ? 'Applications for this quest' : 'Applications to your quests'}
+                    </p>
                   </div>
                 </div>
 

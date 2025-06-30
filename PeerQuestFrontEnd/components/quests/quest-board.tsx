@@ -6,6 +6,7 @@ import type { Quest } from "@/lib/types"
 import { QuestAPI, QuestCategory, QuestFilters } from "@/lib/api/quests"
 import TavernQuestCard from "./tavern-quest-card"
 import QuestForm from "./quest-form"
+import { ApplicationsModal } from "@/components/modals/applications-modal"
 
 interface QuestBoardProps {
   currentUser: any
@@ -22,6 +23,8 @@ export function QuestBoard({
   const [refreshing, setRefreshing] = useState(false)
   const [showQuestForm, setShowQuestForm] = useState(false)
   const [editingQuest, setEditingQuest] = useState<Quest | null>(null)
+  const [showApplicationsModal, setShowApplicationsModal] = useState(false)
+  const [selectedQuestForApplications, setSelectedQuestForApplications] = useState<Quest | null>(null)
   
   const [filters, setFilters] = useState<QuestFilters>({
     search: "",
@@ -79,10 +82,20 @@ export function QuestBoard({
 
   const handleJoinQuest = async (quest: Quest) => {
     try {
-      await QuestAPI.joinQuest(quest.slug)
+      console.log('🎯 Applying for specific quest:', {
+        questId: quest.id,
+        questTitle: quest.title,
+        questCreator: quest.creator.username
+      })
+      
+      // Use applications API instead of direct join
+      const { createApplication } = await import("@/lib/api/applications")
+      await createApplication(quest.id, "I'm interested in working on this quest.")
+      
+      console.log('✅ Application submitted successfully for quest:', quest.title)
       await loadQuests() // Refresh to show updated participant count
     } catch (error) {
-      console.error('Failed to join quest:', error)
+      console.error('❌ Failed to apply for quest:', quest.title, error)
       throw error
     }
   }
@@ -109,9 +122,9 @@ export function QuestBoard({
   }
 
   const handleViewApplications = (quest: Quest) => {
-    // For now, just open quest details - can be enhanced later to show applications modal
     console.log('Viewing applications for quest:', quest.title)
-    openQuestDetails(quest)
+    setSelectedQuestForApplications(quest)
+    setShowApplicationsModal(true)
   }
 
   const handleFilterChange = (key: keyof QuestFilters, value: string) => {
@@ -289,6 +302,17 @@ export function QuestBoard({
         }}
         onSuccess={handleQuestFormSuccess}
         isEditing={!!editingQuest}
+      />
+
+      {/* Applications Modal */}
+      <ApplicationsModal
+        isOpen={showApplicationsModal}
+        onClose={() => {
+          setShowApplicationsModal(false)
+          setSelectedQuestForApplications(null)
+        }}
+        currentUser={currentUser}
+        questId={selectedQuestForApplications?.id}
       />
     </div>
   )
