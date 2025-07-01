@@ -62,7 +62,12 @@ export function QuestBoard({
         QuestAPI.getCategories()
       ])
       
-      setQuests(questsData.results || questsData)
+      // Handle both response formats: array directly or wrapped in results/value
+      const questsArray = Array.isArray(questsData) 
+        ? questsData 
+        : (questsData.results || questsData.value || [])
+      
+      setQuests(questsArray)
       setCategories(categoriesData)
     } catch (error) {
       console.error('Failed to load quests and categories:', error)
@@ -75,7 +80,13 @@ export function QuestBoard({
     try {
       const questsData = await QuestAPI.getQuests(filters)
       console.log('📋 Loaded quests:', questsData.results || questsData)
-      setQuests(questsData.results || questsData)
+      
+      // Handle both response formats: array directly or wrapped in results/value
+      const questsArray = Array.isArray(questsData) 
+        ? questsData 
+        : (questsData.results || questsData.value || [])
+      
+      setQuests(questsArray)
     } catch (error) {
       console.error('Failed to load quests:', error)
     }
@@ -86,12 +97,17 @@ export function QuestBoard({
     try {
       // Update the quest list
       const questsData = await QuestAPI.getQuests(filters)
-      const updatedQuests = questsData.results || questsData
+      
+      // Handle both response formats: array directly or wrapped in results/value
+      const updatedQuests = Array.isArray(questsData) 
+        ? questsData 
+        : (questsData.results || questsData.value || [])
+      
       setQuests(updatedQuests)
       
       // If a quest is currently selected in the modal, update it with fresh data
       if (selectedQuest) {
-        const updatedSelectedQuest = updatedQuests.find(q => q.id === selectedQuest.id)
+        const updatedSelectedQuest = updatedQuests.find((q: Quest) => q.id === selectedQuest.id)
         if (updatedSelectedQuest) {
           setSelectedQuest(updatedSelectedQuest)
         }

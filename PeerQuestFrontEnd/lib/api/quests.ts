@@ -21,10 +21,11 @@ const getAuthHeaders = () => {
 
 // Types for API responses
 export interface QuestListResponse {
-  results: Quest[]
+  results?: Quest[]
+  value?: Quest[]
   count: number
-  next: string | null
-  previous: string | null
+  next?: string | null
+  previous?: string | null
 }
 
 export interface QuestCategory {

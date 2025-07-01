@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Navbar } from '@/components/ui/navbar'
 import { Hero } from '@/components/ui/hero'
 import { QuestBoard } from '@/components/quests/quest-board-clean'
+import { QuestManagement } from '@/components/quests/quest-management'
 import { GuildHall } from '@/components/guilds/guild-hall'
 import { About } from "@/components/about"
 import { Footer } from '@/components/ui/footer'
@@ -176,10 +177,25 @@ export default function Home() {
         )}
 
         {activeSection === "quest-management" && currentUser && (
-          <div className="p-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Quest Management</h2>
-            <p className="text-gray-600">Quest management is being developed...</p>
-          </div>
+          !questsLoaded ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <Spinner />
+              <div className="mt-4 text-[#8B75AA] text-lg font-medium">Loading your quests...</div>
+            </div>
+          ) : (
+            <QuestManagement
+              currentUser={currentUser}
+              setQuests={setQuests}
+              onQuestStatusChange={(questId, newStatus) => {
+                setQuests(prev => prev.map(q => 
+                  q.id === questId ? { ...q, status: newStatus as Quest['status'] } : q
+                ));
+              }}
+              showToast={(message: string, type?: string) => {
+                toast({ title: message, variant: type === "error" ? "destructive" : "default" });
+              }}
+            />
+          )
         )}
 
         {activeSection === "guild-management" && currentUser && (
