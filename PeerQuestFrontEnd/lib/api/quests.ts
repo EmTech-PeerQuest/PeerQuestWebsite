@@ -135,7 +135,7 @@ export const QuestAPI = {
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(`Failed to create quest: ${error.detail || response.statusText}`)
+      throw new Error(`Failed to create quest: ${JSON.stringify(error)}`)
     }
 
     return response.json()
@@ -212,11 +212,15 @@ export const QuestAPI = {
   // Quest categories
   async getCategories(): Promise<QuestCategory[]> {
     const response = await fetch(`${API_BASE_URL}/quests/categories/`, {
-      headers: getAuthHeaders(),
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        // Don't include auth headers for categories since it's public
+      },
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch categories: ${response.statusText}`)
+      throw new Error(`Failed to fetch categories: ${response.status} ${response.statusText}`)
     }
 
     return response.json()

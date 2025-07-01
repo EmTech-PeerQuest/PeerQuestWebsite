@@ -29,11 +29,11 @@ export function TavernQuestCard({
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty.toLowerCase()) {
       case "easy":
-        return "bg-emerald-500 text-white"
+        return "bg-gradient-to-r from-green-500 to-green-600 text-white"
       case "medium":
-        return "bg-amber-500 text-white"
+        return "bg-gradient-to-r from-yellow-400 to-orange-500 text-white"
       case "hard":
-        return "bg-red-500 text-white"
+        return "bg-gradient-to-r from-red-500 to-red-600 text-white"
       default:
         return "bg-gray-500 text-white"
     }
@@ -106,7 +106,7 @@ export function TavernQuestCard({
               {quest.title}
             </h3>
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded">
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
                 🎨 {quest.category.name.toUpperCase()}
               </span>
             </div>
@@ -115,12 +115,12 @@ export function TavernQuestCard({
           {/* Right side badges */}
           <div className="ml-3 flex flex-col gap-2 items-end">
             {/* Difficulty Badge - Top Right */}
-            <span className="px-2 py-1 bg-orange-500 text-white text-xs font-medium rounded">
+            <span className={`px-3 py-1 text-xs font-medium rounded-full ${getDifficultyColor(quest.difficulty)}`}>
               {quest.difficulty.toUpperCase()}
             </span>
             
             {/* Status Badge - Below Difficulty */}
-            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded">
+            <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
               {quest.status.replace('-', '-').toUpperCase()}
             </span>
           </div>

@@ -11,10 +11,12 @@ import { ApplicationsModal } from "@/components/modals/applications-modal"
 
 interface QuestBoardProps {
   currentUser: any
+  refreshTrigger?: number
 }
 
 export function QuestBoard({
   currentUser,
+  refreshTrigger,
 }: QuestBoardProps) {
   const [quests, setQuests] = useState<Quest[]>([])
   const [categories, setCategories] = useState<QuestCategory[]>([])
@@ -44,6 +46,13 @@ export function QuestBoard({
       loadQuests()
     }
   }, [filters])
+
+  // Refresh quests when triggered from navbar (without remounting)
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      loadQuests()
+    }
+  }, [refreshTrigger])
 
   const loadQuestsAndCategories = async () => {
     setLoading(true)
@@ -120,11 +129,11 @@ export function QuestBoard({
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty.toLowerCase()) {
       case "easy":
-        return "bg-emerald-500 text-white"
+        return "bg-gradient-to-r from-green-500 to-green-600 text-white"
       case "medium":
-        return "bg-amber-500 text-white"
+        return "bg-gradient-to-r from-yellow-400 to-orange-500 text-white"
       case "hard":
-        return "bg-red-500 text-white"
+        return "bg-gradient-to-r from-red-500 to-red-600 text-white"
       default:
         return "bg-gray-500 text-white"
     }
@@ -144,7 +153,7 @@ export function QuestBoard({
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl sm:text-4xl font-bold text-amber-900 font-serif">Quest Board</h2>
-          <p className="text-purple-500 mt-2 font-medium">
+          <p className="mt-2 font-medium" style={{color: '#8C74AC'}}>
             Discover opportunities to showcase your skills and collaborate
           </p>
         </div>
@@ -156,7 +165,10 @@ export function QuestBoard({
                 setEditingQuest(null)
                 setShowQuestForm(true)
               }}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-purple-400 border border-transparent rounded-md hover:bg-purple-500 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md transition-colors"
+              style={{backgroundColor: '#8C74AC'}}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#7A6699'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#8C74AC'}
             >
               <Edit className="w-4 h-4" />
               Post a Quest
@@ -166,28 +178,30 @@ export function QuestBoard({
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white border-2 border-amber-200 rounded-lg p-4">
+      <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
         <div className="space-y-4">
           {/* Search */}
-          <div className="relative">
-            <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search quests by title or description..."
-              value={filters.search || ""}
-              onChange={(e) => handleFilterChange("search", e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900"
-            />
+          <div>
+            <div className="relative">
+              <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search quests by title or description..."
+                value={filters.search || ""}
+                onChange={(e) => handleFilterChange("search", e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900"
+              />
+            </div>
           </div>
 
-          {/* Filter Dropdowns */}
-          <div className="flex items-center gap-4">
+          {/* Filters Row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Category Filter */}
             <div className="flex flex-col">
               <select
                 value={filters.category || ""}
                 onChange={(e) => handleFilterChange("category", e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-sm text-gray-900 min-w-[140px]"
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-sm text-gray-900"
               >
                 <option value="">All Categories</option>
                 {categories.map(category => (
@@ -203,7 +217,7 @@ export function QuestBoard({
               <select
                 value={filters.difficulty || ""}
                 onChange={(e) => handleFilterChange("difficulty", e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-sm text-gray-900 min-w-[140px]"
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-sm text-gray-900"
               >
                 <option value="">All Difficulties</option>
                 <option value="easy">Easy</option>
@@ -217,7 +231,7 @@ export function QuestBoard({
               <select
                 value={filters.status || ""}
                 onChange={(e) => handleFilterChange("status", e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-sm text-gray-900 min-w-[120px]"
+                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-sm text-gray-900"
               >
                 <option value="">All Statuses</option>
                 <option value="open">Open</option>
@@ -258,7 +272,10 @@ export function QuestBoard({
                 setEditingQuest(null)
                 setShowQuestForm(true)
               }}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              className="text-white px-6 py-3 rounded-lg transition-colors font-medium"
+              style={{backgroundColor: '#8C74AC'}}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#7A6699'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#8C74AC'}
             >
               Create the First Quest
             </button>
@@ -276,6 +293,7 @@ export function QuestBoard({
         }}
         onSuccess={handleQuestFormSuccess}
         isEditing={!!editingQuest}
+        currentUser={currentUser}
       />
 
       {/* Quest Details Modal */}
