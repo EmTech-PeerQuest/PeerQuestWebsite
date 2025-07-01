@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, CircleDollarSign, Star, Clock, Palette, Code, PenTool, Users, CheckCircle } from "lucide-react"
+import { X, CircleDollarSign, Star, Clock, Palette, Code, PenTool, Users, CheckCircle, Trash2 } from "lucide-react"
 import type { Quest, User, Application } from "@/lib/types"
 import { formatTimeRemaining, getDifficultyClass } from "@/lib/utils"
 import { QuestAPI } from "@/lib/api/quests"
@@ -34,6 +34,8 @@ export function QuestDetailsModal({
 }: QuestDetailsModalProps) {
   const [userApplications, setUserApplications] = useState<Application[]>([])
   const [isLoadingApplications, setIsLoadingApplications] = useState(false)
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Check if user has already applied for this quest
   const hasAlreadyApplied = quest ? userApplications.some(app => 
@@ -73,6 +75,14 @@ export function QuestDetailsModal({
   }
 
   if (!isOpen || !quest) return null
+
+  // Debug logging for quest details
+  console.log('👁️ Quest Details Modal - Quest data:', {
+    id: quest.id,
+    title: quest.title,
+    description: quest.description,
+    descriptionLength: quest.description?.length || 0
+  })
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
@@ -146,6 +156,38 @@ export function QuestDetailsModal({
     }
   }
 
+  const handleDeleteQuest = async () => {
+    if (!quest || !currentUser) return
+
+    try {
+      setIsDeleting(true)
+      console.log('🗑️ Deleting quest:', quest.id)
+      
+      await QuestAPI.deleteQuest(quest.slug)
+      
+      console.log('✅ Quest deleted successfully')
+      showToast("Quest deleted successfully!")
+      
+      // Remove the quest from the list
+      setQuests(prevQuests => prevQuests.filter(q => q.id !== quest.id))
+      
+      // Close both modals
+      setShowDeleteConfirmation(false)
+      onClose()
+      
+      // Refresh quest data if callback is provided
+      if (onQuestUpdate) {
+        await onQuestUpdate()
+      }
+    } catch (error) {
+      console.error('❌ Failed to delete quest:', error)
+      const errorMessage = error instanceof Error ? error.message : "Failed to delete quest. Please try again."
+      showToast(errorMessage, "error")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const isQuestOwner = currentUser && quest.creator && quest.creator.id === currentUser.id
 
   return (
@@ -207,7 +249,7 @@ export function QuestDetailsModal({
             {/* Description */}
             <div>
               <h4 className="text-lg font-bold mb-3 text-[#2C1A1D] font-serif">Description</h4>
-              <p className="text-[#2C1A1D] leading-relaxed">{quest.description}</p>
+              <p className="text-[#2C1A1D] leading-relaxed whitespace-pre-wrap">{quest.description}</p>
             </div>
 
             {/* Requirements */}
@@ -307,14 +349,18 @@ export function QuestDetailsModal({
 
             {isQuestOwner ? (
               <div className="flex gap-3">
-                <div className="px-4 py-2 bg-[#8B75AA]/10 text-[#8B75AA] rounded-lg font-medium flex items-center">
-                  Your Quest
-                </div>
                 <button
                   onClick={handleManageQuest}
                   className="px-6 py-2 bg-[#8B75AA] text-white rounded-lg hover:bg-[#7A6699] transition-colors font-medium shadow-md"
                 >
                   Edit Quest
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirmation(true)}
+                  className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium shadow-md flex items-center gap-2"
+                >
+                  <Trash2 size={16} />
+                  Delete Quest
                 </button>
               </div>
             ) : (
@@ -343,6 +389,81 @@ export function QuestDetailsModal({
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirmation && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-60 p-4">
+          <div
+            className="bg-white rounded-xl w-full max-w-md shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] text-white p-6 rounded-t-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-orange-600 rounded-full flex items-center justify-center">
+                  <Trash2 size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold">Delete Quest</h3>
+                  <p className="text-white/80">This action cannot be undone</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <div className="mb-6">
+                <p className="text-gray-700 mb-4">
+                  Are you sure you want to delete the quest <strong>"{quest?.title}"</strong>?
+                </p>
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-orange-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-white text-sm font-bold">!</span>
+                    </div>
+                    <div className="text-orange-800 text-sm">
+                      <p className="font-semibold mb-1">This will permanently:</p>
+                      <ul className="list-disc list-inside space-y-1 text-orange-700">
+                        <li>Delete the quest and all its data</li>
+                        <li>Remove all applications for this quest</li>
+                        <li>Notify all applicants and participants</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowDeleteConfirmation(false)}
+                  disabled={isDeleting}
+                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors font-medium disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteQuest}
+                  disabled={isDeleting}
+                  className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium shadow-md disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isDeleting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={16} />
+                      Delete Quest
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

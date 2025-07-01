@@ -63,6 +63,8 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     if (isOpen) {
       if (isEditing && quest) {
         // Populate form with existing quest data
+        console.log('📝 Quest Form - Editing quest:', quest)
+        console.log('📝 Quest Form - Description length:', quest.description?.length || 0)
         setFormData({
           title: quest.title,
           description: quest.description,
@@ -121,6 +123,8 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
       validationErrors.description = 'Description is required'
     } else if (formData.description.trim().length < 10) {
       validationErrors.description = 'Description must be at least 10 characters long'
+    } else if (formData.description.trim().length > 2000) {
+      validationErrors.description = 'Description cannot exceed 2000 characters'
     }
     
     // Enhanced category validation
@@ -191,6 +195,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
           ...formData
           // gold_reward: goldReward // Disabled for now
         }
+        console.log('🔄 Updating quest with data:', updateData)
         result = await QuestAPI.updateQuest(quest.slug, updateData)
       } else {
         // Create new quest
@@ -198,8 +203,11 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
           ...formData
           // gold_reward: goldReward // Disabled for now
         }
+        console.log('✨ Creating quest with data:', createData)
         result = await QuestAPI.createQuest(createData)
       }
+      
+      console.log('✅ Quest operation successful:', result)
 
       // Reset form data after successful creation
       if (!isEditing) {
@@ -384,11 +392,19 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                 value={formData.description}
                 onChange={handleChange}
                 rows={4}
+                maxLength={2000}
                 className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 resize-none"
                 placeholder="Describe your quest in detail. What needs to be done? What are the requirements?"
                 required
               />
-              {errors.description && <p className="mt-2 text-sm text-red-600">{errors.description}</p>}
+              <div className="flex justify-between items-center mt-1">
+                <div>
+                  {errors.description && <span className="text-sm text-red-600">{errors.description}</span>}
+                </div>
+                <span className="text-xs text-gray-500">
+                  {formData.description.length}/2000 characters
+                </span>
+              </div>
             </div>
 
             {/* Category */}

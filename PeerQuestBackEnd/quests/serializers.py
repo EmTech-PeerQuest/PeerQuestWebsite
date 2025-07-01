@@ -142,11 +142,32 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
             from django.contrib.auth import get_user_model
             User = get_user_model()
             validated_data['creator'] = User.objects.first()
+        
+        print(f"🆕 Creating quest with data: {validated_data}")
         return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        print(f"🔄 Updating quest {instance.id} with data: {validated_data}")
+        print(f"🔄 Current description: '{instance.description}'")
+        print(f"🔄 New description: '{validated_data.get('description', 'NOT PROVIDED')}'")
+        
+        updated_instance = super().update(instance, validated_data)
+        
+        print(f"✅ Updated quest {updated_instance.id}, new description: '{updated_instance.description}'")
+        return updated_instance
 
     def validate_xp_reward(self, value):
         if value < 0:
             raise serializers.ValidationError("XP reward cannot be negative.")
+        return value
+
+    def validate_description(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Description is required.")
+        if len(value.strip()) < 10:
+            raise serializers.ValidationError("Description must be at least 10 characters long.")
+        if len(value.strip()) > 2000:
+            raise serializers.ValidationError("Description cannot exceed 2000 characters.")
         return value
 
     def validate_gold_reward(self, value):

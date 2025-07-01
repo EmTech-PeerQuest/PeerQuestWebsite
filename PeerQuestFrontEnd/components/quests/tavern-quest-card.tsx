@@ -26,6 +26,23 @@ export function TavernQuestCard({
 }: TavernQuestCardProps) {
   const [isLoading, setIsLoading] = useState(false)
 
+  // Function to truncate description (fallback if backend doesn't truncate)
+  const truncateDescription = (text: string, maxLength: number = 150) => {
+    if (text.length <= maxLength) return text
+    
+    // Find the last space before the max length to avoid cutting words
+    const truncated = text.substring(0, maxLength)
+    const lastSpace = truncated.lastIndexOf(' ')
+    
+    // If we found a space and it's not too far from the end, cut there
+    if (lastSpace > maxLength * 0.8) {
+      return text.substring(0, lastSpace).trim() + "..."
+    }
+    
+    // Otherwise, just cut at the character limit
+    return truncated.trim() + "..."
+  }
+
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty.toLowerCase()) {
       case "easy":
@@ -130,11 +147,6 @@ export function TavernQuestCard({
       {/* White Body Section */}
       <div className="p-4">
 
-        {/* Description */}
-        <p className="text-gray-700 text-sm mb-4 leading-relaxed">
-          {quest.description}
-        </p>
-
         {/* Reward Section */}
         <div className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-lg p-3 mb-4">
           <div className="flex items-center justify-center gap-8">
@@ -160,6 +172,18 @@ export function TavernQuestCard({
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Description */}
+        <div className="mb-4">
+          <p className="text-gray-700 text-sm leading-relaxed">
+            {truncateDescription(quest.description)}
+          </p>
+          {quest.description.length > 150 && (
+            <p className="text-xs text-[#8B75AA] mt-1 italic">
+              Click "View Details" to read the full description
+            </p>
+          )}
         </div>
 
         {/* Quest Details */}

@@ -48,7 +48,7 @@ class Quest(models.Model):
 
     # Basic quest information
     title = models.CharField(max_length=200)
-    description = models.TextField()
+    description = models.TextField(max_length=2000, help_text="Maximum 2000 characters")
     
     # Quest metadata
     category = models.ForeignKey(QuestCategory, on_delete=models.PROTECT, default=2)

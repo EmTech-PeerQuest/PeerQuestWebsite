@@ -74,6 +74,7 @@ export function QuestBoard({
   const loadQuests = async () => {
     try {
       const questsData = await QuestAPI.getQuests(filters)
+      console.log('📋 Loaded quests:', questsData.results || questsData)
       setQuests(questsData.results || questsData)
     } catch (error) {
       console.error('Failed to load quests:', error)
@@ -98,14 +99,36 @@ export function QuestBoard({
     await loadQuests()
   }
 
-  const handleEditQuest = (quest: Quest) => {
-    setEditingQuest(quest)
-    setShowQuestForm(true)
+  const handleEditQuest = async (quest: Quest) => {
+    try {
+      // Fetch full quest details to get complete description
+      console.log('📝 Fetching full quest details for editing:', quest.slug)
+      const fullQuest = await QuestAPI.getQuest(quest.slug)
+      console.log('📝 Full quest data for editing:', fullQuest)
+      setEditingQuest(fullQuest)
+      setShowQuestForm(true)
+    } catch (error) {
+      console.error('Failed to fetch quest details for editing:', error)
+      // Fallback to using the quest from the list (with potentially truncated description)
+      setEditingQuest(quest)
+      setShowQuestForm(true)
+    }
   }
 
-  const handleOpenQuestDetails = (quest: Quest) => {
-    setSelectedQuest(quest)
-    setShowQuestDetails(true)
+  const handleOpenQuestDetails = async (quest: Quest) => {
+    try {
+      // Fetch full quest details to get complete description
+      console.log('👁️ Fetching full quest details for viewing:', quest.slug)
+      const fullQuest = await QuestAPI.getQuest(quest.slug)
+      console.log('👁️ Full quest data for viewing:', fullQuest)
+      setSelectedQuest(fullQuest)
+      setShowQuestDetails(true)
+    } catch (error) {
+      console.error('Failed to fetch quest details for viewing:', error)
+      // Fallback to using the quest from the list (with potentially truncated description)
+      setSelectedQuest(quest)
+      setShowQuestDetails(true)
+    }
   }
 
   const handleCloseQuestDetails = () => {
@@ -148,38 +171,45 @@ export function QuestBoard({
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-amber-900 font-serif">Quest Board</h2>
-          <p className="mt-2 font-medium" style={{color: '#8C74AC'}}>
-            Discover opportunities to showcase your skills and collaborate
-          </p>
-        </div>
-        
-        <div className="flex gap-3">
-          {currentUser && (
-            <button
-              onClick={() => {
-                setEditingQuest(null)
-                setShowQuestForm(true)
-              }}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md transition-colors"
-              style={{backgroundColor: '#8C74AC'}}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#7A6699'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#8C74AC'}
-            >
-              <Edit className="w-4 h-4" />
-              Post a Quest
-            </button>
-          )}
-        </div>
-      </div>
+    <div className="min-h-screen bg-[#F4F0E6] py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex justify-center">
+            <div className="max-w-5xl w-full">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-3xl sm:text-4xl font-bold text-amber-900 font-serif">Quest Board</h2>
+                  <p className="mt-2 font-medium" style={{color: '#8C74AC'}}>
+                    Discover opportunities to showcase your skills and collaborate
+                  </p>
+                </div>
+                
+                <div className="flex gap-3">
+                  {currentUser && (
+                    <button
+                      onClick={() => {
+                        setEditingQuest(null)
+                        setShowQuestForm(true)
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md transition-colors"
+                      style={{backgroundColor: '#8C74AC'}}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#7A6699'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#8C74AC'}
+                    >
+                      <Edit className="w-4 h-4" />
+                      Post a Quest
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
 
       {/* Search and Filters */}
-      <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-        <div className="space-y-4">
+      <div className="flex justify-center">
+        <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200 max-w-5xl w-full">
+          <div className="space-y-4">
           {/* Search */}
           <div>
             <div className="relative">
@@ -242,22 +272,25 @@ export function QuestBoard({
           </div>
         </div>
       </div>
+      </div>
 
       {/* Quest Grid */}
       {quests.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {quests.map(quest => (
-            <TavernQuestCard
-              key={quest.id}
-              quest={quest}
-              currentUser={currentUser}
-              onViewDetails={handleOpenQuestDetails}
-              onLeaveQuest={handleLeaveQuest}
-              onEditQuest={handleEditQuest}
-              onViewApplications={handleViewApplications}
-              showActions={true}
-            />
-          ))}
+        <div className="flex justify-center">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 max-w-5xl w-full">
+            {quests.map(quest => (
+              <TavernQuestCard
+                key={quest.id}
+                quest={quest}
+                currentUser={currentUser}
+                onViewDetails={handleOpenQuestDetails}
+                onLeaveQuest={handleLeaveQuest}
+                onEditQuest={handleEditQuest}
+                onViewApplications={handleViewApplications}
+                showActions={true}
+              />
+            ))}
+          </div>
         </div>
       ) : (
         <div className="text-center py-12">
@@ -324,6 +357,8 @@ export function QuestBoard({
         currentUser={currentUser}
         questId={selectedQuestForApplications?.id}
       />
+        </div>
+      </div>
     </div>
   )
 }

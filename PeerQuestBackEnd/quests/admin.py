@@ -1,6 +1,23 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from django import forms
 from .models import Quest, QuestCategory, QuestParticipant, QuestSubmission
+
+
+class QuestAdminForm(forms.ModelForm):
+    description = forms.CharField(
+        max_length=2000,
+        widget=forms.Textarea(attrs={
+            'rows': 8, 
+            'cols': 80,
+            'placeholder': 'Enter a detailed description of the quest... (Max 2000 characters)'
+        }),
+        help_text='Provide a comprehensive description of what needs to be accomplished in this quest. Maximum 2000 characters.'
+    )
+    
+    class Meta:
+        model = Quest
+        fields = '__all__'
 
 
 @admin.register(QuestCategory)
@@ -53,9 +70,11 @@ class QuestCategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Quest)
 class QuestAdmin(admin.ModelAdmin):
+    form = QuestAdminForm
+    
     # Display all important fields in list view
     list_display = [
-        'id', 'title', 'creator', 'creator_email', 'assigned_to', 'status', 'difficulty', 
+        'id', 'title', 'description_preview', 'creator', 'creator_email', 'assigned_to', 'status', 'difficulty', 
         'category', 'xp_reward', 'gold_reward', 'participant_count',
         'applications_count', 'created_at', 'due_date', 'deadline_status_display', 
         'updated_at', 'completed_at'
@@ -79,7 +98,8 @@ class QuestAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('title', 'description', 'category')
+            'fields': ('title', 'description', 'category'),
+            'description': 'Core quest information including title and detailed description.'
         }),
         ('Quest Settings', {
             'fields': ('difficulty', 'status', 'xp_reward', 'gold_reward'),
@@ -120,6 +140,12 @@ class QuestAdmin(admin.ModelAdmin):
     def applications_count(self, obj):
         return obj.applications.count()
     applications_count.short_description = 'Applications'
+
+    def description_preview(self, obj):
+        if obj.description:
+            return obj.description[:100] + '...' if len(obj.description) > 100 else obj.description
+        return 'No description'
+    description_preview.short_description = 'Description Preview'
 
     def participant_details(self, obj):
         participants = obj.participants.all()
