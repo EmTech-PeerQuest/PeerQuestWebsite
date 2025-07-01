@@ -238,15 +238,26 @@ export function MessagingSystem({ currentUser: initialUser, showToast }: Messagi
 
   useEffect(() => {
     if (activeConversation === null) return
-    // Example: use conversation id as room name
-    const socket = new WebSocket(`ws://localhost:8000/ws/chat/${activeConversation}/`)
+    // Get JWT token from localStorage
+    const token = localStorage.getItem('access_token');
+    console.log('WebSocket token:', token)
+    // Pass token as query param in WebSocket URL
+    const socket = new WebSocket(`ws://localhost:8000/ws/chat/${activeConversation}/?token=${token}`)
     setWs(socket)
 
     socket.onmessage = (event) => {
-      const data = JSON.parse(event.data)
-      setMessages((prev) => [...prev, data])
+      try {
+        const data = JSON.parse(event.data)
+        setMessages((prev) => [...prev, data])
+      } catch (err) {
+        console.error('WebSocket message is not valid JSON:', event.data, err)
+      }
     }
-    socket.onclose = () => {
+    socket.onerror = (event) => {
+      console.error('WebSocket error:', event)
+    }
+    socket.onclose = (event) => {
+      console.warn('WebSocket closed:', event)
       setWs(null)
     }
     return () => {

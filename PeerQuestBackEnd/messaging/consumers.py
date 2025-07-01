@@ -4,24 +4,31 @@ from django.utils import timezone
 from messaging.models import Message
 from xp.utils import award_xp
 from django.contrib.auth import get_user_model
+import logging
+
+logger = logging.getLogger("django")
 
 # PeerQuestBackEnd/messaging/consumers.py
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        # Use room_name from the URL for per-room chat
-        self.room_name = self.scope['url_route']['kwargs']['room_name']
-        self.room_group_name = f"chat_{self.room_name}"
+        try:
+            # Use room_name from the URL for per-room chat
+            self.room_name = self.scope['url_route']['kwargs']['room_name']
+            self.room_group_name = f"chat_{self.room_name}"
 
-        # Optionally, check authentication (JWT in query string or headers)
-        user = self.scope.get('user')
-        if user and user.is_authenticated:
-            await self.channel_layer.group_add(
-                self.room_group_name,
-                self.channel_name
-            )
-            await self.accept()
-        else:
-            # Optionally, close connection if not authenticated
+            # Optionally, check authentication (JWT in query string or headers)
+            user = self.scope.get('user')
+            if user and user.is_authenticated:
+                await self.channel_layer.group_add(
+                    self.room_group_name,
+                    self.channel_name
+                )
+                await self.accept()
+            else:
+                # Optionally, close connection if not authenticated
+                await self.close()
+        except Exception as e:
+            logger.error(f"WebSocket connect error: {e}")
             await self.close()
 
     async def disconnect(self, close_code):

@@ -10,7 +10,7 @@ https://docs.djangoproject.com/en/5.2/howto/deployment/asgi/
 import os
 import django
 from channels.routing import ProtocolTypeRouter, URLRouter
-from channels.auth import AuthMiddlewareStack
+from core.jwt_middleware import JWTAuthMiddleware  # <-- Add this import
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 django.setup()
@@ -24,7 +24,7 @@ import messaging.routing
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,  # still handle HTTP
-    "websocket": AuthMiddlewareStack(
+    "websocket": JWTAuthMiddleware(  # <-- Use your JWT middleware here
         URLRouter(
             messaging.routing.websocket_urlpatterns  # this must be defined in messaging/routing.py
         )
