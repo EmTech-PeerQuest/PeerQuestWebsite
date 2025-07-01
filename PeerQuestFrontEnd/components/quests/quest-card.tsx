@@ -113,7 +113,7 @@ export function QuestCard({
             
             <div className="flex items-center gap-1">
               <Users className="w-4 h-4" />
-              <span>{quest.participant_count}/{quest.max_participants}</span>
+              <span>{quest.participant_count} participant{quest.participant_count !== 1 ? 's' : ''}</span>
             </div>
           </div>
           

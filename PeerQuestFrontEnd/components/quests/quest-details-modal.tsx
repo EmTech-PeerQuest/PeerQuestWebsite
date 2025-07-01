@@ -37,7 +37,7 @@ export function QuestDetailsModal({
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // Check if user has already applied for this quest
+  // Check if user has already applied for this quest (only pending applications)
   const hasAlreadyApplied = quest ? userApplications.some(app => 
     app.quest.id === quest.id && app.status === 'pending'
   ) : false
@@ -51,6 +51,9 @@ export function QuestDetailsModal({
   const hasRejectedApplication = quest ? userApplications.some(app => 
     app.quest.id === quest.id && app.status === 'rejected'
   ) : false
+
+  // Check if quest is available for new applications
+  const questNotAvailable = quest ? (quest.status === 'in-progress' || quest.status === 'completed') : false
 
   // Check if user is already a participant (either through participants_detail or approved application)
   const isAlreadyParticipant = (quest?.participants_detail?.some((p) => p.user.id === currentUser?.id) || false) || hasApprovedApplication
@@ -379,14 +382,18 @@ export function QuestDetailsModal({
               <button
                 onClick={() => applyForQuest(quest.id)}
                 className={`px-6 py-2 rounded-lg font-medium shadow-md transition-colors ${
-                  !isAuthenticated || isAlreadyParticipant || hasAlreadyApplied || isLoadingApplications
+                  !isAuthenticated || isAlreadyParticipant || hasAlreadyApplied || isLoadingApplications || questNotAvailable
                     ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
                     : 'bg-[#8B75AA] text-white hover:bg-[#7A6699]'
                 }`}
-                disabled={!isAuthenticated || isAlreadyParticipant || hasAlreadyApplied || isLoadingApplications}
+                disabled={!isAuthenticated || isAlreadyParticipant || hasAlreadyApplied || isLoadingApplications || questNotAvailable}
               >
                 {!isAuthenticated
                   ? "Login to Apply"
+                  : questNotAvailable
+                    ? quest.status === 'in-progress' 
+                      ? "Quest In Progress"
+                      : "Quest Completed"
                   : isAlreadyParticipant
                     ? "Already Participating"
                     : hasAlreadyApplied

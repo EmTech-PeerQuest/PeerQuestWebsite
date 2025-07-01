@@ -203,7 +203,12 @@ class QuestParticipantCreateSerializer(serializers.ModelSerializer):
 
         # Check if quest can accept more participants
         if not quest.can_accept_participants:
-            raise serializers.ValidationError("This quest cannot accept more participants.")
+            if quest.status == 'in-progress':
+                raise serializers.ValidationError("This quest is already in progress and cannot accept new participants.")
+            elif quest.status == 'completed':
+                raise serializers.ValidationError("This quest has been completed and cannot accept new participants.")
+            else:
+                raise serializers.ValidationError("This quest cannot accept more participants.")
 
         # Check if user is the creator (creators can't join their own quests)
         if quest.creator == user:

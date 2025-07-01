@@ -406,6 +406,43 @@ export function QuestManagement({
     showToast("Quest marked as completed", "success")
   }
 
+  // Check if a quest can be deleted
+  const canDeleteQuest = (quest: Quest) => {
+    // Cannot delete if quest is in progress or completed
+    if (quest.status === 'in-progress' || quest.status === 'completed') {
+      return false
+    }
+    
+    // Cannot delete if quest has participants
+    if (quest.participants_detail && quest.participants_detail.length > 0) {
+      return false
+    }
+    
+    // Cannot delete if quest has applications (to preserve application history)
+    if (quest.applications_count && quest.applications_count > 0) {
+      return false
+    }
+    
+    return true
+  }
+
+  // Get tooltip message for delete button
+  const getDeleteTooltip = (quest: Quest) => {
+    if (quest.status === 'in-progress') {
+      return 'Cannot delete a quest that is in progress'
+    }
+    if (quest.status === 'completed') {
+      return 'Cannot delete a completed quest'
+    }
+    if (quest.participants_detail && quest.participants_detail.length > 0) {
+      return 'Cannot delete a quest with participants'
+    }
+    if (quest.applications_count && quest.applications_count > 0) {
+      return 'Cannot delete a quest with applications (preserves application history)'
+    }
+    return 'Delete this quest'
+  }
+
   if (!currentUser) {
     return (
       <section className="bg-gradient-to-br from-[#F4F0E6] to-[#F8F5F0] min-h-screen py-6">
@@ -629,7 +666,13 @@ export function QuestManagement({
                           </button>
                           <button
                             onClick={() => setShowDeleteConfirm(quest.id)}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors"
+                            disabled={!canDeleteQuest(quest)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${
+                              canDeleteQuest(quest)
+                                ? 'bg-red-500 text-white hover:bg-red-600'
+                                : 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                            }`}
+                            title={getDeleteTooltip(quest)}
                           >
                             <Trash size={16} />
                             <span className="hidden sm:inline">Delete</span>

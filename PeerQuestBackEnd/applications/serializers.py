@@ -58,9 +58,9 @@ class ApplicationCreateSerializer(serializers.ModelSerializer):
         quest = data['quest']
         applicant = data['applicant']
 
-        # Check if user already applied to this quest
-        if Application.objects.filter(quest=quest, applicant=applicant).exists():
-            raise serializers.ValidationError("You have already applied to this quest.")
+        # Check if user has a pending application to this quest (allow reapplication after rejection)
+        if Application.objects.filter(quest=quest, applicant=applicant, status='pending').exists():
+            raise serializers.ValidationError("You already have a pending application for this quest. Please wait for a response before applying again.")
 
         # Check if quest is still open
         if quest.status != 'open':

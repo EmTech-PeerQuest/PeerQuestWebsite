@@ -56,15 +56,38 @@ class Application(models.Model):
 
     class Meta:
         ordering = ['-applied_at']
-        unique_together = ['quest', 'applicant']  # Prevent duplicate applications
+        # Allow reapplication after rejection - no unique constraint
         indexes = [
             models.Index(fields=['quest', 'status']),
             models.Index(fields=['applicant', 'status']),
             models.Index(fields=['applied_at']),
+            models.Index(fields=['quest', 'applicant']),  # Index for performance
         ]
 
     def __str__(self):
         return f"{self.applicant.username} -> {self.quest.title} ({self.get_status_display()})"
+
+    def clean(self):
+        """Custom validation to prevent duplicate pending applications"""
+        if self.status == 'pending':
+            # Check for existing pending applications for same quest+applicant
+            existing_pending = Application.objects.filter(
+                quest=self.quest,
+                applicant=self.applicant,
+                status='pending'
+            ).exclude(pk=self.pk)
+            
+            if existing_pending.exists():
+                from django.core.exceptions import ValidationError
+                raise ValidationError(
+                    'You already have a pending application for this quest. '
+                    'Please wait for a response before applying again.'
+                )
+
+    def save(self, *args, **kwargs):
+        """Override save to run validation"""
+        self.clean()
+        super().save(*args, **kwargs)
 
     def approve(self, reviewer):
         """Approve the application and assign the quest to the applicant"""
