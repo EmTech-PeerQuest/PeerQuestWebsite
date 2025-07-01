@@ -32,7 +32,6 @@ export interface Quest {
   status: 'open' | 'in-progress' | 'completed'
   xp_reward: number
   gold_reward?: number
-  max_participants: number
   creator: {
     id: number
     username: string

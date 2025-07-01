@@ -56,7 +56,7 @@ class QuestAdmin(admin.ModelAdmin):
     # Display all important fields in list view
     list_display = [
         'id', 'title', 'creator', 'creator_email', 'assigned_to', 'status', 'difficulty', 
-        'category', 'xp_reward', 'gold_reward', 'participant_count', 'max_participants', 
+        'category', 'xp_reward', 'gold_reward', 'participant_count',
         'applications_count', 'created_at', 'due_date', 'deadline_status_display', 
         'updated_at', 'completed_at'
     ]
@@ -82,7 +82,7 @@ class QuestAdmin(admin.ModelAdmin):
             'fields': ('title', 'description', 'category')
         }),
         ('Quest Settings', {
-            'fields': ('difficulty', 'status', 'xp_reward', 'gold_reward', 'max_participants'),
+            'fields': ('difficulty', 'status', 'xp_reward', 'gold_reward'),
             'description': 'XP reward is automatically set based on difficulty: Easy=50 XP, Medium=75 XP, Hard=150 XP'
         }),
         ('Creator & Participants', {

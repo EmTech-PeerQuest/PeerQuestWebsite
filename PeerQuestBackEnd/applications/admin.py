@@ -76,7 +76,6 @@ class ApplicationAdmin(admin.ModelAdmin):
             <strong>Status:</strong> {}<br>
             <strong>XP Reward:</strong> {}<br>
             <strong>Gold Reward:</strong> {}<br>
-            <strong>Max Participants:</strong> {}<br>
             <strong>Current Participants:</strong> {}
         """, 
             obj.quest.title,
@@ -86,7 +85,6 @@ class ApplicationAdmin(admin.ModelAdmin):
             obj.quest.get_status_display(),
             obj.quest.xp_reward,
             obj.quest.gold_reward,
-            obj.quest.max_participants,
             obj.quest.participant_count
         )
     quest_details.short_description = 'Quest Details'

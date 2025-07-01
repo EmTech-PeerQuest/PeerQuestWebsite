@@ -63,7 +63,6 @@ class Quest(models.Model):
         help_text="Gold coins awarded upon completion (0-999)"
     )
     # estimated_time field removed - no longer needed
-    max_participants = models.PositiveIntegerField(default=1, help_text="Maximum number of participants")
     
     # Quest creator and participants
     creator = models.ForeignKey(
@@ -137,7 +136,7 @@ class Quest(models.Model):
 
     @property
     def can_accept_participants(self):
-        return self.participant_count < self.max_participants and self.status == 'open'
+        return self.status == 'open'
     
     @property
     def is_assigned(self):

@@ -61,7 +61,7 @@ class QuestListSerializer(serializers.ModelSerializer):
         model = Quest
         fields = [
             'id', 'title', 'description', 'difficulty',
-            'status', 'xp_reward', 'gold_reward', 'max_participants',
+            'status', 'xp_reward', 'gold_reward',
             'creator', 'assigned_to', 'category', 'created_at', 'updated_at', 'due_date', 'slug',
             'participant_count', 'can_accept_participants', 'is_completed', 'applications_count'
         ]
@@ -109,7 +109,7 @@ class QuestDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'category',
             'difficulty', 'status', 'xp_reward', 'gold_reward',
-            'max_participants', 'creator', 'assigned_to', 'participants_detail', 'created_at',
+            'creator', 'assigned_to', 'participants_detail', 'created_at',
             'updated_at', 'due_date', 'completed_at',
             'requirements', 'resources', 'slug', 'participant_count',
             'can_accept_participants', 'is_completed', 'applications_count'
@@ -128,7 +128,7 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'category',
             'difficulty', 'status', 'xp_reward', 'gold_reward',
-            'max_participants', 'assigned_to', 'due_date',
+            'assigned_to', 'due_date',
             'requirements', 'resources'
         ]
 
@@ -143,11 +143,6 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
             User = get_user_model()
             validated_data['creator'] = User.objects.first()
         return super().create(validated_data)
-
-    def validate_max_participants(self, value):
-        if value < 1:
-            raise serializers.ValidationError("Maximum participants must be at least 1.")
-        return value
 
     def validate_xp_reward(self, value):
         if value < 0:

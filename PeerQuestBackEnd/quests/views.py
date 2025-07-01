@@ -202,12 +202,10 @@ class QuestSearchView(generics.ListAPIView):
                 Q(description__icontains=search)
             )
         
-        # Filter by available spots
+        # Filter by available spots - now just checks if quest is open
         available_only = self.request.query_params.get('available_only', None)
         if available_only == 'true':
-            queryset = queryset.annotate(
-                current_participants=Count('participants')
-            ).filter(current_participants__lt=F('max_participants'))
+            queryset = queryset.filter(status='open')
         
         return queryset
 

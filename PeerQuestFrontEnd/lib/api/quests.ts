@@ -77,7 +77,6 @@ export interface CreateQuestData {
   description: string
   category: number
   difficulty: 'easy' | 'medium' | 'hard'
-  max_participants: number
   due_date?: string
   requirements?: string
   resources?: string

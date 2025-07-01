@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, Calendar, Users, Star } from "lucide-react"
+import { X, Calendar, Star } from "lucide-react"
 import { Quest } from "@/lib/types"
 import { QuestAPI, QuestCategory, CreateQuestData, UpdateQuestData } from "@/lib/api/quests"
 
@@ -20,7 +20,6 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     description: "",
     category: 0, // Default to "Select Category"
     difficulty: "easy" as const,
-    max_participants: 1,
     due_date: "",
     requirements: "",
     resources: "",
@@ -69,7 +68,6 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
           description: quest.description,
           category: quest.category.id,
           difficulty: quest.difficulty,
-          max_participants: quest.max_participants,
           due_date: quest.due_date ? quest.due_date.split('T')[0] : "",
           requirements: quest.requirements || "",
           resources: quest.resources || "",
@@ -83,7 +81,6 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
           description: "",
           category: 0, // Keep as 0 initially - user must select a category
           difficulty: "easy",
-          max_participants: 1,
           due_date: "",
           requirements: "",
           resources: "",
@@ -160,18 +157,12 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
       }
     }
     
-    if (formData.max_participants < 1) {
-      validationErrors.max_participants = 'At least 1 participant is required'
-    } else if (formData.max_participants > 100) {
-      validationErrors.max_participants = 'Maximum participants cannot exceed 100'
-    }
-
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors)
       setIsLoading(false)
       
       // Scroll to the first error field in order of importance
-      const fieldPriority = ['title', 'description', 'category', 'due_date', 'max_participants']
+      const fieldPriority = ['title', 'description', 'category', 'due_date']
       const firstErrorField = fieldPriority.find(field => validationErrors[field])
       
       if (firstErrorField) {
@@ -217,7 +208,6 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
           description: "",
           category: 0, // Default to "Select Category"
           difficulty: "easy",
-          max_participants: 1,
           due_date: "",
           requirements: "",
           resources: "",
@@ -264,7 +254,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
-    const newValue = name === 'category' || name === 'max_participants' 
+    const newValue = name === 'category' 
       ? parseInt(value) 
       : value
 
@@ -306,15 +296,6 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
         if (selectedDate > oneYearFromNow) {
           newErrors.due_date = 'Deadline cannot be more than 1 year from now'
         }
-      }
-    }
-    
-    if (name === 'max_participants') {
-      const numValue = typeof newValue === 'string' ? parseInt(newValue) : newValue
-      if (numValue < 1) {
-        newErrors.max_participants = 'At least 1 participant is required'
-      } else if (numValue > 100) {
-        newErrors.max_participants = 'Maximum participants cannot exceed 100'
       }
     }
     
@@ -565,25 +546,6 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                 />
                 <p className="mt-1 text-xs text-gray-400">Gold rewards feature coming soon</p>
               </div>
-            </div>
-
-            {/* Max Participants */}
-            <div>
-              <label htmlFor="max_participants" className="block text-sm font-semibold text-amber-800 mb-2 flex items-center">
-                <Users className="w-4 h-4 mr-2 text-amber-600" />
-                Max Participants *
-              </label>
-              <input
-                type="number"
-                id="max_participants"
-                name="max_participants"
-                value={formData.max_participants}
-                onChange={handleChange}
-                min="1"
-                className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900"
-                required
-              />
-              {errors.max_participants && <p className="mt-2 text-sm text-red-600">{errors.max_participants}</p>}
             </div>
 
             {/* Post As Section */}
