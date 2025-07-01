@@ -67,8 +67,8 @@ class QuestListSerializer(serializers.ModelSerializer):
         ]
     
     def get_applications_count(self, obj):
-        """Return the number of applications for this quest"""
-        return obj.applications.count()
+        """Return the number of pending applications for this quest"""
+        return obj.applications.filter(status='pending').count()
     
     def get_description(self, obj):
         """Return truncated description for quest cards"""
@@ -116,8 +116,8 @@ class QuestDetailSerializer(serializers.ModelSerializer):
         ]
 
     def get_applications_count(self, obj):
-        """Return the number of applications for this quest"""
-        return obj.applications.count()
+        """Return the number of pending applications for this quest"""
+        return obj.applications.filter(status='pending').count()
 
 
 class QuestCreateUpdateSerializer(serializers.ModelSerializer):

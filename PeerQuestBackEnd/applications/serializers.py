@@ -27,7 +27,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Application
         fields = [
-            'id', 'quest', 'applicant', 'message', 'status',
+            'id', 'quest', 'applicant', 'status',
             'applied_at', 'reviewed_at', 'reviewed_by'
         ]
 
@@ -41,7 +41,7 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Application
         fields = [
-            'id', 'quest', 'applicant', 'message', 'status',
+            'id', 'quest', 'applicant', 'status',
             'applied_at', 'reviewed_at', 'reviewed_by'
         ]
 
@@ -52,7 +52,7 @@ class ApplicationCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Application
-        fields = ['quest', 'applicant', 'message']
+        fields = ['quest', 'applicant']
 
     def validate(self, data):
         quest = data['quest']

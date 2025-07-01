@@ -130,7 +130,6 @@ export interface Application {
     level?: number
     xp?: number
   }
-  message: string
   status: 'pending' | 'approved' | 'rejected'
   applied_at: string
   reviewed_at?: string

@@ -49,11 +49,10 @@ export const getApplicationsToMyQuests = async (): Promise<Application[]> => {
 }
 
 // Create a new application
-export const createApplication = async (questId: number, message: string): Promise<Application> => {
+export const createApplication = async (questId: number): Promise<Application> => {
   try {
     console.log('📤 API Call - Creating application:', {
       questId: questId,
-      message: message,
       apiUrl: `${API_BASE_URL}/applications/`
     })
     
@@ -62,7 +61,6 @@ export const createApplication = async (questId: number, message: string): Promi
       headers: getAuthHeaders(),
       body: JSON.stringify({
         quest: questId,
-        message: message,
       }),
     })
     
@@ -78,14 +76,17 @@ export const createApplication = async (questId: number, message: string): Promi
 // Approve an application
 export const approveApplication = async (applicationId: number): Promise<Application> => {
   try {
+    console.log('🟢 API: Approving application', applicationId)
     const response = await fetch(`${API_BASE_URL}/applications/${applicationId}/approve/`, {
       method: 'POST',
       headers: getAuthHeaders(),
     })
     
-    return await handleApiResponse<Application>(response)
+    const result = await handleApiResponse<Application>(response)
+    console.log('✅ API: Application approved successfully', result)
+    return result
   } catch (error) {
-    console.error('Error approving application:', error)
+    console.error('❌ API: Error approving application:', error)
     throw error
   }
 }
@@ -93,14 +94,17 @@ export const approveApplication = async (applicationId: number): Promise<Applica
 // Reject an application
 export const rejectApplication = async (applicationId: number): Promise<Application> => {
   try {
+    console.log('🔴 API: Rejecting application', applicationId)
     const response = await fetch(`${API_BASE_URL}/applications/${applicationId}/reject/`, {
       method: 'POST',
       headers: getAuthHeaders(),
     })
     
-    return await handleApiResponse<Application>(response)
+    const result = await handleApiResponse<Application>(response)
+    console.log('✅ API: Application rejected successfully', result)
+    return result
   } catch (error) {
-    console.error('Error rejecting application:', error)
+    console.error('❌ API: Error rejecting application:', error)
     throw error
   }
 }

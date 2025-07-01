@@ -74,7 +74,7 @@ class QuestAdmin(admin.ModelAdmin):
     
     # Display all important fields in list view
     list_display = [
-        'id', 'title', 'description_preview', 'creator', 'creator_email', 'assigned_to', 'status', 'difficulty', 
+        'id', 'title', 'description_preview', 'creator', 'creator_email', 'assigned_to_display', 'status', 'difficulty', 
         'category', 'xp_reward', 'gold_reward', 'participant_count',
         'applications_count', 'created_at', 'due_date', 'deadline_status_display', 
         'updated_at', 'completed_at'
@@ -140,6 +140,19 @@ class QuestAdmin(admin.ModelAdmin):
     def applications_count(self, obj):
         return obj.applications.count()
     applications_count.short_description = 'Applications'
+
+    def assigned_to_display(self, obj):
+        """Display assigned user with additional info"""
+        if obj.assigned_to:
+            participant = QuestParticipant.objects.filter(quest=obj, user=obj.assigned_to).first()
+            if participant:
+                status_info = f" ({participant.get_status_display()})"
+            else:
+                status_info = " (No participant record)"
+            return f"{obj.assigned_to.username}{status_info}"
+        return "Not assigned"
+    assigned_to_display.short_description = 'Assigned To'
+    assigned_to_display.admin_order_field = 'assigned_to__username'
 
     def description_preview(self, obj):
         if obj.description:

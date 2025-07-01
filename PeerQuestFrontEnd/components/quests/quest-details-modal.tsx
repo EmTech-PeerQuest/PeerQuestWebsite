@@ -117,7 +117,7 @@ export function QuestDetailsModal({
       const { createApplication } = await import("@/lib/api/applications")
       
       // Create application with a default message
-      await createApplication(questId, "I'm interested in working on this quest.")
+      await createApplication(questId)
       
       console.log('✅ Quest Details Modal - Application submitted successfully')
       showToast("Application submitted successfully!")
@@ -357,7 +357,19 @@ export function QuestDetailsModal({
                 </button>
                 <button
                   onClick={() => setShowDeleteConfirmation(true)}
-                  className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium shadow-md flex items-center gap-2"
+                  disabled={quest.status === 'in-progress' || quest.status === 'completed'}
+                  className={`px-6 py-2 rounded-lg font-medium shadow-md flex items-center gap-2 transition-colors ${
+                    quest.status === 'in-progress' || quest.status === 'completed'
+                      ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                      : 'bg-red-600 text-white hover:bg-red-700'
+                  }`}
+                  title={
+                    quest.status === 'in-progress' 
+                      ? 'Cannot delete a quest that is in progress'
+                      : quest.status === 'completed'
+                      ? 'Cannot delete a completed quest'
+                      : 'Delete this quest'
+                  }
                 >
                   <Trash2 size={16} />
                   Delete Quest

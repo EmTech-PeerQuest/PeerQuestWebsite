@@ -33,10 +33,6 @@ class Application(models.Model):
     )
     
     # Application details
-    message = models.TextField(
-        blank=True,
-        help_text="Application message"
-    )
     status = models.CharField(
         max_length=15,
         choices=APPLICATION_STATUS_CHOICES,
@@ -76,6 +72,19 @@ class Application(models.Model):
         
         # Assign the quest to the applicant
         self.quest.assign_to_user(self.applicant)
+        
+        # Automatically reject all other pending applications for this quest
+        other_pending_applications = Application.objects.filter(
+            quest=self.quest,
+            status='pending'
+        ).exclude(id=self.id)
+        
+        for app in other_pending_applications:
+            app.status = 'rejected'
+            app.reviewed_by = reviewer
+            app.reviewed_at = timezone.now()
+            app.save()
+        
         return True
 
     def reject(self, reviewer):

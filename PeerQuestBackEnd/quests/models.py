@@ -149,12 +149,45 @@ class Quest(models.Model):
         return self.assigned_to.username if self.assigned_to else None
     
     def assign_to_user(self, user):
-        """Assign the quest to a specific user"""
+        """Add user as a participant to the quest and assign the quest to them"""
+        # Check if user is already a participant
+        existing_participant = QuestParticipant.objects.filter(quest=self, user=user).first()
+        if existing_participant:
+            # If they exist but dropped, reactivate them
+            if existing_participant.status == 'dropped':
+                existing_participant.status = 'joined'
+                existing_participant.save()
+                print(f"Reactivated participant: {user.username} for quest: {self.title}")
+            else:
+                print(f"User {user.username} is already a participant in quest: {self.title}")
+            # Update assigned_to field
+            self.assigned_to = user
+            self.save()
+            return existing_participant
+        
+        # Check current participant count before creating new participant
+        current_participant_count = self.participant_count
+        
+        # Create new participant
+        participant = QuestParticipant.objects.create(
+            quest=self,
+            user=user,
+            status='joined',
+            application_message=''  # Provide default empty message
+        )
+        
+        # Assign the quest to the user
         self.assigned_to = user
-        if self.status == 'open':
+        
+        # Update quest status if this is the first participant
+        if self.status == 'open' and current_participant_count == 0:
             self.status = 'in-progress'
+        
         self.save()
-        return True
+        
+        print(f"Added participant: {user.username} to quest: {self.title}")
+        print(f"Assigned quest to: {user.username}")
+        return participant
     
     def unassign(self):
         """Remove the assignment from the quest"""
@@ -316,6 +349,13 @@ class QuestParticipant(models.Model):
     joined_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     progress_notes = models.TextField(blank=True)
+    
+    # Legacy fields that we'll ignore but keep for now due to SQLite constraints
+    application_id = models.BigIntegerField(null=True, blank=True)
+    application_date = models.DateTimeField(null=True, blank=True)
+    application_message = models.TextField(blank=True, default='', null=True)
+    review_notes = models.TextField(blank=True, default='', null=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         unique_together = ['quest', 'user']

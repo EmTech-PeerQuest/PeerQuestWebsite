@@ -241,10 +241,15 @@ export function TavernQuestCard({
             {isCreator && onViewApplications && (
               <button
                 onClick={() => onViewApplications(quest)}
-                className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-purple-600 rounded hover:bg-purple-700 transition-colors"
+                className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-purple-600 rounded hover:bg-purple-700 transition-colors relative"
               >
                 <Users className="w-4 h-4" />
                 Apps
+                {quest.applications_count > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {quest.applications_count}
+                  </span>
+                )}
               </button>
             )}
             

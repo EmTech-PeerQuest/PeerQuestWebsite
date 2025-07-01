@@ -356,6 +356,7 @@ export function QuestBoard({
         }}
         currentUser={currentUser}
         questId={selectedQuestForApplications?.id}
+        onApplicationProcessed={loadQuests}
       />
         </div>
       </div>

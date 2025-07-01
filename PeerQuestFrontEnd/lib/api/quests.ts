@@ -162,7 +162,18 @@ export const QuestAPI = {
     })
 
     if (!response.ok) {
-      throw new Error(`Failed to delete quest: ${response.statusText}`)
+      let errorMessage = `Failed to delete quest: ${response.statusText}`
+      
+      try {
+        const errorData = await response.json()
+        if (errorData.error) {
+          errorMessage = errorData.error
+        }
+      } catch (e) {
+        // If response doesn't contain JSON, use the status text
+      }
+      
+      throw new Error(errorMessage)
     }
   },
 

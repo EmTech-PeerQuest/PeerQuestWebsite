@@ -180,6 +180,37 @@ class QuestViewSet(viewsets.ModelViewSet):
         serializer = QuestListSerializer(queryset, many=True)
         return Response(serializer.data)
 
+    def destroy(self, request, *args, **kwargs):
+        """
+        Override destroy to prevent deletion of in-progress or completed quests.
+        Only allow deletion of quests that are still 'open' (no participants assigned).
+        """
+        quest = self.get_object()
+        
+        # Check if user is the quest creator
+        if quest.creator != request.user:
+            return Response(
+                {'error': 'You can only delete your own quests.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check if quest is in progress
+        if quest.status == 'in-progress':
+            return Response(
+                {'error': 'Cannot delete a quest that is already in progress. Please complete or cancel the quest first.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if quest has been completed
+        if quest.status == 'completed':
+            return Response(
+                {'error': 'Cannot delete a completed quest.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Only allow deletion of 'open' quests
+        return super().destroy(request, *args, **kwargs)
+
 
 # Quest Search and Filter Views
 class QuestSearchView(generics.ListAPIView):
@@ -355,3 +386,34 @@ class AdminQuestDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = QuestDetailSerializer
     permission_classes = [IsAuthenticated]  # Add admin permission in production
     lookup_field = 'slug'
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Override destroy to prevent deletion of in-progress quests.
+        Only allow deletion of quests that are still 'open' (no participants assigned).
+        """
+        quest = self.get_object()
+        
+        # Check if user is the quest creator
+        if quest.creator != request.user:
+            return Response(
+                {'error': 'You can only delete your own quests.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check if quest is in progress
+        if quest.status == 'in-progress':
+            return Response(
+                {'error': 'Cannot delete a quest that is already in progress. Please complete or cancel the quest first.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if quest has been completed
+        if quest.status == 'completed':
+            return Response(
+                {'error': 'Cannot delete a completed quest.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Only allow deletion of 'open' quests
+        return super().destroy(request, *args, **kwargs)

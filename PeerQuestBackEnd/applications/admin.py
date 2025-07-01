@@ -8,15 +8,14 @@ class ApplicationAdmin(admin.ModelAdmin):
     # Display all important fields in list view
     list_display = [
         'id', 'applicant', 'applicant_email', 'quest_title', 'quest_creator', 
-        'message_preview', 'status', 'applied_at', 'reviewed_at', 'reviewed_by', 
-        'application_actions'
+        'status', 'applied_at', 'reviewed_at', 'reviewed_by'
     ]
     list_filter = [
         'status', 'applied_at', 'reviewed_at', 'quest__category', 
         'quest__difficulty', 'quest__status'
     ]
     search_fields = [
-        'applicant__username', 'applicant__email', 'quest__title', 'message', 
+        'applicant__username', 'applicant__email', 'quest__title', 
         'reviewed_by__username', 'quest__creator__username'
     ]
     readonly_fields = ['applied_at', 'reviewed_at', 'quest_details', 'applicant_details']
@@ -27,7 +26,7 @@ class ApplicationAdmin(admin.ModelAdmin):
     # Show all fields in detail view
     fieldsets = (
         ('Application Details', {
-            'fields': ('quest', 'applicant', 'message', 'status')
+            'fields': ('quest', 'applicant', 'status')
         }),
         ('Quest Information', {
             'fields': ('quest_details',),
@@ -60,12 +59,6 @@ class ApplicationAdmin(admin.ModelAdmin):
         return obj.applicant.email
     applicant_email.short_description = 'Applicant Email'
     applicant_email.admin_order_field = 'applicant__email'
-
-    def message_preview(self, obj):
-        if obj.message:
-            return obj.message[:50] + '...' if len(obj.message) > 50 else obj.message
-        return 'No message'
-    message_preview.short_description = 'Message Preview'
 
     def quest_details(self, obj):
         return format_html("""
@@ -106,20 +99,8 @@ class ApplicationAdmin(admin.ModelAdmin):
     applicant_details.short_description = 'Applicant Details'
 
     def application_actions(self, obj):
-        if obj.status == 'pending':
-            return format_html(
-                '<span style="color: orange;">⏳ Pending Review</span>'
-            )
-        elif obj.status == 'approved':
-            return format_html(
-                '<span style="color: green;">✅ Approved</span>'
-            )
-        elif obj.status == 'rejected':
-            return format_html(
-                '<span style="color: red;">❌ Rejected</span>'
-            )
         return obj.get_status_display()
-    application_actions.short_description = 'Actions'
+    application_actions.short_description = 'Status'
 
     def approve_applications(self, request, queryset):
         updated = 0

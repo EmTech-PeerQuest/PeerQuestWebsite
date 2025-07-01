@@ -11,13 +11,15 @@ interface ApplicationsModalProps {
   onClose: () => void
   currentUser: UserType | null
   questId?: number // Optional: if provided, only show applications for this specific quest
+  onApplicationProcessed?: () => Promise<void> // Callback to refresh parent quest data
 }
 
-export function ApplicationsModal({ isOpen, onClose, currentUser, questId }: ApplicationsModalProps) {
+export function ApplicationsModal({ isOpen, onClose, currentUser, questId, onApplicationProcessed }: ApplicationsModalProps) {
   const [myApplications, setMyApplications] = useState<Application[]>([])
   const [applicationsToMyQuests, setApplicationsToMyQuests] = useState<Application[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [processingApplications, setProcessingApplications] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     if (isOpen && currentUser) {
@@ -68,22 +70,52 @@ export function ApplicationsModal({ isOpen, onClose, currentUser, questId }: App
   }
 
   const handleApproveApplicant = async (applicationId: number) => {
+    setProcessingApplications(prev => new Set(prev).add(applicationId))
+    setError(null) // Clear any existing errors
     try {
+      console.log('🟢 Approving application:', applicationId)
       await approveApplication(applicationId)
+      console.log('✅ Application approved successfully')
       // Reload applications to get updated data
-      loadApplications()
+      await loadApplications()
+      // Refresh parent quest data if callback provided
+      if (onApplicationProcessed) {
+        await onApplicationProcessed()
+      }
     } catch (err) {
+      console.error('❌ Failed to approve application:', err)
       setError(err instanceof Error ? err.message : 'Failed to approve application')
+    } finally {
+      setProcessingApplications(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(applicationId)
+        return newSet
+      })
     }
   }
 
   const handleRejectApplicant = async (applicationId: number) => {
+    setProcessingApplications(prev => new Set(prev).add(applicationId))
+    setError(null) // Clear any existing errors
     try {
+      console.log('🔴 Rejecting application:', applicationId)
       await rejectApplication(applicationId)
+      console.log('✅ Application rejected successfully')
       // Reload applications to get updated data
-      loadApplications()
+      await loadApplications()
+      // Refresh parent quest data if callback provided
+      if (onApplicationProcessed) {
+        await onApplicationProcessed()
+      }
     } catch (err) {
+      console.error('❌ Failed to reject application:', err)
       setError(err instanceof Error ? err.message : 'Failed to reject application')
+    } finally {
+      setProcessingApplications(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(applicationId)
+        return newSet
+      })
     }
   }
 
@@ -225,14 +257,6 @@ export function ApplicationsModal({ isOpen, onClose, currentUser, questId }: App
                           </div>
                         </div>
 
-                        {/* Application Message */}
-                        {application.message && (
-                          <div className="mb-4">
-                            <p className="text-sm text-gray-500 mb-1">Your message:</p>
-                            <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">{application.message}</p>
-                          </div>
-                        )}
-
                         {/* Quest Poster */}
                         <div className="flex items-center gap-3 p-3 bg-[#F4F0E6] rounded-xl">
                           <div className="w-10 h-10 bg-gradient-to-br from-[#8B75AA] to-[#7A6699] rounded-full flex items-center justify-center text-white font-bold">
@@ -278,7 +302,9 @@ export function ApplicationsModal({ isOpen, onClose, currentUser, questId }: App
                   <div className="space-y-6">
                     {/* Group applications by quest */}
                     {Object.entries(
-                      applicationsToMyQuests.reduce((acc, app) => {
+                      applicationsToMyQuests
+                        .filter(app => app.status !== 'rejected') // Filter out rejected applications
+                        .reduce((acc, app) => {
                         const questId = app.quest.id;
                         if (!acc[questId]) {
                           acc[questId] = {
@@ -303,8 +329,10 @@ export function ApplicationsModal({ isOpen, onClose, currentUser, questId }: App
                             >
                               {quest.difficulty.charAt(0).toUpperCase() + quest.difficulty.slice(1)}
                             </span>
-                            <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-bold">
-                              {applications.length} {applications.length === 1 ? "Applicant" : "Applicants"}
+                            
+                            {/* Show only pending applications count */}
+                            <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm font-bold">
+                              {applications.filter(app => app.status === 'pending').length} Pending {applications.filter(app => app.status === 'pending').length === 1 ? "Applicant" : "Applicants"}
                             </span>
                           </div>
                         </div>
@@ -329,14 +357,20 @@ export function ApplicationsModal({ isOpen, onClose, currentUser, questId }: App
                                       {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
                                     </span>
                                   </div>
-                                  <p className="text-sm text-gray-500 mb-2">
-                                    Applied {new Date(application.applied_at).toLocaleDateString()}
-                                  </p>
-                                  {application.message && (
-                                    <p className="text-sm text-gray-600 bg-white p-3 rounded-lg border">
-                                      "{application.message}"
-                                    </p>
-                                  )}
+                                  <div className="text-sm text-gray-500 mb-2 space-y-1">
+                                    <div>Applied {new Date(application.applied_at).toLocaleDateString()}</div>
+                                    {application.reviewed_at && (
+                                      <div className="flex items-center gap-1">
+                                        <span className={application.status === 'approved' ? 'text-green-600' : 'text-red-600'}>
+                                          {application.status === 'approved' ? '✓ Accepted' : '✗ Rejected'}
+                                        </span>
+                                        <span>on {new Date(application.reviewed_at).toLocaleDateString()}</span>
+                                        {application.reviewed_by && (
+                                          <span>by {application.reviewed_by.username}</span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
 
@@ -344,17 +378,37 @@ export function ApplicationsModal({ isOpen, onClose, currentUser, questId }: App
                                 <div className="flex gap-2 sm:flex-col lg:flex-row">
                                   <button
                                     onClick={() => handleApproveApplicant(application.id)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-medium"
+                                    disabled={processingApplications.has(application.id)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                                   >
-                                    <CheckCircle size={16} />
-                                    <span className="hidden sm:inline">Accept</span>
+                                    {processingApplications.has(application.id) ? (
+                                      <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        <span className="hidden sm:inline">Processing...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <CheckCircle size={16} />
+                                        <span className="hidden sm:inline">Accept</span>
+                                      </>
+                                    )}
                                   </button>
                                   <button
                                     onClick={() => handleRejectApplicant(application.id)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors font-medium"
+                                    disabled={processingApplications.has(application.id)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                                   >
-                                    <XCircle size={16} />
-                                    <span className="hidden sm:inline">Reject</span>
+                                    {processingApplications.has(application.id) ? (
+                                      <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        <span className="hidden sm:inline">Processing...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <XCircle size={16} />
+                                        <span className="hidden sm:inline">Reject</span>
+                                      </>
+                                    )}
                                   </button>
                                 </div>
                               )}
