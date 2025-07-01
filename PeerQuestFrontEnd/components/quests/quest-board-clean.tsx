@@ -81,7 +81,25 @@ export function QuestBoard({
     }
   }
 
-
+  // Specialized function for updating quest data while preserving modal state
+  const handleQuestUpdate = async () => {
+    try {
+      // Update the quest list
+      const questsData = await QuestAPI.getQuests(filters)
+      const updatedQuests = questsData.results || questsData
+      setQuests(updatedQuests)
+      
+      // If a quest is currently selected in the modal, update it with fresh data
+      if (selectedQuest) {
+        const updatedSelectedQuest = updatedQuests.find(q => q.id === selectedQuest.id)
+        if (updatedSelectedQuest) {
+          setSelectedQuest(updatedSelectedQuest)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update quests:', error)
+    }
+  }
 
   const handleLeaveQuest = async (quest: Quest) => {
     try {
@@ -344,7 +362,7 @@ export function QuestBoard({
           console.log('Auth modal:', open)
         }}
         openEditQuestModal={handleEditQuest}
-        onQuestUpdate={loadQuests}
+        onQuestUpdate={handleQuestUpdate}
       />
 
       {/* Applications Modal */}

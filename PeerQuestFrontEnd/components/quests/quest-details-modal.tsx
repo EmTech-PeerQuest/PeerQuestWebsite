@@ -139,7 +139,7 @@ export function QuestDetailsModal({
         )
       }
       
-      onClose()
+      // Don't automatically close modal - let user see the updated state and close manually
     } catch (error) {
       console.error('❌ Quest Details Modal - Failed to apply for quest:', error)
       const errorMessage = error instanceof Error ? error.message : "Failed to apply for quest. Please try again."
