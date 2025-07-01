@@ -237,42 +237,65 @@ export function MessagingSystem({ currentUser: initialUser, showToast }: Messagi
   const [ws, setWs] = useState<WebSocket | null>(null)
 
   useEffect(() => {
-    if (activeConversation === null) return
+    if (activeConversation === null) return;
     // Get JWT token from localStorage
     const token = localStorage.getItem('access_token');
-    console.log('WebSocket token:', token)
-    // Pass token as query param in WebSocket URL
-    const socket = new WebSocket(`ws://localhost:8000/ws/chat/${activeConversation}/?token=${token}`)
-    setWs(socket)
+    let socket: WebSocket | null = null;
+    try {
+      socket = new WebSocket(`ws://${window.location.hostname}:8000/ws/chat/${activeConversation}/?token=${token}`);
+    } catch (err) {
+      console.error('WebSocket connection failed:', err);
+      try { showToast('Unable to connect to chat server. Please try again later.', 'error'); } catch {}
+      setWs(null);
+      return;
+    }
+    setWs(socket);
 
     socket.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data)
-        setMessages((prev) => [...prev, data])
+        const data = JSON.parse(event.data);
+        setMessages((prev) => [...prev, data]);
       } catch (err) {
-        console.error('WebSocket message is not valid JSON:', event.data, err)
+        console.error('WebSocket message is not valid JSON:', event.data, err);
+        try { showToast('Received invalid message from server.', 'error'); } catch {}
       }
-    }
+    };
     socket.onerror = (event) => {
-      console.error('WebSocket error:', event)
-    }
+      try {
+        console.error('WebSocket error:', event);
+        showToast('A connection error occurred. Please refresh or try again later.', 'error');
+      } catch {}
+    };
     socket.onclose = (event) => {
-      console.warn('WebSocket closed:', event)
-      setWs(null)
-    }
+      try {
+        console.warn('WebSocket closed:', event);
+        showToast('Chat connection closed.', 'warning');
+      } catch {}
+      setWs(null);
+    };
     return () => {
-      socket.close()
-    }
+      try {
+        if (socket) socket.close();
+      } catch {}
+    };
   }, [activeConversation])
 
   const handleWebSocketSend = () => {
-    if (ws && newMessage.trim()) {
-      ws.send(JSON.stringify({
-        message: newMessage,
-        sender: currentUser.id,
-        conversation: activeConversation
-      }))
-      setNewMessage("")
+    if (
+      ws &&
+      ws.readyState === WebSocket.OPEN &&
+      newMessage.trim()
+    ) {
+      ws.send(
+        JSON.stringify({
+          message: newMessage,
+          sender: currentUser.id,
+          conversation: activeConversation,
+        })
+      );
+      setNewMessage("");
+    } else if (ws && ws.readyState !== WebSocket.OPEN) {
+      showToast("Connection is not open. Please wait or refresh.", "error");
     }
   }
 

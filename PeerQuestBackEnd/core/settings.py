@@ -66,11 +66,8 @@ TEMPLATES = [
 # Channels/ASGI
 ASGI_APPLICATION = 'core.asgi.application'
 WSGI_APPLICATION = 'core.wsgi.application'
-# Channels/ASGI
-ASGI_APPLICATION = 'core.asgi.application'
-WSGI_APPLICATION = 'core.wsgi.application'
 
-# Channel Layers (in-memory for dev, Redis for production)
+# Channel Layers (in-memory for dev)
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels.layers.InMemoryChannelLayer",
