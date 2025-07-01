@@ -22,7 +22,7 @@ import {
 } from "lucide-react"
 import type { Quest, User as UserType, Application } from "@/lib/types"
 import { QuestAPI } from "@/lib/api/quests"
-import { getApplicationsToMyQuests, approveApplication, rejectApplication } from "@/lib/api/applications"
+import { getApplicationsToMyQuests, getMyApplications, approveApplication, rejectApplication } from "@/lib/api/applications"
 import { QuestDetailsModal } from "./quest-details-modal"
 import QuestForm from "./quest-form"
 import { QuestManagementApplicationsModal } from "@/components/modals/quest-management-applications-modal"
@@ -91,15 +91,37 @@ export function QuestManagement({
         return
       }
       
+      // Load user's applications to determine participating quests
+      let userApplications: Application[] = []
+      try {
+        const myApplications = await getMyApplications()
+        userApplications = myApplications || []
+      } catch (error) {
+        console.error('Failed to load user applications:', error)
+        // Continue without applications data
+      }
+      
       // Filter quests based on user relationship
       const createdQuests = allQuests.filter((quest: Quest) => {
         return String(quest.creator?.id) === String(currentUser?.id)
       })
       
       const participatingQuests = allQuests.filter((quest: Quest) => {
-        return String(quest.creator?.id) !== String(currentUser?.id) && 
-          quest.participants_detail && 
+        // Don't include quests created by the user
+        if (String(quest.creator?.id) === String(currentUser?.id)) {
+          return false
+        }
+        
+        // Check if user is in participants_detail (traditional participants)
+        const isInParticipants = quest.participants_detail && 
           quest.participants_detail.some((p: any) => String(p.user?.id) === String(currentUser?.id))
+        
+        // Check if user has an approved application for this quest
+        const hasApprovedApplication = userApplications.some(app => 
+          app.quest.id === quest.id && app.status === 'approved'
+        )
+        
+        return isInParticipants || hasApprovedApplication
       })
       
       setMyQuests({
