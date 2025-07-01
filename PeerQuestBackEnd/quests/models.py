@@ -1,7 +1,10 @@
-from django.db import models
+from django.db import models, transaction
 from django.conf import settings
 from django.utils import timezone
 from django.core.validators import MinValueValidator, MaxValueValidator
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class QuestCategory(models.Model):
@@ -112,8 +115,7 @@ class Quest(models.Model):
         ]
 
     def __str__(self):
-        assigned_info = f" → {self.assigned_to.username}" if self.assigned_to else ""
-        return f"{self.title} ({self.get_status_display()}){assigned_info}"
+        return self.title
 
     def save(self, *args, **kwargs):
         # Automatically set XP reward based on difficulty
@@ -150,44 +152,66 @@ class Quest(models.Model):
     
     def assign_to_user(self, user):
         """Add user as a participant to the quest and assign the quest to them"""
-        # Check if user is already a participant
-        existing_participant = QuestParticipant.objects.filter(quest=self, user=user).first()
-        if existing_participant:
-            # If they exist but dropped, reactivate them
-            if existing_participant.status == 'dropped':
-                existing_participant.status = 'joined'
-                existing_participant.save()
-                print(f"Reactivated participant: {user.username} for quest: {self.title}")
-            else:
-                print(f"User {user.username} is already a participant in quest: {self.title}")
-            # Update assigned_to field
-            self.assigned_to = user
-            self.save()
-            return existing_participant
-        
-        # Check current participant count before creating new participant
-        current_participant_count = self.participant_count
-        
-        # Create new participant
-        participant = QuestParticipant.objects.create(
-            quest=self,
-            user=user,
-            status='joined',
-            application_message=''  # Provide default empty message
-        )
-        
-        # Assign the quest to the user
-        self.assigned_to = user
-        
-        # Update quest status if this is the first participant
-        if self.status == 'open' and current_participant_count == 0:
-            self.status = 'in-progress'
-        
-        self.save()
-        
-        print(f"Added participant: {user.username} to quest: {self.title}")
-        print(f"Assigned quest to: {user.username}")
-        return participant
+        try:
+            with transaction.atomic():
+                logger.info(f"Starting quest assignment: {user.username} -> Quest '{self.title}' (ID: {self.id})")
+                
+                # Check if user is already a participant
+                existing_participant = QuestParticipant.objects.filter(quest=self, user=user).first()
+                if existing_participant:
+                    # If they exist but dropped, reactivate them
+                    if existing_participant.status == 'dropped':
+                        existing_participant.status = 'joined'
+                        existing_participant.save()
+                        logger.info(f"Reactivated participant: {user.username} for quest: {self.title}")
+                    else:
+                        logger.info(f"User {user.username} is already a participant in quest: {self.title}")
+                    
+                    # Update assigned_to field
+                    self.assigned_to = user
+                    self.save()
+                    logger.info(f"Updated quest assignment: {user.username} -> Quest '{self.title}'")
+                    return existing_participant
+                
+                # Check current participant count before creating new participant
+                current_participant_count = self.participant_count
+                logger.debug(f"Current participant count for quest '{self.title}': {current_participant_count}")
+                
+                # Create new participant
+                try:
+                    participant = QuestParticipant.objects.create(
+                        quest=self,
+                        user=user,
+                        status='joined',
+                        application_message=''  # Provide default empty message
+                    )
+                    logger.info(f"Created new participant record: {user.username} -> Quest '{self.title}'")
+                except Exception as create_error:
+                    logger.error(f"Failed to create QuestParticipant: {str(create_error)}")
+                    raise Exception(f"Failed to create participant record: {str(create_error)}")
+                
+                # Assign the quest to the user
+                self.assigned_to = user
+                
+                # Update quest status if this is the first participant
+                old_status = self.status
+                if self.status == 'open' and current_participant_count == 0:
+                    self.status = 'in-progress'
+                    logger.info(f"Updated quest status from '{old_status}' to '{self.status}' for quest '{self.title}'")
+                
+                try:
+                    self.save()
+                    logger.info(f"Saved quest changes: {user.username} assigned to Quest '{self.title}'")
+                except Exception as save_error:
+                    logger.error(f"Failed to save quest changes: {str(save_error)}")
+                    raise Exception(f"Failed to save quest assignment: {str(save_error)}")
+                
+                logger.info(f"Quest assignment completed successfully: {user.username} -> Quest '{self.title}'")
+                return participant
+                
+        except Exception as e:
+            logger.error(f"Quest assignment failed: {user.username} -> Quest '{self.title}' (ID: {self.id}): {str(e)}")
+            raise Exception(f"Failed to assign quest to user {user.username}: {str(e)}")
     
     def unassign(self):
         """Remove the assignment from the quest"""

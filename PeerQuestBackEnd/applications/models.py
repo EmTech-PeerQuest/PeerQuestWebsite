@@ -1,6 +1,9 @@
-from django.db import models
+from django.db import models, transaction
 from django.conf import settings
 from django.utils import timezone
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Application(models.Model):
@@ -65,27 +68,59 @@ class Application(models.Model):
 
     def approve(self, reviewer):
         """Approve the application and assign the quest to the applicant"""
-        self.status = 'approved'
-        self.reviewed_by = reviewer
-        self.reviewed_at = timezone.now()
-        self.save()
-        
-        # Assign the quest to the applicant
-        self.quest.assign_to_user(self.applicant)
-        
-        # Automatically reject all other pending applications for this quest
-        other_pending_applications = Application.objects.filter(
-            quest=self.quest,
-            status='pending'
-        ).exclude(id=self.id)
-        
-        for app in other_pending_applications:
-            app.status = 'rejected'
-            app.reviewed_by = reviewer
-            app.reviewed_at = timezone.now()
-            app.save()
-        
-        return True
+        try:
+            with transaction.atomic():
+                # Step 1: Update application status
+                self.status = 'approved'
+                self.reviewed_by = reviewer
+                self.reviewed_at = timezone.now()
+                self.save()
+                
+                logger.info(f"Application approved: {self.applicant.username} -> Quest '{self.quest.title}' (ID: {self.quest.id})")
+                
+                # Step 2: Assign the quest to the applicant (CRITICAL STEP)
+                try:
+                    participant = self.quest.assign_to_user(self.applicant)
+                    if not participant:
+                        raise Exception("assign_to_user returned None - participant creation failed")
+                    
+                    logger.info(f"Quest assignment successful: {self.applicant.username} -> Quest '{self.quest.title}'")
+                    
+                except Exception as assign_error:
+                    logger.error(f"CRITICAL: Quest assignment failed for {self.applicant.username} -> Quest '{self.quest.title}' (ID: {self.quest.id}): {str(assign_error)}")
+                    # Rollback application approval since quest assignment failed
+                    raise Exception(f"Failed to assign quest to user: {str(assign_error)}")
+                
+                # Step 3: Automatically reject all other pending applications for this quest
+                other_pending_applications = Application.objects.filter(
+                    quest=self.quest,
+                    status='pending'
+                ).exclude(id=self.id)
+                
+                rejected_count = 0
+                for app in other_pending_applications:
+                    app.status = 'rejected'
+                    app.reviewed_by = reviewer
+                    app.reviewed_at = timezone.now()
+                    app.save()
+                    rejected_count += 1
+                
+                if rejected_count > 0:
+                    logger.info(f"Auto-rejected {rejected_count} other pending applications for Quest '{self.quest.title}'")
+                
+                logger.info(f"Application approval completed successfully: {self.applicant.username} -> Quest '{self.quest.title}'")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Application approval failed: {self.applicant.username} -> Quest '{self.quest.title}' (ID: {self.quest.id}): {str(e)}")
+            # Reset application status if it was changed
+            if self.status == 'approved':
+                self.status = 'pending'
+                self.reviewed_by = None
+                self.reviewed_at = None
+                self.save()
+                logger.info(f"Reverted application status to pending due to failure")
+            raise Exception(f"Application approval failed: {str(e)}")
 
     def reject(self, reviewer):
         """Reject the application"""

@@ -100,15 +100,33 @@ class ApplicationViewSet(ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Approve the application
-        result = application.approve(request.user)
-        if result:
-            serializer = self.get_serializer(application)
-            return Response(serializer.data)
-        else:
+        # Approve the application with proper error handling
+        try:
+            logger.info(f"Attempting to approve application: {application.applicant.username} -> Quest '{application.quest.title}' (ID: {application.quest.id})")
+            result = application.approve(request.user)
+            
+            if result:
+                logger.info(f"Application approved successfully: {application.applicant.username} -> Quest '{application.quest.title}'")
+                serializer = self.get_serializer(application)
+                return Response({
+                    'message': 'Application approved successfully',
+                    'data': serializer.data
+                })
+            else:
+                logger.error(f"Application approval returned False: {application.applicant.username} -> Quest '{application.quest.title}'")
+                return Response(
+                    {'error': 'Failed to approve application - unknown error.'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+        except Exception as e:
+            logger.error(f"Application approval failed with exception: {application.applicant.username} -> Quest '{application.quest.title}': {str(e)}")
             return Response(
-                {'error': 'Failed to approve application.'},
-                status=status.HTTP_400_BAD_REQUEST
+                {
+                    'error': 'Failed to approve application due to system error.',
+                    'details': str(e)
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
     @action(detail=True, methods=['post'])

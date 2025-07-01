@@ -57,6 +57,7 @@ export function QuestManagement({
   const [questApplications, setQuestApplications] = useState<{ [questId: number]: Application[] }>({})
   const [loadingApplications, setLoadingApplications] = useState<{ [questId: number]: boolean }>({})
   const [processingApplications, setProcessingApplications] = useState<Set<number>>(new Set())
+  const [userApplications, setUserApplications] = useState<Application[]>([])
 
   // Load user's quests on component mount and when currentUser changes
   useEffect(() => {
@@ -79,6 +80,13 @@ export function QuestManagement({
       const allQuests = Array.isArray(questResponse) 
         ? questResponse 
         : (questResponse.results || questResponse.value || [])
+
+      // DEBUG: Log the quest data being processed
+      console.log('🔍 Quest Management Debug - Raw quest data:', {
+        totalQuests: allQuests.length,
+        currentUserId: currentUser?.id,
+        questTitles: allQuests.map(q => q.title)
+      })
       
       // Safety check
       if (!currentUser?.id) {
@@ -96,6 +104,13 @@ export function QuestManagement({
       try {
         const myApplications = await getMyApplications()
         userApplications = myApplications || []
+        setUserApplications(userApplications) // Store for use in UI
+
+        // DEBUG: Log applications data
+        console.log('🔍 Quest Management Debug - User applications:', {
+          totalApplications: userApplications.length,
+          applicationQuestIds: userApplications.map(app => ({ id: app.quest.id, title: app.quest.title, status: app.status }))
+        })
       } catch (error) {
         console.error('Failed to load user applications:', error)
         // Continue without applications data
@@ -120,8 +135,26 @@ export function QuestManagement({
         const hasApprovedApplication = userApplications.some(app => 
           app.quest.id === quest.id && app.status === 'approved'
         )
+
+        // DEBUG: Log each quest evaluation
+        if (isInParticipants || hasApprovedApplication) {
+          console.log('🔍 Quest Management Debug - Quest included in participating:', {
+            questId: quest.id,
+            questTitle: quest.title,
+            isInParticipants,
+            hasApprovedApplication,
+            participantsCount: quest.participants_detail?.length || 0,
+            participants: quest.participants_detail?.map(p => ({ userId: p.user?.id, username: p.user?.username }))
+          })
+        }
         
         return isInParticipants || hasApprovedApplication
+      })
+
+      // DEBUG: Log final results
+      console.log('🔍 Quest Management Debug - Final quest filtering results:', {
+        createdQuests: createdQuests.map(q => ({ id: q.id, title: q.title })),
+        participatingQuests: participatingQuests.map(q => ({ id: q.id, title: q.title }))
       })
       
       setMyQuests({
@@ -220,6 +253,11 @@ export function QuestManagement({
       default:
         return "bg-gray-100 text-gray-800 border-gray-200"
     }
+  }
+
+  // Get user's application for a specific quest
+  const getUserApplicationForQuest = (questId: number): Application | undefined => {
+    return userApplications.find(app => app.quest.id === questId)
   }
 
   // Get the appropriate quest list based on active tab
@@ -785,14 +823,55 @@ export function QuestManagement({
 
                         <div className="bg-white p-4 rounded-xl border">
                           <h4 className="text-lg font-bold text-[#2C1A1D] mb-3 font-serif">Your Participation Status</h4>
-                          <div className="flex items-center gap-3">
-                            <span className="px-3 py-2 rounded-xl text-sm font-bold border bg-blue-100 text-blue-800 border-blue-200">
-                              Participating
-                            </span>
-                            <p className="text-gray-600">
-                              Joined on {new Date(quest.created_at).toLocaleDateString()}
-                            </p>
-                          </div>
+                          {(() => {
+                            const userApp = getUserApplicationForQuest(quest.id)
+                            if (userApp) {
+                              // User has an application
+                              return (
+                                <div className="space-y-3">
+                                  <div className="flex items-center gap-3">
+                                    <span className={`px-3 py-2 rounded-xl text-sm font-bold border ${
+                                      userApp.status === 'approved' 
+                                        ? 'bg-green-100 text-green-800 border-green-200'
+                                        : userApp.status === 'pending'
+                                        ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                                        : 'bg-red-100 text-red-800 border-red-200'
+                                    }`}>
+                                      {userApp.status === 'approved' ? 'Participating' : userApp.status.charAt(0).toUpperCase() + userApp.status.slice(1)}
+                                    </span>
+                                    <p className="text-gray-600">
+                                      {userApp.status === 'approved' && userApp.reviewed_at
+                                        ? `Approved on ${new Date(userApp.reviewed_at).toLocaleDateString()}`
+                                        : `Applied on ${new Date(userApp.applied_at).toLocaleDateString()}`
+                                      }
+                                    </p>
+                                  </div>
+                                  {userApp.status === 'pending' && (
+                                    <p className="text-sm text-gray-500">
+                                      Your application is under review by the quest giver.
+                                    </p>
+                                  )}
+                                  {userApp.status === 'rejected' && (
+                                    <p className="text-sm text-red-600">
+                                      Your application was not accepted for this quest.
+                                    </p>
+                                  )}
+                                </div>
+                              )
+                            } else {
+                              // User is in participant list (direct participation)
+                              return (
+                                <div className="flex items-center gap-3">
+                                  <span className="px-3 py-2 rounded-xl text-sm font-bold border bg-blue-100 text-blue-800 border-blue-200">
+                                    Participating
+                                  </span>
+                                  <p className="text-gray-600">
+                                    Added as participant
+                                  </p>
+                                </div>
+                              )
+                            }
+                          })()}
                         </div>
 
                         {quest.status === "in-progress" && (

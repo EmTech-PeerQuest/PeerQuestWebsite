@@ -1,0 +1,278 @@
+================================================================================
+GOLD SYSTEM NOT IMPLEMENTED - KNOWN ISSUE
+================================================================================
+
+Date: July 2, 2025
+Issue ID: GOLD-001
+Category: UI/UX
+Severity: LOW
+Status: KNOWN (Planned Feature)
+
+================================================================================
+ISSUE DESCRIPTION
+================================================================================
+
+The PeerQuest application currently displays gold rewards as "Coming Soon" 
+throughout the interface, indicating that the gold system is planned but 
+not yet implemented.
+
+CURRENT BEHAVIOR:
+- Quest cards show "Gold Coming Soon" with grayed-out gold icons
+- Quest creation forms may reference gold rewards
+- User profiles may have placeholder gold displays
+- Gold-related UI elements are visible but non-functional
+
+AFFECTED AREAS:
+- Quest board quest cards
+- Quest management interface
+- User profile displays
+- Quest creation/editing forms
+- Reward calculation systems
+
+================================================================================
+TECHNICAL ANALYSIS
+================================================================================
+
+IMPLEMENTATION STATUS:
+- Frontend: Gold UI elements present but marked as "Coming Soon"
+- Backend: No gold system models or logic implemented
+- Database: No gold-related tables or fields
+- API: No gold-related endpoints
+
+CURRENT WORKAROUND:
+- Gold displays consistently show "Coming Soon" message
+- Gold icons are grayed out to indicate unavailability
+- Users understand this is a future feature
+- No functional impact on current quest system
+
+================================================================================
+PLANNED IMPLEMENTATION
+================================================================================
+
+WHEN GOLD SYSTEM IS IMPLEMENTED, IT WILL LIKELY INCLUDE:
+
+Database Changes:
+- User gold balance field
+- Quest gold reward field
+- Gold transaction history table
+- Gold earning/spending logs
+
+Backend Implementation:
+- Gold calculation logic
+- Gold award system (similar to XP)
+- Gold transaction API endpoints
+- Gold balance management
+
+Frontend Updates:
+- Remove "Coming Soon" placeholders
+- Enable gold displays and interactions
+- Gold transaction interfaces
+- Gold reward visualization
+
+Integration Points:
+- Quest completion gold awards
+- Gold-based quest requirements
+- User gold balance displays
+- Gold transaction history
+
+================================================================================
+IMPACT ASSESSMENT
+================================================================================
+
+USER IMPACT: Minimal
+- Users aware this is a planned feature
+- Clear "Coming Soon" messaging sets expectations
+- No confusion about unavailability
+- No functional impact on quest participation
+
+BUSINESS IMPACT: None
+- Feature is clearly marked as future
+- No promises made about availability timeline
+- Users can fully use current feature set
+- No revenue or engagement impact
+
+DEVELOPMENT IMPACT: Low
+- UI framework already in place
+- Clear implementation path when ready
+- No blocking issues for current features
+- Ready for future enhancement
+
+================================================================================
+CURRENT UI IMPLEMENTATION
+================================================================================
+
+QUEST CARDS:
+```jsx
+// Gold shown as "Coming Soon" with grayed styling
+<div className="flex items-center text-gray-400">
+  <Coins className="w-4 h-4 mr-1" />
+  <span className="text-sm">Coming Soon</span>
+</div>
+```
+
+QUEST MANAGEMENT:
+- Gold sections clearly marked as coming soon
+- Consistent styling across all gold elements
+- No functional gold-related buttons or inputs
+
+USER FEEDBACK:
+- Clear visual indicators of future feature
+- No user confusion reported
+- Expectations properly set
+
+================================================================================
+FUTURE IMPLEMENTATION CONSIDERATIONS
+================================================================================
+
+DESIGN DECISIONS TO MAKE:
+1. Gold earning rates per quest difficulty
+2. Gold spending mechanisms (if any)
+3. Gold-based quest requirements
+4. Gold transaction limits
+5. Gold balance persistence
+
+TECHNICAL CONSIDERATIONS:
+1. Database schema for gold system
+2. Transaction safety for gold operations
+3. Gold calculation algorithms
+4. API endpoint design
+5. Frontend state management
+
+INTEGRATION PLANNING:
+1. Gold + XP combined reward system
+2. Gold-based guild features
+3. Gold marketplace possibilities
+4. Achievement system integration
+
+================================================================================
+MONITORING
+================================================================================
+
+USER FEEDBACK:
+- Monitor for requests about gold system
+- Track user understanding of "Coming Soon"
+- Watch for confusion about gold availability
+
+DEVELOPMENT READINESS:
+- UI framework ready for implementation
+- Database design can be planned
+- API structure can be designed
+- Integration points identified
+
+BUSINESS READINESS:
+- Feature value proposition to be defined
+- Implementation priority to be determined
+- Resource allocation planning needed
+
+================================================================================
+IMPLEMENTATION CHECKLIST (FOR FUTURE)
+================================================================================
+
+PHASE 1: Backend Foundation
+□ Design gold database schema
+□ Implement gold models
+□ Create gold calculation logic
+□ Build gold transaction system
+□ Add gold API endpoints
+
+PHASE 2: Frontend Integration  
+□ Remove "Coming Soon" placeholders
+□ Implement gold displays
+□ Add gold transaction interfaces
+□ Update quest creation forms
+□ Enable gold-related interactions
+
+PHASE 3: Testing & Validation
+□ Test gold calculation accuracy
+□ Verify transaction safety
+□ Validate UI/UX flows
+□ Test integration with existing systems
+□ Performance testing with gold operations
+
+PHASE 4: Deployment
+□ Database migration for gold fields
+□ Backend deployment with gold features
+□ Frontend deployment with active gold UI
+□ User communication about new feature
+□ Monitoring and issue tracking
+
+================================================================================
+ALTERNATIVE APPROACHES
+================================================================================
+
+OPTION 1: Simple Gold System
+- Fixed gold amounts per quest difficulty
+- No spending mechanisms
+- Display-only gold accumulation
+- Minimal implementation complexity
+
+OPTION 2: Complex Gold Economy
+- Variable gold rewards
+- Gold spending features
+- Gold-based quest requirements
+- Marketplace integration
+
+OPTION 3: Gold + Achievement System
+- Gold tied to achievements
+- Special gold rewards for milestones
+- Gold-based unlockables
+- Gamification focus
+
+RECOMMENDATION: Start with Option 1 for MVP
+
+================================================================================
+COMMUNICATIONS
+================================================================================
+
+USER MESSAGING:
+- "Coming Soon" clearly indicates future feature
+- No timeline promises made to users
+- Consistent messaging across all gold elements
+- Users can provide feedback on desired features
+
+STAKEHOLDER UPDATES:
+- Gold system is planned but not prioritized
+- Implementation timeline depends on resources
+- Current system fully functional without gold
+- User experience not impacted by absence
+
+================================================================================
+RELATED FEATURES
+================================================================================
+
+DEPENDENT SYSTEMS:
+- Quest reward system (already implemented for XP)
+- User profile system (ready for gold integration)
+- Achievement system (potential gold integration)
+- Guild system (potential gold features)
+
+SIMILAR IMPLEMENTATIONS:
+- XP system can serve as model for gold
+- Reward calculation patterns established
+- Database patterns for user resources exist
+- API patterns for resource management exist
+
+================================================================================
+STATUS: 🔄 KNOWN - PLANNED FEATURE
+================================================================================
+
+This is not a bug or issue requiring immediate resolution. It represents
+a planned feature that has been properly communicated to users through
+"Coming Soon" messaging.
+
+NEXT STEPS:
+1. Continue monitoring user feedback
+2. Plan gold system design when resources available
+3. Maintain current "Coming Soon" messaging
+4. Consider gold system in future development cycles
+
+NO IMMEDIATE ACTION REQUIRED
+
+================================================================================
+END OF GOLD SYSTEM DOCUMENTATION
+================================================================================
+
+Documented by: GitHub Copilot
+Status Date: July 2, 2025
+Next Review: When gold system implementation is planned
+Priority: Low (Feature, not issue)
