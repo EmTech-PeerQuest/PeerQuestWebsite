@@ -368,7 +368,7 @@ class QuestParticipant(models.Model):
     ]
 
     quest = models.ForeignKey(Quest, on_delete=models.CASCADE)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='quest_participations')
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='joined')
     joined_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
