@@ -9,7 +9,7 @@ class CustomUserAdmin(UserAdmin):
     model = User
     list_display = [
         'id', 'email', 'username', 'first_name', 'last_name', 'is_staff', 
-        'is_active', 'level', 'experience_points', 'gold_balance', 'quest_stats', 
+        'is_active', 'level', 'experience_points', 'gold_balance', 
         'date_joined', 'last_login'
     ]
     list_filter = [
@@ -116,17 +116,19 @@ class CustomUserAdmin(UserAdmin):
     def participation_statistics(self, obj):
         participations = obj.quest_participations.all()
         total_participations = participations.count()
-        active_participations = participations.filter(status='active').count()
+        active_participations = participations.filter(status__in=['joined', 'in_progress']).count()
         completed_participations = participations.filter(status='completed').count()
+        dropped_participations = participations.filter(status='dropped').count()
         
         return format_html("""
             <h4>Quest Participations ({})</h4>
             <ul>
                 <li>Active: {}</li>
                 <li>Completed: {}</li>
+                <li>Dropped: {}</li>
             </ul>
         """, 
-            total_participations, active_participations, completed_participations
+            total_participations, active_participations, completed_participations, dropped_participations
         )
     participation_statistics.short_description = 'Participation Statistics'
 
