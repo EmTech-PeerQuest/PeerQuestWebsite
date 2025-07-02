@@ -14,6 +14,7 @@ class Notification(models.Model):
         ("goodbye, adventurer", "Goodbye, Adventurer"),
         ("permission denied", "Permission Denied"),
         ("permission granted", "Permission Granted"),
+        ("email already in use", "Email already in use"),
         ("quest updated successfully", "Quest Updated Successfully"),
         ("you have been logged out", "You have been logged out"),
         ("welcome to the peerquest tavern, your account has been created!", "Welcome to the PeerQuest Tavern, Your Account has been Created!"),    
@@ -22,7 +23,7 @@ class Notification(models.Model):
 
     notification_id = models.AutoField(primary_key=True)
     user = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='notifications')
-    type = models.CharField(max_length=50, choices=NOTIFICATION_TYPES)
+    type = models.CharField(max_length=80, choices=NOTIFICATION_TYPES)
     title = models.CharField(max_length=200)
     message = models.TextField()
     is_read = models.BooleanField(default=False)

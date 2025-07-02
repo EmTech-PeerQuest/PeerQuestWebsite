@@ -1,9 +1,8 @@
 'use client';
 import { createContext, useContext, useEffect, useState } from 'react';
-import { login as apiLogin, register as apiRegister, fetchUser as fetchUserApi, logout as apiLogout, TokenInvalidError } from '@/lib/api/auth';
+import { customLogin, customRegister, fetchUser as fetchUserApi, logout as apiLogout, TokenInvalidError } from '@/lib/api/auth';
 import { useRouter } from 'next/navigation';
 import ThemedLoading from '@/components/ui/themed-loading';
-import { toast } from '@/hooks/use-toast';
 
 interface User {
   id: string;
@@ -48,11 +47,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.removeItem('access_token');
         localStorage.removeItem('user');
         setUser(null);
-        toast({
-          title: 'Session expired',
-          description: 'Your session has expired. Please log in again.',
-          variant: 'destructive',
-        });
         router.push('/');
       } else {
         setUser(null);
@@ -64,21 +58,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const login = async (credentials: { username: string; password: string }) => {
-    const res = await apiLogin(credentials.username, credentials.password);
-    const { access } = res.data;
-    localStorage.setItem('access_token', access);
-    await loadUser(access);
+    const res = await customLogin(credentials.username, credentials.password);
+    if (res.user) {
+      setUser(res.user);
+      localStorage.setItem('user', JSON.stringify(res.user));
+    }
   };
 
   const register = async (data: { username: string; email: string; password: string; confirmPassword?: string }) => {
     try {
-      // Call backend registration API
-      await apiRegister(data);
-      // Only login if registration succeeds
-      await login({ username: data.username, password: data.password });
+      const res = await customRegister(data);
+      if (res.user) {
+        setUser(res.user);
+        localStorage.setItem('user', JSON.stringify(res.user));
+      }
     } catch (err: any) {
-      // Optionally show a toast or propagate error
-      toast({ title: 'Registration failed', description: err?.message || 'Please try again.', variant: 'destructive' });
       throw err;
     }
   };

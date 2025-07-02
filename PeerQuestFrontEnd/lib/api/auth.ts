@@ -13,7 +13,7 @@ export class TokenInvalidError extends Error {
 // JWT login
 export const login = async (username: string, password: string) => {
   try {
-    const response = await axios.post(`${API_BASE}/api/token/`, { username, password });
+    const response = await axios.post(`${API_BASE}/api/users/login/`, { username, password });
     return response;
   } catch (error: any) {
     // User-friendly error for 401
@@ -111,4 +111,16 @@ export const fetchUser = async (token: string) => {
 // No server-side logout for JWT, just remove token client-side
 export const logout = async () => {
   // No-op for JWT
+};
+
+// Custom login for notification support
+export const customLogin = async (username: string, password: string) => {
+  const response = await axios.post(`${API_BASE}/api/users/login/`, { username, password });
+  return response.data;
+};
+
+// Custom register for notification support
+export const customRegister = async (userData: { username: string; email: string; password: string }) => {
+  const response = await axios.post(`${API_BASE}/api/users/register/`, userData);
+  return response.data;
 };

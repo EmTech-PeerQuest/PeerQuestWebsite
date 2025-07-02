@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { X, Eye, EyeOff, AlertCircle } from "lucide-react"
 import LoadingModal from "@/components/ui/loading-modal"
+import { useToastContext } from '@/components/ToastProvider';
 
 interface AuthModalProps {
   isOpen: boolean
@@ -44,6 +45,8 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   const [forgotForm, setForgotForm] = useState({
     email: "",
   })
+
+  const { showToast } = useToastContext();
 
   if (!isOpen) return null
 
@@ -132,7 +135,9 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           username: loginForm.username,
           password: loginForm.password,
         })
+        showToast('Welcome back to the PeerQuest Tavern!', 'success');
       } catch (err: any) {
+        showToast(err?.message || 'Login failed. Please try again.', 'error');
         setFormErrors({ auth: err?.message || "Login failed. Please try again." })
       } finally {
         setAuthLoading(false)
@@ -151,7 +156,9 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           password: registerForm.password,
           confirmPassword: registerForm.confirmPassword,
         })
+        showToast('Welcome to the PeerQuest Tavern, Your Account has been Created!', 'success');
       } catch (err: any) {
+        showToast(err?.message || 'Registration failed. Please try again.', 'error');
         // Robust error handling for duplicate registration
         let msg = err?.message || "Registration failed. Please try again.";
         // Helper to recursively extract all string messages from any value, including arrays of objects

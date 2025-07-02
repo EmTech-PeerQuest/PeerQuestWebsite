@@ -8,6 +8,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import User
 from rest_framework.permissions import AllowAny
+from notifications.utils import create_welcome_notification, create_welcome_back_notification
+from django.contrib.auth import authenticate
 
 class UserProfileView(RetrieveUpdateAPIView):
     serializer_class = UserProfileSerializer
@@ -39,12 +41,18 @@ class RegisterView(APIView):
             serializer = RegisterSerializer(data=request.data)
             if serializer.is_valid():
                 user = serializer.save()
+                # Create welcome notification
+                create_welcome_notification(user)
                 return Response({
                     "user": {
                         "id": user.id,
                         "username": user.username,
                         "email": user.email,
                         "avatar_url": user.avatar_url,
+                    },
+                    "notification": {
+                        "type": "success",
+                        "message": "Welcome to the PeerQuest Tavern, Your Account has been Created!"
                     }
                 }, status=status.HTTP_201_CREATED)
             # Flatten serializer errors to a readable string list
@@ -68,3 +76,26 @@ class RegisterView(APIView):
             return Response({"errors": error_list}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({"errors": [str(e) or "An unexpected error occurred during registration."]}, status=status.HTTP_400_BAD_REQUEST)
+
+class LoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        username = request.data.get("username")
+        password = request.data.get("password")
+        user = authenticate(username=username, password=password)
+        if user is not None:
+            create_welcome_back_notification(user)
+            return Response({
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                },
+                "notification": {
+                    "type": "success",
+                    "message": "Welcome Back to the PeerQuest Tavern"
+                }
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({"errors": ["Invalid credentials."]}, status=status.HTTP_400_BAD_REQUEST)
