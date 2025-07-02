@@ -6,7 +6,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'your-secret-key'
 DEBUG = True
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]  # Added for local dev safety
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost']  # Added for local dev safety
 
 # Installed Apps
 INSTALLED_APPS = [
@@ -70,7 +70,10 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Channel Layers (in-memory for dev)
 CHANNEL_LAYERS = {
     "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
     },
 }
 
@@ -176,3 +179,6 @@ SESSION_COOKIE_SAMESITE = "Lax"  # Use "None" if using HTTPS and cross-site
 SESSION_COOKIE_SECURE = False     # Set to True if using HTTPS
 CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SECURE = False
+
+# Prevent Django from redirecting /api/ endpoints and causing redirect loops
+APPEND_SLASH = False

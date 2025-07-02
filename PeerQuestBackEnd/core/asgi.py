@@ -10,7 +10,7 @@ https://docs.djangoproject.com/en/5.2/howto/deployment/asgi/
 import os
 import django
 from channels.routing import ProtocolTypeRouter, URLRouter
-from core.jwt_middleware import JWTAuthMiddleware  # <-- Add this import
+from core.jwt_middleware import JWTAuthMiddleware  # Import your JWT middleware
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
 django.setup()
@@ -19,14 +19,14 @@ from django.core.asgi import get_asgi_application
 
 django_asgi_app = get_asgi_application()
 
-# Delay import until after Django is ready
+# Import websocket routing after Django setup
 import messaging.routing
 
 application = ProtocolTypeRouter({
-    "http": django_asgi_app,  # still handle HTTP
-    "websocket": JWTAuthMiddleware(  # <-- Use your JWT middleware here
+    "http": django_asgi_app,  # Handles traditional HTTP requests
+    "websocket": JWTAuthMiddleware(  # Handles WebSocket connections with JWT auth
         URLRouter(
-            messaging.routing.websocket_urlpatterns  # this must be defined in messaging/routing.py
+            messaging.routing.websocket_urlpatterns  # Your websocket URL patterns
         )
     ),
 })

@@ -24,11 +24,27 @@ class ConversationListView(APIView):
                 Q(sender=user, recipient_id=pid) | Q(sender_id=pid, recipient=user)
             ).order_by('-timestamp').first()
             if last_msg:
+                other_user = User.objects.get(id=pid)
+                participants = [
+                    {
+                        'id': user.id,
+                        'username': user.username,
+                        'email': user.email,
+                        'level': getattr(user, 'level', None)
+                    },
+                    {
+                        'id': other_user.id,
+                        'username': other_user.username,
+                        'email': other_user.email,
+                        'level': getattr(other_user, 'level', None)
+                    }
+                ]
                 conversations.append({
-                    'id': pid,
-                    'participants': [user.username, User.objects.get(id=pid).username],
+                    'id': last_msg.id,  # Use message id as conversation id, or use a custom id if you have a Conversation model
+                    'participants': participants,
                     'last_message': last_msg.content,
-                    'last_timestamp': last_msg.timestamp,
+                    'last_message_date': last_msg.timestamp,
+                    'unread_count': Message.objects.filter(sender=other_user, recipient=user, read=False).count(),
                 })
         return Response(conversations)
 

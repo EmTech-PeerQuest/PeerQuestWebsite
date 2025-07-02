@@ -42,36 +42,11 @@ const TEST_CONVERSATION_ID = 1; // Change this to a valid conversation ID in you
 // CORS fix: Make sure to set credentials true in axios
 axios.defaults.withCredentials = true;
 
-// Hardcoded users for testing (add required fields)
-const HARDCODED_USERS: User[] = [
-  { id: 1, username: 'Alice', email: 'alice@example.com', level: 5 },
-  { id: 2, username: 'Bob', email: 'bob@example.com', level: 3 },
-  { id: 3, username: 'Charlie', email: 'charlie@example.com', level: 2 },
-];
-
-// Hardcoded conversations for testing
-const HARDCODED_CONVERSATIONS: Conversation[] = [
-  {
-    id: 1,
-    participants: [HARDCODED_USERS[0], HARDCODED_USERS[1]],
-    last_message: 'Hey Bob!',
-    last_message_date: '2025-06-27T10:00:00Z',
-    unread_count: 0,
-  },
-  {
-    id: 2,
-    participants: [HARDCODED_USERS[0], HARDCODED_USERS[2]],
-    last_message: 'Hi Charlie!',
-    last_message_date: '2025-06-27T09:00:00Z',
-    unread_count: 1,
-  },
-];
-
 export function MessagingSystem({ currentUser: initialUser, showToast }: MessagingSystemProps) {
-  // Use hardcoded users and conversations for testing
-  const [currentUser, setCurrentUser] = useState<User | null>(HARDCODED_USERS[0])
-  const [conversations, setConversations] = useState<Conversation[]>(HARDCODED_CONVERSATIONS)
-  const [activeConversation, setActiveConversation] = useState<number | null>(TEST_CONVERSATION_ID)
+  // Use real users and conversations from backend
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [activeConversation, setActiveConversation] = useState<number | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
@@ -81,6 +56,27 @@ export function MessagingSystem({ currentUser: initialUser, showToast }: Messagi
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Fetch users and conversations from backend
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [userRes, convoRes] = await Promise.all([
+          axios.get("/api/users/me/"),
+          axios.get("/api/messages/conversations/")
+        ])
+        setCurrentUser(userRes.data)
+        setConversations(convoRes.data)
+      } catch (err: any) {
+        if (err.response?.status === 404) {
+          showToast("Messaging backend not ready", "warning")
+        } else {
+          showToast("Failed to load messaging data", "error")
+        }
+      }
+    }
+    fetchData()
+  }, [])
 
   const getOtherParticipant = (conversation: Conversation) => {
     if (!currentUser) return null
@@ -92,42 +88,21 @@ export function MessagingSystem({ currentUser: initialUser, showToast }: Messagi
     return otherParticipant?.username?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false
   })
 
-  // useEffect(() => {
-  //   const fetchData = async () => {
-  //     try {
-  //       const [userRes, convoRes] = await Promise.all([
-  //         axios.get("/api/users/me/"),
-  //         axios.get("/api/messages/conversations/")
-  //       ])
-  //       setCurrentUser(userRes.data)
-  //       setConversations(convoRes.data)
-  //     } catch (err: any) {
-  //       if (err.response?.status === 404) {
-  //         showToast("Messaging backend not ready", "warning")
-  //       } else {
-  //         showToast("Failed to load messaging data", "error")
-  //       }
-  //     }
-  //   }
-  //   fetchData()
-  // }, [])
-
-
   // Hardcoded messages for each conversation
   const HARDCODED_MESSAGES: { [key: number]: Message[] } = {
     1: [
       {
         id: 1,
-        sender: HARDCODED_USERS[0],
-        receiver: HARDCODED_USERS[1],
+        sender: { id: 1, username: 'Alice', email: 'alice@example.com', level: 5 },
+        receiver: { id: 2, username: 'Bob', email: 'bob@example.com', level: 3 },
         content: "Hey Bob!",
         created_at: "2025-06-27T10:00:00Z",
         read: true,
       },
       {
         id: 2,
-        sender: HARDCODED_USERS[1],
-        receiver: HARDCODED_USERS[0],
+        sender: { id: 2, username: 'Bob', email: 'bob@example.com', level: 3 },
+        receiver: { id: 1, username: 'Alice', email: 'alice@example.com', level: 5 },
         content: "Hi Alice!",
         created_at: "2025-06-27T10:01:00Z",
         read: true,
@@ -136,16 +111,16 @@ export function MessagingSystem({ currentUser: initialUser, showToast }: Messagi
     2: [
       {
         id: 3,
-        sender: HARDCODED_USERS[0],
-        receiver: HARDCODED_USERS[2],
+        sender: { id: 1, username: 'Alice', email: 'alice@example.com', level: 5 },
+        receiver: { id: 3, username: 'Charlie', email: 'charlie@example.com', level: 2 },
         content: "Hi Charlie!",
         created_at: "2025-06-27T09:00:00Z",
         read: false,
       },
       {
         id: 4,
-        sender: HARDCODED_USERS[2],
-        receiver: HARDCODED_USERS[0],
+        sender: { id: 3, username: 'Charlie', email: 'charlie@example.com', level: 2 },
+        receiver: { id: 1, username: 'Alice', email: 'alice@example.com', level: 5 },
         content: "Hello Alice!",
         created_at: "2025-06-27T09:02:00Z",
         read: false,
