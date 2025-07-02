@@ -17,6 +17,8 @@ from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 import traceback
+from .validators import PROFANITY_LIST, LEET_MAP, levenshtein, normalize_username
+from itertools import product
 
 @method_decorator(csrf_exempt, name='dispatch')
 class GoogleLoginCallbackView(APIView):
@@ -94,9 +96,50 @@ class UserProfileView(APIView):
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
+
     class Meta:
         model = User
         fields = ("username", "email", "password")
+
+    def normalize_username(self, value):
+        return normalize_username(value)
+
+    def validate_username(self, value):
+        value = value.strip()
+        norm_value = self.normalize_username(value)
+        if not norm_value.isalnum():
+            raise serializers.ValidationError("Username must be alphanumeric.")
+        lowered = norm_value.lower()
+        for bad_word in PROFANITY_LIST:
+            # Direct substring match
+            if bad_word in lowered:
+                raise serializers.ValidationError("Username contains inappropriate language.")
+            # Fuzzy: check all substrings of username for Levenshtein distance 1 to any bad word
+            for i in range(len(lowered) - len(bad_word) + 1):
+                sub = lowered[i:i+len(bad_word)]
+                if levenshtein(sub, bad_word) <= 1:
+                    raise serializers.ValidationError("Username contains inappropriate language.")
+                # Generate all possible leet-variant substrings for this window (all combinations)
+                leet_positions = [j for j, c in enumerate(sub) if c in LEET_MAP]
+                n = len(leet_positions)
+                if n > 0:
+                    for mask in product([False, True], repeat=n):
+                        chars = list(sub)
+                        for idx, use_leet in enumerate(mask):
+                            if use_leet:
+                                pos = leet_positions[idx]
+                                chars[pos] = LEET_MAP[chars[pos]]
+                        variant = ''.join(chars)
+                        if bad_word in variant:
+                            raise serializers.ValidationError("Username contains inappropriate language.")
+                        if levenshtein(variant, bad_word) <= 1:
+                            raise serializers.ValidationError("Username contains inappropriate language.")
+        return value
+
+    def validate_email(self, value):
+        value = value.strip()
+        # Optionally, add more email validation here
+        return value
 
     def create(self, validated_data):
         user = User(
