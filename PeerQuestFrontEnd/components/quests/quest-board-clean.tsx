@@ -360,7 +360,6 @@ export function QuestBoard({
         }}
         onSuccess={handleQuestFormSuccess}
         isEditing={!!editingQuest}
-        currentUser={currentUser}
       />
 
       {/* Quest Details Modal */}

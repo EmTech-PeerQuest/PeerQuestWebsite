@@ -38,13 +38,6 @@ export function QuestBoard({
     loadQuestsAndCategories()
   }, [])
 
-  // Reload quests when filters change
-  useEffect(() => {
-    if (!loading) {
-      loadQuests()
-    }
-  }, [filters])
-
   const loadQuestsAndCategories = async () => {
     setLoading(true)
     try {
@@ -53,7 +46,8 @@ export function QuestBoard({
         QuestAPI.getCategories()
       ])
       
-      setQuests(questsData.results || questsData)
+      const questsArray = Array.isArray(questsData) ? questsData : (questsData.results || []);
+      setQuests(questsArray)
       setCategories(categoriesData)
     } catch (error) {
       console.error('Failed to load quests and categories:', error)
@@ -62,12 +56,23 @@ export function QuestBoard({
     }
   }
 
+  // Reload quests when filters change
+  useEffect(() => {
+    if (!loading) {
+      loadQuests()
+    }
+  }, [filters])
+
   const loadQuests = async () => {
+    setRefreshing(true)
     try {
       const questsData = await QuestAPI.getQuests(filters)
-      setQuests(questsData.results || questsData)
+      const questsArray = Array.isArray(questsData) ? questsData : (questsData.results || []);
+      setQuests(questsArray)
     } catch (error) {
       console.error('Failed to load quests:', error)
+    } finally {
+      setRefreshing(false)
     }
   }
 

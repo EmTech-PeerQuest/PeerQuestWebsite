@@ -1002,7 +1002,6 @@ export function QuestManagement({
           }}
           onSuccess={handleQuestFormSuccess}
           isEditing={!!editingQuest}
-          currentUser={currentUser}
         />
       )}
 

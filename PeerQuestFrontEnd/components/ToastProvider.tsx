@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useState, ReactNode, useCallback } from "react";
+import React, { createContext, useContext, useState, ReactNode, useCallback, useEffect } from "react";
 import { Toast } from "@/components/toast";
 
 interface ToastData {
@@ -25,6 +25,17 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 3500);
   }, []);
+
+  // Listen for custom logout toast event
+  useEffect(() => {
+    const handler = (e: any) => {
+      if (e.detail && e.detail.message) {
+        showToast(e.detail.message, e.detail.type);
+      }
+    };
+    window.addEventListener('show-toast', handler);
+    return () => window.removeEventListener('show-toast', handler);
+  }, [showToast]);
 
   return (
     <ToastContext.Provider value={{ showToast }}>

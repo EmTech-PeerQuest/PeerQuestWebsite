@@ -4,6 +4,8 @@ import { useState, useEffect } from "react"
 import { X, Calendar, Star } from "lucide-react"
 import { Quest } from "@/lib/types"
 import { QuestAPI, QuestCategory, CreateQuestData, UpdateQuestData } from "@/lib/api/quests"
+import { useToastContext } from '@/components/ToastProvider';
+import { useAuth } from '@/context/AuthContext';
 
 interface QuestFormProps {
   quest?: Quest | null
@@ -11,10 +13,10 @@ interface QuestFormProps {
   onClose: () => void
   onSuccess: (quest: Quest) => void
   isEditing?: boolean
-  currentUser?: any
 }
 
-export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false, currentUser }: QuestFormProps) {
+export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false }: QuestFormProps) {
+  const { user, loading: authLoading } = useAuth();
   const [formData, setFormData] = useState<CreateQuestData>({
     title: "",
     description: "",
@@ -30,6 +32,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
   const [categories, setCategories] = useState<QuestCategory[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const { showToast } = useToastContext();
 
   // Load categories when modal opens
   useEffect(() => {
@@ -98,11 +101,20 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    console.log('[QuestForm] user:', user);
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    console.log('[QuestForm] token:', token);
+    if (!token) {
+      showToast('You must be logged in to post a quest.', 'error');
+      return;
+    }
+
     setIsLoading(true)
     setErrors({})
 
     // Check authentication
-    if (!currentUser) {
+    if (!user) {
       setErrors({ general: 'You must be logged in to create a quest.' })
       setIsLoading(false)
       return
@@ -665,7 +677,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
               </button>
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || authLoading}
                 className="flex-1 px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-amber-500 border border-transparent rounded-lg hover:from-purple-600 hover:to-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isLoading 

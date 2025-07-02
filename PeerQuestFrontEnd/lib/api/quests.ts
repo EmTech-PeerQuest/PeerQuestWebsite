@@ -127,9 +127,11 @@ export const QuestAPI = {
   },
 
   async createQuest(questData: CreateQuestData): Promise<Quest> {
+    const headers = getAuthHeaders();
+    console.log('[QuestAPI.createQuest] headers:', headers);
     const response = await fetch(`${API_BASE_URL}/quests/quests/`, {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers,
       body: JSON.stringify(questData),
     })
 

@@ -13,6 +13,7 @@ interface User {
 
 interface AuthContextProps {
   user: User | null;
+  loading: boolean;
   login: (credentials: { username: string; password: string }) => Promise<void>;
   register: (data: { username: string; email: string; password: string; confirmPassword?: string }) => Promise<void>;
   logout: () => void;
@@ -20,6 +21,7 @@ interface AuthContextProps {
 
 const AuthContext = createContext<AuthContextProps>({
   user: null,
+  loading: true,
   login: async () => {},
   register: async () => {},
   logout: () => {},
@@ -59,18 +61,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const login = async (credentials: { username: string; password: string }) => {
     const res = await customLogin(credentials.username, credentials.password);
+    console.log('[AuthContext] login response:', JSON.stringify(res));
     if (res.user) {
       setUser(res.user);
       localStorage.setItem('user', JSON.stringify(res.user));
+      if (res.token || res.access_token) {
+        localStorage.setItem('access_token', res.token || res.access_token);
+      }
     }
   };
 
   const register = async (data: { username: string; email: string; password: string; confirmPassword?: string }) => {
     try {
       const res = await customRegister(data);
+      console.log('[AuthContext] register response:', res);
       if (res.user) {
         setUser(res.user);
         localStorage.setItem('user', JSON.stringify(res.user));
+        if (res.token || res.access_token) {
+          localStorage.setItem('access_token', res.token || res.access_token);
+        }
       }
     } catch (err: any) {
       throw err;
@@ -81,6 +91,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
     setUser(null);
+    // Show brown toast on logout
+    if (typeof window !== 'undefined') {
+      const event = new CustomEvent('show-toast', {
+        detail: { message: 'You have been logged out.', type: 'brown' }
+      });
+      window.dispatchEvent(event);
+    }
     router.push('/');
   };
 
@@ -94,7 +111,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
       {loading ? <ThemedLoading /> : children}
     </AuthContext.Provider>
   );
