@@ -1,0 +1,577 @@
+/* Reset and base styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+}
+
+/* Main container */
+.tavern-container {
+    min-height: 100vh;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, #1c2951 0%, #2d1b69 25%, #1e3a8a 50%, #1f2937 75%, #374151 100%);
+}
+
+/* Stone wall texture base */
+.wall-base {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, 
+        #374151 0%, 
+        #1f2937 25%, 
+        #1e3a8a 50%, 
+        #3730a3 75%, 
+        #1c2951 100%);
+}
+
+/* Wooden beam structure */
+.beam-structure {
+    position: absolute;
+    inset: 0;
+}
+
+.beam-horizontal {
+    position: absolute;
+    left: 0;
+    right: 0;
+    background: linear-gradient(90deg, #92400e 0%, #b45309 50%, #92400e 100%);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+.beam-top {
+    top: 0;
+    height: 32px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+
+.beam-mid {
+    top: 64px;
+    height: 16px;
+    opacity: 0.8;
+}
+
+.beam-bottom {
+    bottom: 0;
+    height: 48px;
+    box-shadow: 0 -8px 16px rgba(0, 0, 0, 0.8);
+}
+
+.beam-vertical {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: linear-gradient(180deg, #b45309 0%, #92400e 50%, #b45309 100%);
+    box-shadow: 4px 0 12px rgba(0, 0, 0, 0.6);
+}
+
+.beam-left {
+    left: 32px;
+    width: 24px;
+}
+
+.beam-right {
+    right: 32px;
+    width: 24px;
+}
+
+.beam-center-left {
+    left: 33.333%;
+    width: 16px;
+    opacity: 0.6;
+}
+
+.beam-center-right {
+    right: 33.333%;
+    width: 16px;
+    opacity: 0.6;
+}
+
+/* Stone wall texture overlay */
+.stone-overlay {
+    position: absolute;
+    inset: 0;
+    opacity: 0.4;
+}
+
+.stone-gradient {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, 
+        rgba(59, 130, 246, 0.2) 0%, 
+        transparent 30%, 
+        rgba(30, 58, 138, 0.3) 100%);
+}
+
+.stone-pattern {
+    position: absolute;
+    inset: 0;
+    background-image: 
+        radial-gradient(circle at 20% 30%, rgba(96, 165, 250, 0.3) 1px, transparent 1px),
+        radial-gradient(circle at 80% 70%, rgba(147, 197, 253, 0.2) 1px, transparent 1px),
+        radial-gradient(circle at 40% 80%, rgba(59, 130, 246, 0.4) 1px, transparent 1px);
+    background-size: 60px 60px, 80px 80px, 100px 100px;
+}
+
+/* Flickering candlelight effects */
+.lighting-effects {
+    position: absolute;
+    inset: 0;
+}
+
+.fireplace-glow {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 128px;
+    height: 256px;
+    background: radial-gradient(circle, 
+        rgba(59, 130, 246, 0.4) 0%, 
+        rgba(147, 197, 253, 0.2) 50%, 
+        transparent 100%);
+    border-radius: 50%;
+    filter: blur(40px);
+    animation: flicker-slow 4s ease-in-out infinite;
+}
+
+.candle-sconce {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(16px);
+}
+
+.candle-1 {
+    right: 64px;
+    top: 25%;
+    width: 64px;
+    height: 96px;
+    background: radial-gradient(circle, 
+        rgba(96, 165, 250, 0.5) 0%, 
+        rgba(59, 130, 246, 0.3) 70%, 
+        transparent 100%);
+    animation: flicker-fast 2s ease-in-out infinite;
+}
+
+.candle-2 {
+    left: 80px;
+    top: 75%;
+    width: 48px;
+    height: 80px;
+    background: radial-gradient(circle, 
+        rgba(147, 197, 253, 0.4) 0%, 
+        rgba(96, 165, 250, 0.25) 70%, 
+        transparent 100%);
+    animation: flicker-medium 3s ease-in-out infinite;
+}
+
+.candle-3 {
+    right: 25%;
+    bottom: 25%;
+    width: 56px;
+    height: 88px;
+    background: radial-gradient(circle, 
+        rgba(59, 130, 246, 0.45) 0%, 
+        rgba(147, 197, 253, 0.3) 70%, 
+        transparent 100%);
+    animation: flicker-slow 4s ease-in-out infinite;
+}
+
+.lantern-light {
+    position: absolute;
+    right: 33.333%;
+    top: 33.333%;
+    width: 80px;
+    height: 112px;
+    background: radial-gradient(circle, 
+        rgba(96, 165, 250, 0.35) 0%, 
+        rgba(147, 197, 253, 0.2) 70%, 
+        transparent 100%);
+    border-radius: 50%;
+    filter: blur(40px);
+    animation: flicker-medium 3s ease-in-out infinite;
+}
+
+/* Smoke and atmosphere */
+.atmosphere {
+    position: absolute;
+    inset: 0;
+}
+
+.smoke {
+    position: absolute;
+    background: linear-gradient(to top, 
+        rgba(75, 85, 99, 0.3) 0%, 
+        rgba(107, 114, 128, 0.1) 50%, 
+        transparent 100%);
+    filter: blur(4px);
+}
+
+.smoke-1 {
+    left: 16px;
+    top: 50%;
+    width: 32px;
+    height: 128px;
+    animation: smoke-rise 8s ease-in-out infinite;
+}
+
+.smoke-2 {
+    right: 48px;
+    top: 25%;
+    width: 24px;
+    height: 96px;
+    animation: smoke-rise-slow 12s ease-in-out infinite;
+}
+
+.haze-vertical {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, 
+        rgba(0, 0, 0, 0.6) 0%, 
+        transparent 50%, 
+        rgba(0, 0, 0, 0.4) 100%);
+    animation: atmosphere 15s ease-in-out infinite;
+}
+
+.haze-horizontal {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to right, 
+        rgba(30, 58, 138, 0.3) 0%, 
+        transparent 50%, 
+        rgba(59, 130, 246, 0.2) 100%);
+    animation: atmosphere-horizontal 18s ease-in-out infinite;
+}
+
+/* Floating dust particles */
+.dust-particles {
+    position: absolute;
+    inset: 0;
+}
+
+.dust {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    filter: drop-shadow(0 0 2px rgba(147, 197, 253, 0.5));
+}
+
+.dust-1 {
+    top: 80px;
+    left: 25%;
+    background: rgba(147, 197, 253, 0.6);
+    animation: dust-float-1 10s linear infinite;
+}
+
+.dust-2 {
+    top: 160px;
+    right: 33.333%;
+    background: rgba(96, 165, 250, 0.4);
+    animation: dust-float-2 12s linear infinite;
+}
+
+.dust-3 {
+    bottom: 128px;
+    left: 33.333%;
+    background: rgba(59, 130, 246, 0.5);
+    animation: dust-float-3 8s linear infinite;
+}
+
+.dust-4 {
+    top: 240px;
+    right: 25%;
+    background: rgba(147, 197, 253, 0.45);
+    animation: dust-float-1 10s linear infinite;
+}
+
+.dust-5 {
+    bottom: 80px;
+    left: 66.666%;
+    background: rgba(96, 165, 250, 0.35);
+    animation: dust-float-2 12s linear infinite;
+}
+
+.dust-6 {
+    top: 128px;
+    left: 50%;
+    background: rgba(147, 197, 253, 0.55);
+    animation: dust-float-3 8s linear infinite;
+}
+
+/* Wooden table silhouettes */
+.table {
+    position: absolute;
+    bottom: 0;
+    background: rgba(146, 64, 14, 0.8);
+    border-radius: 8px 8px 0 0;
+    box-shadow: 0 -8px 16px rgba(0, 0, 0, 0.8);
+}
+
+.table-left {
+    left: 25%;
+    width: 96px;
+    height: 32px;
+}
+
+.table-right {
+    right: 25%;
+    width: 128px;
+    height: 24px;
+    background: rgba(146, 64, 14, 0.7);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.6);
+}
+
+/* Main content */
+.content {
+    position: relative;
+    z-index: 10;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+}
+
+.text-container {
+    text-align: center;
+    max-width: 512px;
+}
+
+.main-message {
+    margin-bottom: 48px;
+    animation: fade-in 2s ease-out;
+}
+
+.title {
+    font-size: 3rem;
+    font-weight: bold;
+    color: #dbeafe;
+    margin-bottom: 24px;
+    line-height: 1.2;
+}
+
+.subtitle {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: normal;
+    color: rgba(191, 219, 254, 0.8);
+    margin-bottom: 8px;
+}
+
+.main-title {
+    background: linear-gradient(90deg, #dbeafe 0%, #bfdbfe 50%, #93c5fd 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+}
+
+.description {
+    font-size: 1.125rem;
+    color: rgba(191, 219, 254, 0.9);
+    line-height: 1.6;
+    font-weight: 300;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+.loading-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 32px;
+}
+
+.loading-dots {
+    display: flex;
+    gap: 4px;
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    background: #60a5fa;
+    border-radius: 50%;
+    animation: bounce 1.4s ease-in-out infinite both;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.dot-2 {
+    animation-delay: 0.16s;
+}
+
+.dot-3 {
+    animation-delay: 0.32s;
+}
+
+.loading-text {
+    color: rgba(147, 197, 253, 0.7);
+    font-size: 0.875rem;
+    letter-spacing: 0.05em;
+    margin-left: 16px;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.decorative-section {
+    position: relative;
+}
+
+.line-top, .line-bottom {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 128px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(96, 165, 250, 0.5) 50%, transparent 100%);
+}
+
+.line-top {
+    top: -16px;
+}
+
+.line-bottom {
+    bottom: -16px;
+}
+
+.quote {
+    color: rgba(147, 197, 253, 0.6);
+    font-size: 0.875rem;
+    font-style: italic;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+/* Floor shadow gradient */
+.floor-shadow {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 128px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, transparent 100%);
+    pointer-events: none;
+}
+
+/* Animations */
+@keyframes flicker-slow {
+    0%, 100% { opacity: 0.8; transform: scale(1); }
+    25% { opacity: 0.9; transform: scale(1.02); }
+    50% { opacity: 0.7; transform: scale(0.98); }
+    75% { opacity: 0.85; transform: scale(1.01); }
+}
+
+@keyframes flicker-medium {
+    0%, 100% { opacity: 0.7; transform: scale(1); }
+    33% { opacity: 0.9; transform: scale(1.03); }
+    66% { opacity: 0.6; transform: scale(0.97); }
+}
+
+@keyframes flicker-fast {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    20% { opacity: 0.8; transform: scale(1.05); }
+    40% { opacity: 0.5; transform: scale(0.95); }
+    60% { opacity: 0.9; transform: scale(1.02); }
+    80% { opacity: 0.7; transform: scale(0.98); }
+}
+
+@keyframes smoke-rise {
+    0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0.3; }
+    25% { transform: translateY(-20px) translateX(5px) rotate(2deg); opacity: 0.2; }
+    50% { transform: translateY(-40px) translateX(-3px) rotate(-1deg); opacity: 0.1; }
+    75% { transform: translateY(-60px) translateX(8px) rotate(3deg); opacity: 0.05; }
+    100% { transform: translateY(-80px) translateX(-2px) rotate(1deg); opacity: 0; }
+}
+
+@keyframes smoke-rise-slow {
+    0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0.2; }
+    33% { transform: translateY(-30px) translateX(-8px) rotate(-2deg); opacity: 0.15; }
+    66% { transform: translateY(-60px) translateX(5px) rotate(1deg); opacity: 0.08; }
+    100% { transform: translateY(-90px) translateX(-3px) rotate(-1deg); opacity: 0; }
+}
+
+@keyframes atmosphere {
+    0%, 100% { opacity: 0.6; }
+    33% { opacity: 0.8; }
+    66% { opacity: 0.4; }
+}
+
+@keyframes atmosphere-horizontal {
+    0%, 100% { opacity: 0.3; transform: translateX(0); }
+    50% { opacity: 0.5; transform: translateX(10px); }
+}
+
+@keyframes dust-float-1 {
+    0% { transform: translateY(100vh) translateX(0); opacity: 0; }
+    10% { opacity: 0.6; }
+    90% { opacity: 0.3; }
+    100% { transform: translateY(-20px) translateX(30px); opacity: 0; }
+}
+
+@keyframes dust-float-2 {
+    0% { transform: translateY(100vh) translateX(0); opacity: 0; }
+    15% { opacity: 0.4; }
+    85% { opacity: 0.2; }
+    100% { transform: translateY(-20px) translateX(-40px); opacity: 0; }
+}
+
+@keyframes dust-float-3 {
+    0% { transform: translateY(100vh) translateX(0); opacity: 0; }
+    20% { opacity: 0.5; }
+    80% { opacity: 0.25; }
+    100% { transform: translateY(-20px) translateX(20px); opacity: 0; }
+}
+
+@keyframes fade-in {
+    0% { opacity: 0; transform: translateY(20px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bounce {
+    0%, 80%, 100% { transform: scale(0); }
+    40% { transform: scale(1); }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1e3a8a;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #3b82f6;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #2563eb;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .title {
+        font-size: 2rem;
+    }
+    
+    .subtitle {
+        font-size: 1.25rem;
+    }
+    
+    .description {
+        font-size: 1rem;
+    }
+    
+    .content {
+        padding: 16px;
+    }
+}

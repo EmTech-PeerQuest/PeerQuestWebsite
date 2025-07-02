@@ -1,0 +1,75 @@
+////////// Copy-Paste Friendly Setup Commands //////////
+# Backend (Windows, PowerShell):
+py -m venv venv
+.\venv\Scripts\activate
+python.exe -m pip install --upgrade pip
+pip install -r requirements.txt
+
+# Database setup (Django):
+py manage.py makemigrations
+py manage.py migrate
+py manage.py createsuperuser  # (optional, for admin access)
+py manage.py runserver
+
+# Frontend:
+npm install --legacy-peer-deps
+npm run dev
+
+# To add a new Python package:
+pip install <package-name>
+pip freeze > requirements.txt
+
+# To add a new Node package:
+npm install <package-name>
+
+
+////////// Start Backend //////////
+# Create and activate virtual environment
+py -m venv venv
+.\venv\Scripts\activate
+# Upgrade pip and install all dependencies from requirements.txt
+python.exe -m pip install --upgrade pip
+pip install -r requirements.txt
+# To add new dependencies, use:
+# pip install <package-name>
+# Then update requirements.txt:
+# pip freeze > requirements.txt
+# Run the Django server
+py manage.py runserver
+
+
+
+////////// Start Frontend //////////
+# Install all frontend dependencies
+npm install
+# If you encounter peer dependency issues, use:
+# npm install --legacy-peer-deps
+# Start the frontend development server
+npm run dev
+
+
+
+////////// Push in Branch //////////
+git checkout dev_Esteron
+git add .
+git commit -m "TEXT TEXT"   
+git push -u origin dev_Esteron/AuthProfile
+
+
+
+////////// Combine dev_branch into Feature_Branch //////////
+git checkout [Feature_Branch]
+git pull origin [Feature_Branch]
+
+git checkout [dev_Branch]
+git merge [dev_Branch]
+
+
+
+////////// Combine main into your-branch //////////
+git checkout your-branch
+git pull origin your-branch
+git fetch origin
+git merge origin/main
+
+
