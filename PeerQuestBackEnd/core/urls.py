@@ -40,6 +40,8 @@ urlpatterns = [
     # Quests and Guilds APIs
     path('api/quests/', include('quests.urls')),
     path('api/guilds/', include('guilds.urls')),
+    # Applications API
+    path('api/', include('applications.urls')),
 
     # API Docs (Swagger + Redoc)
     path('docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),

@@ -6,7 +6,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'your-secret-key'
 DEBUG = True
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
 
 # Installed Apps
 INSTALLED_APPS = [
@@ -20,11 +20,13 @@ INSTALLED_APPS = [
 
     # Your apps
     'users',
+    'quests',
+    'applications',
+    'xp',
 
     # DRF and tools
     'rest_framework',
     'corsheaders',
-
     'django_filters',
 ]
 
@@ -103,7 +105,7 @@ AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',              # Default Django
 )
 
-# DRF Settings
+# DRF Settings - Session Authentication only
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -113,7 +115,7 @@ REST_FRAMEWORK = {
     ],
 }
 
-AUTH_USER_MODEL = "users.user"
+AUTH_USER_MODEL = "users.User"
 
 from datetime import timedelta
 
@@ -132,9 +134,16 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://localhost:3002",
+    "http://127.0.0.1:3002",
+    "http://localhost:3003",
+    "http://127.0.0.1:3003",
 ]
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'X-Requested-With',
+    'Authorization',
 ]
 CORS_EXPOSE_HEADERS = [
     'Content-Type',

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Star, Menu, X, User, Settings, LogOut, Shield, Search, Bell, MessageSquare, Plus } from "lucide-react"
 import { Notifications } from '@/components/notifications/notifications'
+import QuestForm from '@/components/quests/quest-form'
 
 interface NavbarProps {
   currentUser: any
@@ -10,8 +11,10 @@ interface NavbarProps {
   handleLogout: () => void
   openAuthModal: () => void
   openGoldPurchaseModal: () => void
-  openPostQuestModal: () => void
+  openPostQuestModal?: () => void
   openCreateGuildModal: () => void
+  onQuestCreated?: () => void
+  activeSection?: string // Add this to receive the current active section
 }
 
 export function Navbar({
@@ -22,6 +25,8 @@ export function Navbar({
   openGoldPurchaseModal,
   openPostQuestModal,
   openCreateGuildModal,
+  onQuestCreated,
+  activeSection = "",
 }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
@@ -29,7 +34,7 @@ export function Navbar({
   const [unreadNotifications, setUnreadNotifications] = useState(3)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [quickActionsOpen, setQuickActionsOpen] = useState(false)
-  const activeSection = "" // Declare the activeSection variable
+  const [showQuestForm, setShowQuestForm] = useState(false)
 
   const handleNavigation = (section: string) => {
     setActiveSection(section)
@@ -38,6 +43,21 @@ export function Navbar({
     setUserDropdownOpen(false)
     setNotificationsOpen(false)
     setQuickActionsOpen(false)
+  }
+
+  const handleOpenQuestForm = () => {
+    setShowQuestForm(true)
+    setQuickActionsOpen(false)
+    setMobileMenuOpen(false)
+  }
+
+  const handleQuestFormSuccess = (quest: any) => {
+    setShowQuestForm(false)
+    // Call the callback to refresh quest board data silently
+    if (onQuestCreated) {
+      onQuestCreated()
+    }
+    // Don't navigate automatically - let user stay on current page
   }
 
   return (
@@ -128,10 +148,7 @@ export function Navbar({
                   {quickActionsOpen && (
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
                       <button
-                        onClick={() => {
-                          setQuickActionsOpen(false)
-                          openPostQuestModal()
-                        }}
+                        onClick={handleOpenQuestForm}
                         className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                       >
                         <Plus size={16} className="mr-2" />
@@ -341,10 +358,7 @@ export function Navbar({
               <>
                 <div className="border-t border-[#CDAA7D]/30 pt-2 mt-2">
                   <button
-                    onClick={() => {
-                      setMobileMenuOpen(false)
-                      openPostQuestModal()
-                    }}
+                    onClick={handleOpenQuestForm}
                     className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
                   >
                     <Plus size={16} className="mr-2" />
@@ -459,10 +473,21 @@ export function Navbar({
           <Notifications
             currentUser={currentUser}
             onClose={() => setNotificationsOpen(false)}
-            setActiveSection={handleNavigation}
           />
         </div>
       )}
+
+      {/* Quest Form Modal */}
+      <QuestForm
+        quest={null}
+        isOpen={showQuestForm}
+        onClose={() => {
+          setShowQuestForm(false)
+        }}
+        onSuccess={handleQuestFormSuccess}
+        isEditing={false}
+        currentUser={currentUser}
+      />
     </nav>
   )
 }

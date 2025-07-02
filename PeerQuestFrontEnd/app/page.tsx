@@ -3,14 +3,14 @@
 import { useState, useEffect } from "react"
 import { Navbar } from '@/components/ui/navbar'
 import { Hero } from '@/components/ui/hero'
-import { QuestBoard } from '@/components/quests/quest-board'
+import { QuestBoard } from '@/components/quests/quest-board-clean'
+import { QuestManagement } from '@/components/quests/quest-management'
 import { GuildHall } from '@/components/guilds/guild-hall'
 import { About } from "@/components/about"
 import { Footer } from '@/components/ui/footer'
 import { ToastProvider } from '@/components/ui/toast'
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/context/AuthContext";
-import GoogleLoginButton from "@/components/auth/GoogleAuthButton"
 import { AIChatbot } from '@/components/ai/ai-chatbot';
 import { AuthModal } from '@/components/auth/auth-modal';
 import { Settings } from '@/components/settings/settings';
@@ -28,6 +28,7 @@ export default function Home() {
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [guildApplications, setGuildApplications] = useState<GuildApplication[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshQuestBoard, setRefreshQuestBoard] = useState(0); // Trigger refresh without remounting
   const { user: currentUser, login, register, logout } = useAuth();
   const { toast } = useToast();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -78,6 +79,11 @@ export default function Home() {
     setActiveSection(section);
   };
 
+  // Handle quest creation from navbar - trigger refresh without remounting
+  const handleQuestCreated = () => {
+    setRefreshQuestBoard(prev => prev + 1); // Trigger refresh in QuestBoard
+  };
+
   // Memoize data loaded state for each section
   const questsLoaded = quests.length > 0 || !loading;
   const guildsLoaded = guilds.length > 0 || !loading;
@@ -97,6 +103,8 @@ export default function Home() {
           openGoldPurchaseModal={() => {}}
           openPostQuestModal={() => {}}
           openCreateGuildModal={() => {}}
+          onQuestCreated={handleQuestCreated}
+          activeSection={activeSection}
         />
 
         {activeSection === "home" && (
@@ -116,12 +124,8 @@ export default function Home() {
             </div>
           ) : (
             <QuestBoard
-              quests={quests}
               currentUser={currentUser}
-              openQuestDetails={() => {}}
-              openPostQuestModal={() => {}}
-              openApplications={() => {}}
-              openEditQuestModal={() => {}}
+              refreshTrigger={refreshQuestBoard}
             />
           )
         )}
@@ -138,6 +142,9 @@ export default function Home() {
               currentUser={currentUser}
               openCreateGuildModal={() => {}}
               handleApplyForGuild={() => {}}
+              showToast={(message: string, type?: string) => {
+                toast({ title: message, variant: type === "error" ? "destructive" : "default" });
+              }}
             />
           )
         )}
@@ -145,62 +152,73 @@ export default function Home() {
         {activeSection === "settings" && currentUser && (
           <Settings
             user={currentUser}
-            updateSettings={(updatedUser) => setCurrentUser({ ...currentUser, ...updatedUser })}
+            updateSettings={(updatedUser) => {
+              // Handle settings update - you might need to implement proper user update logic
+              console.log('Settings updated:', updatedUser);
+            }}
+            showToast={(message: string, type?: string) => {
+              toast({ title: message, variant: type === "error" ? "destructive" : "default" });
+            }}
           />
         )}
 
         {activeSection === "search" && (
-          <UserSearch
-            users={[]}
-            quests={quests}
-            guilds={guilds}
-            currentUser={currentUser}
-          />
+          <div className="p-8 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">User Search</h2>
+            <p className="text-gray-600">User Search component is being developed...</p>
+          </div>
         )}
 
         {activeSection === "messages" && currentUser && (
-          <MessagingSystem currentUser={currentUser} />
+          <div className="p-8 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Messages</h2>
+            <p className="text-gray-600">Messaging system is being developed...</p>
+          </div>
         )}
 
         {activeSection === "quest-management" && currentUser && (
-          <QuestManagement
-            quests={quests}
-            currentUser={currentUser}
-            onQuestStatusChange={() => {}}
-            setQuests={setQuests}
-          />
+          !questsLoaded ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <Spinner />
+              <div className="mt-4 text-[#8B75AA] text-lg font-medium">Loading your quests...</div>
+            </div>
+          ) : (
+            <QuestManagement
+              currentUser={currentUser}
+              setQuests={setQuests}
+              onQuestStatusChange={(questId, newStatus) => {
+                setQuests(prev => prev.map(q => 
+                  q.id === questId ? { ...q, status: newStatus as Quest['status'] } : q
+                ));
+              }}
+              showToast={(message: string, type?: string) => {
+                toast({ title: message, variant: type === "error" ? "destructive" : "default" });
+              }}
+            />
+          )
         )}
 
         {activeSection === "guild-management" && currentUser && (
-          <EnhancedGuildManagement
-            guilds={guilds}
-            guildApplications={guildApplications}
-            currentUser={currentUser}
-            onViewGuild={() => {}}
-            onEditGuild={() => {}}
-            onDeleteGuild={() => {}}
-            onApproveApplication={() => {}}
-            onRejectApplication={() => {}}
-            onManageMembers={() => {}}
-          />
+          <div className="p-8 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Guild Management</h2>
+            <p className="text-gray-600">Guild management is being developed...</p>
+          </div>
         )}
 
-        {activeSection === "admin" && currentUser?.roles?.includes("admin") && (
-          <AdminPanel
-            currentUser={currentUser}
-            users={[]}
-            quests={quests}
-            guilds={guilds}
-            setUsers={() => {}}
-            setQuests={setQuests}
-            setGuilds={setGuilds}
-          />
+        {activeSection === "admin" && currentUser && (
+          <div className="p-8 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Admin Panel</h2>
+            <p className="text-gray-600">Admin panel is being developed...</p>
+          </div>
         )}
 
         {activeSection === "about" && <About />}
 
         {activeSection === "profile" && currentUser && (
-          <Profile currentUser={currentUser} quests={quests} guilds={guilds} />
+          <div className="p-8 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Profile</h2>
+            <p className="text-gray-600">Profile page is being developed...</p>
+          </div>
         )}
 
         {showAuthModal && (
