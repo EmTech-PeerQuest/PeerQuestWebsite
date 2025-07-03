@@ -15,6 +15,7 @@ from .serializers import (
     ApplicationDetailSerializer,
     ApplicationCreateSerializer
 )
+from notifications.utils import create_application_accepted_notification, create_application_rejected_notification
 
 
 class ApplicationViewSet(ModelViewSet):
@@ -106,6 +107,8 @@ class ApplicationViewSet(ModelViewSet):
             result = application.approve(request.user)
             
             if result:
+                # Send real-time notification
+                create_application_accepted_notification(application.applicant, application.quest.title)
                 logger.info(f"Application approved successfully: {application.applicant.username} -> Quest '{application.quest.title}'")
                 serializer = self.get_serializer(application)
                 return Response({
@@ -151,6 +154,8 @@ class ApplicationViewSet(ModelViewSet):
         # Reject the application
         result = application.reject(request.user)
         if result:
+            # Send real-time notification
+            create_application_rejected_notification(application.applicant, application.quest.title)
             serializer = self.get_serializer(application)
             return Response(serializer.data)
         else:

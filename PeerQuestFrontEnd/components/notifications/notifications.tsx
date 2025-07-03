@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Bell, X, Check, Award, Shield, MessageSquare } from "lucide-react"
 import type { User as UserType } from "@/lib/types"
+import { clearAllNotifications } from "@/lib/api/notifications"
 
 interface NotificationsProps {
   currentUser: UserType | null
@@ -80,6 +81,19 @@ export function Notifications({ currentUser, onClose }: NotificationsProps) {
     setNotifications(notifications.map((notification) => ({ ...notification, read: true })))
   }
 
+  const handleClearAll = async () => {
+    if (!window.confirm("Are you sure you want to clear all notifications? This action cannot be undone.")) {
+      return
+    }
+    try {
+      await clearAllNotifications()
+      setNotifications([])
+    } catch (err) {
+      // Optionally show an error toast
+      alert("Failed to clear notifications")
+    }
+  }
+
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "quest_application":
@@ -138,6 +152,9 @@ export function Notifications({ currentUser, onClose }: NotificationsProps) {
           onClick={() => setActiveTab("unread")}
         >
           Unread
+        </button>
+        <button className="py-2 px-4 text-sm text-red-500 hover:text-red-700" onClick={handleClearAll}>
+          Clear all
         </button>
         <button className="py-2 px-4 text-sm text-gray-500 hover:text-[#8B75AA]" onClick={markAllAsRead}>
           Mark all read

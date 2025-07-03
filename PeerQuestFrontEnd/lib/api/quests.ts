@@ -3,7 +3,7 @@ import { Quest } from '@/lib/types'
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
 // Helper function to get headers with authentication
-const getAuthHeaders = () => {
+export const getAuthHeaders = () => {
   const headers: { [key: string]: string } = {
     'Content-Type': 'application/json',
   }
