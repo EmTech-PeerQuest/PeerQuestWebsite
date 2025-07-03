@@ -86,13 +86,44 @@ class GoogleLoginCallbackView(APIView):
         return Response(token_data)
     
 class UserProfileView(APIView):
-    """Returns the authenticated user's profile."""
+    """Returns or updates the authenticated user's profile."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
         serializer = UserProfileSerializer(user)
         return Response(serializer.data)
+
+    def patch(self, request):
+        user = request.user
+        serializer = UserProfileSerializer(user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        # Flatten serializer errors to a readable string list
+        def extract_errors(errors):
+            if isinstance(errors, dict):
+                result = []
+                for v in errors.values():
+                    result.extend(extract_errors(v))
+                return result
+            elif isinstance(errors, list):
+                result = []
+                for v in errors:
+                    result.extend(extract_errors(v))
+                return result
+            elif isinstance(errors, str):
+                return [errors]
+            return []
+        error_list = extract_errors(serializer.errors)
+        if not error_list:
+            error_list = ["Update failed. Please check your input and try again."]
+        return Response({"errors": error_list}, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request):
+        user = request.user
+        user.delete()
+        return Response({'detail': 'Account deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X, MapPin, Calendar, Award, Users, FileText, Star, ChevronDown } from "lucide-react"
 import type { User, Quest, Guild } from "@/lib/types"
 
@@ -16,8 +16,28 @@ interface UserProfileModalProps {
 export function UserProfileModal({ isOpen, onClose, user, quests, guilds, currentUser }: UserProfileModalProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "quests" | "guilds" | "achievements">("overview")
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [forceOpen, setForceOpen] = useState(false)
 
-  if (!isOpen) return null
+  // Auto-open modal if hash starts with #settings
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (window.location.hash.startsWith("#settings")) {
+        setForceOpen(true)
+      }
+    }
+  }, [])
+
+  // If modal is closed, clear hash if it was settings
+  const handleClose = () => {
+    if (typeof window !== "undefined" && window.location.hash.startsWith("#settings")) {
+      window.location.hash = ""
+    }
+    onClose()
+    setForceOpen(false)
+  }
+
+  // Show modal if isOpen or forceOpen
+  if (!isOpen && !forceOpen) return null
 
   // Calculate user stats with proper null checks
   const userQuests = (quests || []).filter((q) => q.poster?.id === user.id) || []
@@ -82,7 +102,7 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
               </div>
             </div>
 
-            <button onClick={onClose} className="text-white hover:text-[#CDAA7D] transition-colors">
+            <button onClick={handleClose} className="text-white hover:text-[#CDAA7D] transition-colors">
               <X size={20} />
             </button>
           </div>
