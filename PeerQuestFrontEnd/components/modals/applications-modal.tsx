@@ -5,6 +5,7 @@ import { X, ScrollText, Users, CheckCircle, XCircle, Clock, Star, CircleDollarSi
 import type { Application, User as UserType } from "@/lib/types"
 import { getDifficultyClass } from "@/lib/utils"
 import { getMyApplications, getApplicationsToMyQuests, approveApplication, rejectApplication } from "@/lib/api/applications"
+import { useToastContext } from '@/components/ToastProvider'
 
 interface ApplicationsModalProps {
   isOpen: boolean
@@ -15,6 +16,7 @@ interface ApplicationsModalProps {
 }
 
 export function ApplicationsModal({ isOpen, onClose, currentUser, questId, onApplicationProcessed }: ApplicationsModalProps) {
+  const { showToast } = useToastContext();
   const [myApplications, setMyApplications] = useState<Application[]>([])
   const [applicationsToMyQuests, setApplicationsToMyQuests] = useState<Application[]>([])
   const [loading, setLoading] = useState(false)
@@ -75,6 +77,7 @@ export function ApplicationsModal({ isOpen, onClose, currentUser, questId, onApp
     try {
       console.log('🟢 Approving application:', applicationId)
       await approveApplication(applicationId)
+      showToast('Application Accepted', 'success')
       console.log('✅ Application approved successfully')
       // Reload applications to get updated data
       await loadApplications()
@@ -100,6 +103,7 @@ export function ApplicationsModal({ isOpen, onClose, currentUser, questId, onApp
     try {
       console.log('🔴 Rejecting application:', applicationId)
       await rejectApplication(applicationId)
+      showToast('Application Rejected', 'red')
       console.log('✅ Application rejected successfully')
       // Reload applications to get updated data
       await loadApplications()

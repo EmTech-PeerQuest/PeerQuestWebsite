@@ -6,6 +6,7 @@ import type { Quest, User, Application } from "@/lib/types"
 import { formatTimeRemaining, getDifficultyClass } from "@/lib/utils"
 import { QuestAPI } from "@/lib/api/quests"
 import { getMyApplications } from "@/lib/api/applications"
+import { useToastContext } from '@/components/ToastProvider';
 
 interface QuestDetailsModalProps {
   isOpen: boolean
@@ -14,7 +15,6 @@ interface QuestDetailsModalProps {
   currentUser: User | null
   isAuthenticated: boolean
   setQuests: (quests: Quest[] | ((prev: Quest[]) => Quest[])) => void
-  showToast: (message: string, type?: string) => void
   setAuthModalOpen: (open: boolean) => void
   openEditQuestModal?: (quest: Quest) => void
   onQuestUpdate?: () => Promise<void>
@@ -27,11 +27,11 @@ export function QuestDetailsModal({
   currentUser,
   isAuthenticated,
   setQuests,
-  showToast,
   setAuthModalOpen,
   openEditQuestModal,
   onQuestUpdate,
 }: QuestDetailsModalProps) {
+  const { showToast } = useToastContext();
   const [userApplications, setUserApplications] = useState<Application[]>([])
   const [isLoadingApplications, setIsLoadingApplications] = useState(false)
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
@@ -167,14 +167,8 @@ export function QuestDetailsModal({
       console.log('🗑️ Deleting quest:', quest.id)
       
       await QuestAPI.deleteQuest(quest.slug)
-      
-      console.log('✅ Quest deleted successfully')
-      showToast("Quest deleted successfully!")
-      
-      // Remove the quest from the list
+      showToast("Quest Deleted", "red")
       setQuests(prevQuests => prevQuests.filter(q => q.id !== quest.id))
-      
-      // Close both modals
       setShowDeleteConfirmation(false)
       onClose()
       

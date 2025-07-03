@@ -250,7 +250,11 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
       }
 
       onSuccess(result)
-      showToast('Quest Posted', 'success');
+      if (isEditing) {
+        showToast('Quest Updated', 'success');
+      } else {
+        showToast('Quest Posted', 'success');
+      }
       onClose()
     } catch (error) {
       console.error('Failed to save quest:', error)

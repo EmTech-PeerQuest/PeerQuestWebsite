@@ -96,6 +96,19 @@ body {
   background-color: #f44336;
 }
 
+.toast.red {
+  background: #e3342f;
+  color: #fff;
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 9999;
+  padding: 1rem 2rem;
+  border-radius: 0.5rem;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
 @keyframes slideIn {
   from {
     transform: translateX(100%);
