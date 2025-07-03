@@ -6,6 +6,7 @@ import { Quest } from "@/lib/types"
 import { QuestAPI, QuestCategory, CreateQuestData, UpdateQuestData } from "@/lib/api/quests"
 import { useToastContext } from '@/components/ToastProvider';
 import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'next/navigation';
 
 interface QuestFormProps {
   quest?: Quest | null
@@ -17,6 +18,7 @@ interface QuestFormProps {
 
 export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false }: QuestFormProps) {
   const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [formData, setFormData] = useState<CreateQuestData>({
     title: "",
     description: "",
@@ -99,14 +101,24 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
 
   // Remove the automatic category selection - let user choose manually
 
+  useEffect(() => {
+    // Redirect to login if not authenticated
+    if (isOpen && typeof window !== 'undefined') {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        showToast('You must be logged in to post a quest.', 'error');
+        router.push('/login');
+      }
+    }
+  }, [isOpen, showToast, router])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    console.log('[QuestForm] user:', user);
+    // Always check token before submit
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-    console.log('[QuestForm] token:', token);
     if (!token) {
       showToast('You must be logged in to post a quest.', 'error');
+      router.push('/login');
       return;
     }
 
@@ -238,6 +250,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
       }
 
       onSuccess(result)
+      showToast('Quest Posted', 'success');
       onClose()
     } catch (error) {
       console.error('Failed to save quest:', error)

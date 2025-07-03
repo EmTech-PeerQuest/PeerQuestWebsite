@@ -10,6 +10,7 @@ from .models import User
 from rest_framework.permissions import AllowAny
 from notifications.utils import create_welcome_notification, create_welcome_back_notification
 from django.contrib.auth import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken
 
 class UserProfileView(RetrieveUpdateAPIView):
     serializer_class = UserProfileSerializer
@@ -86,12 +87,14 @@ class LoginView(APIView):
         user = authenticate(username=username, password=password)
         if user is not None:
             create_welcome_back_notification(user)
+            refresh = RefreshToken.for_user(user)
             return Response({
                 "user": {
                     "id": user.id,
                     "username": user.username,
                     "email": user.email,
                 },
+                "token": str(refresh.access_token),
                 "notification": {
                     "type": "success",
                     "message": "Welcome Back to the PeerQuest Tavern"
