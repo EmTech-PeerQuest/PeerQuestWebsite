@@ -1,7 +1,7 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.utils import timezone
-from messaging.models import Message
+from messaging.models import Message, Conversation
 from xp.utils import award_xp
 from django.contrib.auth import get_user_model
 from channels.db import database_sync_to_async
@@ -10,10 +10,6 @@ import uuid
 
 logger = logging.getLogger("django")
 
-# This function creates a message in the database asynchronously
-# It uses the database_sync_to_async decorator to ensure it runs in the database thread
-# This is necessary because Django's ORM is not thread-safe and must be used in the main thread
-# of the Django application, which is typically the database thread in a Channels application.
 @database_sync_to_async
 def create_message(sender_id, recipient_id, content):
     from messaging.models import Message
@@ -34,11 +30,32 @@ def create_message(sender_id, recipient_id, content):
         return None
     
     try:
-        return Message.objects.create(
+        # Create the message
+        message = Message.objects.create(
             sender_id=sender_uuid,
             recipient_id=recipient_uuid,
             content=content,
         )
+        
+        # Find and update the conversation
+        # The message should already be linked to a conversation by the views
+        if not message.conversation:
+            # Try to find the conversation
+            try:
+                conversation = Conversation.objects.filter(
+                    participants=sender_uuid
+                ).filter(
+                    participants=recipient_uuid
+                ).first()
+                
+                if conversation:
+                    message.conversation = conversation
+                    message.save(update_fields=['conversation'])
+            except Exception as e:
+                logger.warning(f"[DB] Could not link message to conversation: {e}")
+        
+        return message
+        
     except Exception as e:
         logger.error(f"[DB] Error creating message: {e}")
         return None
@@ -120,7 +137,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 logger.warning("[RECEIVE] Missing required fields")
                 return
 
-            # Create message in database
+            # Create message in database (this will auto-update conversation timestamp)
             message = await create_message(sender_id, recipient_id, content)
             if not message:
                 logger.error("[RECEIVE] Failed to create message")

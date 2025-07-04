@@ -29,17 +29,22 @@ class Conversation(models.Model):
         """Get the most recent message in this conversation"""
         return self.messages.order_by('-timestamp').first()
 
+    def update_timestamp(self):
+        """Update the conversation timestamp to now"""
+        self.updated_at = timezone.now()
+        self.save(update_fields=['updated_at'])
+
 
 class Message(models.Model):
     """
     Represents a single message in a conversation.
     """
-    # Link to conversation (this is better than just sender/recipient)
+    # 🔧 FIXED: Changed to SET_NULL to prevent cascade deletion
     conversation = models.ForeignKey(
         Conversation,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,  # ← FIXED: Won't delete messages when conversation is deleted
         related_name="messages",
-        null=True, blank=True  # Keep nullable for backward compatibility
+        null=True, blank=True
     )
     
     # Keep sender/recipient for backward compatibility and direct queries
@@ -100,6 +105,14 @@ class Message(models.Model):
 
     def __str__(self):
         return f"Message {self.id}: {self.sender.username} → {self.recipient.username}"
+
+    def save(self, *args, **kwargs):
+        """Override save to update conversation timestamp"""
+        super().save(*args, **kwargs)
+        
+        # Update conversation timestamp when message is saved
+        if self.conversation:
+            self.conversation.update_timestamp()
 
     def mark_as_read(self):
         """Mark message as read and set read timestamp"""
