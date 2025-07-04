@@ -1,8 +1,6 @@
 "use client"
-
-import type React from "react"
 import { useState, useEffect, useRef } from "react"
-import { Search, Send, MoreVertical, Info, Paperclip, X, Download, FileText, ImageIcon, ArrowLeft } from "lucide-react"
+import { Send } from "lucide-react"
 import axios from "axios"
 import type { User } from "@/lib/types"
 
@@ -11,23 +9,15 @@ interface MessagingSystemProps {
   showToast: (message: string, type?: string) => void
 }
 
-interface FileAttachment {
-  id: string
-  name: string
-  size: number
-  type: string
-  url: string
-}
-
 interface Message {
   id: number
   sender: {
-    id: number
+    id: number | string
     username: string
     email?: string
   }
   receiver: {
-    id: number
+    id: number | string
     username: string
     email?: string
   }
@@ -37,103 +27,60 @@ interface Message {
   read: boolean
 }
 
-
 interface Conversation {
-  id: number
+  id: string
   participants: User[]
   last_message: string
   last_message_date: string
   unread_count: number
 }
 
-const TEST_CONVERSATION_ID = 1; // Change this to a valid conversation ID in your DB
-
 // CORS fix: Make sure to set credentials true in axios
-axios.defaults.withCredentials = true;
+axios.defaults.withCredentials = true
 
 export function MessagingSystem({ currentUser: initialUser, showToast }: MessagingSystemProps) {
   // ALL STATE DECLARATIONS AT THE TOP - ALWAYS CALLED IN SAME ORDER
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [conversations, setConversations] = useState<Conversation[]>([])
-  const [activeConversation, setActiveConversation] = useState<number | null>(null)
+  const [activeConversation, setActiveConversation] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
-  const [attachments, setAttachments] = useState<File[]>([])
-  const [showAttachmentPreview, setShowAttachmentPreview] = useState(false)
-  const [showMobileChat, setShowMobileChat] = useState(false)
   const [ws, setWs] = useState<WebSocket | null>(null)
-  
+  const [wsConnected, setWsConnected] = useState(false)
+
   // NEW USER SEARCH STATE
   const [userSearchQuery, setUserSearchQuery] = useState("")
   const [userSearchResults, setUserSearchResults] = useState<User[]>([])
   const [isSearchingUsers, setIsSearchingUsers] = useState(false)
   const [showUserSearch, setShowUserSearch] = useState(false)
-  
+
   // ALL REF DECLARATIONS
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch users and conversations from backend
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Use full backend URL for local development, fallback to relative for production
-        const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
-        const token = localStorage.getItem('access_token');
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        
-        console.log('Fetching data from:', `${apiBase}/api/users/me/`);
-        console.log('Headers:', headers);
-        
+        const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
+        const token = localStorage.getItem("access_token")
+        const headers = token ? { Authorization: `Bearer ${token}` } : {}
+
+        console.log("Fetching data from:", `${apiBase}/api/users/me/`)
+
         const [userRes, convoRes] = await Promise.all([
           axios.get(`${apiBase}/api/users/me/`, { headers }),
-          axios.get(`${apiBase}/api/messages/conversations/`, { headers })
+          axios.get(`${apiBase}/api/messages/conversations/`, { headers }),
         ])
-        
-        console.log('User data:', userRes.data);
-        console.log('Conversations data:', convoRes.data);
-        
+
+        console.log("User data:", userRes.data)
+        console.log("Conversations data:", convoRes.data)
+
         setCurrentUser(userRes.data)
         setConversations(convoRes.data)
       } catch (err: any) {
-        console.error('Error fetching data:', err.response?.data || err.message);
-        
-        // TEMPORARY: Add mock data for testing
-        if (err.response?.status === 404 || err.code === 'ECONNREFUSED') {
-          console.log('Using mock data for testing');
-          setCurrentUser({
-            id: 1,
-            username: 'current_user',
-            email: 'user@example.com'
-          });
-          setConversations([
-            {
-              id: 1,
-              participants: [
-                { id: 1, username: 'current_user', email: 'user@example.com' },
-                { id: 2, username: 'alice', email: 'alice@example.com' }
-              ],
-              last_message: 'Hey, how are you?',
-              last_message_date: '2024-07-04T10:30:00Z',
-              unread_count: 2
-            },
-            {
-              id: 2,
-              participants: [
-                { id: 1, username: 'current_user', email: 'user@example.com' },
-                { id: 3, username: 'bob', email: 'bob@example.com' }
-              ],
-              last_message: 'See you tomorrow!',
-              last_message_date: '2024-07-04T09:15:00Z',
-              unread_count: 0
-            }
-          ]);
-          showToast("Using mock data - backend not available", "warning");
-          return;
-        }
-        
+        console.error("Error fetching data:", err.response?.data || err.message)
+
         if (err.response?.status === 401 || err.response?.status === 403) {
           showToast("You are not authenticated. Please log in.", "error")
         } else {
@@ -146,89 +93,115 @@ export function MessagingSystem({ currentUser: initialUser, showToast }: Messagi
 
   useEffect(() => {
     const fetchMessages = async () => {
-      if (activeConversation === null) return;
+      if (!activeConversation) return
 
       try {
-        const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
-        const token = localStorage.getItem('access_token');
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
+        const token = localStorage.getItem("access_token")
+        const headers = token ? { Authorization: `Bearer ${token}` } : {}
 
-        const res = await axios.get(`${apiBase}/api/messages/conversations/${activeConversation}/`, { headers });
-        setMessages(res.data); // ✅ This will load all messages into state
-      } catch (err) {
-        console.error('Failed to fetch messages:', err);
-        showToast('Could not load messages for this conversation.', 'error');
+        const res = await axios.get(`${apiBase}/api/messages/conversations/${activeConversation}/messages/`, {
+          headers,
+        })
+        setMessages(res.data)
+      } catch (err: any) {
+        console.error("Failed to fetch messages:", err)
+        // Don't show error toast for 404 - it just means no messages yet
+        if (err.response?.status !== 404) {
+          showToast("Could not load messages for this conversation.", "error")
+        }
       }
-    };
+    }
 
-    fetchMessages();
-  }, [activeConversation]);
+    fetchMessages()
+  }, [activeConversation])
 
+  // Function to update conversation with new message
+  const updateConversationWithMessage = (conversationId: string, messageContent: string, timestamp: string) => {
+    setConversations((prev) =>
+      prev.map((conv) => {
+        if (conv.id === conversationId) {
+          return {
+            ...conv,
+            last_message: messageContent,
+            last_message_date: timestamp,
+          }
+        }
+        return conv
+      }),
+    )
+  }
 
   // NEW USER SEARCH FUNCTION
   const searchUsers = async (query: string) => {
     if (query.length < 2) {
-      setUserSearchResults([]);
-      return;
+      setUserSearchResults([])
+      return
     }
-    
-    setIsSearchingUsers(true);
+
+    setIsSearchingUsers(true)
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
-      const token = localStorage.getItem('access_token');
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      
-      const response = await axios.get(`${apiBase}/api/messages/users/search/?q=${encodeURIComponent(query)}`, { headers });
-      setUserSearchResults(response.data);
-    } catch (error) {
-      console.error('Error searching users:', error);
-      showToast("Failed to search users", "error");
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
+      const token = localStorage.getItem("access_token")
+      const headers = token ? { Authorization: `Bearer ${token}` } : {}
+
+      const response = await axios.get(`${apiBase}/api/messages/users/search/?q=${encodeURIComponent(query)}`, {
+        headers,
+      })
+      setUserSearchResults(response.data)
+    } catch (error: any) {
+      console.error("Error searching users:", error)
+      showToast("Failed to search users", "error")
     } finally {
-      setIsSearchingUsers(false);
+      setIsSearchingUsers(false)
     }
-  };
+  }
 
   // DEBOUNCE USER SEARCH
   useEffect(() => {
     const delayedSearch = setTimeout(() => {
-      searchUsers(userSearchQuery);
-    }, 300);
-    
-    return () => clearTimeout(delayedSearch);
-  }, [userSearchQuery]);
+      searchUsers(userSearchQuery)
+    }, 300)
+
+    return () => clearTimeout(delayedSearch)
+  }, [userSearchQuery])
 
   // START NEW CONVERSATION FUNCTION
   const startConversation = async (userId: string) => {
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
-      const token = localStorage.getItem('access_token');
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      
-      const response = await axios.post(`${apiBase}/api/conversations/start/`, {
-        participant_id: userId
-      }, { headers });
-      
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
+      const token = localStorage.getItem("access_token")
+      const headers = token ? { Authorization: `Bearer ${token}` } : {}
+
+      const response = await axios.post(
+        `${apiBase}/api/conversations/start/`,
+        {
+          participant_id: userId,
+        },
+        { headers },
+      )
+
       if (response.data) {
-        const newConversation = response.data;
-        
+        const newConversation = response.data
+
         // Check if conversation already exists in our list
-        const existingConversation = conversations.find(conv => conv.id === newConversation.id);
-        
+        const existingConversation = conversations.find((conv) => conv.id === newConversation.id)
+
         if (!existingConversation) {
-          setConversations(prev => [...prev, newConversation]);
+          setConversations((prev) => [...prev, newConversation])
         }
-        
-        setActiveConversation(newConversation.id);
-        setUserSearchQuery('');
-        setUserSearchResults([]);
-        setShowUserSearch(false);
-        showToast("Conversation started!", "success");
+
+        setActiveConversation(newConversation.id)
+        setUserSearchQuery("")
+        setUserSearchResults([])
+        setShowUserSearch(false)
+        showToast("Conversation started!", "success")
       }
-    } catch (error) {
-      console.error('Error starting conversation:', error);
-      showToast("Failed to start conversation", "error");
+    } catch (error: any) {
+      console.error("Error starting conversation:", error)
+      showToast("Failed to start conversation", "error")
     }
-  };
+  }
 
   const getOtherParticipant = (conversation: Conversation) => {
     if (!currentUser) return null
@@ -241,106 +214,112 @@ export function MessagingSystem({ currentUser: initialUser, showToast }: Messagi
   })
 
   useEffect(() => {
-    if (!activeConversation || !currentUser) return;
+    if (!activeConversation || !currentUser) {
+      // Close existing WebSocket if no active conversation
+      if (ws) {
+        console.log("Closing WebSocket - no active conversation")
+        ws.close(1000, "No active conversation")
+        setWs(null)
+        setWsConnected(false)
+      }
+      return
+    }
 
-    const token = localStorage.getItem("access_token");
-    const wsInstance = new WebSocket(`ws://localhost:8000/ws/chat/${activeConversation}/?token=${token}`);
-    setWs(wsInstance);
+    // Close existing WebSocket before creating new one
+    if (ws) {
+      console.log("Closing existing WebSocket before creating new one")
+      ws.close(1000, "Switching conversations")
+      setWs(null)
+      setWsConnected(false)
+    }
 
-    wsInstance.onopen = () => {
-      console.log("WebSocket connected.");
-    };
+    // Add a small delay to ensure the previous connection is fully closed
+    const connectTimeout = setTimeout(() => {
+      const token = localStorage.getItem("access_token")
+      const wsUrl = `ws://localhost:8000/ws/chat/${activeConversation}/?token=${token}`
+      console.log("Connecting to WebSocket:", wsUrl)
 
-    wsInstance.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.conversation_id === activeConversation) {
+      const wsInstance = new WebSocket(wsUrl)
+      setWs(wsInstance)
+
+      wsInstance.onopen = () => {
+        console.log("WebSocket connected to conversation:", activeConversation)
+        setWsConnected(true)
+      }
+
+      wsInstance.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          console.log("WebSocket message received:", data)
+
+          // Handle connection status messages
+          if (data.type === "connection_status") {
+            console.log("Connection status:", data.message)
+            return
+          }
+
           const newMsg: Message = {
-            id: data.id,
+            id: data.id || Date.now(),
             content: data.content,
-            created_at: data.timestamp,
+            created_at: data.timestamp || new Date().toISOString(),
             read: false,
             attachments: [],
             sender: {
-              id: data.sender_id,
-              username: data.sender_username || "Unknown",
+              id: data.sender?.id || data.sender_id,
+              username: data.sender?.username || "Unknown",
             },
             receiver: {
               id: data.recipient_id,
-              username: "", // You can resolve it later
-            }
-          };
-          setMessages(prev => [...prev, newMsg]);
+              username: "",
+            },
+          }
+
+          setMessages((prev) => [...prev, newMsg])
+
+          // Update the conversation list with the new message
+          updateConversationWithMessage(activeConversation, data.content, data.timestamp || new Date().toISOString())
+        } catch (err) {
+          console.error("Invalid WS message:", event.data, err)
+          showToast("Received invalid message.", "error")
         }
-      } catch (err) {
-        console.error("Invalid WS message:", event.data);
-        showToast("Received invalid message.", "error");
       }
-    };
 
-    wsInstance.onerror = (event) => {
-      console.error("WebSocket error:", event);
-      showToast("WebSocket error", "error");
-    };
+      wsInstance.onerror = (event) => {
+        console.error("WebSocket error:", event)
+        setWsConnected(false)
+        showToast("WebSocket connection error", "error")
+      }
 
-    wsInstance.onclose = (event) => {
-      console.warn("WebSocket closed:", event);
-      setWs(null);
-      showToast("WebSocket connection closed", "warning");
-    };
+      wsInstance.onclose = (event) => {
+        console.warn("WebSocket closed:", event)
+        setWs(null)
+        setWsConnected(false)
+
+        if (event.code === 4001) {
+          showToast("Authentication failed for WebSocket", "error")
+        } else if (event.code === 4000) {
+          showToast("WebSocket connection failed", "error")
+        } else if (event.code !== 1000) {
+          console.log("Unexpected WebSocket close, attempting reconnect...")
+          // Only attempt reconnect if we still have an active conversation
+          if (activeConversation) {
+            setTimeout(() => {
+              console.log("Attempting WebSocket reconnect...")
+              // Trigger a re-render to reconnect
+              setActiveConversation((prev) => prev)
+            }, 1000)
+          }
+        }
+      }
+    }, 100) // Small delay to ensure clean connection switching
 
     return () => {
-      wsInstance.close();
-    };
-  }, [activeConversation, currentUser]);
-
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files) return
-    setAttachments([...attachments, ...Array.from(files)])
-    setShowAttachmentPreview(true)
-  }
-
-  const removeAttachment = (name: string) => {
-    setAttachments((prev) => prev.filter((file) => file.name !== name))
-    if (attachments.length === 1) setShowAttachmentPreview(false)
-  }
-
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() && attachments.length === 0) return
-    if (!currentUser) return
-    
-    const conversation = conversations.find(c => c.id === activeConversation)
-    const receiver = conversation?.participants.find(u => u.id !== currentUser.id)
-    if (!receiver) return
-
-    const formData = new FormData()
-    formData.append("receiver_id", receiver.id.toString())
-    formData.append("content", newMessage)
-    attachments.forEach(file => formData.append("attachments", file))
-
-    try {
-      const res = await axios.post("/api/messages/send/", formData, {
-        headers: { "Content-Type": "multipart/form-data" }
-      })
-      setMessages(prev => [...prev, res.data])
-      setNewMessage("")
-      setAttachments([])
-      setShowAttachmentPreview(false)
-      showToast("Message sent!", "success")
-    } catch {
-      showToast("Failed to send message", "error")
+      clearTimeout(connectTimeout)
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close(1000, "Component unmounting")
+      }
     }
-  }
-
-  const formatFileSize = (bytes: number) => {
-    const sizes = ["Bytes", "KB", "MB", "GB"]
-    const i = Math.floor(Math.log(bytes) / Math.log(1024))
-    return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`
-  }
-
-  const getFileIcon = (type: string) => type.startsWith("image/") ? <ImageIcon size={16} /> : <FileText size={16} />
+  }, [activeConversation, currentUser])
 
   const formatTime = (date: string) => {
     const parsed = new Date(date)
@@ -352,44 +331,65 @@ export function MessagingSystem({ currentUser: initialUser, showToast }: Messagi
     return parsed.toLocaleDateString([], { month: "short", day: "numeric" })
   }
 
-  const handleConversationSelect = (id: number) => {
+  const handleConversationSelect = (id: string) => {
     setActiveConversation(id)
-    setShowMobileChat(true)
-  }
-
-  const handleBackToConversations = () => {
-    setShowMobileChat(false)
-    setActiveConversation(null)
   }
 
   const handleWebSocketSend = () => {
-  if (!currentUser || !newMessage.trim() || !ws) return;
+    console.log("Attempting to send message:", {
+      currentUser: currentUser?.id,
+      newMessage: newMessage.trim(),
+      ws: ws?.readyState,
+      wsConnected,
+      activeConversation,
+    })
 
-  const conversation = conversations.find(c => c.id === activeConversation);
-  const receiver = conversation?.participants.find(u => u.id !== currentUser.id);
+    if (!currentUser || !newMessage.trim() || !ws || !activeConversation) {
+      console.log("Cannot send - missing requirements")
+      return
+    }
 
-  if (!receiver) {
-    showToast("Could not find the recipient for this conversation.", "error");
-    return;
-  }
+    const conversation = conversations.find((c) => c.id === activeConversation)
+    const receiver = conversation?.participants.find((u) => u.id !== currentUser.id)
 
-  if (ws.readyState === WebSocket.OPEN) {
-    ws.send(
-      JSON.stringify({
-        content: newMessage,       // use 'content' to match backend expectation
+    if (!receiver) {
+      showToast("Could not find the recipient for this conversation.", "error")
+      return
+    }
+
+    if (ws.readyState === WebSocket.OPEN) {
+      const messageData = {
+        content: newMessage,
         sender_id: currentUser.id,
-        recipient_id: receiver.id
-      })
-    );
-    setNewMessage("");
-  } else {
-    showToast("Connection is not open. Please wait or refresh.", "error");
+        recipient_id: receiver.id,
+      }
+
+      console.log("Sending WebSocket message:", messageData)
+      try {
+        ws.send(JSON.stringify(messageData))
+
+        // Immediately update the conversation list with the sent message
+        updateConversationWithMessage(activeConversation, newMessage, new Date().toISOString())
+
+        setNewMessage("")
+      } catch (error) {
+        console.error("Error sending WebSocket message:", error)
+        showToast("Failed to send message", "error")
+      }
+    } else {
+      console.log("WebSocket not ready, state:", ws.readyState)
+      showToast("Connection is not ready. Please wait or refresh.", "error")
+    }
   }
-};
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
 
   if (!currentUser) {
-  return <div className="p-6 text-center text-gray-500">Loading user data...</div>
-}
+    return <div className="p-6 text-center text-gray-500">Loading user data...</div>
+  }
 
   return (
     <div className="flex h-[600px] border rounded-lg overflow-hidden">
@@ -403,7 +403,7 @@ export function MessagingSystem({ currentUser: initialUser, showToast }: Messagi
           >
             {showUserSearch ? "Hide User Search" : "Start New Conversation"}
           </button>
-          
+
           {showUserSearch && (
             <div className="relative">
               <input
@@ -413,7 +413,7 @@ export function MessagingSystem({ currentUser: initialUser, showToast }: Messagi
                 placeholder="Search users to start a conversation..."
                 className="w-full p-2 border rounded"
               />
-              
+
               {/* User Search Results Dropdown */}
               {userSearchResults.length > 0 && (
                 <div className="absolute top-full left-0 right-0 bg-white border rounded shadow-lg z-10 max-h-60 overflow-y-auto">
@@ -429,7 +429,7 @@ export function MessagingSystem({ currentUser: initialUser, showToast }: Messagi
                   ))}
                 </div>
               )}
-              
+
               {isSearchingUsers && (
                 <div className="absolute top-full left-0 right-0 bg-white border rounded shadow-lg z-10 p-3">
                   <div className="text-center text-gray-500">Searching users...</div>
@@ -444,10 +444,10 @@ export function MessagingSystem({ currentUser: initialUser, showToast }: Messagi
           type="text"
           placeholder="Search conversations..."
           value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
+          onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full mb-4 px-2 py-1 border rounded"
         />
-        
+
         {conversations.length === 0 ? (
           <div className="text-center text-gray-500 py-8">
             <p className="mb-2">No conversations yet</p>
@@ -459,23 +459,29 @@ export function MessagingSystem({ currentUser: initialUser, showToast }: Messagi
           </div>
         ) : (
           <ul>
-            {filteredConversations.map(convo => {
+            {filteredConversations.map((convo) => {
               const other = getOtherParticipant(convo)
+
               return (
                 <li
                   key={convo.id}
-                  className={`p-2 rounded cursor-pointer mb-2 ${activeConversation === convo.id ? 'bg-[#CDAA7D] text-white' : 'hover:bg-[#e5d6c2]'}`}
+                  className={`p-2 rounded cursor-pointer mb-2 ${activeConversation === convo.id ? "bg-[#CDAA7D] text-white" : "hover:bg-[#e5d6c2]"}`}
                   onClick={() => handleConversationSelect(convo.id)}
                 >
-                  <div className="font-bold">{other?.username || 'Unknown'}</div>
-                  <div className="text-xs text-gray-500">{convo.last_message || 'No messages yet'}</div>
+                  <div className="flex justify-between items-center">
+                    <div className="font-bold">{other?.username || "Unknown"}</div>
+                    <div className="text-xs text-gray-400">
+                      {formatTime(convo.last_message_date || new Date().toISOString())}
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500 truncate">{convo.last_message || "No messages yet"}</div>
                 </li>
               )
             })}
           </ul>
         )}
       </div>
-      
+
       {/* Chat Area */}
       <div className="flex-1 flex flex-col bg-white">
         {activeConversation === null ? (
@@ -484,41 +490,66 @@ export function MessagingSystem({ currentUser: initialUser, showToast }: Messagi
           </div>
         ) : (
           <>
+            {/* Chat Header */}
+            <div className="p-4 border-b bg-gray-50">
+              <div className="font-semibold">
+                {(() => {
+                  const conversation = conversations.find((c) => c.id === activeConversation)
+                  const other = conversation ? getOtherParticipant(conversation) : null
+                  return other?.username || "Unknown User"
+                })()}
+              </div>
+              <div className="text-sm text-gray-500">
+                {wsConnected ? (
+                  <span className="text-green-600">● Connected</span>
+                ) : (
+                  <span className="text-gray-400">○ Connecting...</span>
+                )}
+              </div>
+            </div>
+
+            {/* Messages */}
             <div className="flex-1 p-4 overflow-y-auto">
-              {messages.map((msg, idx) => {
-                const isSelf = msg.sender?.id === currentUser?.id;
+              {messages.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">
+                  <p>No messages yet. Start the conversation!</p>
+                </div>
+              ) : (
+                messages.map((msg, idx) => {
+                  const isSelf = msg.sender?.id?.toString() === currentUser?.id?.toString()
 
-                return (
-                  <div key={idx} className={`mb-2 flex ${isSelf ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`px-3 py-2 rounded-lg max-w-xs ${isSelf ? 'bg-[#8B75AA] text-white' : 'bg-gray-200 text-gray-800'}`}>
-                      {!msg.sender && (
-                        <div className="text-red-500 text-xs italic mb-1">
-                          Unknown sender
-                        </div>
-                      )}
-                      <div>{msg.content}</div>
-                      <div className="text-xs mt-1 opacity-70">{formatTime(msg.created_at)}</div>
+                  return (
+                    <div key={idx} className={`mb-2 flex ${isSelf ? "justify-end" : "justify-start"}`}>
+                      <div
+                        className={`px-3 py-2 rounded-lg max-w-xs ${isSelf ? "bg-[#8B75AA] text-white" : "bg-gray-200 text-gray-800"}`}
+                      >
+                        <div>{msg.content}</div>
+                        <div className="text-xs mt-1 opacity-70">{formatTime(msg.created_at)}</div>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-
+                  )
+                })
+              )}
 
               <div ref={messagesEndRef} />
             </div>
+
+            {/* Message Input */}
             <div className="p-4 border-t flex gap-2">
               <input
                 type="text"
                 value={newMessage}
-                onChange={e => setNewMessage(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleWebSocketSend() }}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleWebSocketSend()
+                }}
                 placeholder="Type a message..."
                 className="flex-1 px-3 py-2 border rounded"
               />
               <button
                 onClick={handleWebSocketSend}
-                className="px-4 py-2 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699]"
-                disabled={!newMessage.trim() || !ws}
+                className="px-4 py-2 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699] disabled:opacity-50"
+                disabled={!newMessage.trim() || !wsConnected}
               >
                 <Send size={18} />
               </button>

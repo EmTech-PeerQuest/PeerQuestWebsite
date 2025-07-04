@@ -1,14 +1,20 @@
 from rest_framework import serializers
 from .models import Message
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email']
 
 class MessageSerializer(serializers.ModelSerializer):
+    sender = UserSerializer(read_only=True)
+    receiver = UserSerializer(source='recipient', read_only=True)
+    created_at = serializers.DateTimeField(source='timestamp', read_only=True)
+    read = serializers.BooleanField(source='is_read', read_only=True)
+
     class Meta:
         model = Message
-        fields = ['id', 'sender', 'recipient', 'content', 'timestamp', 'subject', 'is_read', 'sent_at', 'read_at']
-        read_only_fields = ['id', 'sender', 'timestamp', 'sent_at', 'read_at']
-
-class ConversationSerializer(serializers.Serializer):
-    id = serializers.IntegerField()
-    participants = serializers.ListField(child=serializers.CharField())
-    last_message = serializers.CharField()
-    last_timestamp = serializers.DateTimeField()
+        fields = ['id', 'sender', 'receiver', 'content', 'created_at', 'read']
