@@ -9,6 +9,9 @@ import SecurityTab from "./tabs/SecurityTab"
 import PrivacyTab from "./tabs/PrivacyTab"
 import NotificationsTab from "./tabs/NotificationsTab"
 import SpendingTab from "./tabs/SpendingTab"
+import PaymentTab from "./tabs/PaymentTab"
+import SubscriptionsTab from "./tabs/SubscriptionsTab"
+import AppPermissionsTab from "./tabs/AppPermissionsTab"
 import { usePathname, useRouter } from "next/navigation"
 
 interface SettingsProps {
@@ -353,7 +356,20 @@ export function Settings({ user, updateSettings, showToast = () => {} }: Setting
                 saveSpendingSettings={saveSpendingSettings}
                 dailySpent={dailySpent}
                 weeklySpent={weeklySpent}
+                user={user}
               />
+            )}
+            {activeTab === "payment" && (
+              <PaymentTab
+                paymentMethods={user?.paymentMethods || []}
+                onAddPayment={() => { /* TODO: open add payment modal */ }}
+              />
+            )}
+            {activeTab === "subscriptions" && (
+              <SubscriptionsTab />
+            )}
+            {activeTab === "app" && (
+              <AppPermissionsTab />
             )}
             {/* ...other tabs as needed... */}
           </div>
