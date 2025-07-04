@@ -22,6 +22,32 @@ daphne core.asgi:application # Use this for local development
 npm install --legacy-peer-deps
 npm run dev
 
+############ Bash/Linux Setup ############
+# Backend (Linux/Bash)
+python3 -m venv venv
+source venv/bin/activate
+python3 -m pip install --upgrade pip
+pip install -r requirements.txt
+
+python3 manage.py makemigrations
+python3 manage.py migrate
+python3 manage.py collectstatic  # Collect static files for admin and static assets
+python3 manage.py createsuperuser  # (optional, for admin access)
+
+# Start Redis server (if not already running)
+redis-server &  # Start Redis in the background
+
+# For running the Backend
+# python3 manage.py runserver  # Use this for HTTP-only development
+
+daphne -b 0.0.0.0 -p 8000 core.asgi:application  # Use this for Channels/WebSockets
+
+daphne core.asgi:application # Use this for local development
+
+# Frontend (Linux/Bash)
+npm install --legacy-peer-deps
+npm run dev
+
 ////////// Copy-Paste Friendly Setup Commands //////////
 
 # To add a new Python package:

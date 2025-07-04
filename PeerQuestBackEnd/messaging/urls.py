@@ -1,7 +1,16 @@
 from django.urls import path
-from .views import ConversationListView, MessageListView
+from . import views
 
 urlpatterns = [
-    path('conversations/', ConversationListView.as_view(), name='conversation-list'),
-    path('conversations/<int:conversation_id>/messages/', MessageListView.as_view(), name='message-list'),
+    # Get all conversations for the authenticated user
+    path('conversations/', views.ConversationListView.as_view(), name='conversation-list'),
+    
+    # Get messages for a specific conversation
+    path('conversations/<uuid:conversation_id>/messages/', views.MessageListView.as_view(), name='message-list'),
+    
+    # Search for users to start new conversations
+    path('users/search/', views.UserSearchView.as_view(), name='user-search'),
+    
+    # Send a message
+    path('send/', views.SendMessageView.as_view(), name='send-message'),
 ]
