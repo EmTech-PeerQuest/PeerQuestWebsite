@@ -6,7 +6,7 @@ from .models import Transaction, UserBalance, TransactionType
 
 User = get_user_model()
 
-def add_gold_to_user(user, amount, transaction_type=TransactionType.PURCHASE, description=None, quest=None):
+def add_gold_to_user(user, amount, transaction_type=TransactionType.REWARD, description=None, quest=None):
     """
     Add gold to a user's balance and create a transaction record.
     

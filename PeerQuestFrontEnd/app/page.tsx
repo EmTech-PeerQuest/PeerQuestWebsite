@@ -15,6 +15,7 @@ import { useGoldBalance } from "@/context/GoldBalanceContext";
 import { AIChatbot } from '@/components/ai/ai-chatbot';
 import { AuthModal } from '@/components/auth/auth-modal';
 import { Settings } from '@/components/settings/settings';
+import { GoldSystemModal } from '@/components/gold/gold-system-modal';
 import { useRouter } from 'next/navigation';
 import Profile from './profile/page';
 import Spinner from '@/components/ui/spinner';
@@ -34,6 +35,7 @@ export default function Home() {
   const { refreshBalance } = useGoldBalance(); // Add gold balance refresh capability
   const { toast } = useToast();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showGoldSystemModal, setShowGoldSystemModal] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login');
   const router = useRouter();
 
@@ -113,7 +115,17 @@ export default function Home() {
           setActiveSection={handleSectionChange}
           handleLogout={logout}
           openAuthModal={() => setShowAuthModal(true)}
-          openGoldPurchaseModal={() => {}}
+          openGoldPurchaseModal={() => {
+            if (!currentUser) {
+              toast({ 
+                title: "Please log in to access the Gold Treasury", 
+                variant: "destructive" 
+              });
+              setShowAuthModal(true);
+            } else {
+              setShowGoldSystemModal(true);
+            }
+          }}
           openPostQuestModal={() => {}}
           openCreateGuildModal={() => {}}
           onQuestCreated={handleQuestCreated}
@@ -249,6 +261,17 @@ export default function Home() {
               await register(data);
               setShowAuthModal(false);
               // No redirect, stay on homepage
+            }}
+          />
+        )}
+
+        {showGoldSystemModal && (
+          <GoldSystemModal
+            isOpen={showGoldSystemModal}
+            onClose={() => setShowGoldSystemModal(false)}
+            currentUser={currentUser}
+            showToast={(message: string, type?: string) => {
+              toast({ title: message, variant: type === "error" ? "destructive" : "default" });
             }}
           />
         )}

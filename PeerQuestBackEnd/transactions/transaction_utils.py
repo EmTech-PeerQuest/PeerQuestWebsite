@@ -180,7 +180,7 @@ def deduct_gold_for_quest_creation(quest, amount):
         # Create the transaction record (negative amount for deduction)
         transaction = Transaction.objects.create(
             user=user,
-            type=TransactionType.PURCHASE,  # Changed from QUEST_CREATION to PURCHASE (closest match for spending gold)
+            type=TransactionType.REWARD,  # Changed from PURCHASE to REWARD (quest-related transaction)
             amount=-amount,  # Negative for deduction
             description=f"Quest creation: {quest.title} (Reward: {quest.gold_reward} + Commission)",
             quest=quest
@@ -220,7 +220,7 @@ def refund_gold_for_quest_deletion(quest):
     try:
         creation_transaction = Transaction.objects.filter(
             quest=quest,
-            type=TransactionType.PURCHASE,  # Changed from QUEST_CREATION to PURCHASE
+            type=TransactionType.REWARD,  # Changed from PURCHASE to REWARD (quest-related transaction)
             amount__lt=0  # Negative amount (deduction)
         ).first()
         

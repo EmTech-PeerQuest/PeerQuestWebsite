@@ -33,10 +33,12 @@ class TransactionViewSet(viewsets.ModelViewSet):
         
     def get_queryset(self):
         user = self.request.user
-        # Regular users can only see their own transactions
-        if not user.is_staff:
-            return Transaction.objects.filter(user=user)
-        return Transaction.objects.all()
+        # SECURITY: All users (adventurers, quest makers, moderators, and admins) 
+        # can only see their own transactions when using the gold system modal.
+        # This prevents any user type from viewing other users' transaction history.
+        # Admin panel access for viewing all transactions is handled through 
+        # separate admin-only endpoints (all_transactions, all_quest_rewards).
+        return Transaction.objects.filter(user=user)
 
     @action(detail=False, methods=['get'])
     def my_transactions(self, request):
@@ -48,19 +50,40 @@ class TransactionViewSet(viewsets.ModelViewSet):
             return self.get_paginated_response(serializer.data)
         serializer = self.get_serializer(transactions, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminUser])
+    def all_transactions(self, request):
+        """Get all transactions - Admin only"""
+        transactions = Transaction.objects.all()
+        page = self.paginate_queryset(transactions)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(transactions, many=True)
+        return Response(serializer.data)
         
     @action(detail=False, methods=['get'])
     def quest_rewards(self, request):
-        """Get all quest reward transactions"""
-        if not request.user.is_staff:
-            transactions = Transaction.objects.filter(
-                user=request.user, 
-                type=TransactionType.QUEST_REWARD
-            )
-        else:
-            transactions = Transaction.objects.filter(
-                type=TransactionType.QUEST_REWARD
-            )
+        """Get quest reward transactions for the current user only
+        
+        SECURITY: This endpoint ensures ALL users (staff/admin, regular users, etc.)
+        can only see their own quest reward transactions. No privilege escalation allowed.
+        """
+        transactions = Transaction.objects.filter(
+            user=request.user, 
+            type=TransactionType.REWARD
+        )
+        page = self.paginate_queryset(transactions)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(transactions, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminUser])
+    def all_quest_rewards(self, request):
+        """Get all quest reward transactions - Admin only"""
+        transactions = Transaction.objects.filter(type=TransactionType.REWARD)
         page = self.paginate_queryset(transactions)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
@@ -98,14 +121,30 @@ class UserBalanceViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        # Regular users can only see their own balance
-        if not user.is_staff:
-            return UserBalance.objects.filter(user=user)
-        return UserBalance.objects.all()
+        # SECURITY: All users (adventurers, quest makers, moderators, and admins) 
+        # can only see their own balance when using the gold system modal.
+        # This prevents any user type from viewing other users' gold balances.
+        # Admin balance management is handled through separate admin-only endpoints.
+        return UserBalance.objects.filter(user=user)
     
     @action(detail=False, methods=['get'])
     def my_balance(self, request):
-        """Get balance for the current user"""
+        """Get balance for the current user
+        
+        SECURITY: This endpoint ensures ALL users (staff/admin, regular users, etc.)
+        can only see their own balance. No privilege escalation allowed.
+        """
         balance, created = UserBalance.objects.get_or_create(user=request.user)
         serializer = self.get_serializer(balance)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminUser])
+    def all_balances(self, request):
+        """Get all user balances - Admin only"""
+        balances = UserBalance.objects.all()
+        page = self.paginate_queryset(balances)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(balances, many=True)
         return Response(serializer.data)

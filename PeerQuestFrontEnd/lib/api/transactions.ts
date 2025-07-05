@@ -144,25 +144,32 @@ export const TransactionAPI = {
    */
   async getMyTransactions(): Promise<Transaction[]> {
     try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/transactions/transactions/my_transactions/`)
+      console.log('🔍 Fetching user transactions...');
+      
+      // Use the main transactions endpoint which already filters by user
+      const response = await fetchWithAuth(`${API_BASE_URL}/transactions/transactions/`)
+      
+      console.log('🔄 Transactions API Response Status:', response.status, response.statusText);
       
       if (!response.ok) {
-        console.error(`Failed to get transactions: ${response.status} ${response.statusText}`);
         const text = await response.text();
-        try {
-          // Try to parse as JSON first
-          const errorJson = JSON.parse(text);
-          throw new Error(`Failed to get transactions: ${JSON.stringify(errorJson)}`);
-        } catch (parseError) {
-          // If not valid JSON, throw with text preview
-          throw new Error(`Failed to get transactions: ${text.substring(0, 100)}...`);
-        }
+        handleApiError(response, text, 'view your transactions');
       }
       
-      return await response.json()
+      const data = await response.json()
+      console.log('✅ Transactions data:', data);
+      
+      // Handle both paginated and non-paginated responses
+      const transactions = data.results || data || []
+      console.log('✅ Processed transactions:', transactions.length, 'items');
+      
+      return transactions
     } catch (error) {
       console.error('Transactions fetch error:', error);
-      return []; // Return empty array on error
+      
+      // Re-throw the error so the frontend can handle it properly
+      // Don't return empty array, let the frontend decide how to handle the error
+      throw error;
     }
   },
   
@@ -174,22 +181,15 @@ export const TransactionAPI = {
       const response = await fetchWithAuth(`${API_BASE_URL}/transactions/transactions/quest_rewards/`)
       
       if (!response.ok) {
-        console.error(`Failed to get quest rewards: ${response.status} ${response.statusText}`);
         const text = await response.text();
-        try {
-          // Try to parse as JSON first
-          const errorJson = JSON.parse(text);
-          throw new Error(`Failed to get quest rewards: ${JSON.stringify(errorJson)}`);
-        } catch (parseError) {
-          // If not valid JSON, throw with text preview
-          throw new Error(`Failed to get quest rewards: ${text.substring(0, 100)}...`);
-        }
+        handleApiError(response, text, 'view quest rewards');
       }
       
       return await response.json()
     } catch (error) {
       console.error('Quest rewards fetch error:', error);
-      return []; // Return empty array on error
+      // Re-throw the error so the frontend can handle it properly
+      throw error;
     }
   },
   
@@ -230,4 +230,51 @@ export const TransactionAPI = {
       return { gold_balance: 0, success: false };
     }
   },
+}
+
+/**
+ * Standardized error handling for API responses
+ */
+function handleApiError(response: Response, text: string, context: string): never {
+  console.error(`${context}: ${response.status} ${response.statusText}`, text);
+  
+  // Handle specific HTTP status codes
+  if (response.status === 401) {
+    throw new Error(`Authentication required. Please log in to ${context.toLowerCase()}.`);
+  }
+  
+  if (response.status === 403) {
+    throw new Error(`Access denied. You do not have permission to ${context.toLowerCase()}.`);
+  }
+  
+  if (response.status >= 500) {
+    throw new Error('Server error. Please try again later.');
+  }
+  
+  // Try to parse error response for better messages
+  try {
+    const errorJson = JSON.parse(text);
+    
+    // Handle Django REST framework error formats
+    if (errorJson.detail) {
+      if (errorJson.detail.includes('Authentication') || errorJson.detail.includes('credentials')) {
+        throw new Error(`Authentication required. Please log in to ${context.toLowerCase()}.`);
+      }
+      throw new Error(`Error: ${errorJson.detail}`);
+    }
+    
+    // Handle field validation errors
+    if (errorJson.non_field_errors) {
+      throw new Error(`Error: ${errorJson.non_field_errors.join(', ')}`);
+    }
+    
+    // Generic error with parsed JSON
+    throw new Error(`Request failed: ${JSON.stringify(errorJson)}`);
+  } catch (parseError) {
+    // If JSON parsing fails, check for authentication keywords
+    if (text.toLowerCase().includes('authentication') || text.toLowerCase().includes('credentials')) {
+      throw new Error(`Authentication required. Please log in to ${context.toLowerCase()}.`);
+    }
+    throw new Error(`Request failed with status ${response.status}. Please try again.`);
+  }
 }
