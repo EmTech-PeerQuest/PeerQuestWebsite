@@ -29,12 +29,12 @@ git push -u origin dev_Esteron
 
 
 
-////////// Combine dev_branch into Feature_Branch //////////
+////////// Combine Feature_branch into dev_Branch //////////
 git checkout [Feature_Branch]
 git pull origin [Feature_Branch]
 
 git checkout [dev_Branch]
-git merge [dev_Branch]
+git merge [Feature_Branch]
 
 
 
