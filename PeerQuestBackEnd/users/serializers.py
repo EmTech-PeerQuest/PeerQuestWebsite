@@ -14,7 +14,7 @@ class UserInfoUpdateSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "display_name", "username", "email", "bio", "birthday", "gender", "location",
-            "social_links", "settings", "avatar_url", "preferred_language", "timezone",
+            "social_links", "settings", "avatar_url", "avatar_data", "preferred_language", "timezone",
             "notification_preferences", "privacy_settings"
         ]
         extra_kwargs = {field: {"required": False, "allow_null": True} for field in fields}
@@ -23,7 +23,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            "id", "username", "email", "avatar_url", "bio",
+            "id", "username", "email", "avatar_url", "avatar_data", "bio",
             "level", "experience_points", "gold_balance",
             "preferred_language", "timezone", "notification_preferences", "privacy_settings"
         ]

@@ -12,6 +12,7 @@ class User(AbstractUser):
     settings = models.JSONField(default=dict, blank=True)
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     avatar_url = models.URLField(max_length=255, blank=True, null=True)
+    avatar_data = models.TextField(blank=True, null=True)  # For base64 image data
     bio = models.TextField(blank=True)
     level = models.IntegerField(default=1)
     experience_points = models.IntegerField(default=0)

@@ -86,8 +86,24 @@
     "warning": "警告",
     "info": "情報"
   },
+  "profilePhoto": {
+    "profilePhoto": "プロフィール写真",
+    "changePhoto": "写真を変更",
+    "uploadPhoto": "写真をアップロード",
+    "removePhoto": "写真を削除",
+    "dragDropText": "ここに画像をドラッグ＆ドロップするか、クリックして選択",
+    "supportedFormats": "対応形式: JPG、PNG、GIF（最大5MB）",
+    "invalidFileType": "有効な画像ファイル（JPG、PNG、GIF）を選択してください",
+    "fileTooLarge": "ファイルサイズは5MB未満である必要があります",
+    "uploadError": "写真のアップロードに失敗しました。もう一度お試しください。",
+    "previewPhoto": "写真プレビュー",
+    "preview": "プレビュー",
+    "uploading": "アップロード中...",
+    "confirmUpload": "写真をアップロード"
+  },
   "accountTab": {
     "title": "アカウント情報",
+    "profilePhoto": "プロフィール写真",
     "displayName": "表示名",
     "displayNamePlaceholder": "表示名を入力してください",
     "username": "ユーザー名",

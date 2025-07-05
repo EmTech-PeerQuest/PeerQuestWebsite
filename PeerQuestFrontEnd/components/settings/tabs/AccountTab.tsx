@@ -4,6 +4,8 @@ import { Save } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/context/LanguageContext";
+import { useAuth } from "@/context/AuthContext";
+import { ProfilePhotoUploader } from "@/components/ui/profile-photo-uploader";
 import axios from "axios";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -12,8 +14,6 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 export async function fetchUserInfo() {
   try {
     const token = localStorage.getItem('access_token');
-    console.log('Token being used:', token ? `${token.substring(0, 20)}...` : 'No token found');
-    console.log('API URL:', `${API_BASE_URL}/api/users/settings/`);
     
     if (!token) {
       throw new Error("No access token found. Please log in.");
@@ -35,7 +35,7 @@ export async function fetchUserInfo() {
       location: data.location || "",
       socialLinks: data.social_links || {},
       settings: data.settings || {},
-      avatarUrl: data.avatar_url || "",
+      avatarUrl: data.avatar_url || data.avatar_data || "",
       preferredLanguage: data.preferred_language || "",
       timezone: data.timezone || "",
       notificationPreferences: data.notification_preferences || {},
@@ -61,8 +61,33 @@ async function updateUserProfile(data: any) {
     );
     return res.data;
   } catch (err: any) {
-    if (err.response && err.response.data && err.response.data.errors) {
-      throw err.response.data.errors[0];
+    console.error('Update profile error:', err);
+    console.error('Response data:', err.response?.data);
+    console.error('Response status:', err.response?.status);
+    
+    if (err.response && err.response.data) {
+      // Handle different error formats
+      if (err.response.data.errors) {
+        throw err.response.data.errors[0];
+      }
+      if (err.response.data.detail) {
+        throw err.response.data.detail;
+      }
+      if (typeof err.response.data === 'object') {
+        // Handle field-specific errors
+        const fieldErrors = [];
+        for (const [field, errors] of Object.entries(err.response.data)) {
+          if (Array.isArray(errors)) {
+            fieldErrors.push(`${field}: ${errors.join(', ')}`);
+          } else {
+            fieldErrors.push(`${field}: ${errors}`);
+          }
+        }
+        if (fieldErrors.length > 0) {
+          throw fieldErrors.join('\n');
+        }
+      }
+      throw JSON.stringify(err.response.data);
     }
     throw "Failed to update profile.";
   }
@@ -95,6 +120,7 @@ export default function AccountTab({
   setAccountForm,
   user
 }: any) {
+  const { refreshUser, user: authUser } = useAuth();
   const { t, ready } = useTranslation();
   const { currentLanguage, changeLanguage, availableLanguages, isReady } = useLanguage();
   
@@ -116,7 +142,7 @@ export default function AccountTab({
         const info = await fetchUserInfo();
         setAccountForm((prev: any) => ({ ...prev, ...info }));
       } catch (e) {
-        // Optionally handle error
+        console.error('[AccountTab] Failed to fetch user info:', e);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -198,28 +224,71 @@ export default function AccountTab({
         return;
       }
 
-      const payload = {
-        display_name: accountForm.displayName,
-        username: accountForm.username,
-        email: accountForm.email,
-        bio: accountForm.bio,
-        birthday: accountForm.birthday,
-        gender: accountForm.gender,
-        location: accountForm.location,
-        social_links: accountForm.socialLinks,
-        settings: {
-          language: accountForm.language,
-        },
-        preferred_language: accountForm.preferredLanguage,
-        timezone: accountForm.timezone,
-        notification_preferences: accountForm.notificationPreferences,
-        privacy_settings: accountForm.privacySettings,
-        avatar_url: accountForm.avatarUrl,
+      // Clean and prepare payload - remove empty strings and null values
+      const cleanPayload = (obj: any) => {
+        const cleaned: any = {};
+        for (const [key, value] of Object.entries(obj)) {
+          if (value !== null && value !== undefined && value !== '') {
+            cleaned[key] = value;
+          }
+        }
+        return cleaned;
       };
-      console.log('Sending payload to backend:', payload); // Debug log
-      await updateUserProfile(payload);
+
+      // Check if avatar is a base64 string (too long for URL field)
+      const isBase64Avatar = accountForm.avatarUrl && accountForm.avatarUrl.startsWith('data:');
+      
+      // Prepare the payload with proper field mapping
+      const payload: any = {
+        display_name: accountForm.displayName || null,
+        username: accountForm.username || null,
+        email: accountForm.email || null,
+        bio: accountForm.bio || null,
+        birthday: accountForm.birthday || null,
+        gender: accountForm.gender || null,
+        location: accountForm.location || null,
+        social_links: accountForm.socialLinks || {},
+        preferred_language: accountForm.preferredLanguage || null,
+        timezone: accountForm.timezone || null,
+        notification_preferences: accountForm.notificationPreferences || {},
+        privacy_settings: accountForm.privacySettings || {},
+      };
+
+      // Handle avatar data
+      if (isBase64Avatar) {
+        // Send base64 data to avatar_data field
+        payload.avatar_data = accountForm.avatarUrl;
+        payload.avatar_url = null; // Clear the URL field
+      } else if (accountForm.avatarUrl) {
+        // Send URL to avatar_url field
+        payload.avatar_url = accountForm.avatarUrl;
+        payload.avatar_data = null; // Clear the data field
+      }
+
+      // Only include settings if we have language data
+      if (accountForm.language) {
+        payload.settings = {
+          language: accountForm.language,
+        };
+      }
+
+      // Clean empty values
+      const cleanedPayload = cleanPayload(payload);
+      
+      if (isBase64Avatar) {
+        // Sending base64 avatar data to avatar_data field
+      } else if (accountForm.avatarUrl) {
+        // Sending avatar URL to avatar_url field
+      }
+      
+      await updateUserProfile(cleanedPayload);
+      
+      // Refresh user data in AuthContext to update navbar avatar
+      await refreshUser();
+      
       alert(t('accountTab.saveSuccess'));
     } catch (err: any) {
+      console.error('Save error:', err);
       alert(err);
     } finally {
       setLoadingSave(false);
@@ -252,6 +321,16 @@ export default function AccountTab({
     <div className="p-4 md:p-6">
       <h3 className="text-xl font-bold mb-6">{t('accountTab.title')}</h3>
       <div className="space-y-6">
+        {/* Profile Photo Section */}
+        <div>
+          <label className="block text-sm font-medium mb-4">{t('profilePhoto.profilePhoto')}</label>
+          <ProfilePhotoUploader
+            currentPhoto={accountForm.avatarUrl}
+            onPhotoChange={(photoUrl) => setAccountForm((prev: any) => ({ ...prev, avatarUrl: photoUrl }))}
+            className="flex justify-center"
+          />
+        </div>
+        
         {/* Display Name */}
         <div>
           <label className="block text-sm font-medium mb-2">{t('accountTab.displayName')}</label>
@@ -514,14 +593,16 @@ export default function AccountTab({
         </div>
         {/* Save Button */}
         <div className="pt-4">
-          <button
-            onClick={handleSave}
-            disabled={loadingSave}
-            className="w-full sm:w-auto px-6 py-2 bg-[#8B75AA] text-white rounded font-medium hover:bg-[#7A6699] transition-colors flex items-center justify-center disabled:opacity-60"
-          >
-            <Save size={16} className="mr-2" />
-            {loadingSave ? t('accountTab.saving') : t('accountTab.saveChanges')}
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={handleSave}
+              disabled={loadingSave}
+              className="flex-1 sm:flex-none px-6 py-2 bg-[#8B75AA] text-white rounded font-medium hover:bg-[#7A6699] transition-colors flex items-center justify-center disabled:opacity-60"
+            >
+              <Save size={16} className="mr-2" />
+              {loadingSave ? t('accountTab.saving') : t('accountTab.saveChanges')}
+            </button>
+          </div>
         </div>
         {/* Delete Account Section */}
         <div className="mt-10 border-t border-[#CDAA7D]/40 pt-8">

@@ -34,6 +34,7 @@ export function Navbar({
   const [unreadNotifications, setUnreadNotifications] = useState(3)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [quickActionsOpen, setQuickActionsOpen] = useState(false)
+  const [avatarError, setAvatarError] = useState(false)
 
   const handleNavigation = (section: string) => {
     setActiveSection(section)
@@ -194,10 +195,21 @@ export function Navbar({
                     }}
                     className="flex items-center focus:outline-none"
                   >
-                    <div className="w-8 h-8 bg-[#8B75AA] rounded-full flex items-center justify-center text-white">
-                      {currentUser.avatar
-                        ? currentUser.avatar
-                        : currentUser.username?.[0]?.toUpperCase() || "H"}
+                    <div className="w-8 h-8 bg-[#8B75AA] rounded-full flex items-center justify-center text-white overflow-hidden">
+                      {currentUser.avatar && 
+                       (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('data:')) && 
+                       !avatarError ? (
+                        <img 
+                          src={currentUser.avatar} 
+                          alt="Profile" 
+                          className="w-full h-full object-cover"
+                          onError={() => setAvatarError(true)}
+                        />
+                      ) : (
+                        <span className="text-white select-none">
+                          {currentUser.username?.[0]?.toUpperCase() || "H"}
+                        </span>
+                      )}
                     </div>
                   </button>
 

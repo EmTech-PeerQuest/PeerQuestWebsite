@@ -86,8 +86,24 @@
     "warning": "Avertissement",
     "info": "Information"
   },
+  "profilePhoto": {
+    "profilePhoto": "Photo de Profil",
+    "changePhoto": "Changer la Photo",
+    "uploadPhoto": "Télécharger une Photo",
+    "removePhoto": "Supprimer la Photo",
+    "dragDropText": "Glissez et déposez une image ici, ou cliquez pour sélectionner",
+    "supportedFormats": "Formats supportés: JPG, PNG, GIF (max 5MB)",
+    "invalidFileType": "Veuillez sélectionner un fichier image valide (JPG, PNG, GIF)",
+    "fileTooLarge": "La taille du fichier doit être inférieure à 5MB",
+    "uploadError": "Échec du téléchargement de la photo. Veuillez réessayer.",
+    "previewPhoto": "Aperçu de la Photo",
+    "preview": "Aperçu",
+    "uploading": "Téléchargement...",
+    "confirmUpload": "Télécharger la Photo"
+  },
   "accountTab": {
     "title": "Informations du Compte",
+    "profilePhoto": "Photo de Profil",
     "displayName": "Nom d'Affichage",
     "displayNamePlaceholder": "Entrez votre nom d'affichage",
     "username": "Nom d'Utilisateur",

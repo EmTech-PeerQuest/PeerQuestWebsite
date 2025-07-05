@@ -86,8 +86,24 @@
     "warning": "Warning",
     "info": "Info"
   },
+  "profilePhoto": {
+    "profilePhoto": "Profile Photo",
+    "changePhoto": "Change Photo",
+    "uploadPhoto": "Upload Photo",
+    "removePhoto": "Remove Photo",
+    "dragDropText": "Drag and drop an image here, or click to select",
+    "supportedFormats": "Supported formats: JPG, PNG, GIF (max 5MB)",
+    "invalidFileType": "Please select a valid image file (JPG, PNG, GIF)",
+    "fileTooLarge": "File size must be less than 5MB",
+    "uploadError": "Failed to upload photo. Please try again.",
+    "previewPhoto": "Preview Photo",
+    "preview": "Preview",
+    "uploading": "Uploading...",
+    "confirmUpload": "Upload Photo"
+  },
   "accountTab": {
     "title": "Account Info",
+    "profilePhoto": "Profile Photo",
     "displayName": "Display Name",
     "displayNamePlaceholder": "Enter your display name",
     "username": "Username",

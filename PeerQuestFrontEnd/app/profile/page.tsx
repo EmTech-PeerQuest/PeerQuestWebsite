@@ -14,6 +14,7 @@ interface ProfileProps {
 function Profile({ currentUser, quests, guilds, navigateToSection }: ProfileProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "quests" | "guilds" | "achievements">("overview");
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
 
   // Filter quests by status
   const activeQuests = quests.filter((q) => q.status === "in_progress" && q.poster?.id === currentUser.id);
@@ -41,8 +42,21 @@ function Profile({ currentUser, quests, guilds, navigateToSection }: ProfileProp
         <div className="max-w-4xl mx-auto">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
             {/* Avatar */}
-            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-[#CDAA7D] rounded-full flex items-center justify-center text-2xl sm:text-3xl font-bold flex-shrink-0">
-              {currentUser.avatar || currentUser.username?.[0] || "H"}
+            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-[#CDAA7D] rounded-full flex items-center justify-center text-2xl sm:text-3xl font-bold flex-shrink-0 overflow-hidden relative">
+              {currentUser.avatar && 
+               (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('data:')) && 
+               !avatarError ? (
+                <img 
+                  src={currentUser.avatar} 
+                  alt={`${currentUser.username}'s avatar`}
+                  className="w-full h-full object-cover absolute inset-0"
+                  onError={() => setAvatarError(true)}
+                />
+              ) : (
+                <span className="text-[#2C1A1D] select-none text-center">
+                  {currentUser.username?.[0]?.toUpperCase() || "H"}
+                </span>
+              )}
             </div>
             {/* User Info */}
             <div className="flex-1 text-center sm:text-left">

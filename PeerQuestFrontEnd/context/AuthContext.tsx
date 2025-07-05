@@ -10,6 +10,8 @@ interface User {
   username: string;
   email: string;
   avatar_url?: string;
+  avatar_data?: string;
+  avatar?: string; // Unified field for frontend use
 }
 
 interface AuthContextProps {
@@ -18,6 +20,7 @@ interface AuthContextProps {
   register: (data: { username: string; email: string; password: string; confirmPassword?: string }) => Promise<void>;
   logout: () => void;
   loginWithGoogle: (googleCredential: string) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 
@@ -27,6 +30,7 @@ const AuthContext = createContext<AuthContextProps>({
   register: async () => {},
   logout: () => {},
   loginWithGoogle: async () => {},
+  refreshUser: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -52,9 +56,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('user');
-      const parsed = stored ? JSON.parse(stored) : null;
-      console.log('[AuthContext] Initial user from localStorage:', parsed);
-      return parsed;
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          
+          // Re-validate avatar field in case validation logic changed
+          if (parsed.avatar_url || parsed.avatar_data) {
+            const avatarUrl = parsed.avatar_url || parsed.avatar_data;
+            if (avatarUrl && (avatarUrl.startsWith('http') || avatarUrl.startsWith('data:'))) {
+              parsed.avatar = avatarUrl;
+            }
+          }
+          
+          return parsed;
+        } catch (e) {
+          console.error('[AuthContext] Failed to parse stored user:', e);
+          localStorage.removeItem('user');
+        }
+      }
     }
     return null;
   });
@@ -64,9 +83,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const loadUser = async (token: string) => {
     try {
       const res = await fetchUserApi(token);
-      console.log('[AuthContext] loadUser fetched:', res.data);
-      setUser(res.data);
-      localStorage.setItem('user', JSON.stringify(res.data));
+      
+      // Transform backend user data to frontend User type
+      const avatarUrl = res.data.avatar_url || res.data.avatar_data;
+      let finalAvatar = undefined;
+      
+      // Only set avatar if it's a valid URL or data URL
+      if (avatarUrl && (avatarUrl.startsWith('http') || avatarUrl.startsWith('data:'))) {
+        // For base64 images, validate they are reasonable size (under 10MB when decoded)
+        if (avatarUrl.startsWith('data:')) {
+          // Base64 images can be quite long, so we'll be more lenient
+          if (avatarUrl.length < 15000000) { // ~10MB limit for base64
+            finalAvatar = avatarUrl;
+          } else {
+            console.warn('[AuthContext] Avatar data too large, skipping');
+          }
+        } else {
+          // For URLs, keep a reasonable length limit
+          if (avatarUrl.length < 2000) {
+            finalAvatar = avatarUrl;
+          } else {
+            console.warn('[AuthContext] Avatar URL too long, skipping');
+          }
+        }
+      }
+      
+      const transformedUser = {
+        ...res.data,
+        avatar: finalAvatar,
+      };
+      
+      setUser(transformedUser);
+      localStorage.setItem('user', JSON.stringify(transformedUser));
     } catch (err) {
       if (err instanceof TokenInvalidError) {
         // Token invalid/expired: auto-logout and notify
@@ -139,8 +187,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, []);
 
+  const refreshUser = async () => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      await loadUser(token);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loginWithGoogle }}>
+    <AuthContext.Provider value={{ user, login, register, logout, loginWithGoogle, refreshUser }}>
       {loading ? <ThemedLoading /> : children}
     </AuthContext.Provider>
   );
