@@ -40,7 +40,7 @@ def award_gold_on_quest_completion(sender, instance, **kwargs):
     existing_reward = Transaction.objects.filter(
         user=instance.user,
         quest=instance.quest,
-        type=TransactionType.QUEST_REWARD
+        type=TransactionType.REWARD  # Changed from QUEST_REWARD to REWARD
     ).exists()
     
     if existing_reward:

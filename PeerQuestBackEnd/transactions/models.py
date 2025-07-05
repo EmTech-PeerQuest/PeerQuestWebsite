@@ -4,13 +4,10 @@ from quests.models import Quest
 from .gold_reservation_models import QuestGoldReservation
 
 class TransactionType(models.TextChoices):
-    QUEST_REWARD = 'QUEST_REWARD', 'Quest Reward'
-    QUEST_CREATION = 'QUEST_CREATION', 'Quest Creation'
-    QUEST_REFUND = 'QUEST_REFUND', 'Quest Refund'
     PURCHASE = 'PURCHASE', 'Purchase'
-    ADMIN_ADJUSTMENT = 'ADMIN_ADJUSTMENT', 'Admin Adjustment'
-    GIFT = 'GIFT', 'Gift'
-    OTHER = 'OTHER', 'Other'
+    REWARD = 'REWARD', 'Reward'
+    TRANSFER = 'TRANSFER', 'Transfer'
+    REFUND = 'REFUND', 'Refund'
 
 class Transaction(models.Model):
     transaction_id = models.AutoField(primary_key=True, help_text='Primary key, auto-increment')
@@ -19,7 +16,7 @@ class Transaction(models.Model):
     type = models.CharField(
         max_length=20,
         choices=TransactionType.choices,
-        default=TransactionType.OTHER,
+        default=TransactionType.PURCHASE,
         help_text='Transaction type'
     )
     amount = models.DecimalField(

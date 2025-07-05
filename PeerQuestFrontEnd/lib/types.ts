@@ -44,7 +44,7 @@ export interface SpendingRecord {
   amount: number;
   date: string;
   description: string;
-  type: 'quest_reward' | 'guild_creation' | 'purchase' | 'cashout';
+  type: 'purchase' | 'reward' | 'transfer' | 'refund';
 }
 
 export interface LevelThreshold {

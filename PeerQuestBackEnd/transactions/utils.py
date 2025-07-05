@@ -6,7 +6,7 @@ from .models import Transaction, UserBalance, TransactionType
 
 User = get_user_model()
 
-def add_gold_to_user(user, amount, transaction_type=TransactionType.OTHER, description=None, quest=None):
+def add_gold_to_user(user, amount, transaction_type=TransactionType.PURCHASE, description=None, quest=None):
     """
     Add gold to a user's balance and create a transaction record.
     
@@ -70,7 +70,7 @@ def reward_quest_completion(user, quest, amount, bonus=0, description=None):
     transaction1, balance = add_gold_to_user(
         user=user,
         amount=amount,
-        transaction_type=TransactionType.QUEST_REWARD,
+        transaction_type=TransactionType.REWARD,  # Changed from QUEST_REWARD to REWARD
         description=description,
         quest=quest
     )
@@ -80,7 +80,7 @@ def reward_quest_completion(user, quest, amount, bonus=0, description=None):
         transaction2, balance = add_gold_to_user(
             user=user,
             amount=bonus,
-            transaction_type=TransactionType.QUEST_BONUS,
+            transaction_type=TransactionType.REWARD,  # Changed from QUEST_BONUS to REWARD (since QUEST_BONUS doesn't exist in new enum)
             description=f"Bonus for: {quest.title}",
             quest=quest
         )

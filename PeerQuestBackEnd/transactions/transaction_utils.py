@@ -97,7 +97,7 @@ def release_gold_reservation(quest):
     except QuestGoldReservation.DoesNotExist:
         return Decimal('0.00')
 
-def award_gold(user, amount, description=None, quest=None, transaction_type=TransactionType.QUEST_REWARD):
+def award_gold(user, amount, description=None, quest=None, transaction_type=TransactionType.REWARD):
     """
     Award gold to a user and create a transaction record
     
@@ -106,7 +106,7 @@ def award_gold(user, amount, description=None, quest=None, transaction_type=Tran
         amount: The amount of gold to award (positive number)
         description: Optional description of the transaction
         quest: Optional Quest object associated with the transaction
-        transaction_type: Transaction type (default: QUEST_REWARD)
+        transaction_type: Transaction type (default: REWARD)
         
     Returns:
         dict: Result of the transaction with transaction_id and updated_balance
@@ -180,7 +180,7 @@ def deduct_gold_for_quest_creation(quest, amount):
         # Create the transaction record (negative amount for deduction)
         transaction = Transaction.objects.create(
             user=user,
-            type=TransactionType.QUEST_CREATION,
+            type=TransactionType.PURCHASE,  # Changed from QUEST_CREATION to PURCHASE (closest match for spending gold)
             amount=-amount,  # Negative for deduction
             description=f"Quest creation: {quest.title} (Reward: {quest.gold_reward} + Commission)",
             quest=quest
@@ -220,7 +220,7 @@ def refund_gold_for_quest_deletion(quest):
     try:
         creation_transaction = Transaction.objects.filter(
             quest=quest,
-            type=TransactionType.QUEST_CREATION,
+            type=TransactionType.PURCHASE,  # Changed from QUEST_CREATION to PURCHASE
             amount__lt=0  # Negative amount (deduction)
         ).first()
         
@@ -237,7 +237,7 @@ def refund_gold_for_quest_deletion(quest):
             # Create the refund transaction record
             refund_transaction = Transaction.objects.create(
                 user=user,
-                type=TransactionType.QUEST_REFUND,
+                type=TransactionType.REFUND,  # Changed from QUEST_REFUND to REFUND
                 amount=refund_amount,  # Positive for refund
                 description=f"Quest deletion refund: {quest.title}",
                 quest=quest
