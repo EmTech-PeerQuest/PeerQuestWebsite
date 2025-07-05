@@ -178,22 +178,5 @@
     "emailFrom": "noreply@peerquest.com",
     "verificationSentSuccess": "¡Correo de verificación enviado! Por favor revisa tu bandeja de entrada.",
     "verificationSentError": "Error al enviar correo de verificación."
-  },
-  "toastMessages": {
-    "pleaseLogin": "Por favor inicia sesión para enviar mensajes",
-    "pleaseLoginQuests": "Por favor inicia sesión para aplicar a misiones",
-    "alreadyApplied": "Ya has aplicado para esta misión",
-    "questEditingComingSoon": "¡Edición de misiones próximamente!",
-    "questDeletedSuccess": "Misión eliminada exitosamente",
-    "applicantApproved": "Aplicante aprobado y estado de misión actualizado",
-    "applicantRejected": "Aplicante rechazado",
-    "questCompleted": "Misión marcada como completada",
-    "workSubmitted": "Trabajo enviado exitosamente",
-    "pleaseSelectAction": "Por favor selecciona una acción",
-    "reportResolved": "Reporte resuelto con acción: {{action}}",
-    "messagingNotReady": "Sistema de mensajería no está listo",
-    "failedToLoadMessages": "Error al cargar mensajes",
-    "failedToLoadMessagingData": "Error al cargar datos de mensajería",
-    "applicationSubmitted": "¡Aplicación enviada exitosamente!"
   }
 }

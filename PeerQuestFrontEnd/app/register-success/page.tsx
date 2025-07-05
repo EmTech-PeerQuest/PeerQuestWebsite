@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 import { resendVerificationEmail } from '@/lib/api/auth';
 import { Mail, CheckCircle, RefreshCw, Home, Shield } from 'lucide-react';
 
 export default function RegisterSuccess() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [isResending, setIsResending] = useState(false);
   const [resendMessage, setResendMessage] = useState('');
@@ -27,14 +29,14 @@ export default function RegisterSuccess() {
       setIsResending(true);
       setResendMessage('');
       await resendVerificationEmail(email);
-      setResendMessage('Verification email sent! Please check your inbox.');
+      setResendMessage(t('registerSuccess.verificationSentSuccess'));
       setCanResend(false);
       // Re-enable resend after 5 minutes
       setTimeout(() => {
         setCanResend(true);
       }, 300000);
     } catch (error: any) {
-      setResendMessage(error.message || 'Failed to send verification email.');
+      setResendMessage(error.message || t('registerSuccess.verificationSentError'));
     } finally {
       setIsResending(false);
     }
@@ -48,8 +50,8 @@ export default function RegisterSuccess() {
           <div className="mx-auto mb-4 w-20 h-20 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
             <CheckCircle className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-[#2C1A1D] mb-2">Welcome to PeerQuest!</h1>
-          <p className="text-[#2C1A1D] opacity-80">Registration Successful</p>
+          <h1 className="text-2xl font-bold text-[#2C1A1D] mb-2">{t('registerSuccess.welcome')}</h1>
+          <p className="text-[#2C1A1D] opacity-80">{t('registerSuccess.registrationSuccessful')}</p>
         </div>
 
         <div className="p-8">
@@ -57,16 +59,16 @@ export default function RegisterSuccess() {
             <div className="mx-auto mb-6 w-16 h-16 bg-[#8B75AA] rounded-full flex items-center justify-center">
               <Mail className="w-8 h-8 text-white" />
             </div>
-            <h2 className="text-xl font-bold text-[#2C1A1D] mb-2">Check Your Email</h2>
+            <h2 className="text-xl font-bold text-[#2C1A1D] mb-2">{t('registerSuccess.checkYourEmail')}</h2>
             <p className="text-[#8B75AA] mb-4">
-              We've sent a verification email to <strong className="text-[#2C1A1D]">{email}</strong>
+              {t('registerSuccess.verificationSent', { email: <strong className="text-[#2C1A1D]">{email}</strong> })}
             </p>
             <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-4">
               <p className="text-sm text-[#2C1A1D] mb-2">
-                🎮 <strong>Almost there, adventurer!</strong>
+                {t('registerSuccess.almostThere')}
               </p>
               <p className="text-xs text-[#8B75AA]">
-                Click the verification link in your email to activate your quest account and enter the tavern!
+                {t('registerSuccess.clickVerification')}
               </p>
             </div>
           </div>
@@ -74,7 +76,7 @@ export default function RegisterSuccess() {
           <div className="space-y-4">
             <div className="text-center">
               <p className="text-sm text-[#8B75AA] mb-4">
-                Didn't receive the email? Check your spam folder or request a new one.
+                {t('registerSuccess.didntReceive')}
               </p>
               
               <button
@@ -87,7 +89,7 @@ export default function RegisterSuccess() {
                 ) : (
                   <Mail className="w-5 h-5 mr-2" />
                 )}
-                {isResending ? 'Sending...' : 'Resend Verification Email'}
+                {isResending ? t('registerSuccess.sending') : t('registerSuccess.resendVerification')}
               </button>
               
               {resendMessage && (
@@ -103,7 +105,7 @@ export default function RegisterSuccess() {
                 className="w-full bg-white border border-[#CDAA7D] text-[#2C1A1D] px-6 py-2 rounded-lg hover:bg-[#F4F0E6] transition-colors font-medium flex items-center justify-center"
               >
                 <Home className="w-5 h-5 mr-2" />
-                Return to Tavern
+                {t('registerSuccess.returnToTavern')}
               </button>
             </div>
           </div>
@@ -112,29 +114,29 @@ export default function RegisterSuccess() {
         {/* Footer Tips */}
         <div className="bg-[#F4F0E6] border-t border-[#CDAA7D] p-6">
           <div className="text-center">
-            <h3 className="text-sm font-bold text-[#2C1A1D] mb-3">📧 Email Tips</h3>
+            <h3 className="text-sm font-bold text-[#2C1A1D] mb-3">{t('registerSuccess.emailTips')}</h3>
             <div className="grid grid-cols-2 gap-3 text-xs text-[#8B75AA]">
               <div className="flex items-center">
                 <span className="mr-1">📥</span>
-                Check spam/junk folder
+                {t('registerSuccess.checkSpam')}
               </div>
               <div className="flex items-center">
                 <span className="mr-1">⏰</span>
-                Link expires in 24 hours
+                {t('registerSuccess.linkExpires')}
               </div>
               <div className="flex items-center">
                 <span className="mr-1">✉️</span>
-                Add us to your contacts
+                {t('registerSuccess.addContacts')}
               </div>
               <div className="flex items-center">
                 <span className="mr-1">🔄</span>
-                Each resend has new link
+                {t('registerSuccess.resendNewLink')}
               </div>
             </div>
             
             <div className="mt-4 text-xs text-[#8B75AA] border-t border-[#CDAA7D] pt-3">
-              <p>Need help? The verification email comes from: <br />
-              <strong className="text-[#2C1A1D]">noreply@peerquest.com</strong></p>
+              <p>{t('registerSuccess.needHelp')} <br />
+              <strong className="text-[#2C1A1D]">{t('registerSuccess.emailFrom')}</strong></p>
             </div>
           </div>
         </div>

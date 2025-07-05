@@ -157,5 +157,43 @@
     "githubFormat": "L'URL GitHub doit être au format: github.com/utilisateur",
     "linkedinFormat": "L'URL LinkedIn doit être au format: linkedin.com/in/utilisateur",
     "websiteFormat": "L'URL du site web doit être une adresse valide (ex. votresite.com)"
+  },
+  "registerSuccess": {
+    "welcome": "Bienvenue à PeerQuest!",
+    "registrationSuccessful": "Inscription Réussie",
+    "checkYourEmail": "Vérifiez Votre Email",
+    "verificationSent": "Nous avons envoyé un email de vérification à {{email}}",
+    "almostThere": "🎮 Vous y êtes presque, aventurier!",
+    "clickVerification": "Cliquez sur le lien de vérification dans votre email pour activer votre compte de quête et entrer dans la taverne!",
+    "didntReceive": "Vous n'avez pas reçu l'email? Vérifiez votre dossier spam ou demandez-en un nouveau.",
+    "resendVerification": "Renvoyer l'Email de Vérification",
+    "sending": "Envoi...",
+    "returnToTavern": "Retourner à la Taverne",
+    "emailTips": "📧 Conseils Email",
+    "checkSpam": "Vérifiez le dossier spam",
+    "linkExpires": "Le lien expire dans 24 heures",
+    "addContacts": "Ajoutez-nous à vos contacts",
+    "resendNewLink": "Chaque renvoi a un nouveau lien",
+    "needHelp": "Besoin d'aide? L'email de vérification vient de:",
+    "emailFrom": "noreply@peerquest.com",
+    "verificationSentSuccess": "Email de vérification envoyé! Veuillez vérifier votre boîte de réception.",
+    "verificationSentError": "Échec de l'envoi de l'email de vérification."
+  },
+  "toastMessages": {
+    "pleaseLogin": "Veuillez vous connecter pour envoyer des messages",
+    "pleaseLoginQuests": "Veuillez vous connecter pour postuler aux quêtes",
+    "alreadyApplied": "Vous avez déjà postulé pour cette quête",
+    "questEditingComingSoon": "Édition de quête bientôt disponible!",
+    "questDeletedSuccess": "Quête supprimée avec succès",
+    "applicantApproved": "Candidat approuvé et statut de quête mis à jour",
+    "applicantRejected": "Candidat rejeté",
+    "questCompleted": "Quête marquée comme terminée",
+    "workSubmitted": "Travail soumis avec succès",
+    "pleaseSelectAction": "Veuillez sélectionner une action",
+    "reportResolved": "Rapport résolu avec l'action: {{action}}",
+    "messagingNotReady": "Système de messagerie pas prêt",
+    "failedToLoadMessages": "Échec du chargement des messages",
+    "failedToLoadMessagingData": "Échec du chargement des données de messagerie",
+    "applicationSubmitted": "Candidature soumise avec succès!"
   }
 }

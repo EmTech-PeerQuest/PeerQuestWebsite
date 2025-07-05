@@ -38,6 +38,7 @@ MIDDLEWARE = [
     'users.debug_middleware.DebugMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware',  # Add locale middleware for i18n
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -99,6 +100,20 @@ TIME_ZONE = 'Asia/Manila'
 USE_I18N = True
 USE_L10N = True
 USE_TZ = True
+
+# Supported languages
+LANGUAGES = [
+    ('en', 'English'),
+    ('es', 'Español'),
+    ('fr', 'Français'),
+    ('de', 'Deutsch'),
+    ('ja', '日本語'),
+]
+
+# Locale paths for Django translations
+LOCALE_PATHS = [
+    BASE_DIR / 'locale',
+]
 
 # Static and Media
 STATIC_URL = 'static/'

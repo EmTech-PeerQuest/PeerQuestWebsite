@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { Search, Filter, ChevronDown, ChevronUp } from "lucide-react"
+import { useTranslation } from 'react-i18next'
 import type { User, Quest, Guild } from "@/lib/types"
 import { UserProfileModal } from '@/components/auth/user-profile-modal'
 import { MessagingModal } from '@/components/messaging/messaging-modal'
@@ -15,6 +16,7 @@ interface UserSearchProps {
 }
 
 export function UserSearch({ users, quests, guilds, currentUser, showToast }: UserSearchProps) {
+  const { t } = useTranslation()
   const [searchQuery, setSearchQuery] = useState("")
   const [sortField, setSortField] = useState<"username" | "level" | "quests">("level")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
@@ -71,7 +73,7 @@ export function UserSearch({ users, quests, guilds, currentUser, showToast }: Us
 
   const handleSendMessage = (user: User) => {
     if (!currentUser) {
-      showToast("Please log in to send messages", "error")
+      showToast(t('toastMessages.pleaseLogin'), "error")
       return
     }
     setMessagingUser(user)

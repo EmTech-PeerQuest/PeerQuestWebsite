@@ -157,5 +157,43 @@
     "githubFormat": "GitHub URL must be in format: github.com/username",
     "linkedinFormat": "LinkedIn URL must be in format: linkedin.com/in/username",
     "websiteFormat": "Website URL must be a valid website address (e.g., yourwebsite.com)"
+  },
+  "registerSuccess": {
+    "welcome": "Welcome to PeerQuest!",
+    "registrationSuccessful": "Registration Successful",
+    "checkYourEmail": "Check Your Email",
+    "verificationSent": "We've sent a verification email to {{email}}",
+    "almostThere": "🎮 Almost there, adventurer!",
+    "clickVerification": "Click the verification link in your email to activate your quest account and enter the tavern!",
+    "didntReceive": "Didn't receive the email? Check your spam folder or request a new one.",
+    "resendVerification": "Resend Verification Email",
+    "sending": "Sending...",
+    "returnToTavern": "Return to Tavern",
+    "emailTips": "📧 Email Tips",
+    "checkSpam": "Check spam/junk folder",
+    "linkExpires": "Link expires in 24 hours",
+    "addContacts": "Add us to your contacts",
+    "resendNewLink": "Each resend has new link",
+    "needHelp": "Need help? The verification email comes from:",
+    "emailFrom": "noreply@peerquest.com",
+    "verificationSentSuccess": "Verification email sent! Please check your inbox.",
+    "verificationSentError": "Failed to send verification email."
+  },
+  "toastMessages": {
+    "pleaseLogin": "Please log in to send messages",
+    "pleaseLoginQuests": "Please log in to apply for quests",
+    "alreadyApplied": "You have already applied for this quest",
+    "questEditingComingSoon": "Quest editing coming soon!",
+    "questDeletedSuccess": "Quest deleted successfully",
+    "applicantApproved": "Applicant approved and quest status updated",
+    "applicantRejected": "Applicant rejected",
+    "questCompleted": "Quest marked as completed",
+    "workSubmitted": "Work submitted successfully",
+    "pleaseSelectAction": "Please select an action",
+    "reportResolved": "Report resolved with action: {{action}}",
+    "messagingNotReady": "Messaging backend not ready",
+    "failedToLoadMessages": "Failed to load messages",
+    "failedToLoadMessagingData": "Failed to load messaging data",
+    "applicationSubmitted": "Application submitted successfully!"
   }
 }
