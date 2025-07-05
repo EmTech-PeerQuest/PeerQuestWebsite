@@ -1,4 +1,5 @@
 from django.db import models
+<<<<<<< HEAD
 from django.conf import settings
 
 
@@ -32,3 +33,7 @@ class GuildMembership(models.Model):
 
     def __str__(self):
         return f"{self.user.username} in {self.guild.name} as {self.role}"
+=======
+
+# Create your models here.
+>>>>>>> origin/main

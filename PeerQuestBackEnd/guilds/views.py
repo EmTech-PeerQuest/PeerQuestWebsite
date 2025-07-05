@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # filepath: PeerQuestBackEnd/guilds/views.py
 from rest_framework import generics
 from .models import Guild
@@ -15,3 +16,8 @@ from rest_framework import generics
 class GuildListView(generics.ListAPIView):
     queryset = Guild.objects.all()
     serializer_class = GuildSerializer
+=======
+from django.shortcuts import render
+
+# Create your views here.
+>>>>>>> origin/main
