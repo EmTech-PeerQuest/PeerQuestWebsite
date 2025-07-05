@@ -43,6 +43,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'users.middleware.JWTAuthMiddleware',  # <-- moved above AuthenticationMiddleware
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'users.email_verification_middleware.EmailVerificationMiddleware',  # Email verification check
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -183,3 +184,19 @@ SESSION_COOKIE_SAMESITE = "Lax"  # Use "None" if using HTTPS and cross-site
 SESSION_COOKIE_SECURE = False     # Set to True if using HTTPS
 CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SECURE = False
+
+# Email settings - Use environment variables for flexibility
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() == 'true'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
+
+# Development alternatives (uncomment one if needed):
+# EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'  # Saves emails to files
+# EMAIL_FILE_PATH = BASE_DIR / 'sent_emails'  # Directory to save emails
+# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # Shows emails in console
+
+DEFAULT_FROM_EMAIL = 'PeerQuest <noreply@peerquest.com>'
+FRONTEND_URL = 'http://localhost:3000'  # Frontend URL for verification links

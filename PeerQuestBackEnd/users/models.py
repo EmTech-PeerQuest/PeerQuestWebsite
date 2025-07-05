@@ -4,6 +4,9 @@ from django.utils.translation import gettext_lazy as _
 import uuid
 
 class User(AbstractUser):
+    # Override email to make it unique
+    email = models.EmailField(_('email address'), unique=True)
+    
     display_name = models.CharField(max_length=150, blank=True)
     birthday = models.DateField(null=True, blank=True)
     gender = models.CharField(max_length=20, blank=True)
@@ -27,6 +30,20 @@ class User(AbstractUser):
     last_login = models.DateTimeField(null=True, blank=True)
     last_seen = models.DateTimeField(null=True, blank=True)
     
+    # Email verification fields
+    email_verified = models.BooleanField(default=False)
+    email_verification_token = models.CharField(max_length=255, blank=True, null=True)
+    email_verification_sent_at = models.DateTimeField(null=True, blank=True)
+    
+    # Security settings
+    two_factor_enabled = models.BooleanField(default=False)
+    two_factor_method = models.CharField(max_length=20, default='email', blank=True)
+    backup_codes_generated = models.BooleanField(default=False)
+    last_password_change = models.DateTimeField(null=True, blank=True)
+    
+    # Spending limits
+    spending_limits = models.JSONField(default=dict, blank=True)
+    
     # OAuth fields
     google_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
     
@@ -40,6 +57,12 @@ class User(AbstractUser):
     def save(self, *args, **kwargs):
         self.level = self.calculate_level()
         super().save(*args, **kwargs)
+
+    def set_password(self, raw_password):
+        """Override set_password to update last_password_change timestamp."""
+        from django.utils import timezone
+        super().set_password(raw_password)
+        self.last_password_change = timezone.now()
 
     def calculate_level(self):
         # Implement your level calculation logic

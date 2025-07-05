@@ -42,31 +42,38 @@ export const register = async (userData: {
   email: string;
   password: string;
   confirmPassword?: string;
+  birthday?: string | null;
+  gender?: string | null;
 }) => {
   try {
-    // TEMP: Log registration props for debugging
-    console.warn("REGISTER ATTEMPT:", {
+    // Prepare payload for backend
+    const payload: any = {
       username: userData.username,
       email: userData.email,
       password: userData.password,
-      confirmPassword: userData.confirmPassword
-    });
-    // Only send username, email, and password to backend
-    const response = await axios.post(`${API_BASE}/api/users/register/`, {
-      username: userData.username,
-      email: userData.email,
-      password: userData.password,
-    });
+    };
+    
+    // Only include birthday if provided
+    if (userData.birthday) {
+      payload.birthday = userData.birthday;
+    }
+    
+    // Only include gender if provided
+    if (userData.gender) {
+      payload.gender = userData.gender;
+    }
+    
+    const response = await axios.post(`${API_BASE}/api/users/register/`, payload);
     // Only succeed if registration returns 201 Created
     if (response.status !== 201) {
-      console.warn(`Registration failed: Unexpected response status ${response.status} for username: '${userData.username}', email: '${userData.email}'.`);
       throw new Error(`Registration failed: Unexpected response status ${response.status}`);
     }
     return response;
   } catch (error: any) {
-    // Debug: log backend error response
-    if (error?.response?.data) {
+    // Only log and handle actual errors, not successful responses
+    if (error?.response?.status >= 400) {
       console.error("Registration backend error:", error.response.data);
+      
       // Prefer extracting from 'errors' key if present
       const errorData = error.response.data.errors ?? error.response.data;
       function extractMessages(val: any): string[] {
@@ -81,8 +88,55 @@ export const register = async (userData: {
         throw new Error(allMessages.join(' | '));
       }
       // Fallback: show the whole error object
-      console.warn(`Registration failed: ${JSON.stringify(error.response.data)}`);
       throw new Error(`Registration error: ${JSON.stringify(error.response.data)}`);
+    }
+    throw error;
+  }
+};
+
+// Verify email
+export const verifyEmail = async (token: string) => {
+  try {
+    const response = await axios.post(`${API_BASE}/api/users/verify-email/`, { token });
+    return response;
+  } catch (error: any) {
+    if (error?.response?.data) {
+      const errorData = error.response.data.errors ?? error.response.data;
+      function extractMessages(val: any): string[] {
+        if (!val) return [];
+        if (typeof val === 'string') return [val];
+        if (Array.isArray(val)) return val.flatMap(extractMessages);
+        if (typeof val === 'object') return Object.values(val).flatMap(extractMessages);
+        return [];
+      }
+      const allMessages = extractMessages(errorData);
+      if (allMessages.length) {
+        throw new Error(allMessages.join(' | '));
+      }
+    }
+    throw error;
+  }
+};
+
+// Resend verification email
+export const resendVerificationEmail = async (email: string) => {
+  try {
+    const response = await axios.post(`${API_BASE}/api/users/resend-verification/`, { email });
+    return response;
+  } catch (error: any) {
+    if (error?.response?.data) {
+      const errorData = error.response.data.errors ?? error.response.data;
+      function extractMessages(val: any): string[] {
+        if (!val) return [];
+        if (typeof val === 'string') return [val];
+        if (Array.isArray(val)) return val.flatMap(extractMessages);
+        if (typeof val === 'object') return Object.values(val).flatMap(extractMessages);
+        return [];
+      }
+      const allMessages = extractMessages(errorData);
+      if (allMessages.length) {
+        throw new Error(allMessages.join(' | '));
+      }
     }
     throw error;
   }
@@ -94,6 +148,9 @@ export const fetchUser = async (token: string) => {
     const response = await axios.get(`${API_BASE}/api/users/profile/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    
+    console.log('👤 fetchUser response:', response.data);
+    
     return response;
   } catch (error: any) {
     // Detect JWT errors

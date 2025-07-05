@@ -3,6 +3,7 @@
 import { useState } from "react"
 import type { User, Quest, Guild } from "@/lib/types"
 import { ChevronDown } from "lucide-react"
+import { formatJoinDate } from "@/lib/date-utils"
 
 interface ProfileProps {
   currentUser: User
@@ -105,7 +106,12 @@ export function Profile({ currentUser, quests, guilds, navigateToSection }: Prof
             {/* Join Date */}
             <div className="text-center sm:text-right">
               <div className="text-sm">Member since</div>
-              <div>{currentUser.joinDate || "Invalid Date"}</div>
+              <div>
+                {formatJoinDate(
+                  currentUser.createdAt || currentUser.dateJoined,
+                  { capitalizeFirst: true }
+                )}
+              </div>
             </div>
           </div>
         </div>

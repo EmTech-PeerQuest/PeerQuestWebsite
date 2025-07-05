@@ -3,6 +3,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useState, useEffect } from "react";
 import type { User, Quest, Guild } from "@/lib/types";
 import { ChevronDown } from "lucide-react";
+import { formatJoinDate } from "@/lib/date-utils";
 
 interface ProfileProps {
   currentUser: User;
@@ -76,7 +77,25 @@ function Profile({ currentUser, quests, guilds, navigateToSection }: ProfileProp
             {/* Join Date */}
             <div className="text-center sm:text-right">
               <div className="text-sm">Member since</div>
-              <div>{currentUser.createdAt ? new Date(currentUser.createdAt).toLocaleDateString() : "N/A"}</div>
+              <div>
+                {(() => {
+                  // Try multiple possible date field names from backend
+                  const joinDate = currentUser.createdAt || 
+                                 currentUser.dateJoined || 
+                                 (currentUser as any).date_joined ||
+                                 (currentUser as any).created_at ||
+                                 (currentUser as any).dateJoined ||
+                                 (currentUser as any).createdAt;
+                  
+                  // If we have a join date, use it
+                  if (joinDate) {
+                    return formatJoinDate(joinDate, { capitalizeFirst: true });
+                  }
+                  
+                  // Fallback: Show "Recently" instead of N/A for better UX
+                  return "Recently";
+                })()}
+              </div>
             </div>
           </div>
         </div>

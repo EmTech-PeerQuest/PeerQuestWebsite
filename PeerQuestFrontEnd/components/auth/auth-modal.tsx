@@ -13,7 +13,14 @@ interface AuthModalProps {
   setMode: (mode: "login" | "register" | "forgot") => void
   onClose: () => void
   onLogin: (credentials: { username: string; password: string }) => void
-  onRegister: (userData: { username: string; email: string; password: string; confirmPassword: string }) => void
+  onRegister: (userData: { 
+    username: string; 
+    email: string; 
+    password: string; 
+    confirmPassword: string;
+    birthday?: string | null;
+    gender?: string | null;
+  }) => void
   onForgotPassword?: (email: string) => void
 }
 
@@ -139,7 +146,14 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           password: loginForm.password,
         })
       } catch (err: any) {
-        setFormErrors({ auth: err?.message || "Login failed. Please try again." })
+        // Check if it's an email verification error
+        if (err?.response?.data?.verification_required) {
+          setFormErrors({ 
+            auth: "Please verify your email address before logging in. Check your inbox for the verification email."
+          });
+        } else {
+          setFormErrors({ auth: err?.message || "Login failed. Please try again." });
+        }
       } finally {
         setAuthLoading(false)
       }
@@ -151,11 +165,19 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
       setAuthLoading(true)
       setFormErrors({})
       try {
+        // Format birthday as YYYY-MM-DD for backend
+        let formattedBirthday = null;
+        if (registerForm.birthday.year && registerForm.birthday.month && registerForm.birthday.day) {
+          formattedBirthday = `${registerForm.birthday.year}-${registerForm.birthday.month.padStart(2, '0')}-${registerForm.birthday.day.padStart(2, '0')}`;
+        }
+        
         await onRegister({
           username: registerForm.username,
           email: registerForm.email,
           password: registerForm.password,
           confirmPassword: registerForm.confirmPassword,
+          birthday: formattedBirthday,
+          gender: registerForm.gender || null,
         })
       } catch (err: any) {
         // Robust error handling for duplicate registration
@@ -598,7 +620,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
 
                 <div>
                   <label className="block text-sm font-medium text-[#2C1A1D] mb-2">GENDER (OPTIONAL)</label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
                       className={`py-2 border ${
@@ -619,6 +641,17 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     >
                       <span className="mr-2">♀</span>
                       FEMALE
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`py-2 border ${
+                        registerForm.gender === "prefer-not-to-say" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#2C1A1D]"
+                      } rounded font-medium transition-colors flex items-center justify-center text-xs`}
+                      onClick={() => setRegisterForm((prev) => ({ ...prev, gender: "prefer-not-to-say" }))}
+                    >
+                      <span className="mr-1">🤐</span>
+                      PREFER NOT TO SAY
                     </button>
                   </div>
                 </div>

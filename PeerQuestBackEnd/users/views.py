@@ -1,8 +1,8 @@
-
-
 import traceback
 import unicodedata
 from itertools import product
+from datetime import timedelta
+from django.utils import timezone
 
 print("USERS.VIEWS.PY LOADED")
 
@@ -13,8 +13,10 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import UserProfileSerializer, RegisterSerializer, UserInfoUpdateSerializer
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth import authenticate
 from .models import User
 from .services import google_get_access_token, google_get_user_info, create_user_and_token
+from .email_utils import send_verification_email, generate_verification_token
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from django.conf import settings
@@ -142,21 +144,37 @@ class UserProfileView(APIView):
 
 
 class RegisterView(APIView):
-    """Handles user registration with user-friendly error messages."""
+    """Handles user registration with email verification."""
     permission_classes = [AllowAny]
+    
     def post(self, request):
         try:
             serializer = RegisterSerializer(data=request.data)
             if serializer.is_valid():
                 user = serializer.save()
-                return Response({
-                    "user": {
-                        "id": user.id,
-                        "username": user.username,
-                        "email": user.email,
-                        "avatar_url": user.avatar_url,
-                    }
-                }, status=status.HTTP_201_CREATED)
+                
+                # Send verification email
+                if send_verification_email(user):
+                    return Response({
+                        "message": "Registration successful! Please check your email to verify your account.",
+                        "user": {
+                            "id": user.id,
+                            "username": user.username,
+                            "email": user.email,
+                            "email_verified": user.email_verified,
+                        }
+                    }, status=status.HTTP_201_CREATED)
+                else:
+                    return Response({
+                        "message": "Registration successful, but there was an issue sending the verification email. Please try to resend it.",
+                        "user": {
+                            "id": user.id,
+                            "username": user.username,
+                            "email": user.email,
+                            "email_verified": user.email_verified,
+                        }
+                    }, status=status.HTTP_201_CREATED)
+            
             # Flatten serializer errors to a readable string list
             def extract_errors(errors):
                 if isinstance(errors, dict):
@@ -172,9 +190,148 @@ class RegisterView(APIView):
                 elif isinstance(errors, str):
                     return [errors]
                 return []
+            
             error_list = extract_errors(serializer.errors)
             if not error_list:
                 error_list = ["Registration failed. Please check your input and try again."]
             return Response({"errors": error_list}, status=status.HTTP_400_BAD_REQUEST)
+            
         except Exception as e:
             return Response({"errors": [str(e) or "An unexpected error occurred during registration."]}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class EmailVerificationView(APIView):
+    """Handles email verification via token."""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        token = request.data.get('token')
+        
+        if not token:
+            return Response({
+                "errors": ["Verification token is required."]
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Find user with this token
+            user = User.objects.get(email_verification_token=token)
+            
+            # Check if token is still valid (24 hours)
+            if user.email_verification_sent_at:
+                expiry_time = user.email_verification_sent_at + timedelta(hours=24)
+                if timezone.now() > expiry_time:
+                    return Response({
+                        "errors": ["Verification link has expired. Please request a new one."]
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Verify the user
+            user.email_verified = True
+            user.email_verification_token = None
+            user.email_verification_sent_at = None
+            user.save()
+            
+            return Response({
+                "message": "Email verified successfully! You can now log in to your account.",
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "email_verified": user.email_verified,
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            return Response({
+                "errors": ["Invalid verification token."]
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                "errors": [str(e) or "An error occurred during verification."]
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ResendVerificationView(APIView):
+    """Resend verification email."""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        email = request.data.get('email')
+        
+        if not email:
+            return Response({
+                "errors": ["Email is required."]
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(email=email.lower().strip())
+            
+            # Check if user is already verified
+            if user.email_verified:
+                return Response({
+                    "errors": ["This email address is already verified."]
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Check if we recently sent a verification email (prevent spam)
+            if user.email_verification_sent_at:
+                time_since_last = timezone.now() - user.email_verification_sent_at
+                if time_since_last < timedelta(minutes=5):
+                    return Response({
+                        "errors": ["Please wait at least 5 minutes before requesting another verification email."]
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Send new verification email
+            if send_verification_email(user):
+                return Response({
+                    "message": "Verification email sent successfully! Please check your email."
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    "errors": ["Failed to send verification email. Please try again later."]
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+        except User.DoesNotExist:
+            return Response({
+                "errors": ["No account found with this email address."]
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                "errors": [str(e) or "An error occurred while sending verification email."]
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PasswordChangeView(APIView):
+    """Handles password changes for authenticated users."""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        user = request.user
+        current_password = request.data.get('current_password')
+        new_password = request.data.get('new_password')
+        
+        if not current_password or not new_password:
+            return Response({
+                "errors": ["Current password and new password are required."]
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Verify current password
+        if not user.check_password(current_password):
+            return Response({
+                "errors": ["Current password is incorrect."]
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Validate new password
+            validate_password(new_password, user)
+            
+            # Set new password
+            user.set_password(new_password)
+            user.save()
+            
+            return Response({
+                "detail": "Password changed successfully."
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                "errors": [str(e)]
+            }, status=status.HTTP_400_BAD_REQUEST)

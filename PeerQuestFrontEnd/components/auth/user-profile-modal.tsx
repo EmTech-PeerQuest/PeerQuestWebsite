@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { X, MapPin, Calendar, Award, Users, FileText, Star, ChevronDown } from "lucide-react"
 import type { User, Quest, Guild } from "@/lib/types"
+import { formatJoinDate } from "@/lib/date-utils"
 
 interface UserProfileModalProps {
   isOpen: boolean
@@ -97,7 +98,9 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
                 {/* Join Date */}
                 <div className="flex items-center gap-2 mt-2 text-xs text-[#F4F0E6] opacity-80">
                   <Calendar size={12} />
-                  <span>Joined {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "Unknown"}</span>
+                  <span>
+                    Joined {formatJoinDate(user.createdAt || user.dateJoined)}
+                  </span>
                 </div>
               </div>
             </div>

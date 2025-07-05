@@ -4,15 +4,7 @@ import { login as apiLogin, register as apiRegister, fetchUser as fetchUserApi, 
 import { useRouter } from 'next/navigation';
 import ThemedLoading from '@/components/ui/themed-loading';
 import { toast } from '@/hooks/use-toast';
-
-interface User {
-  id: string;
-  username: string;
-  email: string;
-  avatar_url?: string;
-  avatar_data?: string;
-  avatar?: string; // Unified field for frontend use
-}
+import { User } from '@/lib/types';
 
 interface AuthContextProps {
   user: User | null;
@@ -84,6 +76,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const res = await fetchUserApi(token);
       
+      console.log('[AuthContext] Raw backend user data:', res.data);
+      
       // Transform backend user data to frontend User type
       const avatarUrl = res.data.avatar_url || res.data.avatar_data;
       let finalAvatar = undefined;
@@ -111,7 +105,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const transformedUser = {
         ...res.data,
         avatar: finalAvatar,
+        // Map backend snake_case fields to frontend camelCase
+        dateJoined: res.data.date_joined || res.data.dateJoined,
+        createdAt: res.data.created_at || res.data.createdAt || res.data.date_joined,
+        displayName: res.data.display_name || res.data.displayName,
+        lastPasswordChange: res.data.last_password_change || res.data.lastPasswordChange,
+        birthday: res.data.birthday, // Ensure birthday is included
+        gender: res.data.gender, // Ensure gender is included
+        xp: res.data.experience_points || res.data.xp || 0,
+        gold: res.data.gold_balance || res.data.gold || 0,
       };
+      
+      console.log('[AuthContext] Transformed user data:', transformedUser);
       
       setUser(transformedUser);
       localStorage.setItem('user', JSON.stringify(transformedUser));
@@ -137,18 +142,48 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const login = async (credentials: { username: string; password: string }) => {
-    const res = await apiLogin(credentials.username, credentials.password);
-    const { access } = res.data;
-    localStorage.setItem('access_token', access);
-    await loadUser(access);
+    try {
+      const res = await apiLogin(credentials.username, credentials.password);
+      const { access } = res.data;
+      localStorage.setItem('access_token', access);
+      await loadUser(access);
+    } catch (error: any) {
+      // Check if it's an email verification error
+      if (error?.response?.data?.verification_required || 
+          error?.message?.toLowerCase().includes('verify') ||
+          error?.message?.toLowerCase().includes('verification')) {
+        toast({
+          title: 'Email Verification Required',
+          description: 'Please verify your email address before logging in. Check your email for the verification link.',
+          variant: 'destructive',
+        });
+        throw new Error('Email verification required');
+      }
+      throw error;
+    }
   };
 
   const register = async (data: { username: string; email: string; password: string; confirmPassword?: string }) => {
     try {
       // Call backend registration API
-      await apiRegister(data);
-      // Only login if registration succeeds
-      await login({ username: data.username, password: data.password });
+      const response = await apiRegister(data);
+      
+      // Check if registration was successful and email verification is required
+      if (response.data.message) {
+        // Show success message about email verification
+        toast({
+          title: 'Registration Successful!',
+          description: response.data.message,
+          variant: 'default',
+        });
+        
+        // Don't auto-login since email verification is required
+        // Instead, redirect to a verification notice page
+        router.push('/register-success?email=' + encodeURIComponent(data.email));
+      } else {
+        // Old behavior for backward compatibility
+        await login({ username: data.username, password: data.password });
+      }
     } catch (err: any) {
       // Optionally show a toast or propagate error
       toast({ title: 'Registration failed', description: err?.message || 'Please try again.', variant: 'destructive' });

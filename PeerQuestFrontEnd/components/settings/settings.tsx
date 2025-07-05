@@ -14,6 +14,7 @@ import PaymentTab from "./tabs/PaymentTab"
 import SubscriptionsTab from "./tabs/SubscriptionsTab"
 import AppPermissionsTab from "./tabs/AppPermissionsTab"
 import { usePathname, useRouter } from "next/navigation"
+import { toast } from "@/hooks/use-toast"
 
 
 
@@ -130,20 +131,29 @@ export function Settings() {
     const ok = await updateUser(updated);
     if (ok) {
       // Optionally update local state/UI
-      showToast("Account settings saved successfully!");
+      toast({
+        title: "Success",
+        description: "Account settings saved successfully!",
+      });
     } else if (error) {
-      showToast(error, "error");
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      });
     }
   };
 
-  const saveSecuritySettings = () => {
+  const saveSecuritySettings = async () => {
     // In a real app, we would verify the current password
     if (securityForm.newPassword && securityForm.newPassword !== securityForm.confirmPassword) {
-      showToast("New passwords do not match", "error")
+      toast({
+        title: "Error",
+        description: "New passwords do not match",
+        variant: "destructive",
+      });
       return
-    }
-
-    updateSettings({
+    }    const updated = {
       settings: {
         ...user?.settings,
         security: {
@@ -152,9 +162,14 @@ export function Settings() {
           twoFactorMethod: securityForm.twoFactorMethod,
         },
       },
-    })
-
-    showToast("Security settings saved successfully!")
+    };
+    const ok = await updateUser(updated);
+    if (ok) {
+      toast({
+        title: "Success",
+        description: "Security settings saved successfully!",
+      });
+    }
 
     // Clear password fields
     setSecurityForm({
@@ -165,35 +180,53 @@ export function Settings() {
     })
   }
 
-  const savePrivacySettings = () => {
-    updateSettings({
+  const savePrivacySettings = async () => {
+    const updated = {
       settings: {
         ...user?.settings,
         privacy: privacyForm,
       },
-    })
-    showToast("Privacy settings saved successfully!")
+    };
+    const ok = await updateUser(updated);
+    if (ok) {
+      toast({
+        title: "Success",
+        description: "Privacy settings saved successfully!",
+      });
+    }
   }
 
-  const saveNotificationSettings = () => {
-    updateSettings({
+  const saveNotificationSettings = async () => {
+    const updated = {
       settings: {
         ...user?.settings,
         notifications: notificationsForm,
       },
-    })
-    showToast("Notification settings saved successfully!")
+    };
+    const ok = await updateUser(updated);
+    if (ok) {
+      toast({
+        title: "Success",
+        description: "Notification settings saved successfully!",
+      });
+    }
   }
 
-  const saveSpendingSettings = () => {
-    updateSettings({
+  const saveSpendingSettings = async () => {
+    const updated = {
       spendingLimits: spendingForm,
-    })
-    showToast("Spending limits updated successfully!")
+    };
+    const ok = await updateUser(updated);
+    if (ok) {
+      toast({
+        title: "Success",
+        description: "Spending limits updated successfully!",
+      });
+    }
   }
 
-  const generateBackupCodes = () => {
-    updateSettings({
+  const generateBackupCodes = async () => {
+    const updated = {
       settings: {
         ...user?.settings,
         security: {
@@ -201,12 +234,18 @@ export function Settings() {
           backupCodesGenerated: true,
         },
       },
-    })
-    showToast("Backup codes generated successfully!")
+    };
+    const ok = await updateUser(updated);
+    if (ok) {
+      toast({
+        title: "Success",
+        description: "Backup codes generated successfully!",
+      });
+    }
   }
 
-  const dailySpent = getDailySpending(user)
-  const weeklySpent = getWeeklySpending(user)
+  const dailySpent = user ? getDailySpending(user) : 0;
+  const weeklySpent = user ? getWeeklySpending(user) : 0;
 
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId as any);
@@ -218,10 +257,17 @@ export function Settings() {
     if (!window.confirm("Are you sure you want to delete your account? This action cannot be undone.")) return;
     const ok = await deleteUser();
     if (ok) {
-      showToast("Account deleted successfully.", "success");
+      toast({
+        title: "Success",
+        description: "Account deleted successfully.",
+      });
       window.location.href = "/goodbye";
     } else if (error) {
-      showToast(error, "error");
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      });
     }
   };
 
@@ -289,16 +335,14 @@ export function Settings() {
             {activeTab === "security" && (
               <SecurityTab
                 securityForm={securityForm}
-                setSecurityForm={setSecurityForm}
-                user={user}
-                showPassword={showPassword}
-                setShowPassword={setShowPassword}
-                showNewPassword={showNewPassword}
-                setShowNewPassword={setShowNewPassword}
-                showConfirmPassword={showConfirmPassword}
-                setShowConfirmPassword={setShowConfirmPassword}
-                saveSecuritySettings={saveSecuritySettings}
-                generateBackupCodes={generateBackupCodes}
+                user={user || {}}
+                showToast={() => {
+                  toast({
+                    title: "Success",
+                    description: "Security settings saved successfully!",
+                  });
+                }}
+                updateSettings={saveSecuritySettings}
               />
             )}
             {activeTab === "privacy" && (
@@ -322,7 +366,7 @@ export function Settings() {
                 saveSpendingSettings={saveSpendingSettings}
                 dailySpent={dailySpent}
                 weeklySpent={weeklySpent}
-                user={user}
+                user={user || undefined}
               />
             )}
             {activeTab === "payment" && (

@@ -26,7 +26,13 @@ def get_user_from_token(request):
 
 def is_public_path(path):
     # Allow all variations of the callback and register endpoints (with or without trailing slash)
-    return path.rstrip('/').startswith('/api/google-login-callback') or path.rstrip('/').startswith('/api/users/register')
+    public_paths = [
+        '/api/google-login-callback',
+        '/api/users/register',
+        '/api/users/verify-email',
+        '/api/users/resend-verification',
+    ]
+    return any(path.rstrip('/').startswith(p) for p in public_paths)
 
 class JWTAuthMiddleware:
     def __init__(self, get_response):

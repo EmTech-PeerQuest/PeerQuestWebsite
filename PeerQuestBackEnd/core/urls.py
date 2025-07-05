@@ -38,6 +38,7 @@ urlpatterns = [
 
     # Users app
     path('api/users/', include('users.urls')),
+    
     # Direct Google login callback for /api/google-login-callback/
     path('api/google-login-callback/', GoogleLoginCallbackView.as_view(), name='google-login-callback'),
     # Quests and Guilds APIs

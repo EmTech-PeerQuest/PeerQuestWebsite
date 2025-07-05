@@ -25,6 +25,7 @@ export async function fetchUserInfo() {
       },
     });
     const data = res.data;
+    
     return {
       displayName: data.display_name || "",
       username: data.username || "",
@@ -140,7 +141,13 @@ export default function AccountTab({
     (async () => {
       try {
         const info = await fetchUserInfo();
-        setAccountForm((prev: any) => ({ ...prev, ...info }));
+        setAccountForm((prev: any) => ({ 
+          ...prev, 
+          ...info,
+          // Ensure birthday and gender are properly set
+          birthday: info.birthday || prev.birthday || "",
+          gender: info.gender || prev.gender || ""
+        }));
       } catch (e) {
         console.error('[AccountTab] Failed to fetch user info:', e);
       }
@@ -301,7 +308,9 @@ export default function AccountTab({
     try {
       await deleteUserAccount();
       alert(t('accountTab.deleteSuccess'));
-      // Do not redirect, just stay on the page
+      // Clear local storage and refresh the page
+      localStorage.clear();
+      window.location.reload();
     } catch (err: any) {
       alert(err);
     } finally {
@@ -406,18 +415,21 @@ export default function AccountTab({
                     }
                     // If it's an ISO string, extract date part
                     if (val.includes('T')) {
-                      return val.split('T')[0];
+                      const dateOnly = val.split('T')[0];
+                      return dateOnly;
                     }
                     // Try to parse other date formats
                     const date = new Date(val);
                     if (!isNaN(date.getTime())) {
-                      return date.toISOString().split('T')[0];
+                      const isoDate = date.toISOString().split('T')[0];
+                      return isoDate;
                     }
                   }
                   
                   // Handle Date objects
                   if (val instanceof Date && !isNaN(val.getTime())) {
-                    return val.toISOString().split('T')[0];
+                    const isoDate = val.toISOString().split('T')[0];
+                    return isoDate;
                   }
                   
                   return "";
@@ -430,7 +442,7 @@ export default function AccountTab({
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">{t('accountTab.gender')}</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <button
                   type="button"
                   className={`py-2 px-4 border ${accountForm.gender === "male" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded font-medium transition-colors flex items-center justify-center text-sm`}
@@ -444,6 +456,13 @@ export default function AccountTab({
                   onClick={() => setAccountForm((prev: any) => ({ ...prev, gender: "female" }))}
                 >
                   <span className="mr-2">♀</span>{t('accountTab.female')}
+                </button>
+                <button
+                  type="button"
+                  className={`py-2 px-4 border ${accountForm.gender === "prefer-not-to-say" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded font-medium transition-colors flex items-center justify-center text-sm`}
+                  onClick={() => setAccountForm((prev: any) => ({ ...prev, gender: "prefer-not-to-say" }))}
+                >
+                  <span className="mr-2">🤐</span>Prefer not to say
                 </button>
               </div>
             </div>
