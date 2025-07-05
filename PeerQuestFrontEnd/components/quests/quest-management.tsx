@@ -22,8 +22,9 @@ import {
 } from "lucide-react"
 import type { Quest, User as UserType, Application } from "@/lib/types"
 import { QuestAPI } from "@/lib/api/quests"
-import { getApplicationsToMyQuests, getMyApplications, approveApplication, rejectApplication } from "@/lib/api/applications"
+import { getApplicationsToMyQuests, getMyApplications, approveApplication, rejectApplication, removeApplication } from "@/lib/api/applications"
 import { QuestDetailsModal } from "./quest-details-modal"
+import QuestSubmitWorkModal from "./quest-submit-work-modal"
 import QuestForm from "./quest-form"
 import { QuestManagementApplicationsModal } from "@/components/modals/quest-management-applications-modal"
 
@@ -40,6 +41,9 @@ export function QuestManagement({
   setQuests,
   showToast,
 }: QuestManagementProps) {
+  // State for quest submission modal
+  const [showSubmitWorkModal, setShowSubmitWorkModal] = useState(false)
+  const [submitWorkQuest, setSubmitWorkQuest] = useState<Quest | null>(null)
   const [activeTab, setActiveTab] = useState<"created" | "participating">("created")
   const [searchQuery, setSearchQuery] = useState("")
   const [sortField, setSortField] = useState<"created_at" | "due_date" | "xp_reward">("created_at")
@@ -57,6 +61,30 @@ export function QuestManagement({
   const [questApplications, setQuestApplications] = useState<{ [questId: number]: Application[] }>({})
   const [loadingApplications, setLoadingApplications] = useState<{ [questId: number]: boolean }>({})
   const [processingApplications, setProcessingApplications] = useState<Set<number>>(new Set())
+  const [removalTarget, setRemovalTarget] = useState<number | null>(null);
+  const [removalReason, setRemovalReason] = useState<string>("");
+  // Remove/Kick applicant handler for quest details
+  const handleRemoveApplicant = async (applicationId: number, questId: number) => {
+    setProcessingApplications((prev) => new Set(prev).add(applicationId));
+    try {
+      let reason = removalReason;
+      if (removalTarget !== applicationId) reason = "";
+      await removeApplication(applicationId, reason);
+      setRemovalReason("");
+      setRemovalTarget(null);
+      await loadQuestApplications(questId);
+      await loadMyQuests();
+      showToast("Applicant removed successfully", "success");
+    } catch (err) {
+      showToast('Failed to remove applicant', 'error');
+    } finally {
+      setProcessingApplications((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(applicationId);
+        return newSet;
+      });
+    }
+  };
   const [userApplications, setUserApplications] = useState<Application[]>([])
 
   // Load user's quests on component mount and when currentUser changes
@@ -359,18 +387,23 @@ export function QuestManagement({
     )
   }
 
-  const getDifficultyBadge = (difficulty: string) => {
-    const difficultyClasses = {
-      easy: "bg-emerald-100 text-emerald-800",
-      medium: "bg-amber-100 text-amber-800",
-      hard: "bg-red-100 text-red-800"
-    }
-    
+  const getTierBadge = (difficulty: string) => {
+    const tierMap: Record<string, { label: string; color: string; icon: string }> = {
+      easy: { label: "Initiate Tier", color: "bg-green-200 text-green-900", icon: "📜" },
+      initiate: { label: "Initiate Tier", color: "bg-green-200 text-green-900", icon: "📜" },
+      medium: { label: "Adventurer Tier", color: "bg-amber-200 text-amber-900", icon: "🧭" },
+      adventurer: { label: "Adventurer Tier", color: "bg-amber-200 text-amber-900", icon: "🧭" },
+      hard: { label: "Champion Tier", color: "bg-red-200 text-red-900", icon: "⚔️" },
+      champion: { label: "Champion Tier", color: "bg-red-200 text-red-900", icon: "⚔️" },
+      mythic: { label: "Mythic Tier", color: "bg-violet-200 text-violet-900", icon: "👑" },
+    };
+    const tier = tierMap[difficulty.toLowerCase()] || { label: "Unknown Tier", color: "bg-gray-100 text-gray-800", icon: "?" };
     return (
-      <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${difficultyClasses[difficulty as keyof typeof difficultyClasses] || 'bg-gray-100 text-gray-800'}`}>
-        {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
+      <span className={`inline-flex px-2 py-1 rounded-full text-xs font-bold items-center gap-1 ${tier.color}`}>
+        <span>{tier.icon}</span>
+        {tier.label}
       </span>
-    )
+    );
   }
 
   const getStatusColor = (status: string) => {
@@ -401,9 +434,14 @@ export function QuestManagement({
     }
   }
 
-  const handleCompleteQuest = (questId: number) => {
-    onQuestStatusChange(questId, "completed")
-    showToast("Quest marked as completed", "success")
+  const handleCompleteQuest = async (questSlug: string) => {
+    try {
+      await QuestAPI.updateQuestStatus(questSlug, "completed");
+      await loadMyQuests();
+      showToast("Quest marked as completed", "success");
+    } catch (error) {
+      showToast("Failed to mark quest as completed", "error");
+    }
   }
 
   // Check if a quest can be deleted
@@ -659,7 +697,24 @@ export function QuestManagement({
                         <>
                           <button
                             onClick={() => handleEditQuest(quest)}
-                            className="flex items-center gap-2 px-4 py-2 bg-[#8B75AA] text-white rounded-xl hover:bg-[#7A6699] transition-colors"
+                            disabled={
+                              // Disable if any application is approved or any participant exists
+                              (questApplications[quest.id] && questApplications[quest.id].some(app => app.status === 'approved')) ||
+                              (quest.participants_detail && quest.participants_detail.length > 0)
+                            }
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${
+                              ((questApplications[quest.id] && questApplications[quest.id].some(app => app.status === 'approved')) ||
+                                (quest.participants_detail && quest.participants_detail.length > 0))
+                                ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                                : 'bg-[#8B75AA] text-white hover:bg-[#7A6699]'
+                            }`}
+                            title={
+                              (questApplications[quest.id] && questApplications[quest.id].some(app => app.status === 'approved'))
+                                ? 'Cannot edit a quest after accepting an applicant'
+                                : (quest.participants_detail && quest.participants_detail.length > 0)
+                                ? 'Cannot edit a quest with participants'
+                                : 'Edit this quest'
+                            }
                           >
                             <Edit size={16} />
                             <span className="hidden sm:inline">Edit</span>
@@ -713,7 +768,7 @@ export function QuestManagement({
                           </h4>
                           {quest.status === "in-progress" && (
                             <button
-                              onClick={() => handleCompleteQuest(quest.id)}
+                              onClick={() => handleCompleteQuest(quest.slug)}
                               className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors"
                             >
                               <CheckCircle size={16} />
@@ -817,6 +872,43 @@ export function QuestManagement({
                                   </div>
                                 )}
 
+                                {/* Kick/Remove button for approved or pending applicants */}
+                                {(application.status === 'approved' || application.status === 'pending') && (
+                                  <div className="flex gap-2 items-center mt-2">
+                                    {removalTarget === application.id ? (
+                                      <>
+                                        <input
+                                          type="text"
+                                          className="px-2 py-1 border rounded text-sm flex-1"
+                                          placeholder="Reason (optional)"
+                                          value={removalReason}
+                                          onChange={e => setRemovalReason(e.target.value)}
+                                          autoFocus
+                                        />
+                                        <button
+                                          onClick={() => handleRemoveApplicant(application.id, quest.id)}
+                                          disabled={processingApplications.has(application.id)}
+                                          className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-semibold disabled:opacity-50"
+                                        >
+                                          {processingApplications.has(application.id) ? 'Removing...' : 'Confirm'}
+                                        </button>
+                                        <button
+                                          onClick={() => { setRemovalTarget(null); setRemovalReason(""); }}
+                                          className="px-2 py-1 text-xs text-gray-500 hover:text-gray-800"
+                                        >Cancel</button>
+                                      </>
+                                    ) : (
+                                      <button
+                                        onClick={() => { setRemovalTarget(application.id); setRemovalReason(""); }}
+                                        disabled={processingApplications.has(application.id)}
+                                        className="px-4 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 text-xs font-semibold disabled:opacity-50"
+                                      >
+                                        Kick/Remove
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+
                                 {/* Show review information for processed applications */}
                                 {application.status !== 'pending' && application.reviewed_at && (
                                   <div className="pt-4 border-t border-gray-100">
@@ -917,17 +1009,56 @@ export function QuestManagement({
                           })()}
                         </div>
 
-                        {quest.status === "in-progress" && (
-                          <button
-                            onClick={() => {
-                              showToast("Work submitted successfully", "success")
-                            }}
-                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#8B75AA] text-white rounded-xl hover:bg-[#7A6699] transition-colors font-semibold"
-                          >
-                            <CheckCircle size={20} />
-                            <span>Submit Completed Work</span>
-                          </button>
-                        )}
+                        {quest.status === "in-progress" && (() => {
+                          // Find participant record for current user
+                          const myParticipant = quest.participants_detail?.find(
+                            (p: any) => String(p.user.id) === String(currentUser.id)
+                          );
+                          // Also allow if user has an approved application
+                          const hasApprovedApp = userApplications.some(
+                            (app) => app.quest.id === quest.id && app.status === "approved"
+                          );
+                          return myParticipant || hasApprovedApp ? (
+                            <button
+                              onClick={() => {
+                                setSubmitWorkQuest(quest);
+                                setShowSubmitWorkModal(true);
+                              }}
+                              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#8B75AA] text-white rounded-xl hover:bg-[#7A6699] transition-colors font-semibold"
+                            >
+                              <CheckCircle size={20} />
+                              <span>Submit Completed Work</span>
+                            </button>
+                          ) : null;
+                        })()}
+      {/* Quest Submit Work Modal */}
+      {showSubmitWorkModal && submitWorkQuest && (() => {
+        // Find participant record for current user
+        const myParticipant = submitWorkQuest.participants_detail?.find(
+          (p: any) => String(p.user.id) === String(currentUser.id)
+        );
+        // Find approved application for this quest
+        const myApprovedApp = userApplications.find(
+          (app) => app.quest.id === submitWorkQuest.id && app.status === "approved"
+        );
+        if (!myParticipant && !myApprovedApp) return null;
+        return (
+          <QuestSubmitWorkModal
+            isOpen={showSubmitWorkModal}
+            onClose={() => setShowSubmitWorkModal(false)}
+            onSuccess={async () => {
+              setShowSubmitWorkModal(false);
+              showToast("Work submitted successfully!", "success");
+              await loadMyQuests();
+            }}
+            questParticipantId={myParticipant ? myParticipant.id : undefined}
+            applicationId={myApprovedApp ? myApprovedApp.id : undefined}
+            questTitle={submitWorkQuest.title}
+            questSlug={submitWorkQuest.slug}
+            showToast={showToast}
+          />
+        );
+      })()}
                       </div>
                     )}
                   </div>

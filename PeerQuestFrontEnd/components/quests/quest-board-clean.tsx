@@ -183,16 +183,22 @@ export function QuestBoard({
     }))
   }
 
-  const getDifficultyColor = (difficulty: string) => {
+  // Fantasy Tier System
+  const getTierColor = (difficulty: string) => {
     switch (difficulty.toLowerCase()) {
       case "easy":
-        return "bg-gradient-to-r from-green-500 to-green-600 text-white"
+      case "initiate":
+        return "bg-green-200 text-green-900 border-green-300";
       case "medium":
-        return "bg-gradient-to-r from-yellow-400 to-orange-500 text-white"
+      case "adventurer":
+        return "bg-amber-200 text-amber-900 border-amber-300";
       case "hard":
-        return "bg-gradient-to-r from-red-500 to-red-600 text-white"
+      case "champion":
+        return "bg-red-200 text-red-900 border-red-300";
+      case "mythic":
+        return "bg-violet-200 text-violet-900 border-violet-300";
       default:
-        return "bg-gray-500 text-white"
+        return "bg-gray-300 text-gray-700 border-gray-400";
     }
   }
 
@@ -284,9 +290,10 @@ export function QuestBoard({
                 className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-sm text-gray-900"
               >
                 <option value="">All Difficulties</option>
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
+                <option value="initiate">Initiate Tier</option>
+                <option value="adventurer">Adventurer Tier</option>
+                <option value="champion">Champion Tier</option>
+                <option value="mythic">Mythic Tier</option>
               </select>
             </div>
 

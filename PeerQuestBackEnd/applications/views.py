@@ -8,6 +8,16 @@ from django.shortcuts import get_object_or_404
 import logging
 
 logger = logging.getLogger(__name__)
+from rest_framework import generics, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.viewsets import ModelViewSet
+from django.utils import timezone
+from django.shortcuts import get_object_or_404
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .models import Application
 from .serializers import (
@@ -18,6 +28,24 @@ from .serializers import (
 
 
 class ApplicationViewSet(ModelViewSet):
+    @action(detail=True, methods=['post'])
+    def remove(self, request, pk=None):
+        """Remove (kick) an applicant from a quest (quest owner only). Optionally provide a reason."""
+        application = get_object_or_404(Application, pk=pk)
+        # Only quest creator can remove
+        if application.quest.creator != request.user:
+            return Response({'error': 'You can only remove applicants from your own quests.'}, status=status.HTTP_403_FORBIDDEN)
+        # Only allow removing pending or approved applicants
+        if application.status not in ['pending', 'approved']:
+            return Response({'error': 'Only pending or approved applicants can be removed.'}, status=status.HTTP_400_BAD_REQUEST)
+        reason = request.data.get('reason', '')
+        # Mark as rejected and log reason
+        application.status = 'rejected'
+        application.reviewed_by = request.user
+        application.reviewed_at = timezone.now()
+        application.save()
+        logger.info(f"Applicant {application.applicant.username} removed from quest '{application.quest.title}' by {request.user.username}. Reason: {reason}")
+        return Response({'message': 'Applicant removed successfully.', 'reason': reason})
     """ViewSet for managing applications"""
     permission_classes = [IsAuthenticated]
     

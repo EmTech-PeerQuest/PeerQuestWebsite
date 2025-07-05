@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import QuestSubmitWorkModal from "./quest-submit-work-modal"
 import { X, CircleDollarSign, Star, Clock, Palette, Code, PenTool, Users, CheckCircle, Trash2 } from "lucide-react"
 import type { Quest, User, Application } from "@/lib/types"
 import { formatTimeRemaining, getDifficultyClass } from "@/lib/utils"
@@ -36,6 +37,7 @@ export function QuestDetailsModal({
   const [isLoadingApplications, setIsLoadingApplications] = useState(false)
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showSubmitWorkModal, setShowSubmitWorkModal] = useState(false)
 
   // Check if user has already applied for this quest (only pending applications)
   const hasAlreadyApplied = quest ? userApplications.some(app => 
@@ -78,6 +80,11 @@ export function QuestDetailsModal({
   }
 
   if (!isOpen || !quest) return null
+
+  // Find the participant record for the current user
+  const myParticipant = quest.participants_detail?.find(
+    (p) => p.user.id === currentUser?.id
+  )
 
   // Debug logging for quest details
   console.log('👁️ Quest Details Modal - Quest data:', {
@@ -297,6 +304,15 @@ export function QuestDetailsModal({
                     : "You are currently participating in this quest."
                   }
                 </p>
+                {/* Submit Completed Work Button */}
+                {myParticipant && (
+                  <button
+                    className="mt-4 px-5 py-2 bg-gradient-to-r from-purple-500 to-amber-500 text-white rounded-lg font-semibold shadow hover:from-purple-600 hover:to-amber-600 transition-colors"
+                    onClick={() => setShowSubmitWorkModal(true)}
+                  >
+                    Submit Completed Work
+                  </button>
+                )}
               </div>
             )}
 
@@ -408,6 +424,21 @@ export function QuestDetailsModal({
           </div>
         </div>
       </div>
+
+      {/* Quest Submit Work Modal */}
+      {showSubmitWorkModal && myParticipant && (
+        <QuestSubmitWorkModal
+          isOpen={showSubmitWorkModal}
+          onClose={() => setShowSubmitWorkModal(false)}
+          onSuccess={() => {
+            setShowSubmitWorkModal(false);
+            showToast("Work submitted successfully!", "success");
+            if (onQuestUpdate) onQuestUpdate();
+          }}
+          questParticipantId={myParticipant.id}
+          questTitle={quest.title}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirmation && (

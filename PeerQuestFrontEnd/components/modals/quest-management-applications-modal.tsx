@@ -1,10 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { X, ScrollText, Users, CheckCircle, XCircle, Clock, Star, CircleDollarSign, Calendar, User } from "lucide-react"
-import type { Application, User as UserType } from "@/lib/types"
-import { getDifficultyClass } from "@/lib/utils"
-import { getMyApplications, getApplicationsToMyQuests, approveApplication, rejectApplication } from "@/lib/api/applications"
+import { useState, useEffect } from "react";
+import { getApplicationsToMyQuests, approveApplication, rejectApplication, removeApplication } from "@/lib/api/applications";
+import { X, ScrollText, Users, CheckCircle, XCircle, Clock, Star, CircleDollarSign, Calendar, User } from "lucide-react";
+import type { Application, User as UserType } from "@/lib/types";
+import { getDifficultyClass } from "@/lib/utils";
+
+
 
 interface QuestManagementApplicationsModalProps {
   isOpen: boolean
@@ -25,6 +27,31 @@ export function QuestManagementApplicationsModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [processingApplications, setProcessingApplications] = useState<Set<number>>(new Set())
+  const [removalReason, setRemovalReason] = useState<string>("");
+  const [removalTarget, setRemovalTarget] = useState<number | null>(null);
+
+  // Remove/Kick applicant handler
+  const handleRemoveApplicant = async (applicationId: number) => {
+    setProcessingApplications((prev) => new Set(prev).add(applicationId));
+    setError(null);
+    try {
+      let reason = removalReason;
+      if (removalTarget !== applicationId) reason = "";
+      await removeApplication(applicationId, reason);
+      setRemovalReason("");
+      setRemovalTarget(null);
+      await loadApplications();
+      if (onApplicationProcessed) await onApplicationProcessed();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove applicant');
+    } finally {
+      setProcessingApplications((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(applicationId);
+        return newSet;
+      });
+    }
+  };
 
   useEffect(() => {
     if (isOpen && currentUser) {
@@ -290,33 +317,71 @@ export function QuestManagementApplicationsModal({
                         </div>
                       </div>
 
-                      {/* Action Buttons - Only show for pending applications */}
-                      {application.status === 'pending' && (
-                        <div className="flex gap-3">
-                          <button
-                            onClick={() => handleApproveApplicant(application.id)}
-                            disabled={processingApplications.has(application.id)}
-                            className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          >
-                            {processingApplications.has(application.id) ? (
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      {/* Action Buttons - Show for pending or approved applications */}
+                      {(application.status === 'pending' || application.status === 'approved') && (
+                        <div className="flex flex-col gap-2 min-w-[160px]">
+                          {application.status === 'pending' && (
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleApproveApplicant(application.id)}
+                                disabled={processingApplications.has(application.id)}
+                                className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                {processingApplications.has(application.id) ? (
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <CheckCircle size={16} />
+                                )}
+                                <span>Approve</span>
+                              </button>
+                              <button
+                                onClick={() => handleRejectApplicant(application.id)}
+                                disabled={processingApplications.has(application.id)}
+                                className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                {processingApplications.has(application.id) ? (
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <XCircle size={16} />
+                                )}
+                                <span>Reject</span>
+                              </button>
+                            </div>
+                          )}
+                          {/* Remove/Kick button for both pending and approved */}
+                          <div className="flex gap-2 items-center mt-1">
+                            {removalTarget === application.id ? (
+                              <>
+                                <input
+                                  type="text"
+                                  className="px-2 py-1 border rounded text-sm flex-1"
+                                  placeholder="Reason (optional)"
+                                  value={removalReason}
+                                  onChange={e => setRemovalReason(e.target.value)}
+                                  autoFocus
+                                />
+                                <button
+                                  onClick={() => handleRemoveApplicant(application.id)}
+                                  disabled={processingApplications.has(application.id)}
+                                  className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-semibold disabled:opacity-50"
+                                >
+                                  {processingApplications.has(application.id) ? 'Removing...' : 'Confirm'}
+                                </button>
+                                <button
+                                  onClick={() => { setRemovalTarget(null); setRemovalReason(""); }}
+                                  className="px-2 py-1 text-xs text-gray-500 hover:text-gray-800"
+                                >Cancel</button>
+                              </>
                             ) : (
-                              <CheckCircle size={16} />
+                              <button
+                                onClick={() => { setRemovalTarget(application.id); setRemovalReason(""); }}
+                                disabled={processingApplications.has(application.id)}
+                                className="px-4 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 text-xs font-semibold disabled:opacity-50"
+                              >
+                                Kick/Remove
+                              </button>
                             )}
-                            <span>Approve</span>
-                          </button>
-                          <button
-                            onClick={() => handleRejectApplicant(application.id)}
-                            disabled={processingApplications.has(application.id)}
-                            className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          >
-                            {processingApplications.has(application.id) ? (
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <XCircle size={16} />
-                            )}
-                            <span>Reject</span>
-                          </button>
+                          </div>
                         </div>
                       )}
                     </div>

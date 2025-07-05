@@ -1,4 +1,6 @@
+
 import { Quest } from '@/lib/types'
+import { fetchWithAuth } from '@/lib/auth'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
@@ -7,7 +9,6 @@ const getAuthHeaders = () => {
   const headers: { [key: string]: string } = {
     'Content-Type': 'application/json',
   }
-  
   // Add authentication token if available
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('access_token')
@@ -15,11 +16,9 @@ const getAuthHeaders = () => {
       headers['Authorization'] = `Bearer ${token}`
     }
   }
-  
   return headers
 }
 
-// Types for API responses
 export interface QuestListResponse {
   results?: Quest[]
   value?: Quest[]
@@ -73,11 +72,12 @@ export interface QuestFilters {
   available_only?: boolean
 }
 
+export type DifficultyTier = 'initiate' | 'adventurer' | 'champion' | 'mythic';
 export interface CreateQuestData {
   title: string
   description: string
   category: number
-  difficulty: 'easy' | 'medium' | 'hard'
+  difficulty: DifficultyTier
   due_date?: string
   requirements?: string
   resources?: string
@@ -91,6 +91,86 @@ export interface UpdateQuestData extends Partial<CreateQuestData> {
 // Quest API Service
 export const QuestAPI = {
   // Quest CRUD operations
+  // Duplicate getQuests removed
+
+  /**
+   * Submit completed work for a quest (adventurer submission)
+   * @param params Object containing questParticipantId, submissionText, submissionLink, files
+   */
+  async submitQuestWork(params: {
+    questSlug: string;
+    questParticipantId?: number;
+    applicationId?: number;
+    submissionText: string;
+    submissionLink?: string;
+    files?: File[];
+  }): Promise<QuestSubmission> {
+    const { questSlug, questParticipantId, applicationId, submissionText, submissionLink, files = [] } = params;
+    const formData = new FormData();
+    if (questParticipantId) {
+      formData.append("quest_participant", String(questParticipantId));
+    }
+    if (applicationId) {
+      formData.append("application", String(applicationId));
+    }
+    // Combine text and link if link is provided
+    let text = submissionText;
+    if (submissionLink) {
+      text = text ? text + "\nLink: " + submissionLink : submissionLink;
+    }
+    formData.append("submission_text", text);
+    files.forEach((file) => formData.append("files", file));
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    const response = await fetchWithAuth(
+      `${API_BASE_URL}/quests/quests/${questSlug}/submissions/`,
+      {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      }
+    );
+    if (!response.ok) {
+      let errorMsg = "Failed to submit work.";
+      let errorObj: any = {};
+      try {
+        // Try to parse JSON error
+        const err = await response.json();
+        // If the error object is empty, set a user-friendly message
+        if (err && Object.keys(err).length === 0) {
+          errorMsg = "Submission failed. The server did not return details. Please check your files and try again, or contact support if the problem persists.";
+          errorObj = { detail: errorMsg };
+        } else {
+          errorMsg = err?.detail || errorMsg;
+          errorObj = err;
+        }
+      } catch (jsonErr) {
+        // If not JSON, try to get text
+        try {
+          const text = await response.text();
+          if (text && text.trim().length > 0) {
+            errorMsg = text;
+            errorObj = { detail: text };
+          } else {
+            errorMsg = "Submission failed. The server did not return details. Please check your files and try again, or contact support if the problem persists.";
+            errorObj = { detail: errorMsg };
+          }
+        } catch {
+          errorMsg = "Submission failed due to an unknown error. Please try again or contact support.";
+          errorObj = { detail: errorMsg };
+        }
+      }
+      // Log full backend error for debugging
+      // eslint-disable-next-line no-console
+      console.error("Backend submission error:", errorObj);
+      // Throw the full error object for the modal to handle
+      const error = new Error(errorMsg);
+      (error as any).backend = errorObj;
+      throw error;
+    }
+    return response.json();
+  },
+  // Quest CRUD operations
   async getQuests(filters: QuestFilters = {}): Promise<QuestListResponse> {
     const searchParams = new URLSearchParams()
     
@@ -100,7 +180,7 @@ export const QuestAPI = {
       }
     })
 
-    const response = await fetch(
+    const response = await fetchWithAuth(
       `${API_BASE_URL}/quests/quests/?${searchParams}`,
       {
         headers: getAuthHeaders(),
@@ -115,7 +195,7 @@ export const QuestAPI = {
   },
 
   async getQuest(slug: string): Promise<Quest> {
-    const response = await fetch(`${API_BASE_URL}/quests/quests/${slug}/`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/${slug}/`, {
       headers: getAuthHeaders(),
     })
 
@@ -127,7 +207,7 @@ export const QuestAPI = {
   },
 
   async createQuest(questData: CreateQuestData): Promise<Quest> {
-    const response = await fetch(`${API_BASE_URL}/quests/quests/`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(questData),
@@ -142,7 +222,7 @@ export const QuestAPI = {
   },
 
   async updateQuest(slug: string, questData: UpdateQuestData): Promise<Quest> {
-    const response = await fetch(`${API_BASE_URL}/quests/quests/${slug}/`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/${slug}/`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
       body: JSON.stringify(questData),
@@ -157,7 +237,7 @@ export const QuestAPI = {
   },
 
   async deleteQuest(slug: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/quests/quests/${slug}/`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/${slug}/`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     })
@@ -180,7 +260,7 @@ export const QuestAPI = {
 
   // Quest participation
   async joinQuest(slug: string): Promise<{ message: string }> {
-    const response = await fetch(`${API_BASE_URL}/quests/quests/${slug}/join_quest/`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/${slug}/join_quest/`, {
       method: 'POST',
       headers: getAuthHeaders(),
     })
@@ -194,7 +274,7 @@ export const QuestAPI = {
   },
 
   async leaveQuest(slug: string): Promise<{ message: string }> {
-    const response = await fetch(`${API_BASE_URL}/quests/quests/${slug}/leave_quest/`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/${slug}/leave_quest/`, {
       method: 'POST',
       headers: getAuthHeaders(),
     })
@@ -209,7 +289,7 @@ export const QuestAPI = {
 
   // User's quests
   async getMyQuests(type: 'all' | 'created' | 'participating' = 'all'): Promise<Quest[]> {
-    const response = await fetch(`${API_BASE_URL}/quests/quests/my_quests/?type=${type}`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/my_quests/?type=${type}`, {
       headers: getAuthHeaders(),
     })
 
@@ -238,7 +318,7 @@ export const QuestAPI = {
   },
 
   async createCategory(categoryData: { name: string; description?: string }): Promise<QuestCategory> {
-    const response = await fetch(`${API_BASE_URL}/quests/categories/`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/categories/`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(categoryData),
@@ -254,7 +334,7 @@ export const QuestAPI = {
 
   // Quest participants
   async getQuestParticipants(slug: string): Promise<QuestParticipant[]> {
-    const response = await fetch(`${API_BASE_URL}/quests/quests/${slug}/participants/`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/${slug}/participants/`, {
       headers: getAuthHeaders(),
     })
 
@@ -267,7 +347,7 @@ export const QuestAPI = {
 
   // Quest submissions
   async getQuestSubmissions(slug: string): Promise<QuestSubmission[]> {
-    const response = await fetch(`${API_BASE_URL}/quests/quests/${slug}/submissions/`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/${slug}/submissions/`, {
       headers: getAuthHeaders(),
     })
 
@@ -282,7 +362,7 @@ export const QuestAPI = {
     slug: string,
     submissionData: { quest_participant: number; submission_text: string; submission_files?: string[] }
   ): Promise<QuestSubmission> {
-    const response = await fetch(`${API_BASE_URL}/quests/quests/${slug}/submissions/`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/${slug}/submissions/`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(submissionData),
@@ -300,7 +380,7 @@ export const QuestAPI = {
     submissionId: number,
     reviewData: { status: 'approved' | 'rejected' | 'needs_revision'; feedback: string }
   ): Promise<QuestSubmission> {
-    const response = await fetch(`${API_BASE_URL}/quests/submissions/${submissionId}/review/`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/submissions/${submissionId}/review/`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
       body: JSON.stringify(reviewData),
@@ -326,7 +406,7 @@ export const QuestAPI = {
       }
     })
 
-    const response = await fetch(`${API_BASE_URL}/quests/search/?${params}`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/search/?${params}`, {
       headers: getAuthHeaders(),
     })
 
@@ -344,7 +424,7 @@ export const QuestAPI = {
     completed_quests: number
     total_xp_earned: number
   }> {
-    const response = await fetch(`${API_BASE_URL}/quests/stats/`, {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/stats/`, {
       headers: getAuthHeaders(),
     })
 
@@ -353,5 +433,21 @@ export const QuestAPI = {
     }
 
     return response.json()
+  },
+
+  /**
+   * Update quest status by quest ID
+   */
+  async updateQuestStatus(questSlug: string, status: 'open' | 'in-progress' | 'completed'): Promise<Quest> {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/${questSlug}/`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ status }),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Failed to update quest status: ${error.detail || response.statusText}`);
+    }
+    return response.json();
   },
 }

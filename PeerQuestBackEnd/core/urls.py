@@ -40,6 +40,7 @@ urlpatterns = [
     # Quests and Guilds APIs
     path('api/quests/', include('quests.urls')),
     path('api/guilds/', include('guilds.urls')),
+    path('api/guild-applications/', include('guilds.guild_application_urls')),
     # Applications API
     path('api/', include('applications.urls')),
 

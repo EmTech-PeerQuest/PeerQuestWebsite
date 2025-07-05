@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { X, Calendar, Star } from "lucide-react"
 import { Quest } from "@/lib/types"
-import { QuestAPI, QuestCategory, CreateQuestData, UpdateQuestData } from "@/lib/api/quests"
+import { QuestAPI, QuestCategory, CreateQuestData, UpdateQuestData, DifficultyTier } from "@/lib/api/quests"
 
 interface QuestFormProps {
   quest?: Quest | null
@@ -19,7 +19,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     title: "",
     description: "",
     category: 0, // Default to "Select Category"
-    difficulty: "easy" as const,
+    difficulty: "initiate" as DifficultyTier,
     due_date: "",
     requirements: "",
     resources: "",
@@ -63,13 +63,11 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     if (isOpen) {
       if (isEditing && quest) {
         // Populate form with existing quest data
-        console.log('📝 Quest Form - Editing quest:', quest)
-        console.log('📝 Quest Form - Description length:', quest.description?.length || 0)
         setFormData({
           title: quest.title,
           description: quest.description,
           category: quest.category.id,
-          difficulty: quest.difficulty,
+          difficulty: quest.difficulty as DifficultyTier,
           due_date: quest.due_date ? quest.due_date.split('T')[0] : "",
           requirements: quest.requirements || "",
           resources: quest.resources || "",
@@ -82,7 +80,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
           title: "",
           description: "",
           category: 0, // Keep as 0 initially - user must select a category
-          difficulty: "easy",
+          difficulty: "initiate",
           due_date: "",
           requirements: "",
           resources: "",
@@ -215,7 +213,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
           title: "",
           description: "",
           category: 0, // Default to "Select Category"
-          difficulty: "easy",
+          difficulty: "initiate",
           due_date: "",
           requirements: "",
           resources: "",
@@ -313,12 +311,14 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     }
   }
 
+  // Fantasy tier XP mapping
   const getXPReward = (difficulty: string) => {
     switch (difficulty) {
-      case 'easy': return 50
-      case 'medium': return 75
-      case 'hard': return 150
-      default: return 50
+      case 'initiate': return 25
+      case 'adventurer': return 50
+      case 'champion': return 100
+      case 'mythic': return 200
+      default: return 25
     }
   }
 
@@ -467,34 +467,39 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                 <input
                   type="range"
                   min="0"
-                  max="2"
-                  value={formData.difficulty === 'easy' ? 0 : formData.difficulty === 'medium' ? 1 : 2}
+                  max="3"
+                  value={['initiate', 'adventurer', 'champion', 'mythic'].indexOf(formData.difficulty)}
                   onChange={(e) => {
-                    const difficultyMap = ['easy', 'medium', 'hard']
-                    setFormData(prev => ({ ...prev, difficulty: difficultyMap[parseInt(e.target.value)] as 'easy' | 'medium' | 'hard' }))
+                    const difficultyMap: DifficultyTier[] = ['initiate', 'adventurer', 'champion', 'mythic']
+                    setFormData(prev => ({ ...prev, difficulty: difficultyMap[parseInt(e.target.value)] }))
                   }}
-                  className="w-full h-2 bg-gradient-to-r from-green-400 via-orange-400 to-red-500 rounded-lg appearance-none cursor-pointer slider"
+                  className="w-full h-2 bg-gradient-to-r from-green-400 via-blue-400 via-yellow-400 to-purple-500 rounded-lg appearance-none cursor-pointer slider"
                   style={{
-                    background: 'linear-gradient(to right, #22c55e, #fbbf24, #ef4444)',
+                    background: 'linear-gradient(to right, #22c55e, #3b82f6, #fbbf24, #a21caf)',
                   }}
                 />
                 <div className={`text-white px-4 py-3 rounded-lg ${
-                  formData.difficulty === 'easy' ? 'bg-gradient-to-r from-green-500 to-green-600' :
-                  formData.difficulty === 'medium' ? 'bg-gradient-to-r from-yellow-400 to-orange-500' :
-                  'bg-gradient-to-r from-red-500 to-red-600'
+                  formData.difficulty === 'initiate' ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                  formData.difficulty === 'adventurer' ? 'bg-gradient-to-r from-blue-400 to-blue-600' :
+                  formData.difficulty === 'champion' ? 'bg-gradient-to-r from-yellow-400 to-orange-500' :
+                  'bg-gradient-to-r from-purple-500 to-pink-500'
                 }`}>
                   <div className="flex items-center justify-between">
                     <span className="font-bold uppercase">
-                      {formData.difficulty}
+                      {formData.difficulty === 'initiate' && 'Initiate'}
+                      {formData.difficulty === 'adventurer' && 'Adventurer'}
+                      {formData.difficulty === 'champion' && 'Champion'}
+                      {formData.difficulty === 'mythic' && 'Mythic'}
                     </span>
                     <span className="font-bold">
                       {getXPReward(formData.difficulty)} XP
                     </span>
                   </div>
                   <p className="text-sm opacity-90 mt-1">
-                    {formData.difficulty === 'easy' && 'Perfect for beginners'}
-                    {formData.difficulty === 'medium' && 'Moderate challenge'}
-                    {formData.difficulty === 'hard' && 'Expert level required'}
+                    {formData.difficulty === 'initiate' && 'Perfect for beginners'}
+                    {formData.difficulty === 'adventurer' && 'A true adventure'}
+                    {formData.difficulty === 'champion' && 'Expert level required'}
+                    {formData.difficulty === 'mythic' && 'Legendary challenge for the bravest!'}
                     {' '}Reward
                   </p>
                 </div>

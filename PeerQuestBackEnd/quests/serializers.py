@@ -220,20 +220,98 @@ class QuestParticipantCreateSerializer(serializers.ModelSerializer):
 class QuestSubmissionCreateSerializer(serializers.ModelSerializer):
     """For creating quest submissions"""
     
+    # Accept files as a list of uploads
+    files = serializers.ListField(
+        child=serializers.FileField(max_length=100000, allow_empty_file=False, use_url=False),
+        write_only=True,
+        required=False,
+        help_text="List of files to upload (max 25MB each, images/docs only)"
+    )
+    from applications.models import Application as _AppModel
+    application = serializers.PrimaryKeyRelatedField(
+        queryset=_AppModel.objects.none(),  # Set real queryset in __init__
+        required=False,
+        write_only=True,
+        help_text="Approved application ID (if submitting as an approved applicant)"
+    )
+
     class Meta:
         model = QuestSubmission
-        fields = ['quest_participant', 'submission_text', 'submission_files']
+        fields = ['quest_participant', 'application', 'submission_text', 'submission_files', 'files']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Import here to avoid circular import
+        from applications.models import Application
+        self.fields['application'].queryset = Application.objects.filter(status='approved')
+
+    def validate(self, attrs):
+        request = self.context['request']
+        quest_participant = attrs.get('quest_participant')
+        application = attrs.get('application')
+        if not quest_participant and not application:
+            raise serializers.ValidationError("You must provide either a quest_participant or an approved application.")
+        if quest_participant and application:
+            raise serializers.ValidationError("Provide only one of quest_participant or application, not both.")
+        if application:
+            # Check application is approved and belongs to this user
+            if application.status != 'approved':
+                raise serializers.ValidationError("Application is not approved.")
+            if application.applicant != request.user:
+                raise serializers.ValidationError("You can only submit for your own approved application.")
+            # Check quest is active
+            if application.quest.status not in ['open', 'in-progress']:
+                raise serializers.ValidationError("Cannot submit to a quest that is not active.")
+        return attrs
 
     def validate_quest_participant(self, value):
         # Ensure the participant belongs to the current user
         if value.user != self.context['request'].user:
             raise serializers.ValidationError("You can only submit for your own quest participation.")
-        
         # Ensure the quest is active
         if value.quest.status not in ['open', 'in-progress']:
             raise serializers.ValidationError("Cannot submit to a quest that is not active.")
-        
         return value
+
+    def validate_files(self, files):
+        allowed_types = ["image/jpeg", "image/png", "image/gif", "application/pdf", "text/plain", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
+        for f in files:
+            if f.size > 25 * 1024 * 1024:
+                raise serializers.ValidationError(f"File {f.name} exceeds 25MB size limit.")
+            if hasattr(f, 'content_type') and f.content_type not in allowed_types:
+                raise serializers.ValidationError(f"File {f.name} type {f.content_type} is not allowed.")
+        return files
+
+    def create(self, validated_data):
+        from .models import QuestParticipant
+        application = validated_data.pop('application', None)
+        quest_participant = validated_data.get('quest_participant')
+        request = self.context.get('request')
+        if application and not quest_participant:
+            # Auto-create or get QuestParticipant for this user/quest
+            quest = application.quest
+            user = application.applicant
+            participant, created = QuestParticipant.objects.get_or_create(
+                quest=quest, user=user,
+                defaults={"status": "joined"}
+            )
+            validated_data['quest_participant'] = participant
+        files = validated_data.pop('files', [])
+        submission = super().create(validated_data)
+        # Save uploaded files and store their URLs/paths in submission_files
+        file_urls = submission.submission_files or []
+        for f in files:
+            from django.core.files.storage import default_storage
+            from django.core.files.base import ContentFile
+            path = default_storage.save(f"submissions/{f.name}", ContentFile(f.read()))
+            if hasattr(default_storage, 'url'):
+                url = default_storage.url(path)
+            else:
+                url = path
+            file_urls.append(url)
+        submission.submission_files = file_urls
+        submission.save()
+        return submission
 
 
 class QuestSubmissionReviewSerializer(serializers.ModelSerializer):

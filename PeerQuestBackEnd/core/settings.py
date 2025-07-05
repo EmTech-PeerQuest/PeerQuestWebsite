@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     'quests',
     'applications',
     'xp',
+    'guilds',
 
     # DRF and tools
     'rest_framework',

@@ -31,22 +31,25 @@ class Quest(models.Model):
     ]
 
     DIFFICULTY_CHOICES = [
-        ('easy', 'Easy'),
-        ('medium', 'Medium'),
-        ('hard', 'Hard'),
+        ('initiate', 'Initiate'),
+        ('adventurer', 'Adventurer'),
+        ('champion', 'Champion'),
+        ('mythic', 'Mythic'),
     ]
 
     XP_REWARD_CHOICES = [
-        (50, '50 XP'),
-        (75, '75 XP'),
-        (150, '150 XP'),
+        (25, '25 XP (Initiate)'),
+        (50, '50 XP (Adventurer)'),
+        (100, '100 XP (Champion)'),
+        (200, '200 XP (Mythic)'),
     ]
 
     # Mapping of difficulty to XP rewards
     DIFFICULTY_XP_MAPPING = {
-        'easy': 50,
-        'medium': 75,
-        'hard': 150,
+        'initiate': 25,
+        'adventurer': 50,
+        'champion': 100,
+        'mythic': 200,
     }
 
     # Basic quest information
@@ -55,11 +58,11 @@ class Quest(models.Model):
     
     # Quest metadata
     category = models.ForeignKey(QuestCategory, on_delete=models.PROTECT, default=2)
-    difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, default='easy')
+    difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, default='initiate')
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='open')
     
     # Quest rewards and requirements
-    xp_reward = models.PositiveIntegerField(choices=XP_REWARD_CHOICES, default=50, help_text="XP points awarded upon completion")
+    xp_reward = models.PositiveIntegerField(choices=XP_REWARD_CHOICES, default=25, help_text="XP points awarded upon completion")
     gold_reward = models.PositiveIntegerField(
         default=0, 
         validators=[MinValueValidator(0), MaxValueValidator(999)],

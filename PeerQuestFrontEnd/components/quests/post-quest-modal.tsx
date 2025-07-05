@@ -18,7 +18,7 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
     title: "",
     description: "",
     category: "",
-    difficulty: 2,
+    difficulty: 1, // Default to Initiate
     reward: "",
     deadline: "",
     postAs: "individual",
@@ -83,13 +83,21 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
         ? guilds.find((g) => g.id.toString() === questForm.selectedGuild)
         : null
 
+    // Map difficulty slider to new fantasy tiers and XP
+    const difficultyMap = {
+      1: { key: "initiate", xp: 25 },
+      2: { key: "adventurer", xp: 50 },
+      3: { key: "champion", xp: 100 },
+      4: { key: "mythic", xp: 200 },
+    };
+    const selectedDifficulty = difficultyMap[questForm.difficulty as keyof typeof difficultyMap];
     const newQuest: any = {
       title: questForm.title,
       description: questForm.description,
       category: questForm.category,
-      difficulty: questForm.difficulty === 1 ? "easy" : questForm.difficulty === 2 ? "medium" : "hard",
+      difficulty: selectedDifficulty.key,
       reward: Number.parseInt(questForm.reward),
-      xp: questForm.difficulty === 1 ? 50 : questForm.difficulty === 2 ? 75 : 150,
+      xp: selectedDifficulty.xp,
       deadline: questForm.deadline,
       poster: selectedGuild
         ? {
@@ -124,16 +132,19 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
     })
   }
 
+  // Fantasy tier colors and labels
   const difficultyColors = {
-    1: "from-green-400 to-green-600",
-    2: "from-yellow-400 to-orange-500",
-    3: "from-red-400 to-red-600",
+    1: "from-green-200 to-green-400",      // Initiate
+    2: "from-blue-200 to-blue-400",       // Adventurer
+    3: "from-yellow-300 to-orange-400",   // Champion
+    4: "from-purple-400 to-pink-300",     // Mythic
   }
 
   const difficultyLabels = {
-    1: { name: "EASY", xp: "50 XP", desc: "Perfect for beginners" },
-    2: { name: "MEDIUM", xp: "75 XP", desc: "Moderate challenge" },
-    3: { name: "HARD", xp: "150 XP", desc: "Expert level required" },
+    1: { name: "Initiate Tier", icon: "📜", xp: "25 XP", desc: "Perfect for beginners" },
+    2: { name: "Adventurer Tier", icon: "🧭", xp: "50 XP", desc: "A true adventure" },
+    3: { name: "Champion Tier", icon: "⚔️", xp: "100 XP", desc: "Expert level required" },
+    4: { name: "Mythic Tier", icon: "👑", xp: "200 XP", desc: "Legendary challenge for the bravest!" },
   }
 
   return (
@@ -228,17 +239,17 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
           <div className="space-y-4">
             <label className="block text-sm font-bold text-[#2C1A1D] uppercase tracking-wide">Difficulty Level</label>
             <div className="space-y-3">
-              <input
-                type="range"
-                min="1"
-                max="3"
-                value={questForm.difficulty}
-                onChange={(e) => setQuestForm((prev) => ({ ...prev, difficulty: Number.parseInt(e.target.value) }))}
-                className="w-full h-3 rounded-lg appearance-none cursor-pointer"
-                style={{
-                  background: `linear-gradient(to right, ${questForm.difficulty === 1 ? "#10b981" : questForm.difficulty === 2 ? "#f59e0b" : "#ef4444"} 0%, ${questForm.difficulty === 1 ? "#059669" : questForm.difficulty === 2 ? "#d97706" : "#dc2626"} 100%)`,
-                }}
-              />
+            <input
+              type="range"
+              min="1"
+              max="4"
+              value={questForm.difficulty}
+              onChange={(e) => setQuestForm((prev) => ({ ...prev, difficulty: Number.parseInt(e.target.value) }))}
+              className="w-full h-3 rounded-lg appearance-none cursor-pointer"
+              style={{
+                background: `linear-gradient(to right, #10b981 0%, #3b82f6 33%, #f59e42 66%, #a21caf 100%)`,
+              }}
+            />
               <div
                 className={`p-4 rounded-lg bg-gradient-to-r ${difficultyColors[questForm.difficulty as keyof typeof difficultyColors]} text-white`}
               >

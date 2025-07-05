@@ -278,6 +278,13 @@ class QuestSubmissionListCreateView(generics.ListCreateAPIView):
             return QuestSubmissionCreateSerializer
         return QuestSubmissionSerializer
 
+    def get_parser_classes(self):
+        # Support multipart for file upload
+        from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+        if self.request.method == 'POST':
+            return [MultiPartParser, FormParser, JSONParser]
+        return super().get_parser_classes()
+
     def get_queryset(self):
         quest_slug = self.kwargs.get('quest_slug')
         quest = get_object_or_404(Quest, slug=quest_slug)

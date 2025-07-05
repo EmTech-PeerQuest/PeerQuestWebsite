@@ -43,16 +43,22 @@ export function TavernQuestCard({
     return truncated.trim() + "..."
   }
 
-  const getDifficultyColor = (difficulty: string) => {
+  // Fantasy Tier System
+  const getTierInfo = (difficulty: string) => {
     switch (difficulty.toLowerCase()) {
       case "easy":
-        return "bg-gradient-to-r from-green-500 to-green-600 text-white"
+      case "initiate":
+        return { label: "Initiate Tier", color: "bg-green-200 text-green-900 border-green-300", icon: "📜" };
       case "medium":
-        return "bg-gradient-to-r from-yellow-400 to-orange-500 text-white"
+      case "adventurer":
+        return { label: "Adventurer Tier", color: "bg-amber-200 text-amber-900 border-amber-300", icon: "🧭" };
       case "hard":
-        return "bg-gradient-to-r from-red-500 to-red-600 text-white"
+      case "champion":
+        return { label: "Champion Tier", color: "bg-red-200 text-red-900 border-red-300", icon: "⚔️" };
+      case "mythic":
+        return { label: "Mythic Tier", color: "bg-violet-200 text-violet-900 border-violet-300", icon: "👑" };
       default:
-        return "bg-gray-500 text-white"
+        return { label: "Unknown Tier", color: "bg-gray-300 text-gray-700 border-gray-400", icon: "?" };
     }
   }
 
@@ -112,11 +118,17 @@ export function TavernQuestCard({
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden">
+    <div
+      className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer group focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+      tabIndex={0}
+      onClick={() => onViewDetails(quest)}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onViewDetails(quest) }}
+      role="button"
+      aria-label={`View details for quest ${quest.title}`}
+    >
       {/* Header Section with Brown Background */}
       <div className="bg-gradient-to-br from-[#CDAA7D] to-[#B8956D] p-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-12 translate-x-12">
-        </div>
+        <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-12 translate-x-12"></div>
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <h3 className="font-bold text-white text-lg leading-tight flex-1 mr-3 font-serif group-hover:text-[#F4F0E6] transition-colors mb-2">
@@ -128,14 +140,18 @@ export function TavernQuestCard({
               </span>
             </div>
           </div>
-          
           {/* Right side badges */}
           <div className="ml-3 flex flex-col gap-2 items-end">
-            {/* Difficulty Badge - Top Right */}
-            <span className={`px-3 py-1 text-xs font-medium rounded-full ${getDifficultyColor(quest.difficulty)}`}>
-              {quest.difficulty.toUpperCase()}
-            </span>
-            
+            {/* Tier Badge - Top Right */}
+            {(() => {
+              const tier = getTierInfo(quest.difficulty);
+              return (
+                <span className={`px-3 py-1 text-xs font-bold rounded-full border ${tier.color} flex items-center gap-1`}>
+                  <span>{tier.icon}</span>
+                  {tier.label}
+                </span>
+              );
+            })()}
             {/* Status Badge - Below Difficulty */}
             <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
               {quest.status.replace('-', '-').toUpperCase()}
@@ -143,10 +159,8 @@ export function TavernQuestCard({
           </div>
         </div>
       </div>
-
       {/* White Body Section */}
       <div className="p-4">
-
         {/* Reward Section */}
         <div className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-lg p-3 mb-4">
           <div className="flex items-center justify-center gap-8">
@@ -160,7 +174,6 @@ export function TavernQuestCard({
                 <div className="text-xs font-medium text-gray-400 uppercase">GOLD</div>
               </div>
             </div>
-            
             {/* XP Reward */}
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
@@ -173,7 +186,6 @@ export function TavernQuestCard({
             </div>
           </div>
         </div>
-
         {/* Description */}
         <div className="mb-4">
           <p className="text-gray-700 text-sm leading-relaxed">
@@ -185,7 +197,6 @@ export function TavernQuestCard({
             </p>
           )}
         </div>
-
         {/* Quest Details */}
         <div className="space-y-3 mb-4">
           {/* Deadline */}
@@ -197,7 +208,6 @@ export function TavernQuestCard({
               </span>
             </div>
           )}
-          
           {/* Posted by */}
           <div className="flex items-center gap-2 text-gray-600">
             {(quest.creator as any).avatar ? (
@@ -217,7 +227,6 @@ export function TavernQuestCard({
               <span className="font-medium">Posted by</span> {quest.creator.username}
             </span>
           </div>
-          
           {/* Applications */}
           <div className="flex items-center gap-2 text-gray-600">
             <Users className="w-4 h-4 text-gray-500" />
@@ -226,59 +235,9 @@ export function TavernQuestCard({
             </span>
           </div>
         </div>
-
-        {/* Action Buttons */}
-        {showActions && (
-          <div className="flex gap-2">
-            <button
-              onClick={() => onViewDetails(quest)}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-amber-700 bg-white border border-amber-300 rounded hover:bg-amber-50 transition-colors"
-            >
-              <Eye className="w-4 h-4" />
-              View Details
-            </button>
-            
-            {isCreator && onViewApplications && (
-              <button
-                onClick={() => onViewApplications(quest)}
-                className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-purple-600 rounded hover:bg-purple-700 transition-colors relative"
-              >
-                <Users className="w-4 h-4" />
-                Apps
-                {quest.applications_count > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                    {quest.applications_count}
-                  </span>
-                )}
-              </button>
-            )}
-            
-            {isCreator && onEditQuest && (
-              <button
-                onClick={() => onEditQuest(quest)}
-                className="flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-orange-500 rounded hover:bg-orange-600 transition-colors"
-              >
-                <Edit className="w-4 h-4" />
-                Edit
-              </button>
-            )}
-            
-
-            
-            {isParticipant && onLeaveQuest && quest.status !== 'completed' && (
-              <button
-                onClick={handleLeaveQuest}
-                disabled={isLoading}
-                className="px-3 py-2 text-sm font-medium text-white bg-red-500 rounded hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isLoading ? 'Leaving...' : 'Leave'}
-              </button>
-            )}
-          </div>
-        )}
       </div>
     </div>
-  )
+  );
 }
 
 export default TavernQuestCard
