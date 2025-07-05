@@ -333,6 +333,16 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Gold reward cannot be negative.")
         if value > 999:
             raise serializers.ValidationError("Gold reward cannot exceed 999.")
+        
+        # Check if this is an update operation for a quest that's in-progress
+        instance = getattr(self, 'instance', None)
+        if instance and instance.status == 'in-progress':
+            # Allow only if the gold reward is not being changed
+            if instance.gold_reward != value:
+                raise serializers.ValidationError(
+                    "Cannot modify gold reward for a quest that is already in progress. "
+                    "Participants have already committed based on the current reward amount."
+                )
             
         # Check if user has enough actual balance for this reward
         request = self.context.get('request')

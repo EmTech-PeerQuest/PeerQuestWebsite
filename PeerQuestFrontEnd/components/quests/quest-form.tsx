@@ -63,6 +63,17 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     return Math.min(999, availableBalance)
   }
 
+  // Calculate maximum budget for quest editing
+  const calculateMaxBudgetForEditing = (): number => {
+    if (isEditing && quest) {
+      const oldGoldReward = quest.gold_reward || 0
+      const oldBudget = oldGoldReward > 0 ? Math.ceil(oldGoldReward / 0.95) : 0
+      // User can increase budget by their available balance
+      return Math.min(999, oldBudget + userGoldBalance)
+    }
+    return calculateMaxAffordableBudget(userGoldBalance)
+  }
+
   // Computed values
   const commission = calculateCommission(goldBudget)
   const questReward = calculateQuestReward(goldBudget)
@@ -268,15 +279,37 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
       goldBudget,
       questReward,
       commission,
+      isEditing,
       timestamp: new Date().toISOString()
     });
     
-    if (goldBudget > userGoldBalance) {
-      validationErrors.goldBudget = `Total budget (${goldBudget} gold) exceeds your available balance of ${userGoldBalance} gold.`
-    } else if (goldBudget < 0) {
-      validationErrors.goldBudget = 'Budget cannot be negative'
-    } else if (goldBudget > 999) {
-      validationErrors.goldBudget = 'Budget cannot exceed 999 gold'
+    // For quest editing, validate based on additional gold needed
+    if (isEditing && quest) {
+      // Check if quest is in-progress - gold rewards cannot be changed
+      if (quest.status === 'in-progress' && goldBudget !== (quest.gold_reward || 0) ? Math.ceil((quest.gold_reward || 0) / 0.95) : 0) {
+        validationErrors.goldBudget = 'Cannot modify gold reward for a quest that is already in progress. Participants have already committed based on the current reward amount.'
+      } else {
+        const oldGoldReward = quest.gold_reward || 0
+        const oldBudget = oldGoldReward > 0 ? Math.ceil(oldGoldReward / 0.95) : 0
+        const additionalGoldNeeded = Math.max(0, goldBudget - oldBudget)
+        
+        if (additionalGoldNeeded > userGoldBalance) {
+          validationErrors.goldBudget = `You need ${additionalGoldNeeded} additional gold to increase the quest reward, but you only have ${userGoldBalance} gold available.`
+        } else if (goldBudget < 0) {
+          validationErrors.goldBudget = 'Budget cannot be negative'
+        } else if (goldBudget > 999) {
+          validationErrors.goldBudget = 'Budget cannot exceed 999 gold'
+        }
+      }
+    } else {
+      // For new quest creation, validate against total budget
+      if (goldBudget > userGoldBalance) {
+        validationErrors.goldBudget = `Total budget (${goldBudget} gold) exceeds your available balance of ${userGoldBalance} gold.`
+      } else if (goldBudget < 0) {
+        validationErrors.goldBudget = 'Budget cannot be negative'
+      } else if (goldBudget > 999) {
+        validationErrors.goldBudget = 'Budget cannot exceed 999 gold'
+      }
     }
     
     if (Object.keys(validationErrors).length > 0) {
@@ -309,6 +342,25 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
 
       if (isEditing && quest) {
         // Update existing quest
+        const oldGoldReward = quest.gold_reward || 0
+        const oldBudget = oldGoldReward > 0 ? Math.ceil(oldGoldReward / 0.95) : 0 // Reverse calculate old budget
+        const newBudget = goldBudget
+        const additionalGoldNeeded = Math.max(0, newBudget - oldBudget) // Only positive difference matters
+        
+        console.log('🔄 Quest Edit Gold Calculation:', {
+          oldGoldReward,
+          oldBudget,
+          newBudget,
+          newGoldReward: questReward,
+          additionalGoldNeeded,
+          userBalance: userGoldBalance
+        })
+        
+        // Validate that user has enough balance for any additional gold needed
+        if (additionalGoldNeeded > 0 && additionalGoldNeeded > userGoldBalance) {
+          throw new Error(`You need ${additionalGoldNeeded} additional gold to increase the quest reward, but you only have ${userGoldBalance} gold available.`)
+        }
+        
         const updateData: UpdateQuestData = { 
           ...formData,
           gold_reward: questReward // Enable gold reward
@@ -762,6 +814,11 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                     <span className="text-white text-xs">🪙</span>
                   </div>
                   GOLD BUDGET
+                  {isEditing && quest && quest.status === 'in-progress' && (
+                    <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                      Locked (In Progress)
+                    </span>
+                  )}
                 </label>
                 <div className="flex flex-col">
                   <input
@@ -770,33 +827,61 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                     name="budget"
                     value={goldBudget}
                     onChange={(e) => {
+                      // For in-progress quests, don't allow changes to gold budget
+                      if (isEditing && quest && quest.status === 'in-progress') {
+                        return; // Block any changes
+                      }
+                      
                       // Get input value or default to 0
                       let value = parseInt(e.target.value) || 0;
                       
                       // Ensure value is non-negative
                       value = Math.max(0, value);
                       
-                      // Apply general input constraints (0-999)
-                      value = Math.min(999, value);
+                      // Apply general input constraints
+                      const maxBudget = calculateMaxBudgetForEditing();
+                      value = Math.min(maxBudget, value);
                       
-                      // Check if it exceeds user balance
-                      if (value > userGoldBalance) {
-                        value = userGoldBalance;
+                      // For quest editing, check additional gold needed
+                      if (isEditing && quest) {
+                        const oldGoldReward = quest.gold_reward || 0;
+                        const oldBudget = oldGoldReward > 0 ? Math.ceil(oldGoldReward / 0.95) : 0;
+                        const additionalGoldNeeded = Math.max(0, value - oldBudget);
                         
-                        // Clear any existing error
-                        setErrors(prev => ({ ...prev, goldBudget: '' }));
+                        if (additionalGoldNeeded > userGoldBalance) {
+                          value = oldBudget + userGoldBalance;
+                          // Clear any existing error
+                          setErrors(prev => ({ ...prev, goldBudget: '' }));
+                        }
+                      } else {
+                        // For new quest creation, check against total budget
+                        if (value > userGoldBalance) {
+                          value = userGoldBalance;
+                          // Clear any existing error
+                          setErrors(prev => ({ ...prev, goldBudget: '' }));
+                        }
                       }
                       
                       setGoldBudget(value);
                     }}
                     min="0"
-                    max={calculateMaxAffordableBudget(userGoldBalance)}
-                    className="w-full px-4 py-3 border-2 border-amber-200 rounded-lg bg-white text-gray-800"
+                    max={calculateMaxBudgetForEditing()}
+                    disabled={!!(isEditing && quest && quest.status === 'in-progress')}
+                    className={`w-full px-4 py-3 border-2 rounded-lg text-gray-800 ${
+                      isEditing && quest && quest.status === 'in-progress'
+                        ? 'border-gray-300 bg-gray-100 cursor-not-allowed'
+                        : 'border-amber-200 bg-white'
+                    }`}
                     placeholder="0"
                   />
                   <div className="flex justify-between mt-1">
                     <div className="flex items-center space-x-2">
-                      <p className="text-xs text-gray-500">Total gold budget (5% commission will be deducted)</p>
+                      <p className="text-xs text-gray-500">
+                        {isEditing && quest && quest.status === 'in-progress' 
+                          ? 'Gold budget locked - quest is in progress'
+                          : 'Total gold budget (5% commission will be deducted)'
+                        }
+                      </p>
                     </div>
                     <div className="flex items-center">
                       <svg className="w-3 h-3 text-amber-600 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
@@ -821,16 +906,30 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                         <span className="font-medium text-amber-700">{questReward} gold</span>
                       </div>
                       
-                      <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-2">
-                        <div className="flex items-start text-xs">
-                          <svg className="w-4 h-4 text-blue-500 mt-0.5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <span className="text-blue-700">
-                            A total of <strong>{goldBudget} gold</strong> will be deducted from your balance when the quest is created. Participants will receive <strong>{questReward} gold</strong> upon completion.
-                          </span>
+                      {/* Show different messages based on quest status */}
+                      {isEditing && quest && quest.status === 'in-progress' ? (
+                        <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-2">
+                          <div className="flex items-start text-xs">
+                            <svg className="w-4 h-4 text-blue-500 mt-0.5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                            <span className="text-blue-700">
+                              <strong>Quest is in progress:</strong> Gold reward cannot be modified as participants have already committed based on the current reward of <strong>{questReward} gold</strong>.
+                            </span>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-2">
+                          <div className="flex items-start text-xs">
+                            <svg className="w-4 h-4 text-blue-500 mt-0.5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="text-blue-700">
+                              A total of <strong>{goldBudget} gold</strong> will be deducted from your balance when the quest is created. Participants will receive <strong>{questReward} gold</strong> upon completion.
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   {errors.goldBudget && (
@@ -950,6 +1049,60 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                 }
               </button>
             </div>
+
+            {/* Quest Edit Gold Difference Indicator */}
+            {isEditing && quest && (
+              (() => {
+                const oldGoldReward = quest.gold_reward || 0
+                const oldBudget = oldGoldReward > 0 ? Math.ceil(oldGoldReward / 0.95) : 0
+                const newBudget = goldBudget
+                const goldDifference = newBudget - oldBudget
+                
+                // Special handling for in-progress quests
+                if (quest.status === 'in-progress') {
+                  return (
+                    <div className="mt-2 border rounded p-2 bg-blue-50 border-blue-200">
+                      <div className="flex items-start text-xs">
+                        <svg className="w-4 h-4 text-blue-500 mt-0.5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        <span className="text-blue-700">
+                          <strong>Gold Reward Locked:</strong> This quest is currently in progress. The gold reward is locked at <strong>{oldGoldReward} gold</strong> to ensure fairness for all participants who have already committed to this quest.
+                        </span>
+                      </div>
+                    </div>
+                  )
+                }
+                
+                if (goldDifference !== 0) {
+                  return (
+                    <div className={`mt-2 border rounded p-2 ${
+                      goldDifference > 0 
+                        ? 'bg-orange-50 border-orange-200' 
+                        : 'bg-green-50 border-green-200'
+                    }`}>
+                      <div className="flex items-start text-xs">
+                        <svg className={`w-4 h-4 mt-0.5 mr-1 flex-shrink-0 ${
+                          goldDifference > 0 ? 'text-orange-500' : 'text-green-500'
+                        }`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className={goldDifference > 0 ? 'text-orange-700' : 'text-green-700'}>
+                          <strong>Quest Edit:</strong> {goldDifference > 0 ? 'Increasing' : 'Decreasing'} gold reward from <strong>{oldGoldReward} gold</strong> to <strong>{questReward} gold</strong>.
+                          {goldDifference > 0 && (
+                            <> An additional <strong>{goldDifference} gold</strong> will be deducted from your balance.</>
+                          )}
+                          {goldDifference < 0 && (
+                            <> <strong>{Math.abs(goldDifference)} gold</strong> will be refunded to your balance.</>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                }
+                return null
+              })()
+            )}
           </form>
         </div>
       </div>
