@@ -1,24 +1,34 @@
+
+
+import traceback
+import unicodedata
+from itertools import product
+
 print("USERS.VIEWS.PY LOADED")
 
-from rest_framework.generics import RetrieveUpdateAPIView
-from rest_framework.permissions import IsAuthenticated
-from .serializers import UserProfileSerializer
-from django.contrib.auth.password_validation import validate_password
-from rest_framework import serializers
+from rest_framework.generics import RetrieveUpdateAPIView, RetrieveUpdateDestroyAPIView
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework import serializers, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from .serializers import UserProfileSerializer, RegisterSerializer, UserInfoUpdateSerializer
+from django.contrib.auth.password_validation import validate_password
 from .models import User
-from rest_framework.permissions import AllowAny
 from .services import google_get_access_token, google_get_user_info, create_user_and_token
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-import traceback
 from .validators import PROFANITY_LIST, LEET_MAP, levenshtein, normalize_username
-from itertools import product
+
+
+class UserInfoSettingsView(RetrieveUpdateDestroyAPIView):
+    serializer_class = UserInfoUpdateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user
 
 @method_decorator(csrf_exempt, name='dispatch')
 class GoogleLoginCallbackView(APIView):
@@ -32,8 +42,8 @@ class GoogleLoginCallbackView(APIView):
         return super().dispatch(request, *args, **kwargs)
 
     def post(self, request):
-        print("GOOGLE LOGIN CALLBACK VIEW REACHED (POST)")  # DEBUG
-        print("POST DATA:", request.data)
+        #print("GOOGLE LOGIN CALLBACK VIEW REACHED (POST)")  # DEBUG
+        #print("POST DATA:", request.data)
         # Accept Google ID token from frontend
         credential = request.data.get('credential')
         if not credential:
@@ -55,11 +65,11 @@ class GoogleLoginCallbackView(APIView):
                 'last_name': idinfo.get('family_name', ''),
             }
             token_data = create_user_and_token(user_data)
-            print("GOOGLE LOGIN TOKEN DATA:", token_data)  # DEBUG PRINT
+            #print("GOOGLE LOGIN TOKEN DATA:", token_data)  # DEBUG PRINT
             return Response(token_data)
         except Exception as e:
-            print("GOOGLE LOGIN ERROR:", str(e))  # DEBUG PRINT
-            traceback.print_exc()  # Print full traceback for debugging
+            #print("GOOGLE LOGIN ERROR:", str(e))  # DEBUG PRINT
+            #traceback.print_exc()  # Print full traceback for debugging
             return Response({'error': str(e) or 'Failed to verify Google credential.'}, status=status.HTTP_400_BAD_REQUEST)
 
     def get(self, request):
@@ -99,7 +109,10 @@ class UserProfileView(APIView):
         serializer = UserProfileSerializer(user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
+            return Response({
+                "detail": "Profile updated successfully.",
+                "user": serializer.data
+            }, status=status.HTTP_200_OK)
         # Flatten serializer errors to a readable string list
         def extract_errors(errors):
             if isinstance(errors, dict):
@@ -123,64 +136,10 @@ class UserProfileView(APIView):
     def delete(self, request):
         user = request.user
         user.delete()
-        return Response({'detail': 'Account deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
+        return Response({
+            "detail": "Account deleted successfully."
+        }, status=status.HTTP_200_OK)
 
-class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True)
-
-    class Meta:
-        model = User
-        fields = ("username", "email", "password")
-
-    def normalize_username(self, value):
-        return normalize_username(value)
-
-    def validate_username(self, value):
-        value = value.strip()
-        norm_value = self.normalize_username(value)
-        if not norm_value.isalnum():
-            raise serializers.ValidationError("Username must be alphanumeric.")
-        lowered = norm_value.lower()
-        for bad_word in PROFANITY_LIST:
-            # Direct substring match
-            if bad_word in lowered:
-                raise serializers.ValidationError("Username contains inappropriate language.")
-            # Fuzzy: check all substrings of username for Levenshtein distance 1 to any bad word
-            for i in range(len(lowered) - len(bad_word) + 1):
-                sub = lowered[i:i+len(bad_word)]
-                if levenshtein(sub, bad_word) <= 1:
-                    raise serializers.ValidationError("Username contains inappropriate language.")
-                # Generate all possible leet-variant substrings for this window (all combinations)
-                leet_positions = [j for j, c in enumerate(sub) if c in LEET_MAP]
-                n = len(leet_positions)
-                if n > 0:
-                    for mask in product([False, True], repeat=n):
-                        chars = list(sub)
-                        for idx, use_leet in enumerate(mask):
-                            if use_leet:
-                                pos = leet_positions[idx]
-                                chars[pos] = LEET_MAP[chars[pos]]
-                        variant = ''.join(chars)
-                        if bad_word in variant:
-                            raise serializers.ValidationError("Username contains inappropriate language.")
-                        if levenshtein(variant, bad_word) <= 1:
-                            raise serializers.ValidationError("Username contains inappropriate language.")
-        return value
-
-    def validate_email(self, value):
-        value = value.strip()
-        # Optionally, add more email validation here
-        return value
-
-    def create(self, validated_data):
-        user = User(
-            username=validated_data["username"],
-            email=validated_data["email"]
-        )
-        validate_password(validated_data["password"], user)
-        user.set_password(validated_data["password"])
-        user.save()
-        return user
 
 class RegisterView(APIView):
     """Handles user registration with user-friendly error messages."""

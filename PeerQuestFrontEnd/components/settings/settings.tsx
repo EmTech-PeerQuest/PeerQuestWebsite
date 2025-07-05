@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useUserSettings } from "../auth/useUserSettings"
 import { Eye, EyeOff, Save, AlertCircle, Shield, TrendingDown, Menu, X } from "lucide-react"
 import type { SpendingLimits } from "@/lib/types"
 import { getDailySpending, getWeeklySpending } from "@/lib/spending-utils"
@@ -14,42 +15,14 @@ import SubscriptionsTab from "./tabs/SubscriptionsTab"
 import AppPermissionsTab from "./tabs/AppPermissionsTab"
 import { usePathname, useRouter } from "next/navigation"
 
-interface SettingsProps {
-  user: any
-  updateSettings: (settings: any) => void
-  showToast: (message: string, type?: string) => void
-}
 
-async function updateUserProfile(data: any) {
-  const res = await fetch("/api/user/profile/", {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  })
-  if (!res.ok) {
-    const err = await res.json()
-    throw err.errors ? err.errors[0] : "Failed to update profile."
-  }
-  return await res.json()
-}
 
-async function deleteUserAccount() {
-  const res = await fetch("/api/user/profile/", {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw err.errors ? err.errors[0] : "Failed to delete account."
-  }
-  return true
-}
 
-export function Settings({ user, updateSettings, showToast = () => {} }: SettingsProps) {
+
+
+export function Settings() {
+  // Use the new hook for user settings
+  const { user, updateUser, deleteUser, loading, error, success } = useUserSettings();
   const [activeTab, setActiveTab] = useState<
     "account" | "security" | "privacy" | "notifications" | "payment" | "subscriptions" | "app" | "spending"
   >("account")
@@ -139,29 +112,29 @@ export function Settings({ user, updateSettings, showToast = () => {} }: Setting
   ]
 
   const saveAccountSettings = async () => {
-    try {
-      const updated = {
-        displayName: accountForm.displayName,
-        username: accountForm.username,
-        email: accountForm.email,
-        bio: accountForm.bio,
-        birthday: accountForm.birthday,
-        gender: accountForm.gender,
-        location: accountForm.location,
-        socialLinks: accountForm.socialLinks,
-        settings: {
-          ...user?.settings,
-          language: accountForm.language,
-          theme: accountForm.theme,
-        },
-      }
-      await updateUserProfile(updated)
-      updateSettings(updated)
-      showToast("Account settings saved successfully!")
-    } catch (err: any) {
-      showToast(err, "error")
+    const updated = {
+      displayName: accountForm.displayName,
+      username: accountForm.username,
+      email: accountForm.email,
+      bio: accountForm.bio,
+      birthday: accountForm.birthday,
+      gender: accountForm.gender,
+      location: accountForm.location,
+      socialLinks: accountForm.socialLinks,
+      settings: {
+        ...user?.settings,
+        language: accountForm.language,
+        theme: accountForm.theme,
+      },
+    };
+    const ok = await updateUser(updated);
+    if (ok) {
+      // Optionally update local state/UI
+      showToast("Account settings saved successfully!");
+    } else if (error) {
+      showToast(error, "error");
     }
-  }
+  };
 
   const saveSecuritySettings = () => {
     // In a real app, we would verify the current password
@@ -243,15 +216,12 @@ export function Settings({ user, updateSettings, showToast = () => {} }: Setting
 
   const handleDeleteAccount = async () => {
     if (!window.confirm("Are you sure you want to delete your account? This action cannot be undone.")) return;
-    try {
-      const deleted = await deleteUserAccount();
-      if (deleted) {
-        showToast("Account deleted successfully.", "success");
-        // Only redirect if the account was actually deleted
-        window.location.href = "/goodbye";
-      }
-    } catch (err: any) {
-      showToast(err, "error");
+    const ok = await deleteUser();
+    if (ok) {
+      showToast("Account deleted successfully.", "success");
+      window.location.href = "/goodbye";
+    } else if (error) {
+      showToast(error, "error");
     }
   };
 
@@ -260,7 +230,6 @@ export function Settings({ user, updateSettings, showToast = () => {} }: Setting
       <div className="max-w-6xl mx-auto px-4 md:px-6">
         <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-[#2C1A1D] font-serif">Settings</h2>
         <p className="text-center text-[#8B75AA] mb-6 md:mb-8">CUSTOMIZE YOUR PEERQUEST TAVERN EXPERIENCE.</p>
-
         {/* Mobile Header */}
         <div className="md:hidden mb-4">
           <button
@@ -270,7 +239,6 @@ export function Settings({ user, updateSettings, showToast = () => {} }: Setting
             <span>{tabs.find((tab) => tab.id === activeTab)?.label}</span>
             {showMobileMenu ? <X size={20} /> : <Menu size={20} />}
           </button>
-
           {showMobileMenu && (
             <div className="mt-2 bg-[#2C1A1D] rounded-lg overflow-hidden">
               {tabs.map((tab) => (
@@ -287,7 +255,6 @@ export function Settings({ user, updateSettings, showToast = () => {} }: Setting
             </div>
           )}
         </div>
-
         <div className="flex flex-col md:flex-row gap-4 md:gap-6">
           {/* Desktop Sidebar */}
           <div className="hidden md:block md:w-64 bg-[#2C1A1D] text-[#F4F0E6] rounded-lg overflow-hidden">
@@ -308,7 +275,6 @@ export function Settings({ user, updateSettings, showToast = () => {} }: Setting
               ))}
             </div>
           </div>
-
           {/* Main Content */}
           <div className="flex-1 bg-[#2C1A1D] text-[#F4F0E6] rounded-lg overflow-hidden">
             {activeTab === "account" && (
@@ -376,5 +342,5 @@ export function Settings({ user, updateSettings, showToast = () => {} }: Setting
         </div>
       </div>
     </section>
-  )
+  );
 }

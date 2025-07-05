@@ -1,301 +1,538 @@
+"use client";
+
 import { Save } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { useLanguage } from "@/context/LanguageContext";
+import axios from "axios";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+// Fetch user info and map backend fields to frontend state
+export async function fetchUserInfo() {
+  try {
+    const token = localStorage.getItem('access_token');
+    console.log('Token being used:', token ? `${token.substring(0, 20)}...` : 'No token found');
+    console.log('API URL:', `${API_BASE_URL}/api/users/settings/`);
+    
+    if (!token) {
+      throw new Error("No access token found. Please log in.");
+    }
+    
+    const res = await axios.get(`${API_BASE_URL}/api/users/settings/`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = res.data;
+    return {
+      displayName: data.display_name || "",
+      username: data.username || "",
+      email: data.email || "",
+      bio: data.bio || "",
+      birthday: data.birthday || "",
+      gender: data.gender || "",
+      location: data.location || "",
+      socialLinks: data.social_links || {},
+      settings: data.settings || {},
+      avatarUrl: data.avatar_url || "",
+      preferredLanguage: data.preferred_language || "",
+      timezone: data.timezone || "",
+      notificationPreferences: data.notification_preferences || {},
+      privacySettings: data.privacy_settings || {},
+    };
+  } catch (err: any) {
+    throw new Error("Failed to fetch user info");
+  }
+}
 
 async function updateUserProfile(data: any) {
-  const res = await fetch("/api/user/profile/", {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw err.errors ? err.errors[0] : "Failed to update profile.";
+  try {
+    const token = localStorage.getItem('access_token');
+    const res = await axios.patch(
+      `${API_BASE_URL}/api/users/settings/`,
+      data,
+      {
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return res.data;
+  } catch (err: any) {
+    if (err.response && err.response.data && err.response.data.errors) {
+      throw err.response.data.errors[0];
+    }
+    throw "Failed to update profile.";
   }
-  return await res.json();
 }
 
 async function deleteUserAccount() {
-  const res = await fetch("/api/user/profile/", {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw err.errors ? err.errors[0] : "Failed to delete account.";
+  try {
+    const token = localStorage.getItem('access_token');
+    await axios.delete(
+      `${API_BASE_URL}/api/users/settings/`,
+      {
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return true;
+  } catch (err: any) {
+    if (err.response && err.response.data && err.response.data.errors) {
+      throw err.response.data.errors[0];
+    }
+    throw "Failed to delete account.";
   }
-  return true;
 }
+
 
 export default function AccountTab({
   accountForm,
   setAccountForm,
   user
 }: any) {
-  const [loading, setLoading] = useState(false);
+  const { t, ready } = useTranslation();
+  const { currentLanguage, changeLanguage, availableLanguages, isReady } = useLanguage();
+  
+  // Don't render until i18n is ready
+  if (!isReady || !ready) {
+    return (
+      <div className="p-4 md:p-6">
+        <div className="flex items-center justify-center">
+          <div className="text-[#F4F0E6]">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Fetch and sync user info on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const info = await fetchUserInfo();
+        setAccountForm((prev: any) => ({ ...prev, ...info }));
+      } catch (e) {
+        // Optionally handle error
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  
+  const [loadingSave, setLoadingSave] = useState(false);
+  const [loadingDelete, setLoadingDelete] = useState(false);
+
+  const validateSocialLinks = (socialLinks: any) => {
+    const errors: string[] = [];
+    
+    // Facebook validation
+    if (socialLinks.facebook && socialLinks.facebook.trim()) {
+      const fbPattern = /^(https?:\/\/)?(www\.)?facebook\.com\/[a-zA-Z0-9._-]+\/?$/;
+      if (!fbPattern.test(socialLinks.facebook.trim())) {
+        errors.push(t('validation.facebookFormat'));
+      }
+    }
+    
+    // Twitter validation
+    if (socialLinks.twitter && socialLinks.twitter.trim()) {
+      const twitterPattern = /^(https?:\/\/)?(www\.)?(twitter\.com\/|x\.com\/)?@?[a-zA-Z0-9_]+\/?$/;
+      if (!twitterPattern.test(socialLinks.twitter.trim())) {
+        errors.push(t('validation.twitterFormat'));
+      }
+    }
+    
+    // YouTube validation
+    if (socialLinks.youtube && socialLinks.youtube.trim()) {
+      const youtubePattern = /^(https?:\/\/)?(www\.)?youtube\.com\/(channel\/|c\/|user\/|@)?[a-zA-Z0-9._-]+\/?$/;
+      if (!youtubePattern.test(socialLinks.youtube.trim())) {
+        errors.push(t('validation.youtubeFormat'));
+      }
+    }
+    
+    // Twitch validation
+    if (socialLinks.twitch && socialLinks.twitch.trim()) {
+      const twitchPattern = /^(https?:\/\/)?(www\.)?twitch\.tv\/[a-zA-Z0-9._-]+\/?$/;
+      if (!twitchPattern.test(socialLinks.twitch.trim())) {
+        errors.push(t('validation.twitchFormat'));
+      }
+    }
+    
+    // GitHub validation
+    if (socialLinks.github && socialLinks.github.trim()) {
+      const githubPattern = /^(https?:\/\/)?(www\.)?github\.com\/[a-zA-Z0-9._-]+\/?$/;
+      if (!githubPattern.test(socialLinks.github.trim())) {
+        errors.push(t('validation.githubFormat'));
+      }
+    }
+    
+    // LinkedIn validation
+    if (socialLinks.linkedin && socialLinks.linkedin.trim()) {
+      const linkedinPattern = /^(https?:\/\/)?(www\.)?linkedin\.com\/in\/[a-zA-Z0-9._-]+\/?$/;
+      if (!linkedinPattern.test(socialLinks.linkedin.trim())) {
+        errors.push(t('validation.linkedinFormat'));
+      }
+    }
+    
+    // Website validation (general URL)
+    if (socialLinks.website && socialLinks.website.trim()) {
+      const websitePattern = /^(https?:\/\/)?(www\.)?[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\/?.*$/;
+      if (!websitePattern.test(socialLinks.website.trim())) {
+        errors.push(t('validation.websiteFormat'));
+      }
+    }
+    
+    return errors;
+  };
 
   const handleSave = async () => {
-    setLoading(true);
+    setLoadingSave(true);
     try {
-      await updateUserProfile({
-        displayName: accountForm.displayName,
+      // Validate social links before saving
+      const socialLinkErrors = validateSocialLinks(accountForm.socialLinks || {});
+      if (socialLinkErrors.length > 0) {
+        alert(t('accountTab.socialValidationError') + "\n\n" + socialLinkErrors.join("\n"));
+        setLoadingSave(false);
+        return;
+      }
+
+      const payload = {
+        display_name: accountForm.displayName,
         username: accountForm.username,
         email: accountForm.email,
         bio: accountForm.bio,
         birthday: accountForm.birthday,
         gender: accountForm.gender,
         location: accountForm.location,
-        socialLinks: accountForm.socialLinks,
+        social_links: accountForm.socialLinks,
         settings: {
           language: accountForm.language,
-          theme: accountForm.theme,
         },
-      });
-      alert("Account settings saved successfully!");
+        preferred_language: accountForm.preferredLanguage,
+        timezone: accountForm.timezone,
+        notification_preferences: accountForm.notificationPreferences,
+        privacy_settings: accountForm.privacySettings,
+        avatar_url: accountForm.avatarUrl,
+      };
+      console.log('Sending payload to backend:', payload); // Debug log
+      await updateUserProfile(payload);
+      alert(t('accountTab.saveSuccess'));
     } catch (err: any) {
       alert(err);
     } finally {
-      setLoading(false);
+      setLoadingSave(false);
     }
   };
 
   const handleDelete = async () => {
     if (!window.confirm("Are you sure you want to delete your account? This action cannot be undone.")) return;
-    setLoading(true);
+    setLoadingDelete(true);
     try {
       await deleteUserAccount();
-      alert("Account deleted successfully.");
+      alert(t('accountTab.deleteSuccess'));
       // Do not redirect, just stay on the page
     } catch (err: any) {
       alert(err);
     } finally {
-      setLoading(false);
+      setLoadingDelete(false);
+    }
+  };
+
+  const handleLanguageChange = (newLanguageCode: string) => {
+    const languageObj = availableLanguages.find(lang => lang.code === newLanguageCode);
+    if (languageObj) {
+      setAccountForm((prev: any) => ({ ...prev, language: languageObj.name }));
+      changeLanguage(newLanguageCode);
     }
   };
 
   return (
     <div className="p-4 md:p-6">
-      <h3 className="text-xl font-bold mb-6">Account Info</h3>
+      <h3 className="text-xl font-bold mb-6">{t('accountTab.title')}</h3>
       <div className="space-y-6">
+        {/* Display Name */}
         <div>
-          <label className="block text-sm font-medium mb-2">Display Name</label>
+          <label className="block text-sm font-medium mb-2">{t('accountTab.displayName')}</label>
           <div className="flex items-center">
             <input
               type="text"
               className="flex-1 px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-              value={accountForm.displayName}
-              placeholder="Enter your display name"
+              value={accountForm.displayName || ""}
+              placeholder={t('accountTab.displayNamePlaceholder')}
               onChange={e => setAccountForm((prev: any) => ({ ...prev, displayName: e.target.value }))}
             />
           </div>
         </div>
+        {/* Username */}
         <div>
-          <label className="block text-sm font-medium mb-2">Username</label>
+          <label className="block text-sm font-medium mb-2">{t('accountTab.username')}</label>
           <div className="flex items-center">
             <input
               type="text"
               className="flex-1 px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-              value={accountForm.username}
-              placeholder="Enter your username"
+              value={accountForm.username || ""}
+              placeholder={t('accountTab.usernamePlaceholder')}
               onChange={e => setAccountForm((prev: any) => ({ ...prev, username: e.target.value }))}
             />
           </div>
-          <p className="text-xs text-[#CDAA7D]/70 mt-1">Previous usernames: {user?.username}</p>
         </div>
+        {/* Email */}
         <div>
-          <label className="block text-sm font-medium mb-2">Email Address</label>
+          <label className="block text-sm font-medium mb-2">{t('accountTab.email')}</label>
           <div className="flex items-center">
             <input
               type="email"
               className="flex-1 px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-              value={accountForm.email}
-              placeholder="Enter your email address"
+              value={accountForm.email || ""}
+              placeholder={t('accountTab.emailPlaceholder')}
               onChange={e => setAccountForm((prev: any) => ({ ...prev, email: e.target.value }))}
             />
           </div>
           <div className="flex items-center mt-1">
-            <span className="text-xs bg-green-800 text-green-200 px-2 py-0.5 rounded">Verified</span>
+            <span className="text-xs bg-green-800 text-green-200 px-2 py-0.5 rounded">{t('accountTab.verified')}</span>
           </div>
         </div>
+        {/* Bio */}
         <div>
-          <label className="block text-sm font-medium mb-2">Bio</label>
+          <label className="block text-sm font-medium mb-2">{t('accountTab.bio')}</label>
           <textarea
             className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] h-20 md:h-24 resize-none text-sm"
-            value={accountForm.bio}
-            placeholder="Tell us about yourself"
+            value={accountForm.bio || ""}
+            placeholder={t('accountTab.bioPlaceholder')}
             onChange={e => setAccountForm((prev: any) => ({ ...prev, bio: e.target.value }))}
           />
         </div>
+        {/* Personal Section */}
         <div>
-          <h4 className="text-lg font-bold mb-3">Personal</h4>
+          <h4 className="text-lg font-bold mb-3">{t('accountTab.personal')}</h4>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Birthday</label>
+              <label className="block text-sm font-medium mb-2">{t('accountTab.birthday')}</label>
               <input
                 type="date"
                 className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-                value={accountForm.birthday}
+                value={(() => {
+                  const val = accountForm.birthday;
+                  
+                  if (!val || val === null || val === undefined) {
+                    return "";
+                  }
+                  
+                  if (typeof val === "string") {
+                    // If already in YYYY-MM-DD format, return as is
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                      return val;
+                    }
+                    // If it's an ISO string, extract date part
+                    if (val.includes('T')) {
+                      return val.split('T')[0];
+                    }
+                    // Try to parse other date formats
+                    const date = new Date(val);
+                    if (!isNaN(date.getTime())) {
+                      return date.toISOString().split('T')[0];
+                    }
+                  }
+                  
+                  // Handle Date objects
+                  if (val instanceof Date && !isNaN(val.getTime())) {
+                    return val.toISOString().split('T')[0];
+                  }
+                  
+                  return "";
+                })()}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, birthday: e.target.value }))}
               />
               <div className="flex items-center mt-1">
-                <span className="text-xs bg-blue-800 text-blue-200 px-2 py-0.5 rounded">Verified</span>
+                <span className="text-xs bg-blue-800 text-blue-200 px-2 py-0.5 rounded">{t('accountTab.verified')}</span>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Gender (optional)</label>
+              <label className="block text-sm font-medium mb-2">{t('accountTab.gender')}</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
                   type="button"
                   className={`py-2 px-4 border ${accountForm.gender === "male" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded font-medium transition-colors flex items-center justify-center text-sm`}
                   onClick={() => setAccountForm((prev: any) => ({ ...prev, gender: "male" }))}
                 >
-                  <span className="mr-2">♂</span>MALE
+                  <span className="mr-2">♂</span>{t('accountTab.male')}
                 </button>
                 <button
                   type="button"
                   className={`py-2 px-4 border ${accountForm.gender === "female" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded font-medium transition-colors flex items-center justify-center text-sm`}
                   onClick={() => setAccountForm((prev: any) => ({ ...prev, gender: "female" }))}
                 >
-                  <span className="mr-2">♀</span>FEMALE
+                  <span className="mr-2">♀</span>{t('accountTab.female')}
                 </button>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Account Location</label>
-              <input
-                type="text"
+              <label className="block text-sm font-medium mb-2">{t('accountTab.location')}</label>
+              <select
                 className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-                value={accountForm.location}
+                value={accountForm.location || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, location: e.target.value }))}
-                placeholder="Enter your location"
-              />
+              >
+                <option value="">{t('accountTab.locationPlaceholder')}</option>
+                <option value="United States">United States</option>
+                <option value="Canada">Canada</option>
+                <option value="United Kingdom">United Kingdom</option>
+                <option value="Australia">Australia</option>
+                <option value="Germany">Germany</option>
+                <option value="France">France</option>
+                <option value="Italy">Italy</option>
+                <option value="Spain">Spain</option>
+                <option value="Netherlands">Netherlands</option>
+                <option value="Sweden">Sweden</option>
+                <option value="Norway">Norway</option>
+                <option value="Denmark">Denmark</option>
+                <option value="Finland">Finland</option>
+                <option value="Japan">Japan</option>
+                <option value="South Korea">South Korea</option>
+                <option value="China">China</option>
+                <option value="India">India</option>
+                <option value="Brazil">Brazil</option>
+                <option value="Mexico">Mexico</option>
+                <option value="Argentina">Argentina</option>
+                <option value="Chile">Chile</option>
+                <option value="South Africa">South Africa</option>
+                <option value="Nigeria">Nigeria</option>
+                <option value="Egypt">Egypt</option>
+                <option value="Russia">Russia</option>
+                <option value="Poland">Poland</option>
+                <option value="Czech Republic">Czech Republic</option>
+                <option value="Hungary">Hungary</option>
+                <option value="Romania">Romania</option>
+                <option value="Greece">Greece</option>
+                <option value="Turkey">Turkey</option>
+                <option value="Israel">Israel</option>
+                <option value="UAE">United Arab Emirates</option>
+                <option value="Saudi Arabia">Saudi Arabia</option>
+                <option value="Thailand">Thailand</option>
+                <option value="Vietnam">Vietnam</option>
+                <option value="Singapore">Singapore</option>
+                <option value="Malaysia">Malaysia</option>
+                <option value="Indonesia">Indonesia</option>
+                <option value="Philippines">Philippines</option>
+                <option value="New Zealand">New Zealand</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Language</label>
-                <select
-                  className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-                  value={accountForm.language}
-                  onChange={e => setAccountForm((prev: any) => ({ ...prev, language: e.target.value }))}
-                >
-                  <option value="English">English</option>
-                  <option value="Spanish">Spanish</option>
-                  <option value="French">French</option>
-                  <option value="German">German</option>
-                  <option value="Japanese">Japanese</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Theme</label>
-                <select
-                  className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-                  value={accountForm.theme}
-                  onChange={e => setAccountForm((prev: any) => ({ ...prev, theme: e.target.value }))}
-                >
-                  <option value="dark">Dark</option>
-                  <option value="light">Light</option>
-                </select>
-              </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">{t('accountTab.language')}</label>
+              <select
+                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                value={currentLanguage}
+                onChange={e => handleLanguageChange(e.target.value)}
+              >
+                {availableLanguages.map(lang => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.nativeName} ({lang.name})
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
+        {/* Social Networks Section */}
         <div>
-          <h4 className="text-lg font-bold mb-3">Social Networks</h4>
+          <h4 className="text-lg font-bold mb-3">{t('accountTab.socialNetworks')}</h4>
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium mb-2">Facebook</label>
+              <label className="block text-sm font-medium mb-2">{t('accountTab.facebook')}</label>
               <input
                 type="text"
                 className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-                value={accountForm.socialLinks.facebook}
+                value={(accountForm.socialLinks && accountForm.socialLinks.facebook) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, facebook: e.target.value } }))}
-                placeholder="e.g. www.facebook.com/username"
+                placeholder={t('accountTab.facebookPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Twitter</label>
+              <label className="block text-sm font-medium mb-2">{t('accountTab.twitter')}</label>
               <input
                 type="text"
                 className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-                value={accountForm.socialLinks.twitter}
+                value={(accountForm.socialLinks && accountForm.socialLinks.twitter) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, twitter: e.target.value } }))}
-                placeholder="e.g. @handle"
+                placeholder={t('accountTab.twitterPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">YouTube</label>
+              <label className="block text-sm font-medium mb-2">{t('accountTab.youtube')}</label>
               <input
                 type="text"
                 className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-                value={accountForm.socialLinks.youtube}
+                value={(accountForm.socialLinks && accountForm.socialLinks.youtube) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, youtube: e.target.value } }))}
-                placeholder="e.g. www.youtube.com/channel/username"
+                placeholder={t('accountTab.youtubePlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Twitch</label>
+              <label className="block text-sm font-medium mb-2">{t('accountTab.twitch')}</label>
               <input
                 type="text"
                 className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-                value={accountForm.socialLinks.twitch}
+                value={(accountForm.socialLinks && accountForm.socialLinks.twitch) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, twitch: e.target.value } }))}
-                placeholder="e.g. www.twitch.tv/username"
+                placeholder={t('accountTab.twitchPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">GitHub</label>
+              <label className="block text-sm font-medium mb-2">{t('accountTab.github')}</label>
               <input
                 type="text"
                 className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-                value={accountForm.socialLinks.github}
+                value={(accountForm.socialLinks && accountForm.socialLinks.github) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, github: e.target.value } }))}
-                placeholder="e.g. github.com/username"
+                placeholder={t('accountTab.githubPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">LinkedIn</label>
+              <label className="block text-sm font-medium mb-2">{t('accountTab.linkedin')}</label>
               <input
                 type="text"
                 className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-                value={accountForm.socialLinks.linkedin}
+                value={(accountForm.socialLinks && accountForm.socialLinks.linkedin) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, linkedin: e.target.value } }))}
-                placeholder="e.g. linkedin.com/in/username"
+                placeholder={t('accountTab.linkedinPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Website</label>
+              <label className="block text-sm font-medium mb-2">{t('accountTab.website')}</label>
               <input
                 type="text"
                 className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-                value={accountForm.socialLinks.website}
+                value={(accountForm.socialLinks && accountForm.socialLinks.website) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, website: e.target.value } }))}
-                placeholder="e.g. www.yourwebsite.com"
+                placeholder={t('accountTab.websitePlaceholder')}
               />
             </div>
           </div>
         </div>
+        {/* Save Button */}
         <div className="pt-4">
           <button
             onClick={handleSave}
-            disabled={loading}
+            disabled={loadingSave}
             className="w-full sm:w-auto px-6 py-2 bg-[#8B75AA] text-white rounded font-medium hover:bg-[#7A6699] transition-colors flex items-center justify-center disabled:opacity-60"
           >
             <Save size={16} className="mr-2" />
-            {loading ? "Saving..." : "Save Changes"}
+            {loadingSave ? t('accountTab.saving') : t('accountTab.saveChanges')}
           </button>
         </div>
+        {/* Delete Account Section */}
         <div className="mt-10 border-t border-[#CDAA7D]/40 pt-8">
-          <h4 className="text-lg font-bold mb-3 text-red-400">Delete Account</h4>
+          <h4 className="text-lg font-bold mb-3 text-red-400">{t('accountTab.deleteAccount')}</h4>
           <p className="mb-4 text-sm text-[#F4F0E6]/80">
-            <span className="font-semibold text-red-400">Warning:</span> This action is <span className="font-bold">irreversible</span> and will permanently delete your account and all associated data. To confirm, please type your username below and click <span className="font-semibold">Delete Account</span>.
+            <span className="font-semibold text-red-400">{t('accountTab.warning')}</span> {t('accountTab.deleteWarning')}
           </p>
           <input
             type="text"
             className="w-full px-3 py-2 mb-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-red-400 text-sm"
-            placeholder={`Type your username (${user?.username}) to confirm`}
+            placeholder={t('accountTab.deleteConfirmPlaceholder', { username: user?.username })}
             value={accountForm.deleteConfirm || ""}
             onChange={e => setAccountForm((prev: any) => ({ ...prev, deleteConfirm: e.target.value }))}
           />
@@ -304,13 +541,13 @@ export default function AccountTab({
               if (accountForm.deleteConfirm === user?.username) {
                 handleDelete();
               } else {
-                alert("Please type your username exactly to confirm account deletion.");
+                alert(t('accountTab.deleteConfirmError'));
               }
             }}
-            disabled={loading}
+            disabled={loadingDelete}
             className="w-full sm:w-auto px-6 py-2 bg-red-600 text-white rounded font-medium hover:bg-red-700 transition-colors flex items-center justify-center disabled:opacity-60"
           >
-            {loading ? "Deleting..." : "Delete Account"}
+            {loadingDelete ? t('accountTab.deleting') : t('accountTab.deleteAccount')}
           </button>
         </div>
       </div>

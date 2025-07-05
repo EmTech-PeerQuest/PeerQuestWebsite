@@ -4,6 +4,12 @@ from django.utils.translation import gettext_lazy as _
 import uuid
 
 class User(AbstractUser):
+    display_name = models.CharField(max_length=150, blank=True)
+    birthday = models.DateField(null=True, blank=True)
+    gender = models.CharField(max_length=20, blank=True)
+    location = models.CharField(max_length=255, blank=True)
+    social_links = models.JSONField(default=dict, blank=True)
+    settings = models.JSONField(default=dict, blank=True)
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     avatar_url = models.URLField(max_length=255, blank=True, null=True)
     bio = models.TextField(blank=True)
