@@ -169,3 +169,61 @@ export const fetchUser = async (token: string) => {
 export const logout = async () => {
   // No-op for JWT
 };
+
+// Token refresh functionality
+export const refreshToken = async () => {
+  try {
+    // Try to get refresh token from localStorage first (remember me), then sessionStorage
+    const refreshTokenValue = localStorage.getItem('refresh_token') || sessionStorage.getItem('refresh_token');
+    
+    if (!refreshTokenValue) {
+      throw new Error('No refresh token available');
+    }
+    
+    const response = await axios.post(`${API_BASE}/api/token/refresh/`, {
+      refresh: refreshTokenValue
+    });
+    
+    return response.data;
+  } catch (error: any) {
+    // Clear all tokens on refresh failure
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    sessionStorage.removeItem('refresh_token');
+    localStorage.removeItem('remember_me');
+    throw error;
+  }
+};
+
+// Axios interceptor for automatic token refresh
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        const refreshData = await refreshToken();
+        
+        // Update the access token
+        localStorage.setItem('access_token', refreshData.access);
+        
+        // Update the authorization header for the failed request
+        originalRequest.headers.Authorization = `Bearer ${refreshData.access}`;
+        
+        // Retry the original request
+        return axios(originalRequest);
+      } catch (refreshError) {
+        // Token refresh failed, redirect to login
+        if (typeof window !== 'undefined') {
+          window.location.href = '/';
+        }
+        return Promise.reject(refreshError);
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);

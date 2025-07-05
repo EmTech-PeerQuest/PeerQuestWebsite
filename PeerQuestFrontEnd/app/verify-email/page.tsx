@@ -3,7 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { verifyEmail, resendVerificationEmail } from '@/lib/api/auth';
+import { useAuth } from '@/context/AuthContext';
 import { AlertCircle, CheckCircle, Mail, RefreshCw, Home, Shield } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 export default function VerifyEmail() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'expired'>('loading');
@@ -14,10 +16,23 @@ export default function VerifyEmail() {
   const [canResend, setCanResend] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { refreshUser } = useAuth();
 
   useEffect(() => {
     const token = searchParams.get('token');
-    if (token) {
+    const success = searchParams.get('success');
+    const error = searchParams.get('error');
+    const accessToken = searchParams.get('access_token');
+    const refreshToken = searchParams.get('refresh_token');
+    
+    if (success === 'true' && accessToken && refreshToken) {
+      // Handle successful verification with tokens from GET redirect
+      handleSuccessfulVerification(accessToken, refreshToken);
+    } else if (error) {
+      // Handle error from GET redirect
+      handleErrorFromRedirect(error);
+    } else if (token) {
+      // Handle verification via POST API call
       handleVerification(token);
     } else {
       setStatus('error');
@@ -29,16 +44,58 @@ export default function VerifyEmail() {
     try {
       setStatus('loading');
       const response = await verifyEmail(token);
-      setStatus('success');
-      setMessage(response.data.message || 'Email verified successfully!');
-      // Redirect to home page after 3 seconds
-      setTimeout(() => {
-        router.push('/?verified=true');
-      }, 3000);
+      
+      // Check if the backend returned JWT tokens (new behavior)
+      if (response.data.access_token && response.data.refresh_token) {
+        // Store tokens in localStorage
+        localStorage.setItem('access_token', response.data.access_token);
+        localStorage.setItem('refresh_token', response.data.refresh_token);
+        
+        // Refresh user data to update authentication state
+        await refreshUser();
+        
+        setStatus('success');
+        setMessage('Email verified successfully! You are now logged in.');
+        
+        // Show success toast
+        toast({
+          title: '🎉 Welcome to PeerQuest!',
+          description: 'Your email has been verified and you are now logged in.',
+          variant: 'default',
+        });
+        
+        // Redirect to home page after 2 seconds
+        setTimeout(() => {
+          router.push('/?verified=true');
+        }, 2000);
+      } else {
+        // Fallback for old behavior (no auto-login)
+        setStatus('success');
+        setMessage(response.data.message || 'Email verified successfully!');
+        
+        // Show success toast
+        toast({
+          title: '✅ Email Verified',
+          description: 'Your email has been verified. You can now log in.',
+          variant: 'default',
+        });
+        
+        // Redirect to login page after 3 seconds
+        setTimeout(() => {
+          router.push('/login?verified=true');
+        }, 3000);
+      }
     } catch (error: any) {
       setStatus('error');
       const errorMessage = error.message || 'An error occurred during verification.';
       setMessage(errorMessage);
+      
+      // Show error toast
+      toast({
+        title: '❌ Verification Failed',
+        description: errorMessage,
+        variant: 'destructive',
+      });
       
       // Check if it's an expired token
       if (errorMessage.toLowerCase().includes('expired')) {
@@ -46,6 +103,79 @@ export default function VerifyEmail() {
         setCanResend(true);
       }
     }
+  };
+
+  const handleSuccessfulVerification = async (accessToken: string, refreshToken: string) => {
+    try {
+      // Store tokens in localStorage
+      localStorage.setItem('access_token', accessToken);
+      localStorage.setItem('refresh_token', refreshToken);
+      
+      // Refresh user data to update authentication state
+      await refreshUser();
+      
+      setStatus('success');
+      setMessage('Email verified successfully! You are now logged in.');
+      
+      // Show success toast
+      toast({
+        title: '🎉 Welcome to PeerQuest!',
+        description: 'Your email has been verified and you are now logged in.',
+        variant: 'default',
+      });
+      
+      // Redirect to home page after 2 seconds
+      setTimeout(() => {
+        router.push('/?verified=true');
+      }, 2000);
+    } catch (error) {
+      console.error('Error during successful verification:', error);
+      setStatus('error');
+      setMessage('An error occurred while logging you in.');
+      
+      toast({
+        title: '❌ Login Error',
+        description: 'Email was verified but failed to log you in. Please log in manually.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleErrorFromRedirect = (error: string) => {
+    setStatus('error');
+    let errorMessage = 'An error occurred during verification.';
+    
+    switch (error) {
+      case 'missing-token':
+        errorMessage = 'No verification token provided.';
+        break;
+      case 'expired':
+        errorMessage = 'Verification link has expired. Please request a new one.';
+        setStatus('expired');
+        setCanResend(true);
+        const emailParam = searchParams.get('email');
+        if (emailParam) {
+          setEmail(emailParam);
+        }
+        break;
+      case 'invalid-token':
+        errorMessage = 'Invalid verification token.';
+        break;
+      case 'server-error':
+        errorMessage = 'A server error occurred. Please try again.';
+        break;
+      default:
+        errorMessage = 'An unknown error occurred.';
+    }
+    
+    setMessage(errorMessage);
+    
+    // Show error toast
+    toast({
+      title: '❌ Verification Failed',
+      description: errorMessage,
+      variant: 'destructive',
+    });
   };
 
   const handleResendVerification = async () => {
@@ -106,10 +236,16 @@ export default function VerifyEmail() {
               <p className="text-[#2C1A1D] mb-4">{message}</p>
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
                 <p className="text-sm text-green-700">
-                  🎉 Your quest account is now verified! You can now log in and start your adventure.
+                  {message.includes('logged in') ? (
+                    <>🎉 Your quest account is now verified and you're logged in! Starting your adventure...</>
+                  ) : (
+                    <>🎉 Your quest account is now verified! You can now log in and start your adventure.</>
+                  )}
                 </p>
               </div>
-              <p className="text-sm text-[#8B75AA]">Redirecting to home page...</p>
+              <p className="text-sm text-[#8B75AA]">
+                {message.includes('logged in') ? 'Redirecting to tavern...' : 'Redirecting to login...'}
+              </p>
             </div>
           )}
 

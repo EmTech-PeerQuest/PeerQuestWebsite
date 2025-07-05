@@ -8,7 +8,7 @@ import { User } from '@/lib/types';
 
 interface AuthContextProps {
   user: User | null;
-  login: (credentials: { username: string; password: string }) => Promise<void>;
+  login: (credentials: { username: string; password: string; rememberMe?: boolean }) => Promise<void>;
   register: (data: { username: string; email: string; password: string; confirmPassword?: string }) => Promise<void>;
   logout: () => void;
   loginWithGoogle: (googleCredential: string) => Promise<void>;
@@ -141,11 +141,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const login = async (credentials: { username: string; password: string }) => {
+  const login = async (credentials: { username: string; password: string; rememberMe?: boolean }) => {
     try {
       const res = await apiLogin(credentials.username, credentials.password);
-      const { access } = res.data;
+      const { access, refresh } = res.data;
+      
+      // Store access token in localStorage
       localStorage.setItem('access_token', access);
+      
+      // Store refresh token based on "Remember Me" preference
+      if (credentials.rememberMe) {
+        // Store refresh token in localStorage for persistent login
+        localStorage.setItem('refresh_token', refresh);
+        localStorage.setItem('remember_me', 'true');
+      } else {
+        // Store refresh token in sessionStorage for session-only login
+        sessionStorage.setItem('refresh_token', refresh);
+        localStorage.removeItem('remember_me');
+      }
+      
       await loadUser(access);
     } catch (error: any) {
       // Check if it's an email verification error
@@ -192,19 +206,107 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = () => {
+    // Clear all tokens and user data
     localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    sessionStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
+    localStorage.removeItem('remember_me');
+    
     setUser(null);
     router.push('/');
   };
 
-  useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      loadUser(token);
-    } else {
-      setLoading(false);
+  const refreshAccessToken = async (): Promise<string | null> => {
+    try {
+      // Try to get refresh token from localStorage first (remember me), then sessionStorage
+      const refreshToken = localStorage.getItem('refresh_token') || sessionStorage.getItem('refresh_token');
+      
+      if (!refreshToken) {
+        return null;
+      }
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/token/refresh/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh: refreshToken }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Token refresh failed');
+      }
+      
+      const data = await response.json();
+      const newAccessToken = data.access;
+      
+      // Update access token in localStorage
+      localStorage.setItem('access_token', newAccessToken);
+      
+      return newAccessToken;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      
+      // Clear all tokens on refresh failure
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      sessionStorage.removeItem('refresh_token');
+      localStorage.removeItem('remember_me');
+      
+      return null;
     }
+  };
+
+  useEffect(() => {
+    const initializeAuth = async () => {
+      const token = localStorage.getItem('access_token');
+      
+      if (token) {
+        try {
+          await loadUser(token);
+        } catch (error) {
+          // Access token might be expired, try to refresh
+          console.log('Access token failed, attempting refresh...');
+          const newToken = await refreshAccessToken();
+          
+          if (newToken) {
+            try {
+              await loadUser(newToken);
+            } catch (refreshError) {
+              console.error('Failed to load user after token refresh:', refreshError);
+              setLoading(false);
+            }
+          } else {
+            setLoading(false);
+          }
+        }
+      } else {
+        // No access token, try to refresh if we have a refresh token
+        const refreshToken = localStorage.getItem('refresh_token') || sessionStorage.getItem('refresh_token');
+        
+        if (refreshToken) {
+          console.log('No access token but found refresh token, attempting refresh...');
+          const newToken = await refreshAccessToken();
+          
+          if (newToken) {
+            try {
+              await loadUser(newToken);
+            } catch (refreshError) {
+              console.error('Failed to load user after token refresh:', refreshError);
+              setLoading(false);
+            }
+          } else {
+            setLoading(false);
+          }
+        } else {
+          setLoading(false);
+        }
+      }
+    };
+    
+    initializeAuth();
+    
     // Listen for storage changes (multi-tab sync)
     const handleStorage = (event: StorageEvent) => {
       if (event.key === 'user') {

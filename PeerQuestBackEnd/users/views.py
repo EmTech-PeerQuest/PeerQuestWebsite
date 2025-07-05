@@ -3,6 +3,7 @@ import unicodedata
 from itertools import product
 from datetime import timedelta
 from django.utils import timezone
+from django.shortcuts import redirect
 
 print("USERS.VIEWS.PY LOADED")
 
@@ -13,7 +14,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from .serializers import UserProfileSerializer, RegisterSerializer, UserInfoUpdateSerializer
 from django.contrib.auth.password_validation import validate_password
+from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
+from django.shortcuts import redirect
 from .models import User
 from .services import google_get_access_token, google_get_user_info, create_user_and_token
 from .email_utils import send_verification_email, generate_verification_token
@@ -204,7 +207,48 @@ class EmailVerificationView(APIView):
     """Handles email verification via token."""
     permission_classes = [AllowAny]
     
+    def get(self, request):
+        """Handle verification via GET request (direct link from email)."""
+        token = request.query_params.get('token')
+        
+        if not token:
+            # Redirect to frontend with error
+            return redirect(f"http://localhost:3000/verify-email?error=missing-token")
+        
+        try:
+            # Find user with this token
+            user = User.objects.get(email_verification_token=token)
+            
+            # Check if token is still valid (24 hours)
+            if user.email_verification_sent_at:
+                expiry_time = user.email_verification_sent_at + timedelta(hours=24)
+                if timezone.now() > expiry_time:
+                    # Redirect to frontend with error
+                    return redirect(f"http://localhost:3000/verify-email?error=expired&email={user.email}")
+            
+            # Verify the user
+            user.email_verified = True
+            user.email_verification_token = None
+            user.email_verification_sent_at = None
+            user.save()
+            
+            # Generate JWT tokens for automatic login
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+            refresh_token = str(refresh)
+            
+            # Redirect to frontend with tokens
+            return redirect(f"http://localhost:3000/verify-email?success=true&access_token={access_token}&refresh_token={refresh_token}")
+            
+        except User.DoesNotExist:
+            # Redirect to frontend with error
+            return redirect(f"http://localhost:3000/verify-email?error=invalid-token")
+        except Exception as e:
+            # Redirect to frontend with error
+            return redirect(f"http://localhost:3000/verify-email?error=server-error")
+    
     def post(self, request):
+        """Handle verification via POST request (API call)."""
         token = request.data.get('token')
         
         if not token:
@@ -230,14 +274,21 @@ class EmailVerificationView(APIView):
             user.email_verification_sent_at = None
             user.save()
             
+            # Generate JWT tokens for automatic login
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+            refresh_token = str(refresh)
+            
             return Response({
-                "message": "Email verified successfully! You can now log in to your account.",
+                "message": "Email verified successfully! You are now logged in.",
                 "user": {
                     "id": user.id,
                     "username": user.username,
                     "email": user.email,
                     "email_verified": user.email_verified,
-                }
+                },
+                "access_token": access_token,
+                "refresh_token": refresh_token,
             }, status=status.HTTP_200_OK)
             
         except User.DoesNotExist:

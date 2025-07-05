@@ -12,7 +12,7 @@ interface AuthModalProps {
   mode: "login" | "register" | "forgot"
   setMode: (mode: "login" | "register" | "forgot") => void
   onClose: () => void
-  onLogin: (credentials: { username: string; password: string }) => void
+  onLogin: (credentials: { username: string; password: string; rememberMe?: boolean }) => void
   onRegister: (userData: { 
     username: string; 
     email: string; 
@@ -144,6 +144,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
         await onLogin({
           username: loginForm.username,
           password: loginForm.password,
+          rememberMe: loginForm.rememberMe,
         })
       } catch (err: any) {
         // Check if it's an email verification error
@@ -454,7 +455,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                         if (data?.refresh) localStorage.setItem('refresh_token', data.refresh);
                         // If backend returned a user object, update context and redirect
                         if (data?.user) {
-                          setUser && setUser(data.user);
+                          // Google login always acts like "remember me" - store refresh token in localStorage
                           onClose();
                           router.push('/');
                         } else if (data?.access && typeof window !== 'undefined') {
@@ -466,9 +467,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                       } catch (err: any) {
                         setFormErrors({ auth: "Google login failed. Please try again." });
                       }
-                    }}
-                    onLoginFailure={() => {
-                      setFormErrors({ auth: "Google login failed. Please try again or use a different account." });
                     }}
                   />
                 </div>
