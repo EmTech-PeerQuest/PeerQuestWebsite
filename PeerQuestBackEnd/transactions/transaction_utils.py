@@ -148,3 +148,117 @@ def award_gold(user, amount, description=None, quest=None, transaction_type=Tran
             "new_balance": balance.gold_balance,
             "amount": amount
         }
+
+
+def deduct_gold_for_quest_creation(quest, amount):
+    """
+    Immediately deduct gold when a quest is created
+    
+    Args:
+        quest: The quest being created
+        amount: The amount of gold to deduct (including commission)
+        
+    Returns:
+        dict: Result of the transaction
+    """
+    if not isinstance(amount, Decimal):
+        amount = Decimal(str(amount))
+    
+    user = quest.creator
+    
+    with db_transaction.atomic():
+        # Create or get user balance
+        balance, created = UserBalance.objects.get_or_create(user=user)
+        
+        # Check if user has enough balance
+        if balance.gold_balance < amount:
+            return {
+                "success": False, 
+                "error": f"Insufficient balance. Required: {amount}, Available: {balance.gold_balance}"
+            }
+        
+        # Create the transaction record (negative amount for deduction)
+        transaction = Transaction.objects.create(
+            user=user,
+            type=TransactionType.QUEST_CREATION,
+            amount=-amount,  # Negative for deduction
+            description=f"Quest creation: {quest.title} (Reward: {quest.gold_reward} + Commission)",
+            quest=quest
+        )
+        
+        # Update the user balance
+        previous_balance = balance.gold_balance
+        balance.gold_balance -= amount
+        balance.save()
+        
+        # Also update the user model gold_balance field to keep both in sync
+        user.gold_balance = balance.gold_balance
+        user.save(update_fields=['gold_balance'])
+        
+        return {
+            "success": True,
+            "transaction_id": transaction.transaction_id,
+            "previous_balance": previous_balance,
+            "new_balance": balance.gold_balance,
+            "amount_deducted": amount
+        }
+
+
+def refund_gold_for_quest_deletion(quest):
+    """
+    Refund gold when a quest is deleted
+    
+    Args:
+        quest: The quest being deleted
+        
+    Returns:
+        dict: Result of the refund transaction
+    """
+    user = quest.creator
+    
+    # Find the original quest creation transaction
+    try:
+        creation_transaction = Transaction.objects.filter(
+            quest=quest,
+            type=TransactionType.QUEST_CREATION,
+            amount__lt=0  # Negative amount (deduction)
+        ).first()
+        
+        if not creation_transaction:
+            return {"success": False, "error": "No creation transaction found for this quest"}
+        
+        # The amount to refund is the absolute value of the creation transaction
+        refund_amount = abs(creation_transaction.amount)
+        
+        with db_transaction.atomic():
+            # Create or get user balance
+            balance, created = UserBalance.objects.get_or_create(user=user)
+            
+            # Create the refund transaction record
+            refund_transaction = Transaction.objects.create(
+                user=user,
+                type=TransactionType.QUEST_REFUND,
+                amount=refund_amount,  # Positive for refund
+                description=f"Quest deletion refund: {quest.title}",
+                quest=quest
+            )
+            
+            # Update the user balance
+            previous_balance = balance.gold_balance
+            balance.gold_balance += refund_amount
+            balance.save()
+            
+            # Also update the user model gold_balance field to keep both in sync
+            user.gold_balance = balance.gold_balance
+            user.save(update_fields=['gold_balance'])
+            
+            return {
+                "success": True,
+                "transaction_id": refund_transaction.transaction_id,
+                "previous_balance": previous_balance,
+                "new_balance": balance.gold_balance,
+                "amount_refunded": refund_amount
+            }
+    
+    except Exception as e:
+        return {"success": False, "error": str(e)}

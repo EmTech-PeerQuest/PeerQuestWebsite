@@ -16,7 +16,7 @@ function Profile({ currentUser, quests, guilds, navigateToSection }: ProfileProp
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // Filter quests by status
-  const activeQuests = quests.filter((q) => q.status === "in_progress" && q.poster?.id === currentUser.id);
+  const activeQuests = quests.filter((q) => (q.status === "in-progress" || q.status === "in_progress") && q.poster?.id === currentUser.id);
   const createdQuests = quests.filter((q) => q.poster?.id === currentUser.id);
   const completedQuests = quests.filter((q) => q.status === "completed" && q.poster?.id === currentUser.id);
 
@@ -167,7 +167,7 @@ function Profile({ currentUser, quests, guilds, navigateToSection }: ProfileProp
                       <p className="text-sm text-gray-600 mb-2">{quest.description}</p>
                       <div className="flex flex-col sm:flex-row sm:justify-between gap-2 text-sm">
                         <span>Reward: {quest.reward} Gold</span>
-                        <span>Due: {new Date(quest.deadline).toLocaleDateString()}</span>
+                        <span>Due: {quest.deadline ? new Date(quest.deadline).toLocaleDateString() : 'No deadline'}</span>
                       </div>
                     </div>
                   ))}
@@ -209,7 +209,7 @@ function Profile({ currentUser, quests, guilds, navigateToSection }: ProfileProp
                       </div>
                       <p className="text-sm text-gray-600">Looking for a skilled writer to create lore and stories about the PeerQuest Tavern's history.</p>
                       <div className="flex flex-col sm:flex-row sm:justify-between gap-2 text-sm">
-                        <span>Completed: {new Date(quest.completedAt || Date.now()).toLocaleDateString()}</span>
+                        <span>Completed: {quest.completed_at ? new Date(quest.completed_at).toLocaleDateString() : 'Recently'}</span>
                         <span className="text-blue-600 cursor-pointer">VIEW DETAILS</span>
                       </div>
                     </div>

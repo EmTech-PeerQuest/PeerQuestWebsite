@@ -4,6 +4,7 @@ export interface User {
   username?: string;
   avatar?: string;
   isBanned?: boolean;
+  banned?: boolean; // Alternative naming
   banReason?: string;
   roles?: string[];
   createdAt?: string;
@@ -15,6 +16,42 @@ export interface User {
   joinedGuilds?: number;
   createdGuilds?: number;
   bio?: string;
+  // Additional properties found in components
+  skills?: string[];
+  displayName?: string;
+  location?: string;
+  joinDate?: string;
+  badges?: Array<{
+    id: string;
+    name: string;
+    icon: string;
+    description?: string;
+  }>;
+  guilds?: Guild[];
+  spendingLimits?: SpendingLimits;
+  spendingHistory?: SpendingRecord[];
+}
+
+export interface SpendingLimits {
+  enabled: boolean;
+  dailyLimit: number;
+  weeklyLimit: number;
+  notifications: boolean;
+}
+
+export interface SpendingRecord {
+  id: string;
+  amount: number;
+  date: string;
+  description: string;
+  type: 'quest_reward' | 'guild_creation' | 'purchase' | 'cashout';
+}
+
+export interface LevelThreshold {
+  level: number;
+  xpRequired: number;
+  title: string;
+  perks: string[];
 }
 
 
@@ -29,7 +66,7 @@ export interface Quest {
     description?: string
   }
   difficulty: 'easy' | 'medium' | 'hard'
-  status: 'open' | 'in-progress' | 'completed'
+  status: 'open' | 'in-progress' | 'in_progress' | 'completed' // Include both variants
   xp_reward: number
   gold_reward?: number
   creator: {
@@ -43,6 +80,8 @@ export interface Quest {
   updated_at: string
   due_date?: string
   completed_at?: string
+  completedAt?: string // Alternative naming
+  createdAt?: string // Alternative naming
   requirements?: string
   resources?: string
   slug: string
@@ -73,6 +112,7 @@ export interface Quest {
   isGuildQuest?: boolean
   guildId?: number
   guildReward?: number
+  assignedTo?: number // Missing property found in components
 }
 
 
@@ -89,10 +129,32 @@ export interface Guild {
   members?: number;
   funds?: number;
   poster?: {
+    id?: number; // Added missing id property
     username?: string;
     avatar?: string;
     name?: string;
   };
+  // Missing properties found in components
+  membersList?: number[];
+  admins?: number[];
+  username?: string; // Alternative naming
+  category?: string;
+  settings?: {
+    joinRequirements?: {
+      manualApproval?: boolean;
+    };
+  };
+  shout?: {
+    content: string;
+    authorName: string;
+    createdAt: string;
+  };
+  socialLinks?: Array<{
+    platform: string;
+    url: string;
+    name?: string;
+  }>;
+  applications?: GuildApplication[];
 }
 
 export interface GuildApplication {
@@ -103,6 +165,17 @@ export interface GuildApplication {
   message: string
   status: 'pending' | 'accepted' | 'rejected'
   appliedAt: Date
+  guildId?: string | number // Missing property
+}
+
+export interface GuildChatMessage {
+  id: string;
+  senderId: number;
+  senderName: string;
+  senderAvatar?: string;
+  content: string;
+  timestamp: string;
+  type?: 'message' | 'system' | 'announcement';
 }
 
 export interface Application {

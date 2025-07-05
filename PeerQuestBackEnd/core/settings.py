@@ -147,6 +147,8 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'X-Requested-With',
     'Authorization',
+    'Cache-Control',
+    'Pragma',
 ]
 CORS_EXPOSE_HEADERS = [
     'Content-Type',

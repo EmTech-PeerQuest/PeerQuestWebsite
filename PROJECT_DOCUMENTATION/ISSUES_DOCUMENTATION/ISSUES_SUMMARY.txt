@@ -2,9 +2,9 @@
 PEERQUEST PROJECT - ISSUES SUMMARY (QUICK REFERENCE)
 ================================================================================
 
-Last Updated: July 2, 2025
-Total Issues Tracked: 6
-Resolved Issues: 4
+Last Updated: July 5, 2025
+Total Issues Tracked: 7
+Resolved Issues: 5
 Known Issues: 2
 Critical Issues: 0
 
@@ -20,6 +20,10 @@ CURRENT SYSTEM STATUS: ✅ HEALTHY
 ================================================================================
 RESOLVED ISSUES (RECENT)
 ================================================================================
+
+✅ QUEST-400 | Quest Creation 400 Error | RESOLVED | July 5, 2025
+   400 Bad Request error when creating quests due to invalid category validation
+   → Fixed frontend form initialization and backend validation
 
 ✅ SYNC-001 | Data Sync Issue | RESOLVED | July 2, 2025
    Silent failures in application approval causing data inconsistencies

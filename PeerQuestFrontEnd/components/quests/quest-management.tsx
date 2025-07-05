@@ -27,6 +27,7 @@ import { QuestDetailsModal } from "./quest-details-modal"
 import QuestSubmitWorkModal from "./quest-submit-work-modal"
 import QuestForm from "./quest-form"
 import { QuestManagementApplicationsModal } from "@/components/modals/quest-management-applications-modal"
+import { useGoldBalance } from "@/context/GoldBalanceContext"
 
 interface QuestManagementProps {
   currentUser: UserType
@@ -63,7 +64,9 @@ export function QuestManagement({
   const [processingApplications, setProcessingApplications] = useState<Set<number>>(new Set())
   const [removalTarget, setRemovalTarget] = useState<number | null>(null);
   const [removalReason, setRemovalReason] = useState<string>("");
-  // Remove/Kick applicant handler for quest details
+  
+  // Gold balance context for automatic updates
+  const { refreshBalance } = useGoldBalance()
   const handleRemoveApplicant = async (applicationId: number, questId: number) => {
     setProcessingApplications((prev) => new Set(prev).add(applicationId));
     try {
@@ -339,7 +342,14 @@ export function QuestManagement({
       await QuestAPI.deleteQuest(quest.slug)
       await loadMyQuests() // Refresh the quest lists from API
       setShowDeleteConfirm(null)
-      showToast("Quest deleted successfully", "success")
+      
+      // Refresh gold balance in navbar if quest had gold reward
+      if ((quest.gold_reward || 0) > 0) {
+        refreshBalance()
+        showToast(`Quest deleted successfully. ${quest.gold_reward} gold has been refunded to your account.`, "success")
+      } else {
+        showToast("Quest deleted successfully", "success")
+      }
     } catch (error) {
       console.error('Failed to delete quest:', error)
       showToast('Failed to delete quest', 'error')
@@ -360,6 +370,12 @@ export function QuestManagement({
     setShowQuestForm(false)
     setEditingQuest(null)
     await loadMyQuests() // Refresh the quest lists from API
+    
+    // Refresh gold balance if quest was created/updated with gold reward
+    if (quest && (quest.gold_reward || 0) > 0) {
+      refreshBalance()
+    }
+    
     showToast(editingQuest ? "Quest updated successfully" : "Quest created successfully", "success")
   }
 
@@ -666,10 +682,12 @@ export function QuestManagement({
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <CircleDollarSign size={18} className="text-gray-400" />
+                          <CircleDollarSign size={18} className={(quest.gold_reward || 0) > 0 ? "text-yellow-600" : "text-gray-400"} />
                           <div>
-                            <p className="text-xs text-gray-500">Gold</p>
-                            <p className="font-bold text-gray-400">Coming Soon</p>
+                            <p className="text-xs text-gray-500">Gold Reward</p>
+                            <p className={`font-bold ${(quest.gold_reward || 0) > 0 ? "text-yellow-600" : "text-gray-400"}`}>
+                              {(quest.gold_reward || 0) > 0 ? `${quest.gold_reward} Gold` : "No reward"}
+                            </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">

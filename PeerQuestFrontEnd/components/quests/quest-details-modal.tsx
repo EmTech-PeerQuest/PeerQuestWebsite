@@ -7,6 +7,7 @@ import type { Quest, User, Application } from "@/lib/types"
 import { formatTimeRemaining, getDifficultyClass } from "@/lib/utils"
 import { QuestAPI } from "@/lib/api/quests"
 import { getMyApplications } from "@/lib/api/applications"
+import { useGoldBalance } from "@/context/GoldBalanceContext"
 
 interface QuestDetailsModalProps {
   isOpen: boolean
@@ -38,6 +39,9 @@ export function QuestDetailsModal({
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showSubmitWorkModal, setShowSubmitWorkModal] = useState(false)
+  
+  // Add gold balance refresh capability
+  const { refreshBalance } = useGoldBalance()
 
   // Check if user has already applied for this quest (only pending applications)
   const hasAlreadyApplied = quest ? userApplications.some(app => 
@@ -176,7 +180,17 @@ export function QuestDetailsModal({
       await QuestAPI.deleteQuest(quest.slug)
       
       console.log('✅ Quest deleted successfully')
-      showToast("Quest deleted successfully!")
+      
+      // Show different message based on whether quest had gold reward
+      if ((quest.gold_reward || 0) > 0) {
+        showToast(`Quest deleted successfully. ${quest.gold_reward} gold has been refunded to your account.`)
+      } else {
+        showToast("Quest deleted successfully")
+      }
+      
+      // Refresh the gold balance after successful deletion
+      console.log('🔄 Refreshing gold balance after quest deletion...')
+      refreshBalance()
       
       // Remove the quest from the list
       setQuests(prevQuests => prevQuests.filter(q => q.id !== quest.id))
@@ -244,7 +258,7 @@ export function QuestDetailsModal({
                 <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center">
                   <CircleDollarSign size={16} className="text-white" />
                 </div>
-                {quest.gold_reward && quest.gold_reward > 0 ? (
+                {(quest.gold_reward || 0) > 0 ? (
                   <span className="font-bold text-amber-600">{quest.gold_reward} Gold</span>
                 ) : (
                   <span className="font-bold text-gray-400">No gold reward</span>

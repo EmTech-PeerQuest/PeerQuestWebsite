@@ -1,6 +1,7 @@
 import { fetchWithAuth } from '@/lib/auth'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+console.log('🔧 Transactions API_BASE_URL:', API_BASE_URL); // Debug log
 
 export interface UserBalance {
   user: number
@@ -24,7 +25,7 @@ export interface Transaction {
 
 export const TransactionAPI = {
   /**
-   * Get the current user's balance
+   * Get the current user's balance with enhanced debugging
    */
   async getMyBalance(): Promise<UserBalance> {
     try {
@@ -51,10 +52,12 @@ export const TransactionAPI = {
         console.log('🔑 Using token for balance request:', token.substring(0, 10) + '...');
       }
       
+      // Add cache busting to prevent stale data
+      const timestamp = Date.now();
       const response = await fetchWithAuth(
-        `${API_BASE_URL}/transactions/balances/my_balance/`, 
+        `${API_BASE_URL}/transactions/balances/my_balance/?t=${timestamp}`, 
         { 
-          credentials: 'include',
+          method: 'GET',
           headers: { 
             'Accept': 'application/json'
           }
@@ -62,24 +65,26 @@ export const TransactionAPI = {
       );
       
       console.log('🔄 Balance API Response Status:', response.status, response.statusText);
+      console.log('🔄 Balance API Response Headers:', Object.fromEntries(response.headers.entries()));
       
       if (!response.ok) {
         console.error(`Failed to get balance: ${response.status} ${response.statusText}`);
-        if (response.status === 401) {
-          console.error('Authentication error when fetching balance');
+        
+        // Handle authentication errors specifically
+        if (response.status === 401 || response.status === 403) {
+          console.error('❌ Authentication error when fetching balance - clearing tokens');
           // Remove tokens to prevent further failed requests
           if (typeof window !== 'undefined') {
             localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
           }
-          return {
-            user: 0,
-            username: '',
-            gold_balance: 0,
-            last_updated: new Date().toISOString()
-          };
+          
+          // Throw an authentication error
+          throw new Error('Authentication required. Please log in again.');
         }
         
         const text = await response.text();
+        console.error('🔄 Error response body:', text);
         try {
           // Try to parse as JSON first
           const errorJson = JSON.parse(text);
@@ -93,8 +98,10 @@ export const TransactionAPI = {
       // Parse response safely
       try {
         const data = await response.json();
-        console.log('✅ Balance fetched successfully:', data);
+        console.log('✅ Raw Balance API Response:', JSON.stringify(data, null, 2));
         console.log('✅ Raw gold_balance from API:', data.gold_balance, typeof data.gold_balance);
+        console.log('✅ Raw user from API:', data.user, typeof data.user);
+        console.log('✅ Raw username from API:', data.username);
         
         // Ensure gold_balance is a number
         let goldBalance = 0;
@@ -107,11 +114,15 @@ export const TransactionAPI = {
         }
         
         console.log('✅ Processed gold balance:', goldBalance, typeof goldBalance);
-          
-        return {
+        
+        const result = {
           ...data,
           gold_balance: goldBalance
         };
+        
+        console.log('✅ Final balance result:', JSON.stringify(result, null, 2));
+          
+        return result;
       } catch (parseError) {
         console.error('❌ Failed to parse balance response:', parseError);
         throw new Error('Invalid response format from balance API');

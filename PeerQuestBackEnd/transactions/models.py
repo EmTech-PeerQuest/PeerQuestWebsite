@@ -5,6 +5,8 @@ from .gold_reservation_models import QuestGoldReservation
 
 class TransactionType(models.TextChoices):
     QUEST_REWARD = 'QUEST_REWARD', 'Quest Reward'
+    QUEST_CREATION = 'QUEST_CREATION', 'Quest Creation'
+    QUEST_REFUND = 'QUEST_REFUND', 'Quest Refund'
     PURCHASE = 'PURCHASE', 'Purchase'
     ADMIN_ADJUSTMENT = 'ADMIN_ADJUSTMENT', 'Admin Adjustment'
     GIFT = 'GIFT', 'Gift'

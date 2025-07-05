@@ -111,7 +111,7 @@ export function QuestCard({
               <span>{quest.xp_reward} XP</span>
             </div>
             
-            {quest.gold_reward && quest.gold_reward > 0 && (
+            {(quest.gold_reward || 0) > 0 && (
               <div className="flex items-center gap-1">
                 <span className="text-amber-500">🪙</span>
                 <span className="text-amber-600 font-medium">{quest.gold_reward} gold</span>

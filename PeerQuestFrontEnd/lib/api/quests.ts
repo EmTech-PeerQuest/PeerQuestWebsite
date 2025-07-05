@@ -214,7 +214,14 @@ export const QuestAPI = {
         gold_reward: questData.gold_reward != null ? Number(questData.gold_reward) : 0
       };
       
-      console.log('Creating quest with formatted data:', formattedData)
+      console.log('🔍 Frontend: Creating quest with original data:', questData)
+      console.log('🔍 Frontend: Creating quest with formatted data:', formattedData)
+      console.log('🔍 Frontend: Data keys:', Object.keys(formattedData))
+      console.log('🔍 Frontend: Category value:', formattedData.category, typeof formattedData.category)
+      console.log('🔍 Frontend: Gold reward value:', formattedData.gold_reward, typeof formattedData.gold_reward)
+      console.log('🔍 Frontend: Due date value:', formattedData.due_date, typeof formattedData.due_date)
+      console.log('🔍 Frontend: Title value:', formattedData.title?.length, 'chars')
+      console.log('🔍 Frontend: Description value:', formattedData.description?.length, 'chars')
       
       const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/`, {
         method: 'POST',
@@ -222,19 +229,41 @@ export const QuestAPI = {
         body: JSON.stringify(formattedData),
       })
 
+      console.log('🔍 Frontend: Response status:', response.status, response.statusText)
+
       if (!response.ok) {
         // Try to parse the error response
         let errorData;
         try {
           errorData = await response.json()
-          console.error('Quest creation error response:', errorData, 'Status:', response.status)
+          console.error('🔍 Frontend: Quest creation error response:', errorData, 'Status:', response.status)
         } catch (parseError) {
-          console.error('Could not parse error response:', parseError)
+          console.error('🔍 Frontend: Could not parse error response:', parseError)
+          const responseText = await response.text()
+          console.error('🔍 Frontend: Raw error response text:', responseText)
           throw new Error(`Failed to create quest: Server returned ${response.status} ${response.statusText}`)
         }
         
         // Format error messages for field-specific errors
-        if (typeof errorData === 'object') {
+        if (typeof errorData === 'object' && errorData !== null) {
+          // Check if it's an empty object
+          if (Object.keys(errorData).length === 0) {
+            throw new Error(`Failed to create quest: Server returned ${response.status} ${response.statusText} with empty error response`)
+          }
+          
+          // Log each field error
+          Object.keys(errorData).forEach(field => {
+            console.error(`🔍 Frontend: Field error - ${field}:`, errorData[field])
+          })
+          
+          // If there's a gold_reward error, extract the specific message
+          if (errorData.gold_reward) {
+            const goldError = Array.isArray(errorData.gold_reward) 
+              ? errorData.gold_reward[0] 
+              : errorData.gold_reward
+            throw new Error(`Gold Balance Error: ${goldError}`)
+          }
+          
           // Return the error directly so the component can handle specific field errors
           throw new Error(`Failed to create quest: ${JSON.stringify(errorData)}`)
         } else {
@@ -242,9 +271,11 @@ export const QuestAPI = {
         }
       }
 
-      return response.json()
+      const responseData = await response.json()
+      console.log('✅ Frontend: Quest created successfully:', responseData)
+      return responseData
     } catch (error) {
-      console.error('Quest creation failed:', error)
+      console.error('❌ Frontend: Quest creation failed:', error)
       throw error
     }
   },

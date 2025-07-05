@@ -117,6 +117,26 @@ class QuestViewSet(viewsets.ModelViewSet):
             
         return queryset
 
+    def create(self, request, *args, **kwargs):
+        """Custom create method with enhanced debugging"""
+        print(f"🔍 QuestViewSet.create called")
+        print(f"🔍 Request method: {request.method}")
+        print(f"🔍 Request user: {request.user}")
+        print(f"🔍 Request data: {request.data}")
+        print(f"🔍 Request data type: {type(request.data)}")
+        print(f"🔍 Request content type: {request.content_type}")
+        
+        try:
+            response = super().create(request, *args, **kwargs)
+            print(f"✅ Quest created successfully with status: {response.status_code}")
+            return response
+        except Exception as e:
+            print(f"❌ Quest creation failed with error: {str(e)}")
+            print(f"❌ Error type: {type(e)}")
+            import traceback
+            print(f"❌ Traceback: {traceback.format_exc()}")
+            raise
+
     @action(detail=True, methods=['post'])
     def join_quest(self, request, slug=None):
         """
@@ -208,9 +228,14 @@ class QuestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Release any gold reservation
-        from transactions.transaction_utils import release_gold_reservation
-        release_gold_reservation(quest)
+        # Refund gold when quest is deleted
+        from transactions.transaction_utils import refund_gold_for_quest_deletion
+        refund_result = refund_gold_for_quest_deletion(quest)
+        
+        if refund_result["success"]:
+            print(f"✅ Refunded {refund_result['amount_refunded']} gold to {quest.creator.username} for quest deletion")
+        else:
+            print(f"⚠️ Failed to refund gold for quest deletion: {refund_result.get('error', 'Unknown error')}")
         
         # Only allow deletion of 'open' quests
         return super().destroy(request, *args, **kwargs)
@@ -491,9 +516,14 @@ class AdminQuestDetailView(generics.RetrieveUpdateDestroyAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Release any gold reservation
-        from transactions.transaction_utils import release_gold_reservation
-        release_gold_reservation(quest)
+        # Refund gold when quest is deleted
+        from transactions.transaction_utils import refund_gold_for_quest_deletion
+        refund_result = refund_gold_for_quest_deletion(quest)
+        
+        if refund_result["success"]:
+            print(f"✅ Refunded {refund_result['amount_refunded']} gold to {quest.creator.username} for quest deletion")
+        else:
+            print(f"⚠️ Failed to refund gold for quest deletion: {refund_result.get('error', 'Unknown error')}")
         
         # Only allow deletion of 'open' quests
         return super().destroy(request, *args, **kwargs)

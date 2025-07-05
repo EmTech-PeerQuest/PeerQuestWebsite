@@ -34,6 +34,13 @@ export function GoldBalanceProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth(); // Get user from auth context
 
   const fetchBalance = useCallback(async () => {
+    // Skip if not in browser environment
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      console.warn('⚠️ Skipping balance fetch - not in browser environment');
+      setLoading(false);
+      return;
+    }
+
     // Only attempt to fetch if user is logged in
     if (!user) {
       setGoldBalance(0);
@@ -62,7 +69,27 @@ export function GoldBalanceProvider({ children }: { children: ReactNode }) {
       console.log('📊 Setting gold balance to:', goldAmount);
       setGoldBalance(goldAmount);
     } catch (err) {
-      console.error('Error fetching gold balance:', err);
+      console.error('❌ Error fetching gold balance in context:', err);
+      
+      // Handle specific error types
+      if (err instanceof Error) {
+        if (err.message.includes('Failed to refresh access token') || 
+            err.message.includes('No refresh token available') ||
+            err.message.includes('Authentication required')) {
+          console.warn('🔑 Authentication issue, clearing balance');
+          setGoldBalance(0);
+        } else if (err.message.includes('Fetch failed')) {
+          console.error('🌐 Network issue, keeping last known balance');
+          // Don't change the balance on network errors
+        } else {
+          console.error('🔴 Unknown error, setting balance to 0');
+          setGoldBalance(0);
+        }
+      } else {
+        console.error('🔴 Non-Error exception, setting balance to 0');
+        setGoldBalance(0);
+      }
+      
       // Don't set error UI if it's just an auth issue
       if (err instanceof Error && !err.message.includes('No refresh token available')) {
         setError(err);
