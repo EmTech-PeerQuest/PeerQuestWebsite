@@ -154,66 +154,54 @@ export function EnhancedCreateGuildModal({
     setShowConfirmation(true)
   }
 
-  const handleConfirmSubmit = () => {
-    const GUILD_CREATION_COST = 1000
+  const handleConfirmSubmit = async () => {
+    const GUILD_CREATION_COST = 1000;
 
-    const newGuild: Partial<Guild> = {
-      name: guildForm.name,
-      description: guildForm.description,
-      emblem: guildForm.useCustomEmblem ? guildForm.customEmblemPreview : guildForm.emblem,
-      specialization: guildForm.specialization,
-      privacy: guildForm.privacy,
-      poster: currentUser,
-      members: 1,
-      membersList: [currentUser.id],
-      welcomeMessage: guildForm.welcomeMessage,
-      tags: guildForm.tags,
-      socialLinks: guildForm.socialLinks,
-      settings: {
-        joinRequirements: {
-          manualApproval: guildForm.requireApproval,
-          minimumLevel: guildForm.minimumLevel,
-          requiresApplication: guildForm.requireApproval,
-        },
-        visibility: {
-          publiclyVisible: guildForm.privacy === "public",
-          showOnHomePage: guildForm.showOnHomePage,
-          allowDiscovery: guildForm.allowDiscovery,
-        },
-        permissions: {
-          whoCanPost: guildForm.whoCanPost,
-          whoCanInvite: guildForm.whoCanInvite,
-          whoCanKick: "admins",
-        },
-      },
+    // Build FormData
+    const data = new FormData();
+    data.append("name", guildForm.name);
+    data.append("description", guildForm.description);
+    data.append("specialization", guildForm.specialization);
+    data.append("welcome_message", guildForm.welcomeMessage);
+    data.append("privacy", guildForm.privacy);
+    data.append("tags", JSON.stringify(guildForm.tags));
+    data.append("social_links", JSON.stringify(guildForm.socialLinks));
+    data.append("join_requirements", JSON.stringify({
+      required_approval: guildForm.requireApproval,
+      min_level: guildForm.minimumLevel,
+    }));
+    data.append("visibility", JSON.stringify({
+      allow_discovery: guildForm.allowDiscovery,
+      show_on_home: guildForm.showOnHomePage,
+    }));
+    data.append("permissions", JSON.stringify({
+      post_quests: guildForm.whoCanPost,
+      invite_members: guildForm.whoCanInvite,
+    }));
+    if (guildForm.useCustomEmblem && guildForm.customEmblemFile) {
+      data.append("emblem", guildForm.customEmblemFile);
     }
 
-    if (onSubmit) {
-      onSubmit({ ...newGuild, guildCreationCost: GUILD_CREATION_COST })
+    // POST to backend
+    try {
+      const res = await fetch("http://localhost:8000/guilds/create/", {
+        method: "POST",
+        body: data,
+        credentials: "include",
+      });
+      if (res.ok) {
+        showToast?.("Guild created successfully!", "success");
+        onClose();
+      } else {
+        const error = await res.json();
+        showToast?.(error.detail || "Failed to create guild", "error");
+      }
+    } catch (err) {
+      showToast?.("Network error. Please try again.", "error");
     }
 
-    // Reset form
-    setGuildForm({
-      name: "",
-      description: "",
-      emblem: "🧪",
-      specialization: "",
-      privacy: "public",
-      welcomeMessage: "",
-      tags: [],
-      socialLinks: [],
-      customEmblemFile: null,
-      customEmblemPreview: "",
-      useCustomEmblem: false,
-      requireApproval: true,
-      minimumLevel: 1,
-      allowDiscovery: true,
-      showOnHomePage: true,
-      whoCanPost: "members",
-      whoCanInvite: "members",
-    })
-    setCurrentStep(1)
-    setShowConfirmation(false)
+    setCurrentStep(1);
+    setShowConfirmation(false);
   }
 
   const nextStep = () => {

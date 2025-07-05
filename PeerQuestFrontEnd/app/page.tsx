@@ -7,6 +7,7 @@ import { QuestBoard } from "@/components/quest-board"
 import { GuildHall } from "@/components/guild-hall"
 import { Settings } from "@/components/settings"
 import { About } from "@/components/about"
+<<<<<<< Updated upstream
 import { AuthModal } from "@/components/auth-modal"
 import { PostQuestModal } from "@/components/post-quest-modal"
 import { EnhancedCreateGuildModal } from "@/components/enhanced-create-guild-modal"
@@ -17,6 +18,19 @@ import { GoldSystemModal } from "@/components/gold-system-modal"
 import { Toast } from "@/components/toast"
 import { Footer } from "@/components/footer"
 import { Profile } from "@/components/profile"
+=======
+import { AuthModal } from '@/components/auth/auth-modal'
+import { PostQuestModal } from '@/components/quests/post-quest-modal'
+import { EnhancedCreateGuildModal } from '@/components/guilds/enhanced-create-guild-modal'
+import { QuestDetailsModal } from '@/components/quests/quest-details-modal'
+import { ApplicationsModal } from '@/components/modals/applications-modal'
+import { EditQuestModal } from '@/components/guilds/edit-quest-modal'
+import { GoldSystemModal } from '@/components/gold/gold-system-modal'
+// ...removed duplicate Toast import...
+import { Toast, ToastProvider } from '@/components/ui/toast'
+import { Footer } from '@/components/ui/footer'
+import { Profile } from '@/components/auth/profile'
+>>>>>>> Stashed changes
 import { UserSearch } from "@/components/user-search"
 import { MessagingSystem } from "@/components/messaging-system"
 import { QuestManagement } from "@/components/quest-management"
@@ -57,6 +71,7 @@ export default function Home() {
   const [users, setUsers] = useState<User[]>(mockUsers || [])
   const [quests, setQuests] = useState<Quest[]>(mockQuests || [])
   const [guilds, setGuilds] = useState<Guild[]>(mockGuilds || [])
+  // (Mock mode) Do not fetch from backend, use mockGuilds only
   const [guildApplications, setGuildApplications] = useState<GuildApplication[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(false)
 
@@ -191,58 +206,10 @@ export default function Home() {
     showToast(`Quest posted! ${questData.questCost} gold deducted for reward pool.`, "success")
   }
 
-  const handleGuildSubmit = (guildData: Partial<Guild> & { guildCreationCost?: number }) => {
-    if (!currentUser) return
-
-    // Deduct gold from user for guild creation and add spending record
-    if (guildData.guildCreationCost) {
-      const updatedUser = addSpendingRecord(
-        currentUser,
-        guildData.guildCreationCost,
-        "guild_creation",
-        `Created guild: ${guildData.name}`,
-      )
-      setCurrentUser({ ...updatedUser, gold: updatedUser.gold - guildData.guildCreationCost })
-    }
-
-    const newGuild: Guild = {
-      id: Date.now(),
-      name: guildData.name || "Untitled Guild",
-      description: guildData.description || "",
-      emblem: guildData.emblem || "🏆",
-      specialization: guildData.specialization || "general",
-      category: guildData.category || "Other",
-      members: 1,
-      membersList: [currentUser.id],
-      poster: currentUser,
-      admins: [currentUser.id],
-      createdAt: new Date(),
-      applications: [],
-      funds: 0,
-      settings: {
-        joinRequirements: {
-          manualApproval: true,
-          minimumLevel: 1,
-          requiresApplication: true,
-        },
-        visibility: {
-          publiclyVisible: true,
-          showOnHomePage: true,
-          allowDiscovery: true,
-        },
-        permissions: {
-          whoCanPost: "members",
-          whoCanInvite: "members",
-          whoCanKick: "admins",
-        },
-      },
-      roles: [],
-      socialLinks: [],
-    }
-
-    setGuilds([newGuild, ...guilds])
-    setShowCreateGuildModal(false)
-    showToast(`Guild created! ${guildData.guildCreationCost} gold deducted for guild registration.`, "success")
+  // After successful guild creation, just close modal and show toast (mock mode)
+  const handleGuildSubmit = async () => {
+    setShowCreateGuildModal(false);
+    showToast("Guild created! (mock mode)", "success");
   }
 
   const handleQuestClick = (quest: Quest) => {
@@ -277,20 +244,7 @@ export default function Home() {
       appliedAt: new Date(),
     }
 
-    // Add application to guild
-    setGuilds((prevGuilds) =>
-      prevGuilds.map((guild) => {
-        if (guild.id === guildId) {
-          return {
-            ...guild,
-            applications: [...(guild.applications || []), newApplication],
-          }
-        }
-        return guild
-      }),
-    )
-
-    setGuildApplications([...guildApplications, newApplication])
+    // TODO: POST application to backend here, then re-fetch guilds if needed
     showToast("Guild application submitted successfully!", "success")
   }
 
@@ -358,7 +312,8 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F4F0E6]">
+    <ToastProvider>
+      <main className="min-h-screen bg-[#F4F0E6]">
       <Navbar
         currentUser={currentUser}
         setActiveSection={setActiveSection}
@@ -466,8 +421,7 @@ export default function Home() {
             showToast(`Editing guild: ${guild.name}`, "info")
           }}
           onDeleteGuild={(guildId) => {
-            setGuilds(guilds.filter((g) => g.id !== Number.parseInt(guildId)))
-            showToast("Guild deleted successfully", "success")
+            showToast("Guild deleted successfully (mock mode)", "success");
           }}
           onApproveApplication={(applicationId) => {
             const application = guildApplications.find((app) => app.id.toString() === applicationId)
@@ -592,9 +546,11 @@ export default function Home() {
         setCurrentUser={setCurrentUser}
         showToast={showToast}
       />
+      
 
       {/* Toast Notifications */}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-    </main>
+      </main>
+    </ToastProvider>
   )
 }
