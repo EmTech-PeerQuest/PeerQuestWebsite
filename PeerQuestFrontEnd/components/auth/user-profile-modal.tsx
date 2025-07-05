@@ -1,8 +1,15 @@
 "use client"
 
+<<<<<<< HEAD
 import { useState } from "react"
 import { X, MapPin, Calendar, Award, Users, FileText, Star, ChevronDown } from "lucide-react"
 import type { User, Quest, Guild } from "@/lib/types"
+=======
+import { useState, useEffect } from "react"
+import { X, MapPin, Calendar, Award, Users, FileText, Star, ChevronDown } from "lucide-react"
+import type { User, Quest, Guild } from "@/lib/types"
+import { formatJoinDate } from "@/lib/date-utils"
+>>>>>>> Profile/Settings
 
 interface UserProfileModalProps {
   isOpen: boolean
@@ -16,8 +23,33 @@ interface UserProfileModalProps {
 export function UserProfileModal({ isOpen, onClose, user, quests, guilds, currentUser }: UserProfileModalProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "quests" | "guilds" | "achievements">("overview")
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+<<<<<<< HEAD
 
   if (!isOpen) return null
+=======
+  const [forceOpen, setForceOpen] = useState(false)
+
+  // Auto-open modal if hash starts with #settings
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (window.location.hash.startsWith("#settings")) {
+        setForceOpen(true)
+      }
+    }
+  }, [])
+
+  // If modal is closed, clear hash if it was settings
+  const handleClose = () => {
+    if (typeof window !== "undefined" && window.location.hash.startsWith("#settings")) {
+      window.location.hash = ""
+    }
+    onClose()
+    setForceOpen(false)
+  }
+
+  // Show modal if isOpen or forceOpen
+  if (!isOpen && !forceOpen) return null
+>>>>>>> Profile/Settings
 
   // Calculate user stats with proper null checks
   const userQuests = (quests || []).filter((q) => q.poster?.id === user.id) || []
@@ -77,12 +109,22 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
                 {/* Join Date */}
                 <div className="flex items-center gap-2 mt-2 text-xs text-[#F4F0E6] opacity-80">
                   <Calendar size={12} />
+<<<<<<< HEAD
                   <span>Joined {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "Unknown"}</span>
+=======
+                  <span>
+                    Joined {formatJoinDate(user.createdAt || user.dateJoined)}
+                  </span>
+>>>>>>> Profile/Settings
                 </div>
               </div>
             </div>
 
+<<<<<<< HEAD
             <button onClick={onClose} className="text-white hover:text-[#CDAA7D] transition-colors">
+=======
+            <button onClick={handleClose} className="text-white hover:text-[#CDAA7D] transition-colors">
+>>>>>>> Profile/Settings
               <X size={20} />
             </button>
           </div>

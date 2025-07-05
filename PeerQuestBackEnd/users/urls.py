@@ -1,15 +1,16 @@
 from django.urls import path
 from .views import (
-    CurrentUserView,
-    UpdateProfileView,         # <-- corrected name
-    PublicProfileView
+    UserProfileView, RegisterView, GoogleLoginCallbackView, 
+    UserInfoSettingsView, PasswordChangeView, EmailVerificationView, 
+    ResendVerificationView
 )
 
 urlpatterns = [
-    # Authenticated user endpoints
-    path('me/', CurrentUserView.as_view(), name='user-detail'),
-    path('me/update/', UpdateProfileView.as_view(), name='user-update'),  # <-- corrected class
-
-    # Public profile view by username
-    path('profile/<str:username>/', PublicProfileView.as_view(), name='public-profile'),
+    path("register/", RegisterView.as_view(), name="register"),
+    path("profile/", UserProfileView.as_view(), name="profile"),
+    path("google-login-callback/", GoogleLoginCallbackView.as_view(), name="google-login-callback"),
+    path("settings/", UserInfoSettingsView.as_view(), name="user-settings"),
+    path("change-password/", PasswordChangeView.as_view(), name="change-password"),
+    path("verify-email/", EmailVerificationView.as_view(), name="verify-email"),
+    path("resend-verification/", ResendVerificationView.as_view(), name="resend-verification"),
 ]

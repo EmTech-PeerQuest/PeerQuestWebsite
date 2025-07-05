@@ -1,6 +1,10 @@
 "use client"
 
 import { X, CircleDollarSign, Star, Clock, Palette, Code, PenTool } from "lucide-react"
+<<<<<<< HEAD
+=======
+import { useTranslation } from 'react-i18next'
+>>>>>>> Profile/Settings
 import type { Quest, User } from "@/lib/types"
 import { formatTimeRemaining, getDifficultyClass } from "@/lib/utils"
 
@@ -27,6 +31,10 @@ export function QuestDetailsModal({
   setAuthModalOpen,
   openEditQuestModal,
 }: QuestDetailsModalProps) {
+<<<<<<< HEAD
+=======
+  const { t } = useTranslation()
+>>>>>>> Profile/Settings
   if (!isOpen || !quest) return null
 
   const getCategoryIcon = (category: string) => {
@@ -44,7 +52,11 @@ export function QuestDetailsModal({
 
   const applyForQuest = (questId: number) => {
     if (!isAuthenticated) {
+<<<<<<< HEAD
       showToast("Please log in to apply for quests", "error")
+=======
+      showToast(t('toastMessages.pleaseLoginQuests'), "error")
+>>>>>>> Profile/Settings
       setAuthModalOpen(true)
       return
     }
@@ -52,7 +64,11 @@ export function QuestDetailsModal({
     if (!currentUser) return
 
     if (quest.applicants.some((app) => app.userId === currentUser.id)) {
+<<<<<<< HEAD
       showToast("You have already applied for this quest", "error")
+=======
+      showToast(t('toastMessages.alreadyApplied'), "error")
+>>>>>>> Profile/Settings
       return
     }
 
@@ -68,7 +84,11 @@ export function QuestDetailsModal({
 
     setQuests((prev) => prev.map((q) => (q.id === questId ? { ...q, applicants: [...q.applicants, application] } : q)))
 
+<<<<<<< HEAD
     showToast("Application submitted successfully!")
+=======
+    showToast(t('toastMessages.applicationSubmitted'))
+>>>>>>> Profile/Settings
     onClose()
   }
 
@@ -77,7 +97,11 @@ export function QuestDetailsModal({
       openEditQuestModal(quest)
       onClose()
     } else {
+<<<<<<< HEAD
       showToast("Quest editing coming soon!", "info")
+=======
+      showToast(t('toastMessages.questEditingComingSoon'), "info")
+>>>>>>> Profile/Settings
     }
   }
 

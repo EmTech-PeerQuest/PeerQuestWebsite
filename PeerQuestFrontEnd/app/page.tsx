@@ -1,12 +1,17 @@
 "use client"
 
+<<<<<<< HEAD
 import { useState, useEffect, useRef } from "react"
+=======
+import { useState, useEffect } from "react"
+>>>>>>> Profile/Settings
 import { Navbar } from '@/components/ui/navbar'
 import { Hero } from '@/components/ui/hero'
 import { QuestBoard } from '@/components/quests/quest-board'
 import { GuildHall } from '@/components/guilds/guild-hall'
 import { About } from "@/components/about"
 import { Footer } from '@/components/ui/footer'
+<<<<<<< HEAD
 import { Toast, ToastProvider } from '@/components/ui/toast'
 import { AuthModal } from '@/components/auth/auth-modal'
 import { Profile } from '@/components/auth/profile'
@@ -95,6 +100,95 @@ export default function Home() {
             setAuthMode("login")
             setShowAuthModal(true)
           }}
+=======
+import { ToastProvider } from '@/components/ui/toast'
+import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/context/AuthContext";
+import GoogleLoginButton from "@/components/auth/GoogleAuthButton"
+import { AIChatbot } from '@/components/ai/ai-chatbot';
+import { AuthModal } from '@/components/auth/auth-modal';
+import { Settings } from '@/components/settings/settings';
+import { useRouter } from 'next/navigation';
+import Profile from './profile/page';
+import Spinner from '@/components/ui/spinner';
+import LoadingModal from '@/components/ui/loading-modal';
+
+import type { User, Quest, Guild, GuildApplication } from "@/lib/types"
+import { fetchInitialData } from '@/lib/api/init-data'
+
+export default function Home() {
+  const [activeSection, setActiveSection] = useState<string>("home");
+  const [quests, setQuests] = useState<Quest[]>([]);
+  const [guilds, setGuilds] = useState<Guild[]>([]);
+  const [guildApplications, setGuildApplications] = useState<GuildApplication[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { user: currentUser, login, register, logout } = useAuth();
+  const { toast } = useToast();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login');
+  const router = useRouter();
+
+  // Ensure home section is shown after logout
+  useEffect(() => {
+    if (!currentUser) {
+      setActiveSection("home");
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    fetchInitialData()
+      .then((data) => {
+        if (!isMounted) return;
+        setQuests(data?.quests || []);
+        setGuilds(data?.guilds || []);
+        setGuildApplications(data?.guildApplications || []);
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        setQuests([]);
+        setGuilds([]);
+        setGuildApplications([]);
+        console.error("Initialization failed", err);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+    return () => { isMounted = false; };
+  }, []);
+
+  // Only allow navigation to protected sections if currentUser exists
+  const handleSectionChange = (section: string) => {
+    const protectedSections = [
+      "profile", "settings", "messages", "quest-management", "guild-management", "admin"
+    ];
+    if (protectedSections.includes(section)) {
+      if (!currentUser) {
+        toast({ title: "Login Required", description: "Please sign in with Google to access this section.", variant: "destructive" });
+        return;
+      }
+    }
+    setActiveSection(section);
+  };
+
+  // Memoize data loaded state for each section
+  const questsLoaded = quests.length > 0 || !loading;
+  const guildsLoaded = guilds.length > 0 || !loading;
+
+  // Only show loading modal for initial data load (not after login/register)
+  const showInitialLoading = loading && !currentUser;
+
+  return (
+    <ToastProvider>
+      {showInitialLoading && <LoadingModal message="Loading your adventure..." />}
+      <main className="min-h-screen bg-[#F4F0E6]">
+        <Navbar
+          activeSection={activeSection}
+          setActiveSection={handleSectionChange}
+          handleLogout={logout}
+          openAuthModal={() => setShowAuthModal(true)}
+>>>>>>> Profile/Settings
           openGoldPurchaseModal={() => {}}
           openPostQuestModal={() => {}}
           openCreateGuildModal={() => {}}
@@ -103,6 +197,7 @@ export default function Home() {
         {activeSection === "home" && (
           <Hero
             currentUser={currentUser}
+<<<<<<< HEAD
             openAuthModal={() => {
               setAuthMode("login")
               setShowAuthModal(true)
@@ -111,11 +206,16 @@ export default function Home() {
               setAuthMode("register")
               setShowAuthModal(true)
             }}
+=======
+            openAuthModal={() => setShowAuthModal(true)}
+            openRegisterModal={() => setActiveSection("about")}
+>>>>>>> Profile/Settings
             navigateToSection={setActiveSection}
           />
         )}
 
         {activeSection === "quest-board" && (
+<<<<<<< HEAD
           <QuestBoard
             quests={quests}
             currentUser={currentUser}
@@ -143,13 +243,49 @@ export default function Home() {
             guilds={guilds}
             navigateToSection={setActiveSection}
           />
+=======
+          !questsLoaded ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <Spinner />
+              <div className="mt-4 text-[#8B75AA] text-lg font-medium">Loading quests...</div>
+            </div>
+          ) : (
+            <QuestBoard
+              quests={quests}
+              currentUser={currentUser}
+              openQuestDetails={() => {}}
+              openPostQuestModal={() => {}}
+              openApplications={() => {}}
+              openEditQuestModal={() => {}}
+            />
+          )
+        )}
+
+        {activeSection === "guild-hall" && (
+          !guildsLoaded ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <Spinner />
+              <div className="mt-4 text-[#8B75AA] text-lg font-medium">Loading guilds...</div>
+            </div>
+          ) : (
+            <GuildHall
+              guilds={guilds}
+              currentUser={currentUser}
+              openCreateGuildModal={() => {}}
+              handleApplyForGuild={() => {}}
+            />
+          )
+>>>>>>> Profile/Settings
         )}
 
         {activeSection === "settings" && currentUser && (
           <Settings
             user={currentUser}
             updateSettings={(updatedUser) => setCurrentUser({ ...currentUser, ...updatedUser })}
+<<<<<<< HEAD
             showToast={showToast}
+=======
+>>>>>>> Profile/Settings
           />
         )}
 
@@ -159,12 +295,19 @@ export default function Home() {
             quests={quests}
             guilds={guilds}
             currentUser={currentUser}
+<<<<<<< HEAD
             showToast={showToast}
+=======
+>>>>>>> Profile/Settings
           />
         )}
 
         {activeSection === "messages" && currentUser && (
+<<<<<<< HEAD
           <MessagingSystem currentUser={currentUser} showToast={showToast} />
+=======
+          <MessagingSystem currentUser={currentUser} />
+>>>>>>> Profile/Settings
         )}
 
         {activeSection === "quest-management" && currentUser && (
@@ -173,7 +316,10 @@ export default function Home() {
             currentUser={currentUser}
             onQuestStatusChange={() => {}}
             setQuests={setQuests}
+<<<<<<< HEAD
             showToast={showToast}
+=======
+>>>>>>> Profile/Settings
           />
         )}
 
@@ -182,7 +328,10 @@ export default function Home() {
             guilds={guilds}
             guildApplications={guildApplications}
             currentUser={currentUser}
+<<<<<<< HEAD
             showToast={showToast}
+=======
+>>>>>>> Profile/Settings
             onViewGuild={() => {}}
             onEditGuild={() => {}}
             onDeleteGuild={() => {}}
@@ -201,12 +350,16 @@ export default function Home() {
             setUsers={() => {}}
             setQuests={setQuests}
             setGuilds={setGuilds}
+<<<<<<< HEAD
             showToast={showToast}
+=======
+>>>>>>> Profile/Settings
           />
         )}
 
         {activeSection === "about" && <About />}
 
+<<<<<<< HEAD
         <AIChatbot currentUser={currentUser} />
 
         <Footer />
@@ -248,6 +401,34 @@ export default function Home() {
         />
 
         {toast && <Toast variant={toast.type} title={toast.message} onClose={() => setToast(null)} />}
+=======
+        {activeSection === "profile" && currentUser && (
+          <Profile currentUser={currentUser} quests={quests} guilds={guilds} />
+        )}
+
+        {showAuthModal && (
+          <AuthModal
+            isOpen={showAuthModal}
+            mode={authMode}
+            setMode={setAuthMode}
+            onClose={() => setShowAuthModal(false)}
+            onLogin={async (credentials) => {
+              await login(credentials);
+              setShowAuthModal(false);
+              // No redirect, stay on homepage
+            }}
+            onRegister={async (data) => {
+              await register(data);
+              setShowAuthModal(false);
+              // No redirect, stay on homepage
+            }}
+          />
+        )}
+
+        <AIChatbot currentUser={currentUser} />
+
+        <Footer />
+>>>>>>> Profile/Settings
       </main>
     </ToastProvider>
   )

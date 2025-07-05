@@ -1,5 +1,10 @@
 from pathlib import Path
 import os
+from dotenv import load_dotenv
+from corsheaders.defaults import default_headers
+
+# Load environment variables from .env file
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -20,24 +25,26 @@ INSTALLED_APPS = [
     # Your apps
     'users',
 
-    # OAuth stack
-    'oauth2_provider',
-    'social_django',
-    'drf_social_oauth2',
-
     # DRF and tools
     'rest_framework',
     'corsheaders',
+
+    'django_filters',
 ]
 
 # Middleware
+# Middleware order is important: Debug first, then security/session, then CORS, then common/csrf/auth, then JWT last
 MIDDLEWARE = [
+    'users.debug_middleware.DebugMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware',  # Add locale middleware for i18n
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+    'users.middleware.JWTAuthMiddleware',  # <-- moved above AuthenticationMiddleware
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'users.email_verification_middleware.EmailVerificationMiddleware',  # Email verification check
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -56,8 +63,6 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'social_django.context_processors.backends',
-                'social_django.context_processors.login_redirect',
             ],
         },
     },
@@ -96,51 +101,117 @@ USE_I18N = True
 USE_L10N = True
 USE_TZ = True
 
+# Supported languages
+LANGUAGES = [
+    ('en', 'English'),
+    ('es', 'Español'),
+    ('fr', 'Français'),
+    ('de', 'Deutsch'),
+    ('ja', '日本語'),
+]
+
+# Locale paths for Django translations
+LOCALE_PATHS = [
+    BASE_DIR / 'locale',
+]
+
 # Static and Media
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / "static"]
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Custom User Model
-AUTH_USER_MODEL = 'users.NewUser'
+GOOGLE_OAUTH2_CLIENT_ID = os.environ.get("GOOGLE_OAUTH2_CLIENT_ID")
+GOOGLE_OAUTH2_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH2_CLIENT_SECRET")
 
-# OAuth-Only Authentication
+GOOGLE_ACCESS_TOKEN_OBTAIN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USER_INFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
+
+# Authentication backends
 AUTHENTICATION_BACKENDS = (
-    'social_core.backends.google.GoogleOAuth2',               # Google OAuth
-    'drf_social_oauth2.backends.DjangoOAuth2',                # OAuth2 provider
     'django.contrib.auth.backends.ModelBackend',              # Default Django
 )
 
 # DRF Settings
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'oauth2_provider.contrib.rest_framework.OAuth2Authentication',
-        'drf_social_oauth2.authentication.SocialAuthentication',
-    ),
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
     ],
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.AllowAny",
+    ),
+}
+
+AUTH_USER_MODEL = "users.user"
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'UPDATE_LAST_LOGIN': True,
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
 }
 
 
 # CORS
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
-
-# Google OAuth Settings
-SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = '<your-google-client-id>'
-SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = '<your-google-client-secret>'
-SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = [
-    'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/userinfo.profile',
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'X-Requested-With',
 ]
-SOCIAL_AUTH_GOOGLE_OAUTH2_EXTRA_DATA = ['first_name', 'last_name']
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
+CORS_EXPOSE_HEADERS = [
+    'Content-Type',
+    'X-CSRFToken',
+]
+
+# Add CORS_ALLOW_ALL_ORIGINS = False for explicitness
+CORS_ALLOW_ALL_ORIGINS = False
 
 # Optional: disable token model warnings
 DJRESTAUTH_TOKEN_MODEL = None
 
 # Default primary key type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Add CSRF trusted origins for frontend
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+# Session cookie settings for cross-origin authentication
+SESSION_COOKIE_SAMESITE = "Lax"  # Use "None" if using HTTPS and cross-site
+SESSION_COOKIE_SECURE = False     # Set to True if using HTTPS
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = False
+
+# Email settings - Use environment variables for flexibility
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() == 'true'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
+
+# Development alternatives (uncomment one if needed):
+# EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'  # Saves emails to files
+# EMAIL_FILE_PATH = BASE_DIR / 'sent_emails'  # Directory to save emails
+# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # Shows emails in console
+
+DEFAULT_FROM_EMAIL = 'PeerQuest <noreply@peerquest.com>'
+FRONTEND_URL = 'http://localhost:3000'  # Frontend URL for verification links

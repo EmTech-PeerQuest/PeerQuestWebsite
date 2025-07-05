@@ -2,6 +2,10 @@
 
 import { useState } from "react"
 import { Search, Filter, ChevronDown, ChevronUp } from "lucide-react"
+<<<<<<< HEAD
+=======
+import { useTranslation } from 'react-i18next'
+>>>>>>> Profile/Settings
 import type { User, Quest, Guild } from "@/lib/types"
 import { UserProfileModal } from '@/components/auth/user-profile-modal'
 import { MessagingModal } from '@/components/messaging/messaging-modal'
@@ -15,6 +19,10 @@ interface UserSearchProps {
 }
 
 export function UserSearch({ users, quests, guilds, currentUser, showToast }: UserSearchProps) {
+<<<<<<< HEAD
+=======
+  const { t } = useTranslation()
+>>>>>>> Profile/Settings
   const [searchQuery, setSearchQuery] = useState("")
   const [sortField, setSortField] = useState<"username" | "level" | "quests">("level")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc")
@@ -71,7 +79,11 @@ export function UserSearch({ users, quests, guilds, currentUser, showToast }: Us
 
   const handleSendMessage = (user: User) => {
     if (!currentUser) {
+<<<<<<< HEAD
       showToast("Please log in to send messages", "error")
+=======
+      showToast(t('toastMessages.pleaseLogin'), "error")
+>>>>>>> Profile/Settings
       return
     }
     setMessagingUser(user)

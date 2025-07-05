@@ -1,5 +1,6 @@
 "use client"
 
+<<<<<<< HEAD
 import { useState } from "react"
 import { Eye, EyeOff, Save, AlertCircle, Shield, TrendingDown, Menu, X } from "lucide-react"
 import type { SpendingLimits } from "@/lib/types"
@@ -12,10 +13,56 @@ interface SettingsProps {
 }
 
 export function Settings({ user, updateSettings, showToast }: SettingsProps) {
+=======
+import { useState, useEffect } from "react"
+import { useUserSettings } from "../auth/useUserSettings"
+import { Eye, EyeOff, Save, AlertCircle, Shield, TrendingDown, Menu, X } from "lucide-react"
+import type { SpendingLimits } from "@/lib/types"
+import { getDailySpending, getWeeklySpending } from "@/lib/spending-utils"
+import AccountTab from "./tabs/AccountTab"
+import SecurityTab from "./tabs/SecurityTab"
+import PrivacyTab from "./tabs/PrivacyTab"
+import NotificationsTab from "./tabs/NotificationsTab"
+import SpendingTab from "./tabs/SpendingTab"
+import PaymentTab from "./tabs/PaymentTab"
+import SubscriptionsTab from "./tabs/SubscriptionsTab"
+import AppPermissionsTab from "./tabs/AppPermissionsTab"
+import { usePathname, useRouter } from "next/navigation"
+import { toast } from "@/hooks/use-toast"
+
+
+
+
+
+
+export function Settings() {
+  // Use the new hook for user settings
+  const { user, updateUser, deleteUser, loading, error, success } = useUserSettings();
+>>>>>>> Profile/Settings
   const [activeTab, setActiveTab] = useState<
     "account" | "security" | "privacy" | "notifications" | "payment" | "subscriptions" | "app" | "spending"
   >("account")
   const [showMobileMenu, setShowMobileMenu] = useState(false)
+<<<<<<< HEAD
+=======
+  const router = useRouter()
+  const pathname = usePathname()
+
+  // Persist active tab in URL hash for refresh persistence
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash.replace("#", "");
+      if (hash && tabs.some((tab) => tab.id === hash)) {
+        setActiveTab(hash as any)
+      }
+    }
+  }, [])
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.location.hash = activeTab
+    }
+  }, [activeTab])
+>>>>>>> Profile/Settings
 
   const [showPassword, setShowPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
@@ -83,8 +130,13 @@ export function Settings({ user, updateSettings, showToast }: SettingsProps) {
     { id: "app", label: "App Permissions" },
   ]
 
+<<<<<<< HEAD
   const saveAccountSettings = () => {
     updateSettings({
+=======
+  const saveAccountSettings = async () => {
+    const updated = {
+>>>>>>> Profile/Settings
       displayName: accountForm.displayName,
       username: accountForm.username,
       email: accountForm.email,
@@ -98,6 +150,7 @@ export function Settings({ user, updateSettings, showToast }: SettingsProps) {
         language: accountForm.language,
         theme: accountForm.theme,
       },
+<<<<<<< HEAD
     })
     showToast("Account settings saved successfully!")
   }
@@ -110,6 +163,35 @@ export function Settings({ user, updateSettings, showToast }: SettingsProps) {
     }
 
     updateSettings({
+=======
+    };
+    const ok = await updateUser(updated);
+    if (ok) {
+      // Optionally update local state/UI
+      toast({
+        title: "Success",
+        description: "Account settings saved successfully!",
+      });
+    } else if (error) {
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const saveSecuritySettings = async () => {
+    // In a real app, we would verify the current password
+    if (securityForm.newPassword && securityForm.newPassword !== securityForm.confirmPassword) {
+      toast({
+        title: "Error",
+        description: "New passwords do not match",
+        variant: "destructive",
+      });
+      return
+    }    const updated = {
+>>>>>>> Profile/Settings
       settings: {
         ...user?.settings,
         security: {
@@ -118,9 +200,20 @@ export function Settings({ user, updateSettings, showToast }: SettingsProps) {
           twoFactorMethod: securityForm.twoFactorMethod,
         },
       },
+<<<<<<< HEAD
     })
 
     showToast("Security settings saved successfully!")
+=======
+    };
+    const ok = await updateUser(updated);
+    if (ok) {
+      toast({
+        title: "Success",
+        description: "Security settings saved successfully!",
+      });
+    }
+>>>>>>> Profile/Settings
 
     // Clear password fields
     setSecurityForm({
@@ -131,22 +224,43 @@ export function Settings({ user, updateSettings, showToast }: SettingsProps) {
     })
   }
 
+<<<<<<< HEAD
   const savePrivacySettings = () => {
     updateSettings({
+=======
+  const savePrivacySettings = async () => {
+    const updated = {
+>>>>>>> Profile/Settings
       settings: {
         ...user?.settings,
         privacy: privacyForm,
       },
+<<<<<<< HEAD
     })
     showToast("Privacy settings saved successfully!")
   }
 
   const saveNotificationSettings = () => {
     updateSettings({
+=======
+    };
+    const ok = await updateUser(updated);
+    if (ok) {
+      toast({
+        title: "Success",
+        description: "Privacy settings saved successfully!",
+      });
+    }
+  }
+
+  const saveNotificationSettings = async () => {
+    const updated = {
+>>>>>>> Profile/Settings
       settings: {
         ...user?.settings,
         notifications: notificationsForm,
       },
+<<<<<<< HEAD
     })
     showToast("Notification settings saved successfully!")
   }
@@ -160,6 +274,33 @@ export function Settings({ user, updateSettings, showToast }: SettingsProps) {
 
   const generateBackupCodes = () => {
     updateSettings({
+=======
+    };
+    const ok = await updateUser(updated);
+    if (ok) {
+      toast({
+        title: "Success",
+        description: "Notification settings saved successfully!",
+      });
+    }
+  }
+
+  const saveSpendingSettings = async () => {
+    const updated = {
+      spendingLimits: spendingForm,
+    };
+    const ok = await updateUser(updated);
+    if (ok) {
+      toast({
+        title: "Success",
+        description: "Spending limits updated successfully!",
+      });
+    }
+  }
+
+  const generateBackupCodes = async () => {
+    const updated = {
+>>>>>>> Profile/Settings
       settings: {
         ...user?.settings,
         security: {
@@ -167,6 +308,7 @@ export function Settings({ user, updateSettings, showToast }: SettingsProps) {
           backupCodesGenerated: true,
         },
       },
+<<<<<<< HEAD
     })
     showToast("Backup codes generated successfully!")
   }
@@ -179,12 +321,54 @@ export function Settings({ user, updateSettings, showToast }: SettingsProps) {
     setShowMobileMenu(false)
   }
 
+=======
+    };
+    const ok = await updateUser(updated);
+    if (ok) {
+      toast({
+        title: "Success",
+        description: "Backup codes generated successfully!",
+      });
+    }
+  }
+
+  const dailySpent = user ? getDailySpending(user) : 0;
+  const weeklySpent = user ? getWeeklySpending(user) : 0;
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId as any);
+    setShowMobileMenu(false);
+    // Hash will be updated by useEffect
+  }
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm("Are you sure you want to delete your account? This action cannot be undone.")) return;
+    const ok = await deleteUser();
+    if (ok) {
+      toast({
+        title: "Success",
+        description: "Account deleted successfully.",
+      });
+      window.location.href = "/goodbye";
+    } else if (error) {
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      });
+    }
+  };
+
+>>>>>>> Profile/Settings
   return (
     <section className="bg-[#F4F0E6] min-h-screen py-4 md:py-8">
       <div className="max-w-6xl mx-auto px-4 md:px-6">
         <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-[#2C1A1D] font-serif">Settings</h2>
         <p className="text-center text-[#8B75AA] mb-6 md:mb-8">CUSTOMIZE YOUR PEERQUEST TAVERN EXPERIENCE.</p>
+<<<<<<< HEAD
 
+=======
+>>>>>>> Profile/Settings
         {/* Mobile Header */}
         <div className="md:hidden mb-4">
           <button
@@ -194,7 +378,10 @@ export function Settings({ user, updateSettings, showToast }: SettingsProps) {
             <span>{tabs.find((tab) => tab.id === activeTab)?.label}</span>
             {showMobileMenu ? <X size={20} /> : <Menu size={20} />}
           </button>
+<<<<<<< HEAD
 
+=======
+>>>>>>> Profile/Settings
           {showMobileMenu && (
             <div className="mt-2 bg-[#2C1A1D] rounded-lg overflow-hidden">
               {tabs.map((tab) => (
@@ -211,7 +398,10 @@ export function Settings({ user, updateSettings, showToast }: SettingsProps) {
             </div>
           )}
         </div>
+<<<<<<< HEAD
 
+=======
+>>>>>>> Profile/Settings
         <div className="flex flex-col md:flex-row gap-4 md:gap-6">
           {/* Desktop Sidebar */}
           <div className="hidden md:block md:w-64 bg-[#2C1A1D] text-[#F4F0E6] rounded-lg overflow-hidden">
@@ -232,6 +422,7 @@ export function Settings({ user, updateSettings, showToast }: SettingsProps) {
               ))}
             </div>
           </div>
+<<<<<<< HEAD
 
           {/* Main Content */}
           <div className="flex-1 bg-[#2C1A1D] text-[#F4F0E6] rounded-lg overflow-hidden">
@@ -1353,9 +1544,76 @@ export function Settings({ user, updateSettings, showToast }: SettingsProps) {
                 </div>
               </div>
             )}
+=======
+          {/* Main Content */}
+          <div className="flex-1 bg-[#2C1A1D] text-[#F4F0E6] rounded-lg overflow-hidden">
+            {activeTab === "account" && (
+              <AccountTab
+                accountForm={accountForm}
+                setAccountForm={setAccountForm}
+                user={user}
+                saveAccountSettings={saveAccountSettings}
+                handleDeleteAccount={handleDeleteAccount}
+              />
+            )}
+            {activeTab === "security" && (
+              <SecurityTab
+                securityForm={securityForm}
+                user={user || {}}
+                showToast={() => {
+                  toast({
+                    title: "Success",
+                    description: "Security settings saved successfully!",
+                  });
+                }}
+                updateSettings={saveSecuritySettings}
+              />
+            )}
+            {activeTab === "privacy" && (
+              <PrivacyTab
+                privacyForm={privacyForm}
+                setPrivacyForm={setPrivacyForm}
+                savePrivacySettings={savePrivacySettings}
+              />
+            )}
+            {activeTab === "notifications" && (
+              <NotificationsTab
+                notificationsForm={notificationsForm}
+                setNotificationsForm={setNotificationsForm}
+                saveNotificationSettings={saveNotificationSettings}
+              />
+            )}
+            {activeTab === "spending" && (
+              <SpendingTab
+                spendingForm={spendingForm}
+                setSpendingForm={setSpendingForm}
+                saveSpendingSettings={saveSpendingSettings}
+                dailySpent={dailySpent}
+                weeklySpent={weeklySpent}
+                user={user || undefined}
+              />
+            )}
+            {activeTab === "payment" && (
+              <PaymentTab
+                paymentMethods={user?.paymentMethods || []}
+                onAddPayment={() => { /* TODO: open add payment modal */ }}
+              />
+            )}
+            {activeTab === "subscriptions" && (
+              <SubscriptionsTab />
+            )}
+            {activeTab === "app" && (
+              <AppPermissionsTab />
+            )}
+            {/* ...other tabs as needed... */}
+>>>>>>> Profile/Settings
           </div>
         </div>
       </div>
     </section>
+<<<<<<< HEAD
   )
+=======
+  );
+>>>>>>> Profile/Settings
 }

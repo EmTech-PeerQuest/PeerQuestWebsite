@@ -1,4 +1,5 @@
 import axios from "axios"
+import { TokenInvalidError } from "./auth"
 
 const BASE_URL = "http://localhost:8000" // 🔁 replace with your backend URL if hosted elsewhere
 
@@ -6,12 +7,13 @@ export async function fetchInitialData() {
   try {
     const token = localStorage.getItem("access_token")
 
-    // Integration-ready condition: if token missing or backend not ready, return empty/default
     if (!token) {
       console.warn("🔒 No access token found — skipping API calls until auth is ready.")
       return {
         user: null,
-        conversations: []
+        quests: [],
+        guilds: [],
+        guildApplications: []
       }
     }
 
@@ -21,25 +23,32 @@ export async function fetchInitialData() {
       }
     }
 
-    const [userRes, conversationsRes] = await Promise.all([
-      axios.get(`${BASE_URL}/api/users/me/`, config),
-      axios.get(`${BASE_URL}/api/messages/conversations/`, config)
+    // Update endpoints to match backend
+    const [userRes, questsRes, guildsRes] = await Promise.all([
+      axios.get(`${BASE_URL}/api/users/profile/`, config),
+      axios.get(`${BASE_URL}/api/quests/`, config),
+      axios.get(`${BASE_URL}/api/guilds/`, config)
     ])
 
     return {
       user: userRes.data,
-      conversations: conversationsRes.data
+      quests: questsRes.data,
+      guilds: guildsRes.data,
+      guildApplications: [] // update if you have this endpoint
     }
   } catch (error: any) {
-    if (error.response?.status === 401) {
-      console.warn("🔐 Unauthorized (401) — likely no backend auth system yet.")
-    } else {
-      console.error("❌ API fetch error:", error)
+    const detail = error?.response?.data?.detail || "";
+    if (
+      error?.response?.status === 401 &&
+      (detail.includes("token not valid") || detail.includes("token has expired") || detail.includes("credentials were not provided"))
+    ) {
+      throw new TokenInvalidError(detail || "Token not valid");
     }
-
     return {
       user: null,
-      conversations: []
+      quests: [],
+      guilds: [],
+      guildApplications: []
     }
   }
 }

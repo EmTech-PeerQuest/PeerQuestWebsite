@@ -148,3 +148,5 @@ celerybeat-schedule
 celerybeat.pid
 gunicorn.pid
 *.pem
+# Ignore SQLite database file
+PeerQuestBackEnd/db.sqlite3

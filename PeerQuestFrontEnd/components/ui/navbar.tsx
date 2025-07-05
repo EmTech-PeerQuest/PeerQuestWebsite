@@ -3,9 +3,18 @@
 import { useState } from "react"
 import { Star, Menu, X, User, Settings, LogOut, Shield, Search, Bell, MessageSquare, Plus } from "lucide-react"
 import { Notifications } from '@/components/notifications/notifications'
+<<<<<<< HEAD
 
 interface NavbarProps {
   currentUser: any
+=======
+import { useAuth } from '@/context/AuthContext';
+import { useTranslation } from 'react-i18next';
+import { LanguageSwitcher } from '@/components/ui/language-switcher';
+
+interface NavbarProps {
+  activeSection: string
+>>>>>>> Profile/Settings
   setActiveSection: (section: string) => void
   handleLogout: () => void
   openAuthModal: () => void
@@ -15,21 +24,35 @@ interface NavbarProps {
 }
 
 export function Navbar({
+<<<<<<< HEAD
   currentUser,
+=======
+  activeSection,
+>>>>>>> Profile/Settings
   setActiveSection,
   handleLogout,
   openAuthModal,
   openGoldPurchaseModal,
   openPostQuestModal,
   openCreateGuildModal,
+<<<<<<< HEAD
 }: NavbarProps) {
+=======
+}: Omit<NavbarProps, 'currentUser'>) {
+  const { user: currentUser } = useAuth(); // Use context directly
+  const { t } = useTranslation();
+>>>>>>> Profile/Settings
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
   const [unreadMessages, setUnreadMessages] = useState(2)
   const [unreadNotifications, setUnreadNotifications] = useState(3)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [quickActionsOpen, setQuickActionsOpen] = useState(false)
+<<<<<<< HEAD
   const activeSection = "" // Declare the activeSection variable
+=======
+  const [avatarError, setAvatarError] = useState(false)
+>>>>>>> Profile/Settings
 
   const handleNavigation = (section: string) => {
     setActiveSection(section)
@@ -59,7 +82,11 @@ export function Navbar({
                 : "text-[#F4F0E6] hover:text-[#CDAA7D]"
             }`}
           >
+<<<<<<< HEAD
             Home
+=======
+            {t('navbar.home')}
+>>>>>>> Profile/Settings
           </button>
           <button
             onClick={() => handleNavigation("quest-board")}
@@ -69,7 +96,11 @@ export function Navbar({
                 : "text-[#F4F0E6] hover:text-[#CDAA7D]"
             }`}
           >
+<<<<<<< HEAD
             Quest Board
+=======
+            {t('navbar.questBoard')}
+>>>>>>> Profile/Settings
           </button>
           <button
             onClick={() => handleNavigation("guild-hall")}
@@ -79,7 +110,11 @@ export function Navbar({
                 : "text-[#F4F0E6] hover:text-[#CDAA7D]"
             }`}
           >
+<<<<<<< HEAD
             Guild Hall
+=======
+            {t('navbar.guildHall')}
+>>>>>>> Profile/Settings
           </button>
           <button
             onClick={() => handleNavigation("about")}
@@ -89,7 +124,11 @@ export function Navbar({
                 : "text-[#F4F0E6] hover:text-[#CDAA7D]"
             }`}
           >
+<<<<<<< HEAD
             About
+=======
+            {t('navbar.about')}
+>>>>>>> Profile/Settings
           </button>
         </div>
 
@@ -98,7 +137,11 @@ export function Navbar({
             <>
               <div className="hidden md:flex items-center space-x-2 mr-4">
                 <div className="bg-[#CDAA7D]/10 px-3 py-1 rounded-full flex items-center">
+<<<<<<< HEAD
                   <span className="text-[#CDAA7D] font-medium">{currentUser.gold} Gold</span>
+=======
+                  <span className="text-[#CDAA7D] font-medium">{(currentUser as any).gold || 0} {t('navbar.gold')}</span>
+>>>>>>> Profile/Settings
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
@@ -112,6 +155,10 @@ export function Navbar({
               </div>
 
               <div className="hidden md:flex items-center space-x-4">
+<<<<<<< HEAD
+=======
+                <LanguageSwitcher />
+>>>>>>> Profile/Settings
                 <div className="relative">
                   <button
                     onClick={() => {
@@ -135,7 +182,11 @@ export function Navbar({
                         className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                       >
                         <Plus size={16} className="mr-2" />
+<<<<<<< HEAD
                         Post a Quest
+=======
+                        {t('navbar.postQuest')}
+>>>>>>> Profile/Settings
                       </button>
                       <button
                         onClick={() => {
@@ -145,7 +196,11 @@ export function Navbar({
                         className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                       >
                         <Plus size={16} className="mr-2" />
+<<<<<<< HEAD
                         Create a Guild
+=======
+                        {t('navbar.createGuild')}
+>>>>>>> Profile/Settings
                       </button>
                     </div>
                   )}
@@ -189,8 +244,26 @@ export function Navbar({
                     }}
                     className="flex items-center focus:outline-none"
                   >
+<<<<<<< HEAD
                     <div className="w-8 h-8 bg-[#8B75AA] rounded-full flex items-center justify-center text-white">
                       {currentUser.avatar}
+=======
+                    <div className="w-8 h-8 bg-[#8B75AA] rounded-full flex items-center justify-center text-white overflow-hidden">
+                      {currentUser.avatar && 
+                       (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('data:')) && 
+                       !avatarError ? (
+                        <img 
+                          src={currentUser.avatar} 
+                          alt="Profile" 
+                          className="w-full h-full object-cover"
+                          onError={() => setAvatarError(true)}
+                        />
+                      ) : (
+                        <span className="text-white select-none">
+                          {currentUser.username?.[0]?.toUpperCase() || "H"}
+                        </span>
+                      )}
+>>>>>>> Profile/Settings
                     </div>
                   </button>
 
@@ -198,7 +271,11 @@ export function Navbar({
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
                       <div className="px-4 py-2 border-b border-gray-200">
                         <p className="text-sm font-medium text-[#2C1A1D]">{currentUser.username}</p>
+<<<<<<< HEAD
                         <p className="text-xs text-[#2C1A1D]/60">Level {currentUser.level}</p>
+=======
+                        <p className="text-xs text-[#2C1A1D]/60">{t('navbar.level')} {(currentUser as any).level || 1}</p>
+>>>>>>> Profile/Settings
                       </div>
                       <button
                         onClick={() => {
@@ -208,7 +285,11 @@ export function Navbar({
                         className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                       >
                         <User size={16} className="mr-2" />
+<<<<<<< HEAD
                         Profile
+=======
+                        {t('navbar.profile')}
+>>>>>>> Profile/Settings
                       </button>
                       <button
                         onClick={() => {
@@ -218,7 +299,11 @@ export function Navbar({
                         className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                       >
                         <Search size={16} className="mr-2" />
+<<<<<<< HEAD
                         Quest Management
+=======
+                        {t('navbar.questManagement')}
+>>>>>>> Profile/Settings
                       </button>
                       <button
                         onClick={() => {
@@ -228,7 +313,11 @@ export function Navbar({
                         className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                       >
                         <Search size={16} className="mr-2" />
+<<<<<<< HEAD
                         Guild Management
+=======
+                        {t('navbar.guildManagement')}
+>>>>>>> Profile/Settings
                       </button>
                       <button
                         onClick={() => {
@@ -238,9 +327,15 @@ export function Navbar({
                         className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                       >
                         <Settings size={16} className="mr-2" />
+<<<<<<< HEAD
                         Settings
                       </button>
                       {currentUser.roles && currentUser.roles.includes("admin") && (
+=======
+                        {t('navbar.settings')}
+                      </button>
+                      {(currentUser as any).roles && (currentUser as any).roles.includes("admin") && (
+>>>>>>> Profile/Settings
                         <button
                           onClick={() => {
                             handleNavigation("admin")
@@ -249,7 +344,11 @@ export function Navbar({
                           className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                         >
                           <Shield size={16} className="mr-2" />
+<<<<<<< HEAD
                           Admin Panel
+=======
+                          {t('navbar.adminPanel')}
+>>>>>>> Profile/Settings
                         </button>
                       )}
                       <button
@@ -257,7 +356,11 @@ export function Navbar({
                         className="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
                       >
                         <LogOut size={16} className="mr-2" />
+<<<<<<< HEAD
                         Logout
+=======
+                        {t('navbar.logout')}
+>>>>>>> Profile/Settings
                       </button>
                     </div>
                   )}
@@ -265,22 +368,40 @@ export function Navbar({
               </div>
             </>
           ) : (
+<<<<<<< HEAD
             <div className="hidden md:block">
+=======
+            <div className="hidden md:flex items-center space-x-4">
+              <LanguageSwitcher />
+>>>>>>> Profile/Settings
               <button
                 onClick={openAuthModal}
                 className="bg-[#CDAA7D] text-[#2C1A1D] px-4 py-2 rounded hover:bg-[#B8941F] transition-colors uppercase font-medium"
               >
+<<<<<<< HEAD
                 Enter Tavern
+=======
+                {t('navbar.enterTavern')}
+>>>>>>> Profile/Settings
               </button>
             </div>
           )}
 
           {/* Mobile menu button */}
+<<<<<<< HEAD
           <div className="md:hidden flex items-center">
             {currentUser && (
               <div className="flex items-center mr-4">
                 <div className="bg-[#CDAA7D]/10 px-2 py-1 rounded-full flex items-center">
                   <span className="text-[#CDAA7D] text-sm font-medium">{currentUser.gold}</span>
+=======
+          <div className="md:hidden flex items-center space-x-2">
+            <LanguageSwitcher />
+            {currentUser && (
+              <div className="flex items-center mr-4">
+                <div className="bg-[#CDAA7D]/10 px-2 py-1 rounded-full flex items-center">
+                  <span className="text-[#CDAA7D] text-sm font-medium">{(currentUser as any).gold || 0}</span>
+>>>>>>> Profile/Settings
                   <button
                     onClick={openGoldPurchaseModal}
                     className="ml-1 text-xs bg-[#CDAA7D] text-white px-1.5 py-0.5 rounded hover:bg-[#B89A6D] transition-colors"
@@ -314,25 +435,41 @@ export function Navbar({
               onClick={() => handleNavigation("home")}
               className="text-left py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors uppercase"
             >
+<<<<<<< HEAD
               Home
+=======
+              {t('navbar.home')}
+>>>>>>> Profile/Settings
             </button>
             <button
               onClick={() => handleNavigation("quest-board")}
               className="text-left py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors uppercase"
             >
+<<<<<<< HEAD
               Quest Board
+=======
+              {t('navbar.questBoard')}
+>>>>>>> Profile/Settings
             </button>
             <button
               onClick={() => handleNavigation("guild-hall")}
               className="text-left py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors uppercase"
             >
+<<<<<<< HEAD
               Guild Hall
+=======
+              {t('navbar.guildHall')}
+>>>>>>> Profile/Settings
             </button>
             <button
               onClick={() => handleNavigation("about")}
               className="text-left py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors uppercase"
             >
+<<<<<<< HEAD
               About
+=======
+              {t('navbar.about')}
+>>>>>>> Profile/Settings
             </button>
 
             {currentUser ? (
@@ -346,7 +483,11 @@ export function Navbar({
                     className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
                   >
                     <Plus size={16} className="mr-2" />
+<<<<<<< HEAD
                     Post a Quest
+=======
+                    {t('navbar.postQuest')}
+>>>>>>> Profile/Settings
                   </button>
                   <button
                     onClick={() => {
@@ -356,7 +497,11 @@ export function Navbar({
                     className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
                   >
                     <Plus size={16} className="mr-2" />
+<<<<<<< HEAD
                     Create a Guild
+=======
+                    {t('navbar.createGuild')}
+>>>>>>> Profile/Settings
                   </button>
                   <button
                     onClick={() => handleNavigation("search")}
@@ -395,36 +540,58 @@ export function Navbar({
                     className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
                   >
                     <User size={16} className="mr-2" />
+<<<<<<< HEAD
                     Profile
+=======
+                    {t('navbar.profile')}
+>>>>>>> Profile/Settings
                   </button>
                   <button
                     onClick={() => handleNavigation("quest-management")}
                     className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
                   >
                     <Search size={16} className="mr-2" />
+<<<<<<< HEAD
                     Quest Management
+=======
+                    {t('navbar.questManagement')}
+>>>>>>> Profile/Settings
                   </button>
                   <button
                     onClick={() => handleNavigation("guild-management")}
                     className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
                   >
                     <Search size={16} className="mr-2" />
+<<<<<<< HEAD
                     Guild Management
+=======
+                    {t('navbar.guildManagement')}
+>>>>>>> Profile/Settings
                   </button>
                   <button
                     onClick={() => handleNavigation("settings")}
                     className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
                   >
                     <Settings size={16} className="mr-2" />
+<<<<<<< HEAD
                     Settings
                   </button>
                   {currentUser.roles && currentUser.roles.includes("admin") && (
+=======
+                    {t('navbar.settings')}
+                  </button>
+                  {(currentUser as any).roles && (currentUser as any).roles.includes("admin") && (
+>>>>>>> Profile/Settings
                     <button
                       onClick={() => handleNavigation("admin")}
                       className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
                     >
                       <Shield size={16} className="mr-2" />
+<<<<<<< HEAD
                       Admin Panel
+=======
+                      {t('navbar.adminPanel')}
+>>>>>>> Profile/Settings
                     </button>
                   )}
                   <button
@@ -432,7 +599,11 @@ export function Navbar({
                     className="flex items-center py-2 text-red-400 hover:text-red-300 transition-colors w-full text-left"
                   >
                     <LogOut size={16} className="mr-2" />
+<<<<<<< HEAD
                     Logout
+=======
+                    {t('navbar.logout')}
+>>>>>>> Profile/Settings
                   </button>
                 </div>
               </>
@@ -444,7 +615,11 @@ export function Navbar({
                 }}
                 className="mt-2 bg-[#CDAA7D] text-[#2C1A1D] px-4 py-2 rounded hover:bg-[#B8941F] transition-colors uppercase font-medium w-full"
               >
+<<<<<<< HEAD
                 Enter Tavern
+=======
+                {t('navbar.enterTavern')}
+>>>>>>> Profile/Settings
               </button>
             )}
           </div>
@@ -464,3 +639,11 @@ export function Navbar({
     </nav>
   )
 }
+<<<<<<< HEAD
+=======
+
+// Keep the old Navbar export as NavbarLegacy for easy revert
+export function NavbarLegacy(props: NavbarProps) {
+  return Navbar(props);
+}
+>>>>>>> Profile/Settings
