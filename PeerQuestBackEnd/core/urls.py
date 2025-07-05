@@ -39,10 +39,12 @@ urlpatterns = [
     path('api/users/', include('users.urls')),
     # Quests and Guilds APIs
     path('api/quests/', include('quests.urls')),
-    path('api/guilds/', include('guilds.urls')),
-    path('api/guild-applications/', include('guilds.guild_application_urls')),
+    # path('api/guilds/', include('guilds.urls')),
+    # path('api/guild-applications/', include('guilds.guild_application_urls')),
     # Applications API
     path('api/', include('applications.urls')),
+    # Transactions API
+    path('api/transactions/', include('transactions.urls')),
 
     # API Docs (Swagger + Redoc)
     path('docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),

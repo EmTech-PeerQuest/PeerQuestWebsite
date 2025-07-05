@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     'applications',
     'xp',
     'guilds',
+    'transactions',
 
     # DRF and tools
     'rest_framework',
@@ -114,6 +115,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.AllowAny",  # Or IsAuthenticated for protected endpoints
     ],
+    'EXCEPTION_HANDLER': 'core.exception_handler.custom_exception_handler',
 }
 
 AUTH_USER_MODEL = "users.User"

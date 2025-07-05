@@ -30,7 +30,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('user');
-      return stored ? JSON.parse(stored) : null;
+      const user = stored ? JSON.parse(stored) : null;
+      console.log('🔍 Initial user from localStorage:', user);
+      return user;
     }
     return null;
   });
@@ -40,9 +42,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const loadUser = async (token: string) => {
     try {
       const res = await fetchUserApi(token);
+      console.log('🔍 User profile data from API:', res.data);
+      if (res.data.gold_balance !== undefined) {
+        console.log('💰 User profile gold_balance:', res.data.gold_balance, typeof res.data.gold_balance);
+      }
+      console.log('🔍 Setting user in auth context:', res.data);
       setUser(res.data);
       localStorage.setItem('user', JSON.stringify(res.data));
     } catch (err) {
+      console.error('❌ Error loading user profile:', err);
       if (err instanceof TokenInvalidError) {
         // Token invalid/expired: auto-logout and notify
         localStorage.removeItem('access_token');
@@ -65,8 +73,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const login = async (credentials: { username: string; password: string }) => {
     const res = await apiLogin(credentials.username, credentials.password);
-    const { access } = res.data;
+    const { access, refresh } = res.data;
+    
+    // Store both tokens
     localStorage.setItem('access_token', access);
+    if (refresh) {
+      localStorage.setItem('refresh_token', refresh);
+      console.log('🔑 Stored refresh token');
+    } else {
+      console.warn('⚠️ No refresh token received during login');
+    }
+    
     await loadUser(access);
   };
 
@@ -84,7 +101,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = () => {
+    // Clear all authentication data
     localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
     setUser(null);
     router.push('/');

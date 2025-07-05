@@ -208,8 +208,50 @@ class QuestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Release any gold reservation
+        from transactions.transaction_utils import release_gold_reservation
+        release_gold_reservation(quest)
+        
         # Only allow deletion of 'open' quests
         return super().destroy(request, *args, **kwargs)
+        
+    @action(detail=True, methods=['post'])
+    def complete(self, request, slug=None):
+        """
+        Complete a quest and award XP and gold to participants
+        """
+        quest = self.get_object()
+        
+        # Only quest creators can complete quests
+        if quest.creator != request.user:
+            return Response(
+                {'error': 'Only the quest creator can complete this quest.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+            
+        # Check if quest is already completed
+        if quest.status == 'completed':
+            return Response(
+                {'error': 'This quest is already completed.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Check if quest has participants
+        if not quest.participants.exists():
+            return Response(
+                {'error': 'Cannot complete a quest with no participants.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Release gold reservation since gold will now be deducted directly
+        from transactions.transaction_utils import release_gold_reservation
+        release_gold_reservation(quest)
+            
+        # Complete the quest and award rewards
+        completion_reason = request.data.get('completion_reason', "Completed by creator")
+        result = quest.complete_quest(completion_reason=completion_reason)
+        
+        return Response(result)
 
 
 # Quest Search and Filter Views
@@ -334,9 +376,18 @@ class QuestSubmissionReviewView(generics.UpdateAPIView):
         if serializer.validated_data['status'] == 'approved':
             submission = serializer.instance
             participant = submission.quest_participant
+            quest = participant.quest
+            
+            # Mark participant as completed
             participant.status = 'completed'
             participant.completed_at = timezone.now()
-            participant.save()
+            participant.save()  # This triggers the XP and gold reward signals
+            
+            # Include information about rewards in the response
+            serializer.context['rewards'] = {
+                'xp_awarded': quest.xp_reward,
+                'gold_awarded': quest.gold_reward
+            }
 
 
 # Statistics and Dashboard Views
@@ -364,11 +415,29 @@ class QuestStatsView(generics.GenericAPIView):
             )
         ])
         
+        # Total gold earned from completed quests
+        total_gold_earned = sum([
+            participant.quest.gold_reward 
+            for participant in QuestParticipant.objects.filter(
+                user=user, status='completed'
+            )
+        ])
+        
+        # Get user's gold balance
+        from transactions.transaction_utils import get_user_balance, get_available_balance
+        total_gold_balance = get_user_balance(user)
+        available_gold_balance = get_available_balance(user)
+        reserved_gold = total_gold_balance - available_gold_balance
+        
         return Response({
             'created_quests': created_quests,
             'participating_quests': participating_quests,
             'completed_quests': completed_quests,
             'total_xp_earned': total_xp_earned,
+            'total_gold_earned': total_gold_earned,
+            'total_gold_balance': total_gold_balance,
+            'available_gold_balance': available_gold_balance,
+            'reserved_gold': reserved_gold
         })
 
 
@@ -421,6 +490,10 @@ class AdminQuestDetailView(generics.RetrieveUpdateDestroyAPIView):
                 {'error': 'Cannot delete a completed quest.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        
+        # Release any gold reservation
+        from transactions.transaction_utils import release_gold_reservation
+        release_gold_reservation(quest)
         
         # Only allow deletion of 'open' quests
         return super().destroy(request, *args, **kwargs)

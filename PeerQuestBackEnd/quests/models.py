@@ -315,7 +315,7 @@ class Quest(models.Model):
 
     def complete_quest(self, completion_reason="Quest completed"):
         """
-        Complete the quest and automatically award XP to all participants.
+        Complete the quest and automatically award XP and gold to all participants.
         
         Args:
             completion_reason: Reason for quest completion
@@ -345,11 +345,12 @@ class Quest(models.Model):
         for participant in participants:
             participant.status = 'completed'
             participant.completed_at = timezone.now()
-            participant.save()  # This triggers the XP award signal
+            participant.save()  # This triggers the XP award signal and gold award signal
             
             completion_results.append({
                 "user": participant.user.username,
-                "xp_awarded": self.xp_reward
+                "xp_awarded": self.xp_reward,
+                "gold_awarded": self.gold_reward
             })
         
         return {
@@ -357,7 +358,9 @@ class Quest(models.Model):
             "completion_reason": completion_reason,
             "participants_completed": len(completion_results),
             "xp_per_participant": self.xp_reward,
+            "gold_per_participant": self.gold_reward,
             "total_xp_awarded": self.xp_reward * len(completion_results),
+            "total_gold_awarded": self.gold_reward * len(completion_results),
             "participant_results": completion_results
         }
 

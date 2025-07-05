@@ -3,6 +3,8 @@ from django.dispatch import receiver
 from django.utils import timezone
 from .models import Quest, QuestParticipant
 from xp.utils import award_xp
+from transactions.transaction_utils import award_gold
+from transactions.models import TransactionType
 
 
 @receiver(pre_save, sender=Quest)
@@ -15,27 +17,42 @@ def auto_set_xp_reward(sender, instance, **kwargs):
 
 
 @receiver(post_save, sender=QuestParticipant)
-def award_xp_on_quest_completion(sender, instance, created, **kwargs):
+def award_xp_and_gold_on_quest_completion(sender, instance, created, **kwargs):
     """
-    Award XP to participants when they complete a quest.
+    Award XP and gold to participants when they complete a quest.
     """
-    # Only award XP when status changes to 'completed'
+    # Only award XP and gold when status changes to 'completed'
     if instance.status == 'completed' and instance.completed_at:
         quest = instance.quest
         user = instance.user
         
         # Award XP based on quest difficulty
         xp_amount = quest.xp_reward
-        result = award_xp(
+        xp_result = award_xp(
             user=user,
             xp_amount=xp_amount,
             reason=f"Completed quest: {quest.title}"
         )
         
-        # You could add notification logic here if you have a notification system
-        if result.get("leveled_up"):
-            # Handle level up notifications
-            print(f"User {user.username} leveled up to level {result['new_level']}!")
+        # Award gold based on quest gold_reward
+        gold_amount = quest.gold_reward
+        if gold_amount > 0:
+            gold_result = award_gold(
+                user=user,
+                amount=gold_amount,
+                description=f"Reward for completing quest: {quest.title}",
+                quest=quest,
+                transaction_type=TransactionType.QUEST_REWARD
+            )
+            print(f"User {user.username} received {gold_amount} gold for completing quest: {quest.title}")
+            
+            # Commission is handled through the reservation system - the total reserved amount
+            # included both the reward and commission, and we only award the reward amount
+            # to participants, effectively keeping the commission in the system
+        
+        # Handle level up notifications
+        if xp_result.get("leveled_up"):
+            print(f"User {user.username} leveled up to level {xp_result['new_level']}!")
 
 
 @receiver(post_save, sender=Quest)

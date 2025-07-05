@@ -164,14 +164,18 @@ export function TavernQuestCard({
         {/* Reward Section */}
         <div className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-lg p-3 mb-4">
           <div className="flex items-center justify-center gap-8">
-            {/* Gold Placeholder - Disabled */}
-            <div className="flex items-center gap-2 opacity-40 pointer-events-none select-none">
-              <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-sm">$</span>
+            {/* Gold Reward */}
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center">
+                <span className="text-white font-bold text-sm">G</span>
               </div>
               <div>
-                <div className="text-lg font-bold text-gray-500">Coming Soon</div>
-                <div className="text-xs font-medium text-gray-400 uppercase">GOLD</div>
+                {quest.gold_reward && quest.gold_reward > 0 ? (
+                  <div className="text-lg font-bold text-amber-700">{quest.gold_reward}</div>
+                ) : (
+                  <div className="text-lg font-bold text-gray-500">0</div>
+                )}
+                <div className="text-xs font-medium text-amber-700 uppercase">GOLD</div>
               </div>
             </div>
             {/* XP Reward */}

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { X, Calendar, Star } from "lucide-react"
 import { Quest } from "@/lib/types"
 import { QuestAPI, QuestCategory, CreateQuestData, UpdateQuestData, DifficultyTier } from "@/lib/api/quests"
+import { TransactionAPI } from "@/lib/api/transactions"
 
 interface QuestFormProps {
   quest?: Quest | null
@@ -30,8 +31,21 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
   const [categories, setCategories] = useState<QuestCategory[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [userGoldBalance, setUserGoldBalance] = useState<number>(0)
+  const [balanceLastUpdated, setBalanceLastUpdated] = useState<number>(Date.now())    // Commission rate for gold rewards (5%)
+  const COMMISSION_RATE = 0.05
+  
+  // Function to calculate commission exactly as backend does
+  const calculateCommission = (goldAmount: number): number => {
+    // Convert to number first to ensure consistent calculation
+    const amount = Number(goldAmount)
+    if (isNaN(amount) || amount <= 0) return 0
+    
+    // Mimic the backend calculation: Decimal('0.05') * value).quantize(Decimal('1'), rounding='ROUND_UP')
+    return Math.ceil(amount * COMMISSION_RATE)
+  }
 
-  // Load categories when modal opens
+  // Load categories and user balance when modal opens
   useEffect(() => {
     const loadCategories = async () => {
       if (isOpen) {
@@ -57,6 +71,62 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     
     loadCategories()
   }, [isOpen])
+  
+  // Separate useEffect for balance to ensure it's always up-to-date
+  useEffect(() => {
+    // Always fetch the latest gold balance when the form opens or after balance changes
+    const loadUserGoldBalance = async () => {
+      if (isOpen) {
+        try {
+          // Check if user is authenticated first
+          const token = localStorage.getItem('access_token');
+          if (!token) {
+            console.warn('No auth token available - cannot fetch balance');
+            setUserGoldBalance(0);
+            return;
+          }
+          
+          if (!currentUser) {
+            console.warn('No current user data - defaulting to 0 balance');
+            setUserGoldBalance(0);
+            return;
+          }
+          
+          console.log('Fetching latest user gold balance...');
+          const balanceData = await TransactionAPI.getMyBalance();
+          console.log('Current gold balance:', balanceData.gold_balance);
+          setUserGoldBalance(balanceData.gold_balance);
+          
+          // Reset gold reward if it now exceeds the user's balance with commission
+          // Need to find the maximum gold reward we can afford
+          let maxAffordableReward = Math.min(999, balanceData.gold_balance); // Start with the max possible
+          while (maxAffordableReward > 0) {
+            const commission = calculateCommission(maxAffordableReward);
+            if (maxAffordableReward + commission <= balanceData.gold_balance) {
+              break;
+            }
+            maxAffordableReward--;
+          }
+          
+          if (goldReward > maxAffordableReward) {
+            console.log('Resetting gold reward as it exceeds new balance');
+            setGoldReward(Math.max(0, maxAffordableReward));
+          }
+        } catch (error) {
+          console.error('Failed to load gold balance:', error);
+          setUserGoldBalance(0);
+          // Handle auth errors - could redirect to login here
+          if (error instanceof Error && error.message.includes('Authentication required')) {
+            console.warn('Authentication issue detected - user may need to log in again');
+            // Optionally: redirect to login
+            // router.push('/login');
+          }
+        }
+      }
+    }
+    
+    loadUserGoldBalance();
+  }, [isOpen, balanceLastUpdated, currentUser, goldReward, COMMISSION_RATE])
 
   // Initialize form data when modal opens
   useEffect(() => {
@@ -159,12 +229,19 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
       }
     }
     
+    // Gold reward validation with 5% commission fee
+    const commission = calculateCommission(goldReward);
+    const totalGoldNeeded = goldReward + commission;
+    if (totalGoldNeeded > userGoldBalance) {
+      validationErrors.goldReward = `Gold reward plus 5% commission (${totalGoldNeeded} gold) exceeds your available balance of ${userGoldBalance} gold`
+    }
+    
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors)
       setIsLoading(false)
       
       // Scroll to the first error field in order of importance
-      const fieldPriority = ['title', 'description', 'category', 'due_date']
+      const fieldPriority = ['title', 'description', 'category', 'due_date', 'goldReward']
       const firstErrorField = fieldPriority.find(field => validationErrors[field])
       
       if (firstErrorField) {
@@ -190,29 +267,65 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
       if (isEditing && quest) {
         // Update existing quest
         const updateData: UpdateQuestData = { 
-          ...formData
-          // gold_reward: goldReward // Disabled for now
+          ...formData,
+          gold_reward: goldReward // Enable gold reward
         }
         console.log('🔄 Updating quest with data:', updateData)
         result = await QuestAPI.updateQuest(quest.slug, updateData)
       } else {
         // Create new quest
         const createData: CreateQuestData = {
-          ...formData
-          // gold_reward: goldReward // Disabled for now
+          ...formData,
+          gold_reward: goldReward // Enable gold reward
         }
+        
+        // Log detailed information for debugging
+        const commission = calculateCommission(goldReward)
+        const totalGoldNeeded = goldReward + commission
+        
         console.log('✨ Creating quest with data:', createData)
-        result = await QuestAPI.createQuest(createData)
+        console.log('💰 Gold details:', {
+          reward: goldReward,
+          commission: commission,
+          totalNeeded: totalGoldNeeded,
+          userBalance: userGoldBalance,
+          remainingAfter: userGoldBalance - totalGoldNeeded,
+          formattedReward: typeof goldReward
+        })
+        
+        // Convert gold_reward to a number to ensure proper serialization
+        const finalCreateData = {
+          ...formData,
+          gold_reward: Number(goldReward) // Ensure it's a number
+        }
+        
+        result = await QuestAPI.createQuest(finalCreateData)
       }
       
       console.log('✅ Quest operation successful:', result)
+
+      // Update the user's gold balance after a successful quest creation
+      try {
+        // Update the balance timestamp to trigger a refresh
+        setBalanceLastUpdated(Date.now())
+        
+        // Calculate the new expected balance for immediate UI feedback
+        const commission = calculateCommission(goldReward);
+        const expectedNewBalance = userGoldBalance - goldReward - commission;
+        setUserGoldBalance(expectedNewBalance);
+        console.log('✅ Updated gold balance (estimated):', expectedNewBalance)
+        console.log('💰 Gold reserved for quest:', goldReward)
+        console.log('💰 Commission paid:', commission)
+      } catch (error) {
+        console.error('Failed to refresh gold balance:', error)
+      }
 
       // Reset form data after successful creation
       if (!isEditing) {
         setFormData({
           title: "",
           description: "",
-          category: 0, // Default to "Select Category"
+          category: categories.length > 0 ? categories[0].id : 0, // Default to first category if available
           difficulty: "initiate",
           due_date: "",
           requirements: "",
@@ -239,7 +352,44 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
             const errorDetail = match[2]
             try {
               const parsedError = JSON.parse(errorDetail)
-              setErrors(parsedError)
+              
+              // Handle specific field errors more effectively
+              const formattedErrors: {[key: string]: string} = {}
+              
+              // Process each field in the error response
+              for (const [field, errorMessages] of Object.entries(parsedError)) {
+                if (Array.isArray(errorMessages)) {
+                  formattedErrors[field] = errorMessages.join(', ')
+                } else if (typeof errorMessages === 'string') {
+                  formattedErrors[field] = errorMessages as string
+                } else {
+                  formattedErrors[field] = JSON.stringify(errorMessages)
+                }
+                
+                // For gold_reward errors, map to the frontend field name
+                if (field === 'gold_reward') {
+                  formattedErrors['goldReward'] = formattedErrors[field]
+                }
+              }
+              
+              setErrors(formattedErrors)
+              
+              // Scroll to the first error
+              const fieldPriority = ['title', 'description', 'category', 'due_date', 'goldReward']
+              const firstErrorField = fieldPriority.find(field => formattedErrors[field])
+              
+              if (firstErrorField) {
+                setTimeout(() => {
+                  const errorElement = document.getElementById(firstErrorField)
+                  if (errorElement) {
+                    errorElement.scrollIntoView({ 
+                      behavior: 'smooth', 
+                      block: 'center' 
+                    })
+                    errorElement.focus()
+                  }
+                }, 100)
+              }
             } catch {
               // If not JSON, treat as general error
               setErrors({ general: errorDetail })
@@ -473,7 +623,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                     const difficultyMap: DifficultyTier[] = ['initiate', 'adventurer', 'champion', 'mythic']
                     setFormData(prev => ({ ...prev, difficulty: difficultyMap[parseInt(e.target.value)] }))
                   }}
-                  className="w-full h-2 bg-gradient-to-r from-green-400 via-blue-400 via-yellow-400 to-purple-500 rounded-lg appearance-none cursor-pointer slider"
+                  className="w-full h-2 rounded-lg appearance-none cursor-pointer slider"
                   style={{
                     background: 'linear-gradient(to right, #22c55e, #3b82f6, #fbbf24, #a21caf)',
                   }}
@@ -545,27 +695,99 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                 )}
               </div>
 
-              <div className="opacity-50 pointer-events-none select-none">
-                <label htmlFor="reward" className="flex items-center text-sm font-semibold text-gray-500 mb-2">
-                  <div className="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center mr-3">
+              <div className="">
+                <label htmlFor="reward" className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                  <div className="w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center mr-3">
                     <span className="text-white text-xs">🪙</span>
                   </div>
                   REWARD (GOLD)
                 </label>
-                <input
-                  type="number"
-                  id="reward"
-                  name="reward"
-                  value={0}
-                  onChange={() => {}} // No-op function
-                  min="0"
-                  max="999"
-                  disabled
-                  tabIndex={-1}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg bg-gray-50 text-gray-400 cursor-not-allowed opacity-75"
-                  placeholder="Coming Soon"
-                />
-                <p className="mt-1 text-xs text-gray-400">Gold rewards feature coming soon</p>
+                <div className="flex flex-col">
+                  <input
+                    type="number"
+                    id="reward"
+                    name="reward"
+                    value={goldReward}
+                    onChange={(e) => {
+                      // Get input value or default to 0
+                      let value = parseInt(e.target.value) || 0;
+                      
+                      // Ensure value is non-negative
+                      value = Math.max(0, value);
+                      
+                      // Apply general input constraints (0-999)
+                      value = Math.min(999, value);
+                      
+                      // Calculate commission for this reward value using our exact method
+                      const commission = calculateCommission(value);
+                      const totalCost = value + commission;
+                      
+                      // Check if it exceeds user balance
+                      if (totalCost > userGoldBalance) {
+                        // Since the commission is a step function (due to ceiling), 
+                        // we need to search for the maximum value that keeps total ≤ balance
+                        let maxReward = value;
+                        while (maxReward > 0) {
+                          const commissionForMax = calculateCommission(maxReward);
+                          if (maxReward + commissionForMax <= userGoldBalance) {
+                            break;
+                          }
+                          maxReward--;
+                        }
+                        value = maxReward;
+                        
+                        // Clear any existing error
+                        setErrors(prev => ({ ...prev, goldReward: '' }));
+                      }
+                      
+                      setGoldReward(value);
+                    }}
+                    min="0"
+                    max={Math.min(999, Math.floor(userGoldBalance / (1 + COMMISSION_RATE)))}
+                    className="w-full px-4 py-3 border-2 border-amber-200 rounded-lg bg-white text-gray-800"
+                    placeholder="0"
+                  />
+                  <div className="flex justify-between mt-1">
+                    <p className="text-xs text-gray-500">Set gold reward (0-999) + 5% commission</p>
+                    <div className="flex items-center">
+                      <svg className="w-3 h-3 text-amber-600 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"></path>
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd"></path>
+                      </svg>
+                      <p className="text-xs font-medium">Available: <span className="text-amber-600 font-bold">{userGoldBalance} gold</span></p>
+                    </div>
+                  </div>
+                  {goldReward > 0 && (
+                    <div className="mt-1 bg-amber-50 border border-amber-200 rounded p-2">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-gray-700">Quest reward:</span>
+                        <span className="font-medium text-amber-700">{goldReward} gold</span>
+                      </div>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-gray-700">5% commission:</span>
+                        <span className="font-medium text-amber-700">{calculateCommission(goldReward)} gold</span>
+                      </div>
+                      <div className="flex justify-between text-xs font-bold border-t border-amber-300 pt-1">
+                        <span className="text-amber-800">Total cost:</span>
+                        <span className="text-amber-800">{goldReward + calculateCommission(goldReward)} gold</span>
+                      </div>
+                      
+                      <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-2">
+                        <div className="flex items-start text-xs">
+                          <svg className="w-4 h-4 text-blue-500 mt-0.5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-blue-700">
+                            This gold will be <strong>reserved</strong> from your balance when the quest is created and only awarded to participants when the quest is completed.
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {errors.goldReward && (
+                    <p className="mt-1 text-xs text-red-500">{errors.goldReward}</p>
+                  )}
+                </div>
               </div>
             </div>
 

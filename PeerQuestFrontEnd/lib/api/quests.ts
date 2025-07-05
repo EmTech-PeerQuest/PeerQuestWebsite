@@ -207,18 +207,46 @@ export const QuestAPI = {
   },
 
   async createQuest(questData: CreateQuestData): Promise<Quest> {
-    const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(questData),
-    })
+    try {
+      // Ensure gold_reward is properly formatted as a number
+      const formattedData = {
+        ...questData,
+        gold_reward: questData.gold_reward != null ? Number(questData.gold_reward) : 0
+      };
+      
+      console.log('Creating quest with formatted data:', formattedData)
+      
+      const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(formattedData),
+      })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(`Failed to create quest: ${JSON.stringify(error)}`)
+      if (!response.ok) {
+        // Try to parse the error response
+        let errorData;
+        try {
+          errorData = await response.json()
+          console.error('Quest creation error response:', errorData, 'Status:', response.status)
+        } catch (parseError) {
+          console.error('Could not parse error response:', parseError)
+          throw new Error(`Failed to create quest: Server returned ${response.status} ${response.statusText}`)
+        }
+        
+        // Format error messages for field-specific errors
+        if (typeof errorData === 'object') {
+          // Return the error directly so the component can handle specific field errors
+          throw new Error(`Failed to create quest: ${JSON.stringify(errorData)}`)
+        } else {
+          throw new Error(`Failed to create quest: ${JSON.stringify(errorData)}`)
+        }
+      }
+
+      return response.json()
+    } catch (error) {
+      console.error('Quest creation failed:', error)
+      throw error
     }
-
-    return response.json()
   },
 
   async updateQuest(slug: string, questData: UpdateQuestData): Promise<Quest> {

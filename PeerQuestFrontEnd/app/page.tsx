@@ -11,6 +11,7 @@ import { Footer } from '@/components/ui/footer'
 import { ToastProvider } from '@/components/ui/toast'
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/context/AuthContext";
+import { useGoldBalance } from "@/context/GoldBalanceContext";
 import { AIChatbot } from '@/components/ai/ai-chatbot';
 import { AuthModal } from '@/components/auth/auth-modal';
 import { Settings } from '@/components/settings/settings';
@@ -30,6 +31,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [refreshQuestBoard, setRefreshQuestBoard] = useState(0); // Trigger refresh without remounting
   const { user: currentUser, login, register, logout } = useAuth();
+  const { refreshBalance } = useGoldBalance(); // Add gold balance refresh capability
   const { toast } = useToast();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login');
@@ -81,7 +83,18 @@ export default function Home() {
 
   // Handle quest creation from navbar - trigger refresh without remounting
   const handleQuestCreated = () => {
-    setRefreshQuestBoard(prev => prev + 1); // Trigger refresh in QuestBoard
+    // Refresh quest board
+    setRefreshQuestBoard(prev => prev + 1);
+    
+    // Refresh gold balance to show updated amount after quest creation
+    refreshBalance();
+    
+    // Show success toast
+    toast({
+      title: "Quest created successfully!",
+      description: "Your quest is now visible on the Quest Board.",
+      variant: "default",
+    });
   };
 
   // Memoize data loaded state for each section

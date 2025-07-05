@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
-import { Star, Menu, X, User, Settings, LogOut, Shield, Search, Bell, MessageSquare, Plus } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Star, Menu, X, User, Settings, LogOut, Shield, Search, Bell, MessageSquare, Plus, Loader2 } from "lucide-react"
 import { Notifications } from '@/components/notifications/notifications'
 import QuestForm from '@/components/quests/quest-form'
+import { GoldBalance } from '@/components/ui/gold-balance'
 
 interface NavbarProps {
   currentUser: any
@@ -118,16 +119,7 @@ export function Navbar({
             <>
               <div className="hidden md:flex items-center space-x-2 mr-4">
                 <div className="bg-[#CDAA7D]/10 px-3 py-1 rounded-full flex items-center">
-                  <span className="text-[#CDAA7D] font-medium">{currentUser.gold} Gold</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      openGoldPurchaseModal()
-                    }}
-                    className="ml-2 text-xs bg-[#CDAA7D] text-white px-2 py-0.5 rounded hover:bg-[#B89A6D] transition-colors"
-                  >
-                    +
-                  </button>
+                  <GoldBalance openGoldPurchaseModal={openGoldPurchaseModal} />
                 </div>
               </div>
 
@@ -404,15 +396,18 @@ export function Navbar({
                       <span className="ml-2 bg-red-500 text-white text-xs px-1.5 rounded-full">
                         {unreadNotifications}
                       </span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleNavigation("profile")}
-                    className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
-                  >
-                    <User size={16} className="mr-2" />
-                    Profile
-                  </button>
+                    )}                </button>
+                {/* Gold balance for mobile view */}
+                <div className="py-2 text-[#CDAA7D] font-medium flex items-center w-full">
+                  <GoldBalance openGoldPurchaseModal={openGoldPurchaseModal} />
+                </div>
+                <button
+                  onClick={() => handleNavigation("profile")}
+                  className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
+                >
+                  <User size={16} className="mr-2" />
+                  Profile
+                </button>
                   <button
                     onClick={() => handleNavigation("quest-management")}
                     className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"

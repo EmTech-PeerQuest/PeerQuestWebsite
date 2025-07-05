@@ -143,15 +143,74 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
             User = get_user_model()
             validated_data['creator'] = User.objects.first()
         
+        # Get gold_reward value
+        gold_reward = validated_data.get('gold_reward', 0)
+        
+        # If there's a gold reward, check balance before creating the quest
+        if gold_reward > 0:
+            from transactions.transaction_utils import get_available_balance
+            from decimal import Decimal
+            
+            # Calculate total gold needed with 5% commission
+            COMMISSION_RATE = Decimal('0.05')
+            gold_reward_decimal = Decimal(str(gold_reward))
+            total_gold_needed = gold_reward_decimal + (gold_reward_decimal * COMMISSION_RATE).quantize(Decimal('1'), rounding='ROUND_UP')
+            
+            # Check if user has enough available balance
+            available_balance = get_available_balance(validated_data['creator'])
+            if total_gold_needed > available_balance:
+                raise serializers.ValidationError({
+                    'gold_reward': f"You don't have enough gold. Required: {total_gold_needed} (reward + 5% fee), Available: {available_balance}"
+                })
+        
+        # Create the quest
         print(f"🆕 Creating quest with data: {validated_data}")
-        return super().create(validated_data)
+        quest = super().create(validated_data)
+        
+        # Reserve gold for the quest including commission
+        if gold_reward > 0:
+            from transactions.transaction_utils import reserve_gold_for_quest
+            
+            # Reserve the total amount (reward + commission)
+            success = reserve_gold_for_quest(quest, total_gold_needed)
+            if not success:
+                # This should not happen since we checked the balance above,
+                # but just in case, clean up and raise an error
+                quest.delete()
+                raise serializers.ValidationError({
+                    'gold_reward': 'Failed to reserve gold for the quest. Please try again.'
+                })
+            
+        return quest
 
     def update(self, instance, validated_data):
         print(f"🔄 Updating quest {instance.id} with data: {validated_data}")
         print(f"🔄 Current description: '{instance.description}'")
         print(f"🔄 New description: '{validated_data.get('description', 'NOT PROVIDED')}'")
         
+        # Check if gold_reward is being updated
+        old_gold_reward = instance.gold_reward
+        new_gold_reward = validated_data.get('gold_reward', old_gold_reward)
+        
+        # Update the instance
         updated_instance = super().update(instance, validated_data)
+        
+        # Handle gold reservation changes if needed
+        if new_gold_reward != old_gold_reward:
+            from transactions.transaction_utils import reserve_gold_for_quest, release_gold_reservation
+            from decimal import Decimal
+            
+            # Define commission rate
+            COMMISSION_RATE = Decimal('0.05')
+            
+            # Release old reservation first (which includes old commission)
+            release_gold_reservation(updated_instance)
+            
+            # Create new reservation if needed, including commission
+            if new_gold_reward > 0:
+                # Calculate total gold needed with 5% commission
+                total_gold_needed = new_gold_reward + (new_gold_reward * COMMISSION_RATE).quantize(Decimal('1'), rounding='ROUND_UP')
+                reserve_gold_for_quest(updated_instance, total_gold_needed)
         
         print(f"✅ Updated quest {updated_instance.id}, new description: '{updated_instance.description}'")
         return updated_instance
@@ -175,6 +234,34 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Gold reward cannot be negative.")
         if value > 999:
             raise serializers.ValidationError("Gold reward cannot exceed 999.")
+            
+        # Check if user has enough available balance for this reward
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            # Import here to avoid circular imports
+            from transactions.transaction_utils import get_available_balance
+            from decimal import Decimal
+            
+            # Calculate total needed gold with 5% commission fee
+            COMMISSION_RATE = Decimal('0.05')
+            total_gold_needed = value + (value * COMMISSION_RATE).quantize(Decimal('1'), rounding='ROUND_UP')
+            
+            # For update operations, we need to account for the current reservation
+            instance = getattr(self, 'instance', None)
+            current_reservation = 0
+            if instance and instance.gold_reward:
+                # Also include current commission in the reservation calculation
+                current_commission = (instance.gold_reward * COMMISSION_RATE).quantize(Decimal('1'), rounding='ROUND_UP')
+                current_reservation = instance.gold_reward + current_commission
+            
+            # Get available balance plus current reservation (if updating)
+            available_balance = get_available_balance(request.user) + current_reservation
+            
+            if total_gold_needed > available_balance:
+                raise serializers.ValidationError(
+                    f"Gold reward plus 5% commission ({total_gold_needed} gold) exceeds your available balance of {available_balance} gold."
+                )
+        
         return value
 
     def validate(self, data):
@@ -317,12 +404,36 @@ class QuestSubmissionCreateSerializer(serializers.ModelSerializer):
 class QuestSubmissionReviewSerializer(serializers.ModelSerializer):
     """For reviewing quest submissions (quest creators only)"""
     reviewed_by = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    xp_reward = serializers.SerializerMethodField()
+    gold_reward = serializers.SerializerMethodField()
 
     class Meta:
         model = QuestSubmission
-        fields = ['status', 'feedback', 'reviewed_by']
+        fields = ['status', 'feedback', 'reviewed_by', 'xp_reward', 'gold_reward']
+
+    def get_xp_reward(self, obj):
+        """Return the XP reward amount for this quest"""
+        return obj.quest_participant.quest.xp_reward
+        
+    def get_gold_reward(self, obj):
+        """Return the gold reward amount for this quest"""
+        return obj.quest_participant.quest.gold_reward
 
     def validate_status(self, value):
         if value not in ['approved', 'rejected', 'needs_revision']:
             raise serializers.ValidationError("Invalid status for review.")
         return value
+        
+    def to_representation(self, instance):
+        """Add reward information to the response when submission is approved"""
+        data = super().to_representation(instance)
+        
+        # Add reward info if submission was approved
+        if instance.status == 'approved':
+            quest = instance.quest_participant.quest
+            data['rewards'] = {
+                'xp_awarded': quest.xp_reward,
+                'gold_awarded': quest.gold_reward
+            }
+            
+        return data
