@@ -76,6 +76,7 @@ def create_user_and_token(user_data: Dict[str, Any]) -> Dict[str, Any]:
         'first_name': user_data.get('first_name', user_data.get('given_name', '')),
         'last_name': user_data.get('last_name', user_data.get('family_name', '')),
         'avatar_url': user_data.get('avatar_url', ''),
+        'email_verified': True,  # Google users are already email-verified
     }
     
     # Add birthday if available
@@ -94,6 +95,10 @@ def create_user_and_token(user_data: Dict[str, Any]) -> Dict[str, Any]:
     # If user already exists, update with new data if available
     if not created:
         updated = False
+        # Ensure email is verified for Google users
+        if not user.email_verified:
+            user.email_verified = True
+            updated = True
         if 'birthday' in user_data and not user.birthday:
             user.birthday = user_data['birthday']
             updated = True

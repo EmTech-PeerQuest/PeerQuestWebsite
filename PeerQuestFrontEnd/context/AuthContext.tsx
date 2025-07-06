@@ -9,7 +9,7 @@ import { User } from '@/lib/types';
 interface AuthContextProps {
   user: User | null;
   login: (credentials: { username: string; password: string; rememberMe?: boolean }) => Promise<void>;
-  register: (data: { username: string; email: string; password: string; confirmPassword?: string }) => Promise<void>;
+  register: (data: { username: string; email: string; password: string; confirmPassword: string; birthday?: string | null; gender?: string | null }) => Promise<void>;
   logout: () => void;
   loginWithGoogle: (googleCredential: string) => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -206,30 +206,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const register = async (data: { username: string; email: string; password: string; confirmPassword?: string }) => {
+  const register = async (data: { username: string; email: string; password: string; confirmPassword: string; birthday?: string | null; gender?: string | null }) => {
     try {
+      console.log('🔍 AuthContext: Starting registration');
       // Call backend registration API
       const response = await apiRegister(data);
+      console.log('🔍 AuthContext: Registration response:', response);
       
-      // Check if registration was successful and email verification is required
-      if (response.data.message) {
-        // Show success message about email verification
-        toast({
-          title: 'Registration Successful!',
-          description: response.data.message,
-          variant: 'default',
-        });
-        
-        // Don't auto-login since email verification is required
-        // Instead, redirect to a verification notice page
-        router.push('/register-success?email=' + encodeURIComponent(data.email));
-      } else {
-        // Old behavior for backward compatibility
-        await login({ username: data.username, password: data.password });
-      }
+      // Registration was successful - redirect to success page with email
+      console.log('🔍 AuthContext: Registration successful, redirecting to success page');
+      
+      // Show success message about email verification
+      toast({
+        title: 'Registration Successful!',
+        description: response.data.message || 'Please check your email for a verification link to complete your account setup.',
+        variant: 'default',
+      });
+      
+      // Redirect to registration success page with the user's email
+      const encodedEmail = encodeURIComponent(data.email);
+      router.push(`/register-success?email=${encodedEmail}`);
+      
+      // Don't return the response, just complete successfully
     } catch (err: any) {
-      // Optionally show a toast or propagate error
-      toast({ title: 'Registration failed', description: err?.message || 'Please try again.', variant: 'destructive' });
+      console.log('🔍 AuthContext: Registration failed:', err);
+      // Show error toast
+      toast({ 
+        title: 'Registration failed', 
+        description: err?.message || 'Please try again.', 
+        variant: 'destructive' 
+      });
       throw err;
     }
   };

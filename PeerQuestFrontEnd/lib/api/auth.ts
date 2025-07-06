@@ -19,22 +19,47 @@ export const login = async (username: string, password: string) => {
     return response;
   } catch (error: any) {
     console.log('🔍 API login failed:', error?.response?.status, error?.response?.data);
-    // User-friendly error for 401
+    
+    // Handle 401 errors (authentication failures)
     if (error?.response?.status === 401) {
-      // Log which credential was incorrect (username or password)
-      if (error?.response?.data?.detail?.toLowerCase().includes('no active account')) {
-        console.warn(`Login failed: No active account found with username: '${username}'.`);
-      } else if (error?.response?.data?.detail?.toLowerCase().includes('password')) {
-        console.warn(`Login failed: Incorrect password for username: '${username}'.`);
-      } else {
-        console.warn(`Login failed for username: '${username}'. Detail:`, error?.response?.data?.detail);
+      const errorDetail = error?.response?.data?.detail || '';
+      
+      // Check for email verification required
+      if (errorDetail.toLowerCase().includes('verify') || 
+          errorDetail.toLowerCase().includes('verification') ||
+          errorDetail.toLowerCase().includes('email') ||
+          error?.response?.data?.verification_required) {
+        throw new Error("Please verify your email address before logging in. Check your inbox for the verification email.");
       }
-      throw new Error("Invalid username or password.");
+      
+      // Check for specific account issues
+      if (errorDetail.toLowerCase().includes('no active account')) {
+        console.warn(`Login failed: No active account found with username: '${username}'.`);
+        throw new Error("No account found with this username.");
+      } else if (errorDetail.toLowerCase().includes('password')) {
+        console.warn(`Login failed: Incorrect password for username: '${username}'.`);
+        throw new Error("Incorrect password.");
+      } else {
+        console.warn(`Login failed for username: '${username}'. Detail:`, errorDetail);
+        throw new Error("Invalid username or password.");
+      }
     }
+    
+    // Handle 403 errors (forbidden - likely email verification required)
+    if (error?.response?.status === 403) {
+      const errorDetail = error?.response?.data?.detail || '';
+      // Check for verification_required flag from our custom token view
+      if (error?.response?.data?.verification_required) {
+        throw new Error(errorDetail || "Please verify your email address before logging in. Check your inbox for the verification email.");
+      }
+      throw new Error(errorDetail || "Access forbidden. Please verify your email address before logging in.");
+    }
+    
     // User-friendly error for backend validation
     if (error?.response?.data?.detail) {
       throw new Error(error.response.data.detail);
     }
+    
     throw error;
   }
 };
@@ -44,16 +69,19 @@ export const register = async (userData: {
   username: string;
   email: string;
   password: string;
-  confirmPassword?: string;
+  confirmPassword: string; // Make this required since backend needs it
   birthday?: string | null;
   gender?: string | null;
 }) => {
   try {
+    console.log('🔍 API: Received userData:', userData);
+    
     // Prepare payload for backend
     const payload: any = {
       username: userData.username,
       email: userData.email,
       password: userData.password,
+      password_confirm: userData.confirmPassword, // Backend expects password_confirm
     };
     
     // Only include birthday if provided
@@ -66,13 +94,20 @@ export const register = async (userData: {
       payload.gender = userData.gender;
     }
     
+    console.log('🔍 API: Sending payload to backend:', payload);
+    
     const response = await axios.post(`${API_BASE}/api/users/register/`, payload);
+    console.log('🔍 API: Backend response:', response.data);
+    
     // Only succeed if registration returns 201 Created
     if (response.status !== 201) {
       throw new Error(`Registration failed: Unexpected response status ${response.status}`);
     }
     return response;
   } catch (error: any) {
+    console.log('🔍 API: Registration error:', error);
+    console.log('🔍 API: Error response data:', error?.response?.data);
+    
     // Only log and handle actual errors, not successful responses
     if (error?.response?.status >= 400) {
       // Handle empty response object
@@ -278,3 +313,98 @@ axios.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Forgot password
+export const forgotPassword = async (email: string) => {
+  try {
+    console.log('🔍 API: Sending forgot password request for email:', email);
+    
+    const response = await axios.post(`${API_BASE}/api/users/password-reset/`, { email });
+    console.log('🔍 API: Forgot password response:', response.data);
+    
+    return response;
+  } catch (error: any) {
+    console.log('🔍 API: Forgot password error:', error);
+    console.log('🔍 API: Error response data:', error?.response?.data);
+    
+    if (error?.response?.status === 400) {
+      const errorData = error.response.data;
+      
+      // Handle email not found error
+      if (errorData.email) {
+        const emailErrors = Array.isArray(errorData.email) ? errorData.email : [errorData.email];
+        if (emailErrors.some((err: any) => err.includes('not found') || err.includes('does not exist'))) {
+          throw new Error('No account found with this email address.');
+        }
+        throw new Error(`Email error: ${emailErrors.join(', ')}`);
+      }
+      
+      // Handle general error message
+      if (errorData.detail) {
+        throw new Error(errorData.detail);
+      }
+      
+      // Handle non-field errors
+      if (errorData.non_field_errors) {
+        const nonFieldErrors = Array.isArray(errorData.non_field_errors) ? errorData.non_field_errors : [errorData.non_field_errors];
+        throw new Error(nonFieldErrors.join(', '));
+      }
+      
+      throw new Error('Password reset request failed. Please check your email address and try again.');
+    }
+    
+    if (error?.response?.data?.detail) {
+      throw new Error(error.response.data.detail);
+    }
+    
+    throw error;
+  }
+};
+
+// Password reset confirmation
+export const resetPasswordConfirm = async (uid: string, token: string, newPassword: string) => {
+  try {
+    console.log('🔍 API: Sending password reset confirmation request');
+    
+    const response = await axios.post(`${API_BASE}/api/users/password-reset-confirm/`, {
+      uid,
+      token,
+      new_password: newPassword
+    });
+    console.log('🔍 API: Password reset confirmation response:', response.data);
+    
+    return response;
+  } catch (error: any) {
+    console.log('🔍 API: Password reset confirmation error:', error);
+    console.log('🔍 API: Error response data:', error?.response?.data);
+    
+    if (error?.response?.status === 400) {
+      const errorData = error.response.data;
+      
+      // Handle token/uid validation errors
+      if (errorData.detail) {
+        throw new Error(errorData.detail);
+      }
+      
+      // Handle password validation errors
+      if (errorData.new_password) {
+        const passwordErrors = Array.isArray(errorData.new_password) ? errorData.new_password : [errorData.new_password];
+        throw new Error(`Password error: ${passwordErrors.join(', ')}`);
+      }
+      
+      // Handle non-field errors
+      if (errorData.non_field_errors) {
+        const nonFieldErrors = Array.isArray(errorData.non_field_errors) ? errorData.non_field_errors : [errorData.non_field_errors];
+        throw new Error(nonFieldErrors.join(', '));
+      }
+      
+      throw new Error('Password reset failed. Please check your reset link and try again.');
+    }
+    
+    if (error?.response?.data?.detail) {
+      throw new Error(error.response.data.detail);
+    }
+    
+    throw error;
+  }
+};

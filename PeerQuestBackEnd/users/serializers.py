@@ -36,13 +36,17 @@ class UserProfileSerializer(serializers.ModelSerializer):
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
     password_confirm = serializers.CharField(write_only=True)
+    birthday = serializers.DateField(required=False, allow_null=True)
+    gender = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'password_confirm', 'display_name']
+        fields = ['username', 'email', 'password', 'password_confirm', 'display_name', 'birthday', 'gender']
         extra_kwargs = {
             'password': {'write_only': True},
-            'password_confirm': {'write_only': True}
+            'password_confirm': {'write_only': True},
+            'birthday': {'required': False, 'allow_null': True},
+            'gender': {'required': False, 'allow_blank': True, 'allow_null': True},
         }
     
     def validate(self, attrs):
@@ -85,6 +89,10 @@ class RegisterSerializer(serializers.ModelSerializer):
         # Remove password_confirm from validated_data
         validated_data.pop('password_confirm', None)
         
+        # Extract additional fields
+        birthday = validated_data.pop('birthday', None)
+        gender = validated_data.pop('gender', None)
+        
         # Create user
         user = User.objects.create_user(
             username=validated_data['username'],
@@ -92,5 +100,13 @@ class RegisterSerializer(serializers.ModelSerializer):
             password=validated_data['password'],
             display_name=validated_data.get('display_name', validated_data['username'])
         )
+        
+        # Set additional fields if provided
+        if birthday:
+            user.birthday = birthday
+        if gender:
+            user.gender = gender
+        
+        user.save()
         
         return user

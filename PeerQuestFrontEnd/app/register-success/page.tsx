@@ -61,7 +61,7 @@ export default function RegisterSuccess() {
             </div>
             <h2 className="text-xl font-bold text-[#2C1A1D] mb-2">{t('registerSuccess.checkYourEmail')}</h2>
             <p className="text-[#8B75AA] mb-4">
-              {t('registerSuccess.verificationSent', { email: <strong className="text-[#2C1A1D]">{email}</strong> })}
+              We've sent a verification email to <strong className="text-[#2C1A1D]">{email}</strong>
             </p>
             <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-4">
               <p className="text-sm text-[#2C1A1D] mb-2">

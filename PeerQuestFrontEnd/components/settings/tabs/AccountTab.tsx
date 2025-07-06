@@ -29,11 +29,12 @@ export async function fetchUserInfo() {
       },
     });
     
+    console.log('Response status:', res.status);
     console.log('Response data:', res.data);
     
     const data = res.data;
     
-    return {
+    const mappedData = {
       displayName: data.display_name || "",
       username: data.username || "",
       email: data.email || "",
@@ -49,6 +50,12 @@ export async function fetchUserInfo() {
       notificationPreferences: data.notification_preferences || {},
       privacySettings: data.privacy_settings || {},
     };
+    
+    console.log('Mapped data:', mappedData);
+    console.log('Birthday value:', data.birthday, 'Type:', typeof data.birthday);
+    console.log('Gender value:', data.gender, 'Type:', typeof data.gender);
+    
+    return mappedData;
   } catch (err: any) {
     console.error('fetchUserInfo error:', err);
     console.error('Error response:', err.response?.data);
@@ -150,16 +157,25 @@ export default function AccountTab({
   useEffect(() => {
     (async () => {
       try {
+        console.log('AccountTab: Fetching user info...');
         const info = await fetchUserInfo();
-        setAccountForm((prev: any) => ({ 
-          ...prev, 
-          ...info,
-          // Ensure birthday and gender are properly set
-          birthday: info.birthday || prev.birthday || "",
-          gender: info.gender || prev.gender || ""
-        }));
+        console.log('AccountTab: Received user info:', info);
+        
+        setAccountForm((prev: any) => {
+          const updated = { 
+            ...prev, 
+            ...info,
+            // Ensure birthday and gender are properly set
+            birthday: info.birthday || prev.birthday || "",
+            gender: info.gender || prev.gender || ""
+          };
+          console.log('AccountTab: Updated form state:', updated);
+          return updated;
+        });
       } catch (e) {
         console.error('[AccountTab] Failed to fetch user info:', e);
+        // You might want to show an error message to the user here
+        alert('Failed to load account information. Please refresh the page and try again.');
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps

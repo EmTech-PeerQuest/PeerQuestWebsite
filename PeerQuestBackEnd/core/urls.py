@@ -8,10 +8,9 @@ from django.conf.urls.static import static
 from django.views.generic import TemplateView
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.http import JsonResponse
-from users.views import GoogleLoginCallbackView
+from users.views import GoogleLoginCallbackView, EmailVerifiedTokenObtainPairView
 
 from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
     TokenRefreshView,
 )
 
@@ -33,7 +32,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     # JWT Auth endpoints
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/', EmailVerifiedTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
     # Users app

@@ -209,10 +209,14 @@ export default function Home() {
             }}
             onRegister={async (data) => {
               try {
+                console.log('🔍 Page.tsx starting registration');
                 await register(data);
+                console.log('🔍 Page.tsx registration successful');
+                // Close modal after successful registration
                 setShowAuthModal(false);
-                // No redirect, stay on homepage
+                // The AuthContext will handle the redirect to the success page
               } catch (error) {
+                console.log('🔍 Page.tsx registration failed:', error);
                 // Don't close modal on register failure - let the modal handle the error
                 throw error;
               }

@@ -18,9 +18,10 @@ const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({ onLoginSuccess, onS
           "google-login-callback/",
           { credential: credentialResponse.credential }
         );
-        // Save tokens and user info
-        localStorage.setItem("jwt", res.data.access);
-        localStorage.setItem("refresh", res.data.refresh);
+        
+        // Save tokens and user info with new token names
+        localStorage.setItem("access_token", res.data.access);
+        localStorage.setItem("refresh_token", res.data.refresh);
         localStorage.setItem("user", JSON.stringify(res.data.user));
         
         // Check if user needs to complete profile (no birthday or gender)
@@ -33,7 +34,7 @@ const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({ onLoginSuccess, onS
         if (needsProfileCompletion && onShowProfileCompletion) {
           onShowProfileCompletion();
         } else {
-          // Full page reload after successful login
+          // Full page reload after successful login (only for Google auth)
           window.location.reload();
         }
       } catch (err) {

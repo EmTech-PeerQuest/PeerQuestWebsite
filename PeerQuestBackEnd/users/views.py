@@ -26,6 +26,13 @@ from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from .validators import PROFANITY_LIST, LEET_MAP, levenshtein, normalize_username
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
 
 
 class UserInfoSettingsView(RetrieveUpdateDestroyAPIView):
@@ -376,3 +383,157 @@ class PasswordChangeView(APIView):
             return Response({
                 "errors": [str(e)]
             }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class EmailVerifiedTokenObtainPairView(TokenObtainPairView):
+    """
+    Custom token view that checks email verification before issuing tokens.
+    Prevents unverified users from logging in.
+    """
+    
+    def post(self, request, *args, **kwargs):
+        # First, authenticate the user
+        username = request.data.get('username')
+        password = request.data.get('password')
+        
+        if not username or not password:
+            return Response({
+                'detail': 'Username and password are required.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Authenticate user
+        user = authenticate(username=username, password=password)
+        
+        if user is None:
+            return Response({
+                'detail': 'Invalid username or password.'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Check if user's email is verified
+        if not user.email_verified:
+            return Response({
+                'detail': 'Please verify your email address before logging in. Check your inbox for the verification email.',
+                'verification_required': True
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # If user is verified, proceed with normal token generation
+        return super().post(request, *args, **kwargs)
+
+class PasswordResetView(APIView):
+    """
+    Handle password reset requests.
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        email = request.data.get('email')
+        
+        if not email:
+            return Response({
+                'detail': 'Email is required.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            # Don't reveal whether email exists for security
+            return Response({
+                'detail': 'If an account with this email exists, you will receive a password reset link shortly.'
+            }, status=status.HTTP_200_OK)
+        
+        # Generate password reset token
+        token_generator = PasswordResetTokenGenerator()
+        token = token_generator.make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        
+        # Create password reset link
+        frontend_url = "http://localhost:3000"  # This should be configurable via environment variable
+        reset_link = f"{frontend_url}/reset-password?uid={uid}&token={token}"
+        
+        # Send email (you'll need to configure email settings)
+        try:
+            email_subject = 'Password Reset - PeerQuest Tavern'
+            email_message = f'''
+Hello,
+
+You requested a password reset for your PeerQuest Tavern account.
+
+Click the link below to reset your password:
+{reset_link}
+
+If you didn't request this password reset, please ignore this email.
+
+This link will expire in 24 hours for security reasons.
+
+Best regards,
+The PeerQuest Tavern Team
+'''
+            
+            send_mail(
+                subject=email_subject,
+                message=email_message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            print(f"Failed to send password reset email: {e}")
+            return Response({
+                'detail': 'Failed to send password reset email. Please try again later.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response({
+            'detail': 'If an account with this email exists, you will receive a password reset link shortly.'
+        }, status=status.HTTP_200_OK)
+
+
+class PasswordResetConfirmView(APIView):
+    """
+    Handle password reset confirmation with uid and token.
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        uid = request.data.get('uid')
+        token = request.data.get('token')
+        new_password = request.data.get('new_password')
+        
+        if not uid or not token or not new_password:
+            return Response({
+                'detail': 'UID, token, and new password are required.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            from django.utils.http import urlsafe_base64_decode
+            from django.utils.encoding import force_str
+            
+            # Decode the user ID
+            user_id = force_str(urlsafe_base64_decode(uid))
+            user = User.objects.get(pk=user_id)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return Response({
+                'detail': 'Invalid password reset link.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Verify the token
+        token_generator = PasswordResetTokenGenerator()
+        if not token_generator.check_token(user, token):
+            return Response({
+                'detail': 'Invalid or expired password reset link.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate the new password
+        try:
+            validate_password(new_password, user)
+        except serializers.ValidationError as e:
+            return Response({
+                'new_password': e.messages
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Set the new password
+        user.set_password(new_password)
+        user.save()
+        
+        return Response({
+            'detail': 'Password has been reset successfully.'
+        }, status=status.HTTP_200_OK)

@@ -5,6 +5,8 @@ import { X, Eye, EyeOff, AlertCircle } from "lucide-react"
 import LoadingModal from "@/components/ui/loading-modal"
 import GoogleAuthButton from "@/components/auth/GoogleAuthButton"
 import ProfileCompletionModal from "@/components/auth/ProfileCompletionModal"
+import { ResendVerification } from "@/components/auth/resend-verification"
+import { forgotPassword } from "@/lib/api/auth"
 import { useAuth } from "@/context/AuthContext"
 import { useRouter } from 'next/navigation';
 
@@ -34,6 +36,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   const [showProfileCompletion, setShowProfileCompletion] = useState(false)
   const [isProcessingLogin, setIsProcessingLogin] = useState(false) // Track if we're in the middle of login
   const [userIsInteracting, setUserIsInteracting] = useState(false) // Track if user is actively interacting
+  const [showResendVerification, setShowResendVerification] = useState(false) // Track if we need to show resend verification
 
   const [loginForm, setLoginForm] = useState({
     username: "",
@@ -112,36 +115,67 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   const validateRegisterForm = () => {
     const errors: Record<string, string> = {}
 
-    if (!registerForm.username) {
+    console.log('🔍 Validating register form:', registerForm);
+
+    // Username validation
+    if (!registerForm.username || registerForm.username.trim() === "") {
       errors.username = "Username is required"
-    } else if (registerForm.username.length < 3) {
+      console.log('🔍 Username validation failed:', registerForm.username);
+    } else if (registerForm.username.trim().length < 3) {
       errors.username = "Username must be at least 3 characters"
+      console.log('🔍 Username too short:', registerForm.username.trim().length);
     }
 
-    if (!registerForm.email) {
+    // Email validation
+    if (!registerForm.email || registerForm.email.trim() === "") {
       errors.email = "Email is required"
-    } else if (!validateEmail(registerForm.email)) {
+      console.log('🔍 Email validation failed:', registerForm.email);
+    } else if (!validateEmail(registerForm.email.trim())) {
       errors.email = "Please enter a valid email"
+      console.log('🔍 Email format invalid:', registerForm.email.trim());
     }
 
+    // Password validation
     if (!registerForm.password) {
       errors.password = "Password is required"
+      console.log('🔍 Password validation failed:', registerForm.password);
     } else if (!validatePassword(registerForm.password)) {
       errors.password = "Password must be at least 8 characters"
+      console.log('🔍 Password too short:', registerForm.password.length);
     }
 
-    if (registerForm.password !== registerForm.confirmPassword) {
+    // Confirm password validation
+    if (!registerForm.confirmPassword) {
+      errors.confirmPassword = "Please confirm your password"
+      console.log('🔍 Confirm password validation failed:', registerForm.confirmPassword);
+    } else if (registerForm.password !== registerForm.confirmPassword) {
       errors.confirmPassword = "Passwords do not match"
+      console.log('🔍 Passwords do not match:', { password: registerForm.password, confirmPassword: registerForm.confirmPassword });
     }
 
-    if (!registerForm.birthday.month || !registerForm.birthday.day || !registerForm.birthday.year) {
+    // Birthday validation
+    console.log('🔍 Birthday validation:', {
+      month: registerForm.birthday.month,
+      day: registerForm.birthday.day,
+      year: registerForm.birthday.year,
+      monthEmpty: !registerForm.birthday.month,
+      dayEmpty: !registerForm.birthday.day,
+      yearEmpty: !registerForm.birthday.year
+    });
+
+    if (!registerForm.birthday.month || !registerForm.birthday.day || !registerForm.birthday.year ||
+        registerForm.birthday.month === "" || registerForm.birthday.day === "" || registerForm.birthday.year === "") {
       errors.birthday = "Please enter your full birthday"
+      console.log('🔍 Birthday validation failed');
     }
 
+    // Terms validation
     if (!registerForm.agreeToTerms) {
       errors.agreeToTerms = "You must agree to the Terms of Use"
+      console.log('🔍 Terms agreement validation failed:', registerForm.agreeToTerms);
     }
 
+    console.log('🔍 Final validation errors:', errors);
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -217,8 +251,9 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
             err?.message?.toLowerCase().includes('verify') ||
             err?.message?.toLowerCase().includes('verification')) {
           setFormErrors({ 
-            auth: "Please verify your email address before logging in. Check your inbox for the verification email."
+            auth: "Please verify your email address before logging in. Check your inbox for the verification email, or enter your email below to resend it."
           });
+          setShowResendVerification(true); // Show resend verification component
         } else {
           // Extract error message from different possible error structures
           let errorMessage = "Login failed. Please try again.";
@@ -232,6 +267,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           }
           
           setFormErrors({ auth: errorMessage });
+          setShowResendVerification(false); // Hide resend verification component
         }
         console.log('🔍 Error set in modal, should stay open');
         
@@ -252,11 +288,13 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   }
 
   const handleRegister = async (e?: React.FormEvent) => {
+    console.log('🔍 handleRegister called');
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
     if (validateRegisterForm()) {
+      console.log('🔍 Register form validation passed');
       setAuthLoading(true)
       setFormErrors({})
       try {
@@ -266,6 +304,8 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           formattedBirthday = `${registerForm.birthday.year}-${registerForm.birthday.month.padStart(2, '0')}-${registerForm.birthday.day.padStart(2, '0')}`;
         }
         
+        console.log('🔍 Formatted birthday:', formattedBirthday);
+        
         await onRegister({
           username: registerForm.username,
           email: registerForm.email,
@@ -274,19 +314,52 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           birthday: formattedBirthday,
           gender: registerForm.gender || null,
         })
+        
+        console.log('🔍 Registration completed successfully');
+        // Registration was successful - the parent component will handle closing the modal and showing success message
+        
       } catch (err: any) {
+        console.log('🔍 Registration error:', err);
         // The API layer already handles error parsing and provides clean messages
         const errorMessage = err?.message || "Registration failed. Please try again.";
         setFormErrors({ auth: errorMessage });
       } finally {
         setAuthLoading(false)
       }
+    } else {
+      console.log('🔍 Register form validation failed');
     }
   }
 
-  const handleForgotPassword = () => {
-    if (validateForgotForm() && onForgotPassword) {
-      onForgotPassword(forgotForm.email)
+  const handleForgotPassword = async () => {
+    if (validateForgotForm()) {
+      console.log('🔍 Forgot password form validation passed');
+      setAuthLoading(true);
+      setFormErrors({});
+      
+      try {
+        console.log('🔍 Sending forgot password request for email:', forgotForm.email);
+        await forgotPassword(forgotForm.email);
+        console.log('🔍 Forgot password request successful');
+        
+        // Show success message
+        setFormErrors({ 
+          auth: `Password reset email sent to ${forgotForm.email}. Please check your inbox and follow the instructions to reset your password.`
+        });
+        
+        // Clear the form
+        setForgotForm({ email: "" });
+        
+      } catch (err: any) {
+        console.log('🔍 Forgot password error:', err);
+        // The API layer already handles error parsing and provides clean messages
+        const errorMessage = err?.message || "Failed to send password reset email. Please try again.";
+        setFormErrors({ auth: errorMessage });
+      } finally {
+        setAuthLoading(false);
+      }
+    } else {
+      console.log('🔍 Forgot password form validation failed');
     }
   }
 
@@ -406,6 +479,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                 onClick={() => {
                   setMode("login")
                   setFormErrors({})
+                  setShowResendVerification(false)
                 }}
                 className={`flex-1 py-3 text-center font-medium transition-colors ${
                   mode === "login" ? "text-[#2C1A1D] border-b-2 border-[#2C1A1D]" : "text-[#8B75AA] hover:text-[#2C1A1D]"
@@ -418,6 +492,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                 onClick={() => {
                   setMode("register")
                   setFormErrors({})
+                  setShowResendVerification(false)
                 }}
                 className={`flex-1 py-3 text-center font-medium transition-colors ${
                   mode === "register"
@@ -444,7 +519,11 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
             }}
           >
             {formErrors.auth && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded flex items-center">
+              <div className={`px-4 py-3 rounded flex items-center ${
+                formErrors.auth.includes('sent') || formErrors.auth.includes('check your inbox')
+                  ? 'bg-green-100 border border-green-400 text-green-700'
+                  : 'bg-red-100 border border-red-400 text-red-700'
+              }`}>
                 <AlertCircle size={16} className="mr-2" />
                 {formErrors.auth.includes('\n') ? (
                   <ul className="list-disc pl-4">
@@ -558,6 +637,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                       onClick={() => {
                         setMode("forgot")
                         setFormErrors({})
+                        setShowResendVerification(false)
                       }}
                       type="button"
                       className="text-[#8B75AA] hover:underline text-sm"
@@ -586,10 +666,12 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                           if (data?.user) {
                             // Google login always acts like "remember me" - store refresh token in localStorage
                             onClose();
-                            router.push('/');
+                            // For Google auth, always refresh the page to ensure proper state sync
+                            window.location.reload();
                           } else if (data?.access && typeof window !== 'undefined') {
-                            // Instead of forcing a reload, close modal and let context handle it
+                            // Instead of forcing a reload, close modal and refresh for Google auth
                             onClose();
+                            window.location.reload();
                           } else {
                             setFormErrors({ auth: "Google login failed. Please try again." });
                           }
@@ -603,6 +685,19 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                       }}
                     />
                   </div>
+
+                  {/* Show resend verification component if needed */}
+                  {showResendVerification && (
+                    <div className="mt-4">
+                      <ResendVerification 
+                        email={loginForm.username.includes('@') ? loginForm.username : ''}
+                        onSuccess={() => {
+                          setShowResendVerification(false);
+                          setFormErrors({ auth: "Verification email sent! Please check your inbox and click the verification link, then try logging in again." });
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               </form>
             )}
@@ -618,7 +713,10 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
                     placeholder="CHOOSE A USERNAME"
                     value={registerForm.username}
-                    onChange={(e) => setRegisterForm((prev) => ({ ...prev, username: e.target.value }))}
+                    onChange={(e) => {
+                      console.log('🔍 Username changed to:', e.target.value);
+                      setRegisterForm((prev) => ({ ...prev, username: e.target.value }))
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
@@ -721,12 +819,13 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                         formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"
                       } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
                       value={registerForm.birthday.month}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        console.log('🔍 Birthday month changed to:', e.target.value);
                         setRegisterForm((prev) => ({
                           ...prev,
                           birthday: { ...prev.birthday, month: e.target.value },
-                        }))
-                      }
+                        }));
+                      }}
                     >
                       <option value="">Month</option>
                       {generateMonthOptions()}
@@ -737,12 +836,13 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                         formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"
                       } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
                       value={registerForm.birthday.day}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        console.log('🔍 Birthday day changed to:', e.target.value);
                         setRegisterForm((prev) => ({
                           ...prev,
                           birthday: { ...prev.birthday, day: e.target.value },
-                        }))
-                      }
+                        }));
+                      }}
                     >
                       <option value="">Day</option>
                       {generateDayOptions()}
@@ -753,12 +853,13 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                         formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"
                       } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
                       value={registerForm.birthday.year}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        console.log('🔍 Birthday year changed to:', e.target.value);
                         setRegisterForm((prev) => ({
                           ...prev,
                           birthday: { ...prev.birthday, year: e.target.value },
-                        }))
-                      }
+                        }));
+                      }}
                     >
                       <option value="">Year</option>
                       {generateYearOptions()}
@@ -814,7 +915,10 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                         formErrors.agreeToTerms ? "border-red-500" : "border-[#CDAA7D]"
                       } rounded focus:ring-[#8B75AA]`}
                       checked={registerForm.agreeToTerms}
-                      onChange={(e) => setRegisterForm((prev) => ({ ...prev, agreeToTerms: e.target.checked }))}
+                      onChange={(e) => {
+                        console.log('🔍 Terms agreement changed to:', e.target.checked);
+                        setRegisterForm((prev) => ({ ...prev, agreeToTerms: e.target.checked }))
+                      }}
                     />
                   </div>
                   <label htmlFor="terms" className="ml-2 text-sm text-[#8B75AA] leading-relaxed">
@@ -852,6 +956,13 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     placeholder="ENTER YOUR REGISTERED EMAIL"
                     value={forgotForm.email}
                     onChange={(e) => setForgotForm((prev) => ({ ...prev, email: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleForgotPassword();
+                      }
+                    }}
                   />
                   {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
                 </div>
@@ -868,6 +979,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     onClick={() => {
                       setMode("login")
                       setFormErrors({})
+                      setShowResendVerification(false)
                     }}
                     className="flex-1 border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors"
                   >
@@ -876,9 +988,10 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                   <button
                     type="button"
                     onClick={handleForgotPassword}
-                    className="flex-1 bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
+                    disabled={authLoading}
+                    className="flex-1 bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    SEND RESET LINK
+                    {authLoading ? "SENDING..." : "SEND RESET LINK"}
                   </button>
                 </div>
               </div>
