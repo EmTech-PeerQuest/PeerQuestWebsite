@@ -4,6 +4,7 @@ import { Eye, EyeOff, Save, AlertCircle, Settings, Calendar, Shield, Key, X } fr
 import { useState, useEffect } from "react";
 import { toast } from "@/hooks/use-toast";
 import { getPasswordAge } from "@/lib/date-utils";
+import { useAuth } from "@/context/AuthContext";
 
 export default function SecurityTab({
   securityForm: initialSecurityForm = {
@@ -22,6 +23,8 @@ export default function SecurityTab({
   showToast?: () => void;
   updateSettings?: () => void;
 }) {
+  const { refreshUser } = useAuth();
+  
   const [securityForm, setSecurityForm] = useState(initialSecurityForm);
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -165,6 +168,9 @@ export default function SecurityTab({
         description: "Password changed successfully!",
       });
 
+      // Show additional security alert
+      alert("🔒 Password Changed Successfully!\n\nYour password has been updated. For your security:\n• You will remain logged in on this device\n• All other sessions have been terminated\n• Consider enabling 2-factor authentication for extra security");
+
       // Clear password fields
       setSecurityForm((prev: any) => ({
         ...prev,
@@ -172,6 +178,9 @@ export default function SecurityTab({
         newPassword: "",
         confirmPassword: "",
       }));
+
+      // Refresh user data to get updated last_password_change
+      await refreshUser();
 
     } catch (error: any) {
       toast({
@@ -612,11 +621,21 @@ export default function SecurityTab({
                 <div className="space-y-2 text-sm text-[#F4F0E6]/70">
                   <div className="flex justify-between">
                     <span>Last changed:</span>
-                    <span>{user?.lastPasswordChange ? new Date(user.lastPasswordChange).toLocaleDateString() : "Not available"}</span>
+                    <span>
+                      {user?.lastPasswordChange ? 
+                        new Date(user.lastPasswordChange).toLocaleDateString() : 
+                        "Never changed"
+                      }
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Password age:</span>
-                    <span>{getPasswordAge(user?.lastPasswordChange)}</span>
+                    <span>
+                      {user?.lastPasswordChange ? 
+                        getPasswordAge(user.lastPasswordChange) : 
+                        "Unknown"
+                      }
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Status:</span>

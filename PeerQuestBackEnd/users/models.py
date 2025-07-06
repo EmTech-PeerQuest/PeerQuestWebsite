@@ -55,6 +55,11 @@ class User(AbstractUser):
         return self.username
 
     def save(self, *args, **kwargs):
+        # Set last_password_change to current time if it's a new user and not set
+        if not self.pk and self.last_password_change is None:
+            from django.utils import timezone
+            self.last_password_change = timezone.now()
+        
         self.level = self.calculate_level()
         super().save(*args, **kwargs)
 
