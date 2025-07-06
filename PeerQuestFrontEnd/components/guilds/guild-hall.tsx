@@ -193,7 +193,7 @@ export function GuildHall({
                   </div>
                   <div>
                     <div className="font-semibold text-[#2C1A1D]">
-                      {guild.owner?.user_name || guild.owner?.username || guild.poster?.username || "Guild Master"}
+                      {guild.owner?.username || guild.owner?.username || guild.poster?.username || "Guild Master"}
                     </div>
                     <div className="text-xs text-[#8B75AA] uppercase tracking-wide">Guild Master</div>
                   </div>

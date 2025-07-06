@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
-import { X, MapPin, Calendar, Award, Users, FileText, Star, ChevronDown } from "lucide-react"
+import { useState, useEffect } from "react"
+import { X, MapPin, Calendar, Award, Users, FileText, Star, ChevronDown, User as UserIcon } from "lucide-react"
 import type { User, Quest, Guild } from "@/lib/types"
+import { formatJoinDate } from "@/lib/date-utils"
 
 interface UserProfileModalProps {
   isOpen: boolean
@@ -11,19 +12,33 @@ interface UserProfileModalProps {
   quests: Quest[]
   guilds: Guild[]
   currentUser?: User | null
+  defaultTab?: "overview" | "quests" | "guilds" | "achievements" | "profile"
 }
 
-export function UserProfileModal({ isOpen, onClose, user, quests, guilds, currentUser }: UserProfileModalProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "quests" | "guilds" | "achievements">("overview")
+export function UserProfileModal({ isOpen, onClose, user, quests, guilds, currentUser, defaultTab = "overview" }: UserProfileModalProps) {
+  const [activeTab, setActiveTab] = useState<"overview" | "quests" | "guilds" | "achievements" | "profile">(defaultTab)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [forceOpen, setForceOpen] = useState(false)
 
-  if (!isOpen) return null
+  // Update active tab when defaultTab changes
+  useEffect(() => {
+    setActiveTab(defaultTab)
+  }, [defaultTab])
+
+  // If modal is closed, clear hash
+  const handleClose = () => {
+    onClose()
+    setForceOpen(false)
+  }
+
+  // Show modal if isOpen or forceOpen
+  if (!isOpen && !forceOpen) return null
 
   // Calculate user stats with proper null checks
   const userQuests = (quests || []).filter((q) => q.poster?.id === user.id) || []
-  const completedQuests = (quests || []).filter((q) => q.assignedTo === user.id && q.status === "completed") || []
-  const userGuilds = (guilds || []).filter((g) => g.membersList?.includes(user.id)) || []
-  const ownedGuilds = (guilds || []).filter((g) => g.poster?.id === user.id) || []
+  const completedQuests = (quests || []).filter((q) => q.status === "completed") || []
+  const userGuilds = (guilds || []).filter((g) => g.poster?.username === user.username) || []
+  const ownedGuilds = (guilds || []).filter((g) => g.poster?.username === user.username) || []
 
   // Calculate level from XP (assuming 1000 XP per level)
   const level = Math.floor((user.xp || 0) / 1000) + 1
@@ -33,7 +48,13 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
   // Check if current user is viewing their own profile
   const isOwnProfile = currentUser?.id === user.id
 
-  const tabs = [
+  const tabs = isOwnProfile ? [
+    { id: "overview", label: "Overview" },
+    { id: "profile", label: "Profile" },
+    { id: "quests", label: "Quests" },
+    { id: "guilds", label: "Guilds" },
+    { id: "achievements", label: "Achievements" },
+  ] : [
     { id: "overview", label: "Overview" },
     { id: "quests", label: "Quests" },
     { id: "guilds", label: "Guilds" },
@@ -77,12 +98,14 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
                 {/* Join Date */}
                 <div className="flex items-center gap-2 mt-2 text-xs text-[#F4F0E6] opacity-80">
                   <Calendar size={12} />
-                  <span>Joined {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "Unknown"}</span>
+                  <span>
+                    Joined {formatJoinDate(user.createdAt || user.dateJoined)}
+                  </span>
                 </div>
               </div>
             </div>
 
-            <button onClick={onClose} className="text-white hover:text-[#CDAA7D] transition-colors">
+            <button onClick={handleClose} className="text-white hover:text-[#CDAA7D] transition-colors">
               <X size={20} />
             </button>
           </div>
@@ -168,193 +191,254 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
           </div>
         </div>
 
-        {/* Compact Content Area */}
+        {/* Tab Content */}
         <div className="p-4">
-          {/* Overview Tab */}
           {activeTab === "overview" && (
             <div className="space-y-4">
-              {/* About */}
+              {/* Bio Section */}
               <div className="bg-white rounded-lg p-4 border border-[#CDAA7D]">
-                <h3 className="font-bold text-[#2C1A1D] mb-3 flex items-center gap-2">
-                  <Users size={16} />
-                  About
-                </h3>
-                <p className="text-[#2C1A1D] text-sm">{user.bio || "This adventurer hasn't written a bio yet."}</p>
-
-                {user.location && (
-                  <div className="flex items-center gap-2 mt-3 text-[#8B75AA]">
-                    <MapPin size={14} />
-                    <span className="text-sm">{user.location}</span>
-                  </div>
-                )}
+                <h3 className="font-bold text-[#2C1A1D] mb-2">About</h3>
+                <p className="text-[#2C1A1D]">
+                  {user.bio || "This adventurer hasn't shared their story yet."}
+                </p>
               </div>
 
-              {/* Skills */}
-              <div className="bg-white rounded-lg p-4 border border-[#CDAA7D]">
-                <h3 className="font-bold text-[#2C1A1D] mb-3 flex items-center gap-2">
-                  <Award size={16} />
-                  Skills
-                </h3>
-                {user.skills && user.skills.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {user.skills.map((skill, index) => (
-                      <span
-                        key={index}
-                        className="bg-[#8B75AA]/10 text-[#8B75AA] px-2 py-1 rounded-full text-xs font-medium"
-                      >
-                        {skill}
-                      </span>
-                    ))}
+              {/* Quick Stats */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white rounded-lg p-4 border border-[#CDAA7D]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Users size={16} className="text-[#8B75AA]" />
+                    <h4 className="font-medium text-[#2C1A1D]">Guild Activity</h4>
                   </div>
-                ) : (
-                  <p className="text-gray-500 text-sm">No skills listed yet.</p>
-                )}
-              </div>
-
-              {/* Recent Activity */}
-              <div className="bg-white rounded-lg p-4 border border-[#CDAA7D]">
-                <h3 className="font-bold text-[#2C1A1D] mb-3 flex items-center gap-2">
-                  <FileText size={16} />
-                  Recent Activity
-                </h3>
-                <div className="space-y-2">
-                  {completedQuests.slice(0, 3).map((quest) => (
-                    <div key={quest.id} className="flex items-center gap-3 p-2 bg-[#F4F0E6] rounded">
-                      <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                        <Star size={12} className="text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-[#2C1A1D] text-sm">Completed: {quest.title}</p>
-                        <p className="text-xs text-[#8B75AA]">
-                          {quest.completedAt ? new Date(quest.completedAt).toLocaleDateString() : "Recently"}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                  {completedQuests.length === 0 && <p className="text-gray-500 text-sm">No recent activity.</p>}
+                  <p className="text-sm text-[#2C1A1D]">
+                    Member of {userGuilds.length} guild{userGuilds.length !== 1 ? 's' : ''}
+                  </p>
+                  {ownedGuilds.length > 0 && (
+                    <p className="text-sm text-[#2C1A1D]">
+                      Leads {ownedGuilds.length} guild{ownedGuilds.length !== 1 ? 's' : ''}
+                    </p>
+                  )}
+                </div>
+                <div className="bg-white rounded-lg p-4 border border-[#CDAA7D]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Award size={16} className="text-[#8B75AA]" />
+                    <h4 className="font-medium text-[#2C1A1D]">Achievements</h4>
+                  </div>
+                  <p className="text-sm text-[#2C1A1D]">
+                    {completedQuests.length} quest{completedQuests.length !== 1 ? 's' : ''} completed
+                  </p>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* Quests Tab */}
-          {activeTab === "quests" && (
-            <div className="space-y-4">
-              {/* Completed Quests */}
-              <div className="bg-white rounded-lg p-4 border border-[#CDAA7D]">
-                <h3 className="font-bold text-[#2C1A1D] mb-3">Completed Quests ({completedQuests.length})</h3>
-                {completedQuests.length > 0 ? (
-                  <div className="space-y-3">
-                    {completedQuests.map((quest) => (
-                      <div key={quest.id} className="border-b border-[#CDAA7D] pb-2 last:border-b-0">
-                        <h4 className="font-medium text-[#2C1A1D] text-sm">{quest.title}</h4>
-                        <p className="text-xs text-gray-600 mt-1">{quest.description}</p>
-                        <div className="flex justify-between items-center mt-2 text-xs">
-                          <span className="text-[#8B75AA]">
-                            {quest.xp} XP • {quest.reward} Gold
-                          </span>
-                          <span className="text-gray-500">
-                            {quest.completedAt ? new Date(quest.completedAt).toLocaleDateString() : "Recently"}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-sm">No completed quests yet.</p>
-                )}
-              </div>
-
-              {/* Posted Quests */}
-              <div className="bg-white rounded-lg p-4 border border-[#CDAA7D]">
-                <h3 className="font-bold text-[#2C1A1D] mb-3">Posted Quests ({userQuests.length})</h3>
-                {userQuests.length > 0 ? (
-                  <div className="space-y-3">
-                    {userQuests.map((quest) => (
-                      <div key={quest.id} className="border-b border-[#CDAA7D] pb-2 last:border-b-0">
-                        <h4 className="font-medium text-[#2C1A1D] text-sm">{quest.title}</h4>
-                        <p className="text-xs text-gray-600 mt-1">{quest.description}</p>
-                        <div className="flex justify-between items-center mt-2 text-xs">
-                          <span className="text-[#8B75AA]">Reward: {quest.reward} Gold</span>
-                          <span
-                            className={`px-2 py-1 rounded text-xs ${
-                              quest.status === "completed"
-                                ? "bg-green-100 text-green-800"
-                                : quest.status === "in-progress"
-                                  ? "bg-yellow-100 text-yellow-800"
-                                  : "bg-blue-100 text-blue-800"
-                            }`}
-                          >
-                            {quest.status}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-sm">No quests posted yet.</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Guilds Tab */}
-          {activeTab === "guilds" && (
-            <div className="space-y-4">
-              {/* Owned Guilds */}
-              {ownedGuilds.length > 0 && (
+              {/* Location */}
+              {user.location && (
                 <div className="bg-white rounded-lg p-4 border border-[#CDAA7D]">
-                  <h3 className="font-bold text-[#2C1A1D] mb-3">Owned Guilds ({ownedGuilds.length})</h3>
-                  <div className="space-y-2">
-                    {ownedGuilds.map((guild) => (
-                      <div key={guild.id} className="flex items-center gap-3 p-2 bg-[#F4F0E6] rounded">
-                        <div className="text-lg">{guild.emblem}</div>
-                        <div className="flex-1">
-                          <h4 className="font-medium text-[#2C1A1D] text-sm">{guild.name}</h4>
-                          <p className="text-xs text-[#8B75AA]">{guild.specialization}</p>
-                        </div>
-                        <div className="text-right text-xs text-gray-600">
-                          <div>{guild.members} members</div>
-                          <div className="text-[#CDAA7D] font-medium">Owner</div>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="flex items-center gap-2">
+                    <MapPin size={16} className="text-[#8B75AA]" />
+                    <span className="text-[#2C1A1D]">{user.location}</span>
                   </div>
                 </div>
               )}
+            </div>
+          )}
 
-              {/* Joined Guilds */}
-              <div className="bg-white rounded-lg p-4 border border-[#CDAA7D]">
-                <h3 className="font-bold text-[#2C1A1D] mb-3">Joined Guilds ({userGuilds.length})</h3>
-                {userGuilds.length > 0 ? (
-                  <div className="space-y-2">
-                    {userGuilds.map((guild) => (
-                      <div key={guild.id} className="flex items-center gap-3 p-2 bg-[#F4F0E6] rounded">
-                        <div className="text-lg">{guild.emblem}</div>
-                        <div className="flex-1">
-                          <h4 className="font-medium text-[#2C1A1D] text-sm">{guild.name}</h4>
-                          <p className="text-xs text-[#8B75AA]">{guild.specialization}</p>
+          {activeTab === "quests" && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="font-bold text-[#2C1A1D]">Quest History</h3>
+                <div className="flex gap-2">
+                  <span className="text-sm text-[#8B75AA]">
+                    Posted: {userQuests.length}
+                  </span>
+                  <span className="text-sm text-[#8B75AA]">
+                    Completed: {completedQuests.length}
+                  </span>
+                </div>
+              </div>
+
+              {userQuests.length === 0 && completedQuests.length === 0 ? (
+                <div className="text-center py-8 text-[#2C1A1D]">
+                  <FileText size={48} className="mx-auto mb-4 text-[#CDAA7D]" />
+                  <p>No quest activity yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Show most recent quests */}
+                  {[...userQuests, ...completedQuests].slice(0, 5).map((quest) => (
+                    <div key={quest.id} className="bg-white rounded-lg p-4 border border-[#CDAA7D]">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-medium text-[#2C1A1D]">{quest.title}</h4>
+                          <p className="text-sm text-[#2C1A1D] opacity-70">{quest.description}</p>
                         </div>
-                        <div className="text-right text-xs text-gray-600">
-                          <div>{guild.members} members</div>
-                          <div>Member</div>
+                        <div className="text-right">
+                          <div className="text-sm text-[#CDAA7D] font-medium">
+                            {quest.reward} gold
+                          </div>
+                          <div className="text-xs text-[#2C1A1D] opacity-50">
+                            {quest.poster?.id === user.id ? "Posted" : "Completed"}
+                          </div>
                         </div>
                       </div>
-                    ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "guilds" && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="font-bold text-[#2C1A1D]">Guild Memberships</h3>
+                <span className="text-sm text-[#8B75AA]">
+                  {userGuilds.length} guild{userGuilds.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              {userGuilds.length === 0 ? (
+                <div className="text-center py-8 text-[#2C1A1D]">
+                  <Users size={48} className="mx-auto mb-4 text-[#CDAA7D]" />
+                  <p>Not a member of any guilds yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {userGuilds.map((guild) => (
+                    <div key={guild.id} className="bg-white rounded-lg p-4 border border-[#CDAA7D]">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-medium text-[#2C1A1D]">{guild.name}</h4>
+                          <p className="text-sm text-[#2C1A1D] opacity-70">{guild.description}</p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-[#2C1A1D]">
+                            {guild.members || 0} members
+                          </div>
+                          {guild.poster?.username === user.username && (
+                            <div className="text-xs text-[#8B75AA] font-medium">Leader</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "achievements" && (
+            <div className="space-y-4">
+              <h3 className="font-bold text-[#2C1A1D]">Achievements</h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                {/* Basic achievements based on stats */}
+                <div className={`bg-white rounded-lg p-4 border border-[#CDAA7D] ${completedQuests.length >= 1 ? 'opacity-100' : 'opacity-50'}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Star size={16} className="text-[#CDAA7D]" />
+                    <h4 className="font-medium text-[#2C1A1D]">First Quest</h4>
                   </div>
-                ) : (
-                  <p className="text-gray-500 text-sm">Not a member of any guilds yet.</p>
-                )}
+                  <p className="text-sm text-[#2C1A1D]">Complete your first quest</p>
+                </div>
+                
+                <div className={`bg-white rounded-lg p-4 border border-[#CDAA7D] ${completedQuests.length >= 5 ? 'opacity-100' : 'opacity-50'}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Award size={16} className="text-[#CDAA7D]" />
+                    <h4 className="font-medium text-[#2C1A1D]">Quest Master</h4>
+                  </div>
+                  <p className="text-sm text-[#2C1A1D]">Complete 5 quests</p>
+                </div>
+                
+                <div className={`bg-white rounded-lg p-4 border border-[#CDAA7D] ${userGuilds.length >= 1 ? 'opacity-100' : 'opacity-50'}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Users size={16} className="text-[#CDAA7D]" />
+                    <h4 className="font-medium text-[#2C1A1D]">Guild Member</h4>
+                  </div>
+                  <p className="text-sm text-[#2C1A1D]">Join your first guild</p>
+                </div>
+                
+                <div className={`bg-white rounded-lg p-4 border border-[#CDAA7D] ${ownedGuilds.length >= 1 ? 'opacity-100' : 'opacity-50'}`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Award size={16} className="text-[#CDAA7D]" />
+                    <h4 className="font-medium text-[#2C1A1D]">Guild Leader</h4>
+                  </div>
+                  <p className="text-sm text-[#2C1A1D]">Create your first guild</p>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Achievements Tab */}
-          {activeTab === "achievements" && (
-            <div className="bg-white rounded-lg p-4 border border-[#CDAA7D] text-center">
-              <Award size={32} className="mx-auto text-[#8B75AA] mb-3" />
-              <h3 className="font-bold text-[#2C1A1D] mb-2">Achievements Coming Soon</h3>
-              <p className="text-gray-500 text-sm">Achievement system will be available in a future update.</p>
+          {activeTab === "profile" && isOwnProfile && (
+            <div className="space-y-4">
+              <div className="bg-white rounded-lg p-4 border border-[#CDAA7D]">
+                <h3 className="font-bold text-[#2C1A1D] mb-4 flex items-center gap-2">
+                  <UserIcon size={16} />
+                  Edit Profile
+                </h3>
+                
+                {/* Profile Photo */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">Profile Photo</label>
+                  <div className="flex items-center gap-4">
+                    <div className="w-20 h-20 bg-[#CDAA7D] rounded-full flex items-center justify-center text-2xl font-bold">
+                      {user.avatar || user.username?.[0]?.toUpperCase() || "U"}
+                    </div>
+                    <div>
+                      <button className="bg-[#8B75AA] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#8B75AA]/90 transition-colors">
+                        Change Photo
+                      </button>
+                      <p className="text-xs text-[#2C1A1D] opacity-70 mt-1">JPG, PNG or GIF. Max 2MB</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Profile Form */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#2C1A1D] mb-1">Display Name</label>
+                    <input
+                      type="text"
+                      defaultValue={user.displayName || user.username}
+                      className="w-full px-3 py-2 border border-[#CDAA7D] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-[#2C1A1D] mb-1">Bio</label>
+                    <textarea
+                      defaultValue={user.bio || ""}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-[#CDAA7D] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                      placeholder="Tell other adventurers about yourself..."
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-[#2C1A1D] mb-1">Location</label>
+                    <input
+                      type="text"
+                      defaultValue={user.location || ""}
+                      className="w-full px-3 py-2 border border-[#CDAA7D] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                      placeholder="Where are you adventuring from?"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-[#2C1A1D] mb-1">Website</label>
+                    <input
+                      type="url"
+                      defaultValue={user.socialLinks?.website || ""}
+                      className="w-full px-3 py-2 border border-[#CDAA7D] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                      placeholder="https://yourwebsite.com"
+                    />
+                  </div>
+                  
+                  <div className="flex justify-end pt-4">
+                    <button className="bg-[#8B75AA] text-white px-6 py-2 rounded-lg hover:bg-[#8B75AA]/90 transition-colors">
+                      Save Changes
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

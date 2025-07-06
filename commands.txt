@@ -1,22 +1,50 @@
-////////// Start Backend //////////
+////////// Copy-Paste Friendly Setup Commands //////////
+# Backend (Windows, PowerShell):
 py -m venv venv
 .\venv\Scripts\activate
-pip install -r requirements.txt
 python.exe -m pip install --upgrade pip
-pip install django
-pip install djangorestframework
-pip install django-cors-headers
-pip install drf-yasg
-pip install django-oauth-toolkit
-pip install drf-social-oauth2
-pip install google-auth
-pip install Pillow
+pip install -r requirements.txt
+
+# Database setup (Django):
+py manage.py makemigrations
+py manage.py migrate
+py manage.py createsuperuser  # (optional, for admin access)
+py manage.py runserver
+
+# Frontend:
+npm install --legacy-peer-deps
+npm run dev
+
+# To add a new Python package:
+pip install <package-name>
+pip freeze > requirements.txt
+
+# To add a new Node package:
+npm install <package-name>
+
+
+////////// Start Backend //////////
+# Create and activate virtual environment
+py -m venv venv
+.\venv\Scripts\activate
+# Upgrade pip and install all dependencies from requirements.txt
+python.exe -m pip install --upgrade pip
+pip install -r requirements.txt
+# To add new dependencies, use:
+# pip install <package-name>
+# Then update requirements.txt:
+# pip freeze > requirements.txt
+# Run the Django server
 py manage.py runserver
 
 
 
 ////////// Start Frontend //////////
-npm install --legacy-peer-deps
+# Install all frontend dependencies
+npm install
+# If you encounter peer dependency issues, use:
+# npm install --legacy-peer-deps
+# Start the frontend development server
 npm run dev
 
 
@@ -25,7 +53,7 @@ npm run dev
 git checkout dev_Esteron
 git add .
 git commit -m "TEXT TEXT"   
-git push -u origin dev_Esteron
+git push -u origin dev_Esteron/AuthProfile
 
 
 
