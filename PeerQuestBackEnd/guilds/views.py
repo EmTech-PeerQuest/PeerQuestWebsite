@@ -88,8 +88,8 @@ class GuildCreateView(generics.CreateAPIView):
             if not user:
                 # Create a test user if none exists
                 user = User.objects.create_user(
+                    username='frontend_test',
                     email='frontend@test.com',
-                    user_name='frontend_test',
                     first_name='Frontend',
                     password='testpass123'
                 )

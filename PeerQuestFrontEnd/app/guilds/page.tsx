@@ -11,7 +11,7 @@ export default function GuildsPage() {
   // Mock user for testing - replace with real auth later
   const [currentUser, setCurrentUser] = useState<User | null>({
     id: 1,
-    user_name: 'testuser',
+    username: 'testuser',
     first_name: 'Test',
     email: 'test@test.com',
     gold: 5000, // Add enough gold for guild creation

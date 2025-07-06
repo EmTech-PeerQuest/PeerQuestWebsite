@@ -3,6 +3,7 @@ import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
   title: 'PeerQuest',
@@ -19,12 +20,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!}>
           <LanguageProvider>
-            <AuthProvider>{children}</AuthProvider>
+            <AuthProvider>
+              {children}
+              <Toaster />
+            </AuthProvider>
           </LanguageProvider>
         </GoogleOAuthProvider>
-      </body>
-      <body>
-        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );

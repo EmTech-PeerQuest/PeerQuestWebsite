@@ -20,26 +20,28 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'drf_yasg',
-
-    # Your apps
-    'users',
-
+    
     # DRF and tools
     'rest_framework',
     'corsheaders',
-
     'django_filters',
-
-
-# Middleware
-# Middleware order is important: Security first, then session, then CORS, then common/csrf/auth, then JWT last
     'drf_yasg',
-    'users',
+    
+    # OAuth2 and social auth
     'oauth2_provider',
     'social_django',
     'drf_social_oauth2',
+    
+    # Your apps
+    'users',
     'guilds',
+    'blog',
+    'blog_api',
+    'applications',
+    'messaging',
+    'notifications',
+    'quests',
+    'xp',
 ]
 
 MIDDLEWARE = [

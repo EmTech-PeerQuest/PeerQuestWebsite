@@ -8,7 +8,7 @@ User = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'user_name', 'first_name', 'email']
+        fields = ['id', 'username', 'first_name', 'email']
 
 
 class GuildTagSerializer(serializers.ModelSerializer):
@@ -114,7 +114,7 @@ class GuildCreateUpdateSerializer(serializers.ModelSerializer):
         if hasattr(instance, 'owner') and instance.owner:
             data['owner'] = {
                 'id': instance.owner.id,
-                'user_name': instance.owner.user_name,
+                'username': instance.owner.username,
                 'first_name': instance.owner.first_name,
                 'email': instance.owner.email
             }
