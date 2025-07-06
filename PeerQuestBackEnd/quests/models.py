@@ -68,6 +68,10 @@ class Quest(models.Model):
         validators=[MinValueValidator(0), MaxValueValidator(999)],
         help_text="Gold coins awarded upon completion (0-999)"
     )
+    commission_fee = models.PositiveIntegerField(
+        default=0,
+        help_text="Commission fee taken by the system for this quest (auto-calculated, non-refundable)"
+    )
     # estimated_time field removed - no longer needed
     
     # Quest creator and participants
@@ -104,6 +108,9 @@ class Quest(models.Model):
     # Slug for SEO-friendly URLs
     slug = models.SlugField(max_length=250, unique=True, blank=True)
     
+    # Soft delete flag
+    is_deleted = models.BooleanField(default=False, help_text="If true, this quest is soft-deleted and hidden from normal queries.")
+
     # Custom managers
     objects = models.Manager()  # Default manager
     active_quests = QuestObjects()  # Custom manager for active quests only
@@ -363,6 +370,12 @@ class Quest(models.Model):
             "total_gold_awarded": self.gold_reward * len(completion_results),
             "participant_results": completion_results
         }
+
+    def delete(self, using=None, keep_parents=False):
+        """Soft delete: mark as deleted instead of removing from DB."""
+        self.is_deleted = True
+        self.save(update_fields=["is_deleted"])
+        
 
 
 class QuestParticipant(models.Model):

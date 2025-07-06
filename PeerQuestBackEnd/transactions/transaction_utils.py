@@ -45,58 +45,6 @@ def get_available_balance(user):
     # Return available balance
     return total_balance - reserved_gold
 
-def reserve_gold_for_quest(quest, amount):
-    """
-    Reserve gold for a quest
-    
-    Args:
-        quest: The quest to reserve gold for
-        amount: The amount of gold to reserve
-        
-    Returns:
-        bool: True if successful, False if not enough available balance
-    """
-    from .gold_reservation_models import QuestGoldReservation
-    
-    if not isinstance(amount, Decimal):
-        amount = Decimal(str(amount))
-    
-    user = quest.creator
-    available_balance = get_available_balance(user)
-    
-    # Check if there's enough available balance
-    if amount > available_balance:
-        return False
-    
-    with db_transaction.atomic():
-        # Create or update the reservation
-        reservation, created = QuestGoldReservation.objects.update_or_create(
-            quest=quest,
-            defaults={'amount': amount}
-        )
-    
-    return True
-
-def release_gold_reservation(quest):
-    """
-    Release gold reservation for a quest
-    
-    Args:
-        quest: The quest to release gold reservation for
-        
-    Returns:
-        Decimal: The amount of gold that was released
-    """
-    from .gold_reservation_models import QuestGoldReservation
-    
-    try:
-        reservation = QuestGoldReservation.objects.get(quest=quest)
-        amount = reservation.amount
-        reservation.delete()
-        return amount
-    except QuestGoldReservation.DoesNotExist:
-        return Decimal('0.00')
-
 def award_gold(user, amount, description=None, quest=None, transaction_type=TransactionType.REWARD):
     """
     Award gold to a user and create a transaction record
@@ -206,52 +154,36 @@ def deduct_gold_for_quest_creation(quest, amount):
 
 def refund_gold_for_quest_deletion(quest):
     """
-    Refund gold when a quest is deleted
-    
-    Args:
-        quest: The quest being deleted
-        
-    Returns:
-        dict: Result of the refund transaction
+    Refund only the gold reward when a quest is deleted (not the commission fee).
     """
     user = quest.creator
-    
-    # Find the original quest creation transaction
+
     try:
-        creation_transaction = Transaction.objects.filter(
-            quest=quest,
-            type=TransactionType.REWARD,  # Changed from PURCHASE to REWARD (quest-related transaction)
-            amount__lt=0  # Negative amount (deduction)
-        ).first()
-        
-        if not creation_transaction:
-            return {"success": False, "error": "No creation transaction found for this quest"}
-        
-        # The amount to refund is the absolute value of the creation transaction
-        refund_amount = abs(creation_transaction.amount)
-        
+        refund_amount = quest.gold_reward  # ✅ Only refund gold_reward
+
+        if refund_amount <= 0:
+            return {"success": False, "error": "No reward amount to refund."}
+
         with db_transaction.atomic():
-            # Create or get user balance
             balance, created = UserBalance.objects.get_or_create(user=user)
-            
-            # Create the refund transaction record
+
+            # Create the refund transaction
             refund_transaction = Transaction.objects.create(
                 user=user,
-                type=TransactionType.REFUND,  # Changed from QUEST_REFUND to REFUND
-                amount=refund_amount,  # Positive for refund
-                description=f"Quest deletion refund: {quest.title}",
+                type=TransactionType.REFUND,
+                amount=refund_amount,
+                description=f"Quest deletion refund (reward only): {quest.title}",
                 quest=quest
             )
-            
-            # Update the user balance
+
+            # Update balances
             previous_balance = balance.gold_balance
             balance.gold_balance += refund_amount
             balance.save()
-            
-            # Also update the user model gold_balance field to keep both in sync
+
             user.gold_balance = balance.gold_balance
             user.save(update_fields=['gold_balance'])
-            
+
             return {
                 "success": True,
                 "transaction_id": refund_transaction.transaction_id,
@@ -259,6 +191,6 @@ def refund_gold_for_quest_deletion(quest):
                 "new_balance": balance.gold_balance,
                 "amount_refunded": refund_amount
             }
-    
+
     except Exception as e:
         return {"success": False, "error": str(e)}

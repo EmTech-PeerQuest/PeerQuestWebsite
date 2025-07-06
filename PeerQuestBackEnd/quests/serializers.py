@@ -63,7 +63,8 @@ class QuestListSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'difficulty',
             'status', 'xp_reward', 'gold_reward',
             'creator', 'assigned_to', 'category', 'created_at', 'updated_at', 'due_date', 'slug',
-            'participant_count', 'can_accept_participants', 'is_completed', 'applications_count'
+            'participant_count', 'can_accept_participants', 'is_completed', 'applications_count',
+            'is_deleted'
         ]
     
     def get_applications_count(self, obj):
@@ -112,7 +113,8 @@ class QuestDetailSerializer(serializers.ModelSerializer):
             'creator', 'assigned_to', 'participants_detail', 'created_at',
             'updated_at', 'due_date', 'completed_at',
             'requirements', 'resources', 'slug', 'participant_count',
-            'can_accept_participants', 'is_completed', 'applications_count'
+            'can_accept_participants', 'is_completed', 'applications_count',
+            'is_deleted'
         ]
 
     def get_applications_count(self, obj):
@@ -127,7 +129,7 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
         model = Quest
         fields = [
             'id', 'title', 'description', 'category',
-            'difficulty', 'status', 'xp_reward', 'gold_reward',
+            'difficulty', 'status', 'xp_reward', 'gold_reward', 'commission_fee',
             'assigned_to', 'due_date',
             'requirements', 'resources'
         ]
@@ -225,7 +227,11 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
         
         # Get gold_reward value
         gold_reward = validated_data.get('gold_reward', 0)
-        print(f"🔍 Processing gold_reward: {gold_reward} (type: {type(gold_reward)})")
+        from decimal import Decimal
+        COMMISSION_RATE = Decimal('0.05')
+        gold_reward_decimal = Decimal(str(gold_reward))
+        commission_fee = (gold_reward_decimal * COMMISSION_RATE).quantize(Decimal('1'), rounding='ROUND_UP')
+        validated_data['commission_fee'] = int(commission_fee)
         
         # If there's a gold reward, check balance before creating the quest
         if gold_reward > 0:
@@ -288,6 +294,14 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
         new_gold_reward = validated_data.get('gold_reward', old_gold_reward)
         
         # Update the instance
+        # Update commission_fee if gold_reward is updated
+        if 'gold_reward' in validated_data:
+            from decimal import Decimal
+            COMMISSION_RATE = Decimal('0.05')
+            gold_reward_decimal = Decimal(str(validated_data['gold_reward']))
+            commission_fee = (gold_reward_decimal * COMMISSION_RATE).quantize(Decimal('1'), rounding='ROUND_UP')
+            validated_data['commission_fee'] = int(commission_fee)
+        
         updated_instance = super().update(instance, validated_data)
         
         # Handle gold changes if needed

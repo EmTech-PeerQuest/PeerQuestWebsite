@@ -339,14 +339,13 @@ export function QuestManagement({
 
   const handleDeleteQuest = async (quest: Quest) => {
     try {
-      await QuestAPI.deleteQuest(quest.slug)
+      const result = await QuestAPI.deleteQuest(quest.slug)
       await loadMyQuests() // Refresh the quest lists from API
       setShowDeleteConfirm(null)
-      
-      // Refresh gold balance in navbar if quest had gold reward
-      if ((quest.gold_reward || 0) > 0) {
-        refreshBalance()
-        showToast(`Quest deleted successfully. ${quest.gold_reward} gold has been refunded to your account.`, "success")
+      // Use backend refund info if available
+      if (result && result.amount_refunded) {
+        refreshBalance();
+        showToast(result.message || `Quest deleted successfully. ${result.amount_refunded} gold (quest reward only) has been refunded to your account. Commission fee is non-refundable.`, "success")
       } else {
         showToast("Quest deleted successfully", "success")
       }

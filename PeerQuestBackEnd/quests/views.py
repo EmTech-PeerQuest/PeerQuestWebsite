@@ -87,6 +87,9 @@ class QuestViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Quest.objects.all()
         
+        # Exclude soft-deleted quests
+        queryset = queryset.filter(is_deleted=False)
+        
         # Get the search query first
         search = self.request.query_params.get('search', None)
         if search:
@@ -204,6 +207,7 @@ class QuestViewSet(viewsets.ModelViewSet):
         """
         Override destroy to prevent deletion of in-progress or completed quests.
         Only allow deletion of quests that are still 'open' (no participants assigned).
+        Returns the actual refund amount and new balance in the response.
         """
         quest = self.get_object()
         
@@ -231,15 +235,22 @@ class QuestViewSet(viewsets.ModelViewSet):
         # Refund gold when quest is deleted
         from transactions.transaction_utils import refund_gold_for_quest_deletion
         refund_result = refund_gold_for_quest_deletion(quest)
-        
+
         if refund_result["success"]:
             print(f"✅ Refunded {refund_result['amount_refunded']} gold to {quest.creator.username} for quest deletion")
+            # Soft delete the quest instead of hard delete
+            quest.delete()  # This now sets is_deleted=True
+            # Return refund info and new balance
+            return Response({
+                'success': True,
+                'amount_refunded': refund_result['amount_refunded'],
+                'new_balance': refund_result['new_balance'] if 'new_balance' in refund_result else None,
+                'message': f"Quest deleted. {refund_result['amount_refunded']} gold (quest reward only) refunded. Commission fee is non-refundable."
+            }, status=status.HTTP_200_OK)
         else:
             print(f"⚠️ Failed to refund gold for quest deletion: {refund_result.get('error', 'Unknown error')}")
-        
-        # Only allow deletion of 'open' quests
-        return super().destroy(request, *args, **kwargs)
-        
+            return Response({'error': refund_result.get('error', 'Refund failed')}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=True, methods=['post'])
     def complete(self, request, slug=None):
         """
@@ -519,11 +530,18 @@ class AdminQuestDetailView(generics.RetrieveUpdateDestroyAPIView):
         # Refund gold when quest is deleted
         from transactions.transaction_utils import refund_gold_for_quest_deletion
         refund_result = refund_gold_for_quest_deletion(quest)
-        
+
         if refund_result["success"]:
             print(f"✅ Refunded {refund_result['amount_refunded']} gold to {quest.creator.username} for quest deletion")
+            # Soft delete the quest instead of hard delete
+            quest.delete()  # This now sets is_deleted=True
+            # Return refund info and new balance
+            return Response({
+                'success': True,
+                'amount_refunded': refund_result['amount_refunded'],
+                'new_balance': refund_result['new_balance'] if 'new_balance' in refund_result else None,
+                'message': f"Quest deleted. {refund_result['amount_refunded']} gold (quest reward only) refunded. Commission fee is non-refundable."
+            }, status=status.HTTP_200_OK)
         else:
             print(f"⚠️ Failed to refund gold for quest deletion: {refund_result.get('error', 'Unknown error')}")
-        
-        # Only allow deletion of 'open' quests
-        return super().destroy(request, *args, **kwargs)
+            return Response({'error': refund_result.get('error', 'Refund failed')}, status=status.HTTP_400_BAD_REQUEST)

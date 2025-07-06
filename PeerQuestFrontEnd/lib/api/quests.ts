@@ -1,4 +1,3 @@
-
 import { Quest } from '@/lib/types'
 import { fetchWithAuth } from '@/lib/auth'
 
@@ -82,6 +81,7 @@ export interface CreateQuestData {
   requirements?: string
   resources?: string
   gold_reward?: number
+  gold_budget?: number // <-- Added for full deduction logic
 }
 
 export interface UpdateQuestData extends Partial<CreateQuestData> {
@@ -295,7 +295,7 @@ export const QuestAPI = {
     return response.json()
   },
 
-  async deleteQuest(slug: string): Promise<void> {
+  async deleteQuest(slug: string): Promise<{ amount_refunded?: number, new_balance?: number, message?: string }> {
     const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/${slug}/`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
@@ -303,18 +303,16 @@ export const QuestAPI = {
 
     if (!response.ok) {
       let errorMessage = `Failed to delete quest: ${response.statusText}`
-      
       try {
         const errorData = await response.json()
         if (errorData.error) {
           errorMessage = errorData.error
         }
-      } catch (e) {
-        // If response doesn't contain JSON, use the status text
-      }
-      
+      } catch (e) {}
       throw new Error(errorMessage)
     }
+    // Return the backend's refund and balance info
+    return response.json()
   },
 
   // Quest participation

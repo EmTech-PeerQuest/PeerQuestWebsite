@@ -14,6 +14,7 @@ py manage.py runserver
 npm install --legacy-peer-deps
 npm install qrcode --legacy-peer-deps
 npm install @types/qrcode --legacy-peer-deps
+ npm list qrcode
 
 npm run dev
 

@@ -201,7 +201,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
           requirements: "",
           resources: "",
         })
-        setGoldBudget(0)
+        setGoldBudget(getGoldBudgetRangeForDifficulty("initiate").min)
         setPostAs('individual')
       }
       setErrors({})
@@ -371,7 +371,8 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
         // Create new quest
         const createData: CreateQuestData = {
           ...formData,
-          gold_reward: questReward // Enable gold reward
+          gold_budget: goldBudget, // Send the full budget (reward + commission) to backend
+          gold_reward: questReward // Still send reward for backend reference if needed
         }
         
         // Double-check gold validation before API call
@@ -392,13 +393,8 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
           formattedReward: typeof questReward
         })
         
-        // Convert gold_reward to a number to ensure proper serialization
-        const finalCreateData = {
-          ...formData,
-          gold_reward: Number(questReward) // Ensure it's a number
-        }
-        
-        result = await QuestAPI.createQuest(finalCreateData)
+        // Send both gold_budget and gold_reward if backend supports it
+        result = await QuestAPI.createQuest(createData)
       }
       
       console.log('✅ Quest operation successful:', result)
@@ -585,7 +581,27 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     }
   }
 
+  // Gold budget range mapping by difficulty
+  const getGoldBudgetRangeForDifficulty = (difficulty: string) => {
+    switch (difficulty) {
+      case 'initiate': return { min: 100, max: 199 }
+      case 'adventurer': return { min: 200, max: 299 }
+      case 'champion': return { min: 300, max: 399 }
+      case 'mythic': return { min: 400, max: 499 }
+      default: return { min: 100, max: 199 }
+    }
+  }
+
+  // Function to calculate refund amount (no commission refund)
+  const calculateRefundAmount = (quest: Quest): number => {
+    // Only refund the gold_reward (not commission_fee)
+    return quest.gold_reward || 0;
+  };
+
   if (!isOpen) return null
+
+  // Lock gold budget if quest is not a draft (i.e., if it's open, in-progress, or completed)
+  const isGoldBudgetLocked = isEditing && quest && ["open", "in-progress", "in_progress", "completed"].includes(quest.status)
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -734,7 +750,9 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                   value={['initiate', 'adventurer', 'champion', 'mythic'].indexOf(formData.difficulty)}
                   onChange={(e) => {
                     const difficultyMap: DifficultyTier[] = ['initiate', 'adventurer', 'champion', 'mythic']
-                    setFormData(prev => ({ ...prev, difficulty: difficultyMap[parseInt(e.target.value)] }))
+                    const newDifficulty = difficultyMap[parseInt(e.target.value)]
+                    setFormData(prev => ({ ...prev, difficulty: newDifficulty }))
+                    setGoldBudget(getGoldBudgetRangeForDifficulty(newDifficulty).min)
                   }}
                   className="w-full h-2 rounded-lg appearance-none cursor-pointer slider"
                   style={{
@@ -763,6 +781,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                     {formData.difficulty === 'adventurer' && 'A true adventure'}
                     {formData.difficulty === 'champion' && 'Expert level required'}
                     {formData.difficulty === 'mythic' && 'Legendary challenge for the bravest!'}
+
                     {' '}Reward
                   </p>
                 </div>
@@ -827,53 +846,31 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                     name="budget"
                     value={goldBudget}
                     onChange={(e) => {
-                      // For in-progress quests, don't allow changes to gold budget
-                      if (isEditing && quest && quest.status === 'in-progress') {
-                        return; // Block any changes
+                      if (isGoldBudgetLocked) {
+                        return;
                       }
-                      
-                      // Get input value or default to 0
                       let value = parseInt(e.target.value) || 0;
-                      
-                      // Ensure value is non-negative
-                      value = Math.max(0, value);
-                      
-                      // Apply general input constraints
+                      const range = getGoldBudgetRangeForDifficulty(formData.difficulty);
+                      if (value < range.min) value = range.min;
+                      if (value > range.max) value = range.max;
                       const maxBudget = calculateMaxBudgetForEditing();
-                      value = Math.min(maxBudget, value);
-                      
-                      // For quest editing, check additional gold needed
-                      if (isEditing && quest) {
-                        const oldGoldReward = quest.gold_reward || 0;
-                        const oldBudget = oldGoldReward > 0 ? Math.ceil(oldGoldReward / 0.95) : 0;
-                        const additionalGoldNeeded = Math.max(0, value - oldBudget);
-                        
-                        if (additionalGoldNeeded > userGoldBalance) {
-                          value = oldBudget + userGoldBalance;
-                          // Clear any existing error
-                          setErrors(prev => ({ ...prev, goldBudget: '' }));
-                        }
-                      } else {
-                        // For new quest creation, check against total budget
-                        if (value > userGoldBalance) {
-                          value = userGoldBalance;
-                          // Clear any existing error
-                          setErrors(prev => ({ ...prev, goldBudget: '' }));
-                        }
-                      }
-                      
+                      if (value > maxBudget) value = maxBudget;
                       setGoldBudget(value);
                     }}
-                    min="0"
-                    max={calculateMaxBudgetForEditing()}
-                    disabled={!!(isEditing && quest && quest.status === 'in-progress')}
+                    min={getGoldBudgetRangeForDifficulty(formData.difficulty).min}
+                    max={Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())}
+                    disabled={!!isGoldBudgetLocked}
                     className={`w-full px-4 py-3 border-2 rounded-lg text-gray-800 ${
-                      isEditing && quest && quest.status === 'in-progress'
+                      isGoldBudgetLocked
                         ? 'border-gray-300 bg-gray-100 cursor-not-allowed'
                         : 'border-amber-200 bg-white'
                     }`}
-                    placeholder="0"
+                    placeholder={`Enter gold (${getGoldBudgetRangeForDifficulty(formData.difficulty).min}-${getGoldBudgetRangeForDifficulty(formData.difficulty).max})`}
                   />
+                  {/* Recommended gold budget range label */}
+                  <div className="text-xs text-amber-700 mt-1">
+                    Recommended for {formData.difficulty.charAt(0).toUpperCase() + formData.difficulty.slice(1)}: {getGoldBudgetRangeForDifficulty(formData.difficulty).min} - {getGoldBudgetRangeForDifficulty(formData.difficulty).max} gold
+                  </div>
                   <div className="flex justify-between mt-1">
                     <div className="flex items-center space-x-2">
                       <p className="text-xs text-gray-500">
@@ -1051,58 +1048,56 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
             </div>
 
             {/* Quest Edit Gold Difference Indicator */}
-            {isEditing && quest && (
-              (() => {
-                const oldGoldReward = quest.gold_reward || 0
-                const oldBudget = oldGoldReward > 0 ? Math.ceil(oldGoldReward / 0.95) : 0
-                const newBudget = goldBudget
-                const goldDifference = newBudget - oldBudget
-                
-                // Special handling for in-progress quests
-                if (quest.status === 'in-progress') {
-                  return (
-                    <div className="mt-2 border rounded p-2 bg-blue-50 border-blue-200">
-                      <div className="flex items-start text-xs">
-                        <svg className="w-4 h-4 text-blue-500 mt-0.5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        <span className="text-blue-700">
-                          <strong>Gold Reward Locked:</strong> This quest is currently in progress. The gold reward is locked at <strong>{oldGoldReward} gold</strong> to ensure fairness for all participants who have already committed to this quest.
-                        </span>
-                      </div>
+            {isEditing && quest && (() => {
+              const oldGoldReward = quest.gold_reward || 0
+              const oldBudget = oldGoldReward > 0 ? Math.ceil(oldGoldReward / 0.95) : 0
+              const newBudget = goldBudget
+              const goldDifference = newBudget - oldBudget
+              
+              // Special handling for in-progress quests
+              if (quest.status === 'in-progress') {
+                return (
+                  <div className="mt-2 border rounded p-2 bg-blue-50 border-blue-200">
+                    <div className="flex items-start text-xs">
+                      <svg className="w-4 h-4 text-blue-500 mt-0.5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      <span className="text-blue-700">
+                        <strong>Gold Reward Locked:</strong> This quest is currently in progress. The gold reward is locked at <strong>{oldGoldReward} gold</strong> to ensure fairness for all participants who have already committed to this quest.
+                      </span>
                     </div>
-                  )
-                }
-                
-                if (goldDifference !== 0) {
-                  return (
-                    <div className={`mt-2 border rounded p-2 ${
-                      goldDifference > 0 
-                        ? 'bg-orange-50 border-orange-200' 
-                        : 'bg-green-50 border-green-200'
-                    }`}>
-                      <div className="flex items-start text-xs">
-                        <svg className={`w-4 h-4 mt-0.5 mr-1 flex-shrink-0 ${
-                          goldDifference > 0 ? 'text-orange-500' : 'text-green-500'
-                        }`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className={goldDifference > 0 ? 'text-orange-700' : 'text-green-700'}>
-                          <strong>Quest Edit:</strong> {goldDifference > 0 ? 'Increasing' : 'Decreasing'} gold reward from <strong>{oldGoldReward} gold</strong> to <strong>{questReward} gold</strong>.
-                          {goldDifference > 0 && (
-                            <> An additional <strong>{goldDifference} gold</strong> will be deducted from your balance.</>
-                          )}
-                          {goldDifference < 0 && (
-                            <> <strong>{Math.abs(goldDifference)} gold</strong> will be refunded to your balance.</>
-                          )}
-                        </span>
-                      </div>
+                  </div>
+                )
+              }
+              
+              if (goldDifference !== 0) {
+                return (
+                  <div className={`mt-2 border rounded p-2 ${
+                    goldDifference > 0 
+                      ? 'bg-orange-50 border-orange-200' 
+                      : 'bg-green-50 border-green-200'
+                  }`}>
+                    <div className="flex items-start text-xs">
+                      <svg className={`w-4 h-4 mt-0.5 mr-1 flex-shrink-0 ${
+                        goldDifference > 0 ? 'text-orange-500' : 'text-green-500'
+                      }`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className={goldDifference > 0 ? 'text-orange-700' : 'text-green-700'}>
+                        <strong>Quest Edit:</strong> {goldDifference > 0 ? 'Increasing' : 'Decreasing'} gold reward from <strong>{oldGoldReward} gold</strong> to <strong>{questReward} gold</strong>.
+                        {goldDifference > 0 && (
+                          <> An additional <strong>{goldDifference} gold</strong> will be deducted from your balance.</>
+                        )}
+                        {goldDifference < 0 && (
+                          <> <strong>{Math.abs(goldDifference)} gold</strong> will be refunded to your balance.</>
+                        )}
+                      </span>
                     </div>
-                  )
-                }
-                return null
-              })()
-            )}
+                  </div>
+                )
+              }
+              return null
+            })()}
           </form>
         </div>
       </div>
