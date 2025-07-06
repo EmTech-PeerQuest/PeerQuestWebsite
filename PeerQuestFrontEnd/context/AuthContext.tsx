@@ -147,8 +147,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
     } finally {
-      if (!isFromLogin) {
-        setLoading(false);
+      // Only set loading to false if this is from login
+      // For initialization, loading is managed by the useEffect
+      if (isFromLogin) {
+        // Don't set loading state for login - let parent handle it
       }
     }
   };
@@ -295,48 +297,71 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const initializeAuth = async () => {
-      const token = localStorage.getItem('access_token');
+      let timeoutId: NodeJS.Timeout | null = null;
       
-      if (token) {
-        try {
-          await loadUser(token);
-        } catch (error) {
-          // Access token might be expired, try to refresh
-          console.log('Access token failed, attempting refresh...');
-          const newToken = await refreshAccessToken();
-          
-          if (newToken) {
-            try {
-              await loadUser(newToken);
-            } catch (refreshError) {
-              console.error('Failed to load user after token refresh:', refreshError);
-              setLoading(false);
-            }
-          } else {
-            setLoading(false);
-          }
-        }
-      } else {
-        // No access token, try to refresh if we have a refresh token
-        const refreshToken = localStorage.getItem('refresh_token') || sessionStorage.getItem('refresh_token');
+      try {
+        console.log('🔍 Starting auth initialization...');
         
-        if (refreshToken) {
-          console.log('No access token but found refresh token, attempting refresh...');
-          const newToken = await refreshAccessToken();
-          
-          if (newToken) {
-            try {
-              await loadUser(newToken);
-            } catch (refreshError) {
-              console.error('Failed to load user after token refresh:', refreshError);
-              setLoading(false);
+        // Add a timeout to prevent hanging
+        timeoutId = setTimeout(() => {
+          console.warn('Auth initialization timeout - forcing loading to false');
+          setLoading(false);
+        }, 5000); // 5 second timeout (reduced from 10)
+        
+        const token = localStorage.getItem('access_token');
+        console.log('🔍 Found access token:', !!token);
+        
+        if (token) {
+          try {
+            console.log('🔍 Loading user with existing token...');
+            await loadUser(token);
+            console.log('🔍 User loaded successfully');
+          } catch (error) {
+            // Access token might be expired, try to refresh
+            console.log('Access token failed, attempting refresh...');
+            const newToken = await refreshAccessToken();
+            
+            if (newToken) {
+              try {
+                console.log('🔍 Loading user with refreshed token...');
+                await loadUser(newToken);
+                console.log('🔍 User loaded with refreshed token');
+              } catch (refreshError) {
+                console.error('Failed to load user after token refresh:', refreshError);
+              }
             }
-          } else {
-            setLoading(false);
           }
         } else {
-          setLoading(false);
+          // No access token, try to refresh if we have a refresh token
+          const refreshToken = localStorage.getItem('refresh_token') || sessionStorage.getItem('refresh_token');
+          console.log('🔍 Found refresh token:', !!refreshToken);
+          
+          if (refreshToken) {
+            console.log('No access token but found refresh token, attempting refresh...');
+            const newToken = await refreshAccessToken();
+            
+            if (newToken) {
+              try {
+                console.log('🔍 Loading user with new token from refresh...');
+                await loadUser(newToken);
+                console.log('🔍 User loaded with new token');
+              } catch (refreshError) {
+                console.error('Failed to load user after token refresh:', refreshError);
+              }
+            }
+          }
         }
+        
+        console.log('🔍 Auth initialization completed successfully');
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+      } finally {
+        // Clear timeout and set loading to false
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        console.log('🔍 Setting loading to false...');
+        setLoading(false);
       }
     };
     
