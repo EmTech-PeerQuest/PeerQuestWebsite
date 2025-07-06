@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const data = await res.json();
       if (res.ok && data.access) {
         localStorage.setItem("access_token", data.access);
-        await loadUser(data.access);
+        await loadUser(data.access, true);
       } else {
         throw new Error(data?.error || data?.detail || "Google login failed");
       }
@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  const loadUser = async (token: string) => {
+  const loadUser = async (token: string, isFromLogin: boolean = false) => {
     try {
       const res = await fetchUserApi(token);
       
@@ -132,20 +132,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           variant: 'destructive',
         });
         router.push('/');
+        
+        // If this is from a login attempt, throw the error
+        if (isFromLogin) {
+          throw new Error('Session expired. Please log in again.');
+        }
       } else {
         setUser(null);
         localStorage.removeItem('user');
+        
+        // If this is from a login attempt, throw the error
+        if (isFromLogin) {
+          throw new Error('Failed to load user profile. Please try again.');
+        }
       }
     } finally {
-      setLoading(false);
+      if (!isFromLogin) {
+        setLoading(false);
+      }
     }
   };
 
   const login = async (credentials: { username: string; password: string; rememberMe?: boolean }) => {
+    console.log('🔍 AuthContext login called');
     try {
+      console.log('🔍 AuthContext calling API login');
       const res = await apiLogin(credentials.username, credentials.password);
       const { access, refresh } = res.data;
       
+      console.log('🔍 AuthContext API login successful');
       // Store access token in localStorage
       localStorage.setItem('access_token', access);
       
@@ -160,8 +175,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.removeItem('remember_me');
       }
       
-      await loadUser(access);
+      console.log('🔍 AuthContext calling loadUser');
+      await loadUser(access, true); // Pass true to indicate this is from login
+      console.log('🔍 AuthContext login process completed successfully');
     } catch (error: any) {
+      console.log('🔍 AuthContext login failed:', error);
+      
+      // Clear any tokens that might have been set
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      sessionStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      setUser(null);
+      
       // Check if it's an email verification error
       if (error?.response?.data?.verification_required || 
           error?.message?.toLowerCase().includes('verify') ||
@@ -173,6 +199,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         });
         throw new Error('Email verification required');
       }
+      
+      // Re-throw the error to be handled by the modal
+      console.log('🔍 AuthContext rethrowing error for modal to handle');
       throw error;
     }
   };
@@ -226,7 +255,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return null;
       }
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/token/refresh/`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'}/api/token/refresh/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

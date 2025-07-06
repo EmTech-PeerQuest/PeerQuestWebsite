@@ -19,11 +19,18 @@ export async function fetchUserInfo() {
       throw new Error("No access token found. Please log in.");
     }
     
+    console.log('API_BASE_URL:', API_BASE_URL);
+    console.log('Making request to:', `${API_BASE_URL}/api/users/settings/`);
+    console.log('Token:', token.substring(0, 20) + '...');
+    
     const res = await axios.get(`${API_BASE_URL}/api/users/settings/`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
+    
+    console.log('Response data:', res.data);
+    
     const data = res.data;
     
     return {
@@ -43,6 +50,9 @@ export async function fetchUserInfo() {
       privacySettings: data.privacy_settings || {},
     };
   } catch (err: any) {
+    console.error('fetchUserInfo error:', err);
+    console.error('Error response:', err.response?.data);
+    console.error('Error status:', err.response?.status);
     throw new Error("Failed to fetch user info");
   }
 }

@@ -3,63 +3,35 @@
 import { useState } from "react"
 import type { User, Quest, Guild } from "@/lib/types"
 import { ChevronDown } from "lucide-react"
-<<<<<<< HEAD
-=======
 import { formatJoinDate } from "@/lib/date-utils"
->>>>>>> Profile/Settings
 
-interface ProfileProps {
+interface IntegratedProfileProps {
   currentUser: User
   quests: Quest[]
   guilds: Guild[]
   navigateToSection?: (section: string) => void
+  defaultTab?: "overview" | "quests" | "guilds" | "achievements"
 }
 
-export function Profile({ currentUser, quests, guilds, navigateToSection }: ProfileProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "quests" | "guilds" | "achievements">("overview")
+export function IntegratedProfile({ currentUser, quests, guilds, navigateToSection, defaultTab = "overview" }: IntegratedProfileProps) {
+  const [activeTab, setActiveTab] = useState<"overview" | "quests" | "guilds" | "achievements">(defaultTab)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
-<<<<<<< HEAD
-=======
   const [avatarError, setAvatarError] = useState(false)
 
   // Debug: log the currentUser to see what avatar data we have
   console.log('Profile component currentUser avatar:', currentUser.avatar);
->>>>>>> Profile/Settings
 
   // Filter quests by status
-  const activeQuests = quests.filter((q) => q.status === "in-progress" && q.assignedTo === currentUser.id)
+  const activeQuests = quests.filter((q) => q.status === "in_progress" && q.applicants?.some(app => app.userId === currentUser.id && app.status === "accepted"))
   const createdQuests = quests.filter((q) => q.poster.id === currentUser.id)
-  const completedQuests = quests.filter((q) => q.status === "completed" && q.assignedTo === currentUser.id)
+  const completedQuests = quests.filter((q) => q.status === "completed" && q.applicants?.some(app => app.userId === currentUser.id && app.status === "accepted"))
 
-  // Get user's guilds
-  const userGuilds = guilds.filter((g) => g.membersList.includes(currentUser.id))
+  // Get user's guilds - for now, empty array since we don't have guild membership info
+  const userGuilds = [] // TODO: Implement guild membership filtering when backend supports it
 
   // Calculate XP progress
   const xpForNextLevel = 1000 // Example value
-  const xpProgress = ((currentUser.xp % xpForNextLevel) / xpForNextLevel) * 100
-
-  const completeTestQuest = () => {
-    if (window.updateCompletedQuests) {
-      const testQuest = {
-        id: Date.now(),
-        title: "Write Tavern Lore",
-        description: "Looking for a skilled writer to create lore and stories about the PeerQuest Tavern's history.",
-        status: "completed",
-        assignedTo: currentUser.id,
-        xp: 250,
-        reward: 400,
-        createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
-        completedAt: new Date(),
-      }
-      window.updateCompletedQuests(testQuest)
-    }
-  }
-
-  const joinTestGuild = () => {
-    if (window.joinGuildTest) {
-      window.joinGuildTest(currentUser.id, "Mystic Brewers Guild")
-    }
-  }
+  const xpProgress = currentUser.xp ? ((currentUser.xp % xpForNextLevel) / xpForNextLevel) * 100 : 0
 
   const tabs = [
     { id: "overview", label: "Overview" },
@@ -75,10 +47,6 @@ export function Profile({ currentUser, quests, guilds, navigateToSection }: Prof
         <div className="max-w-4xl mx-auto">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
             {/* Avatar */}
-<<<<<<< HEAD
-            <div className="w-20 h-20 sm:w-24 sm:h-24 bg-[#CDAA7D] rounded-full flex items-center justify-center text-2xl sm:text-3xl font-bold flex-shrink-0">
-              {currentUser.avatar || currentUser.username?.[0] || "H"}
-=======
             <div className="w-20 h-20 sm:w-24 sm:h-24 bg-[#CDAA7D] rounded-full flex items-center justify-center text-2xl sm:text-3xl font-bold flex-shrink-0 overflow-hidden relative">
               {currentUser.avatar && 
                (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('data:')) && 
@@ -94,7 +62,6 @@ export function Profile({ currentUser, quests, guilds, navigateToSection }: Prof
                   {currentUser.username?.[0]?.toUpperCase() || "H"}
                 </span>
               )}
->>>>>>> Profile/Settings
             </div>
 
             {/* User Info */}
@@ -117,16 +84,12 @@ export function Profile({ currentUser, quests, guilds, navigateToSection }: Prof
             {/* Join Date */}
             <div className="text-center sm:text-right">
               <div className="text-sm">Member since</div>
-<<<<<<< HEAD
-              <div>{currentUser.joinDate || "Invalid Date"}</div>
-=======
               <div>
                 {formatJoinDate(
                   currentUser.createdAt || currentUser.dateJoined,
                   { capitalizeFirst: true }
                 )}
               </div>
->>>>>>> Profile/Settings
             </div>
           </div>
         </div>
@@ -221,17 +184,7 @@ export function Profile({ currentUser, quests, guilds, navigateToSection }: Prof
             {/* Skills */}
             <div className="bg-white rounded-lg p-4 sm:p-6 border border-[#CDAA7D]">
               <h3 className="font-medium mb-4">Skills</h3>
-              {currentUser.skills && currentUser.skills.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {currentUser.skills.map((skill, index) => (
-                    <span key={index} className="bg-[#8B75AA]/10 text-[#8B75AA] px-2 py-1 rounded text-sm">
-                      {skill}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-sm">No skills listed yet.</p>
-              )}
+              <p className="text-gray-500 text-sm">No skills listed yet.</p>
             </div>
 
             {/* Recent Activity */}
@@ -325,13 +278,6 @@ export function Profile({ currentUser, quests, guilds, navigateToSection }: Prof
                   </div>
                 </div>
               )}
-
-              <button
-                onClick={completeTestQuest}
-                className="w-full mt-4 bg-[#8B75AA] text-white py-3 rounded hover:bg-[#7A6699] transition-colors"
-              >
-                Complete a Test Quest
-              </button>
             </div>
           </div>
         )}
@@ -339,7 +285,7 @@ export function Profile({ currentUser, quests, guilds, navigateToSection }: Prof
         {/* Guilds Tab */}
         {activeTab === "guilds" && (
           <div>
-            {userGuilds.length > 0 || currentUser.guilds?.length ? (
+            {userGuilds.length > 0 ? (
               <div className="space-y-4">
                 {/* Mystic Brewers Guild */}
                 <div className="bg-white rounded-lg border border-[#CDAA7D] overflow-hidden">
@@ -414,12 +360,7 @@ export function Profile({ currentUser, quests, guilds, navigateToSection }: Prof
             ) : (
               <div className="bg-white rounded-lg p-6 border border-[#CDAA7D] text-center">
                 <p className="text-gray-500 mb-6">No guilds joined yet</p>
-                <button
-                  onClick={joinTestGuild}
-                  className="bg-[#8B75AA] text-white px-6 py-3 rounded hover:bg-[#7A6699] transition-colors"
-                >
-                  Join a Test Guild
-                </button>
+                <p className="text-gray-400 text-sm">Browse the Guild Hall to find and join guilds!</p>
               </div>
             )}
           </div>

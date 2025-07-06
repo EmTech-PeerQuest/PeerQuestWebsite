@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 // Custom error for invalid/expired JWT
 export class TokenInvalidError extends Error {
@@ -12,10 +12,13 @@ export class TokenInvalidError extends Error {
 
 // JWT login
 export const login = async (username: string, password: string) => {
+  console.log('🔍 API login called with username:', username);
   try {
     const response = await axios.post(`${API_BASE}/api/token/`, { username, password });
+    console.log('🔍 API login successful:', response.status);
     return response;
   } catch (error: any) {
+    console.log('🔍 API login failed:', error?.response?.status, error?.response?.data);
     // User-friendly error for 401
     if (error?.response?.status === 401) {
       // Log which credential was incorrect (username or password)
@@ -72,7 +75,47 @@ export const register = async (userData: {
   } catch (error: any) {
     // Only log and handle actual errors, not successful responses
     if (error?.response?.status >= 400) {
-      console.error("Registration backend error:", error.response.data);
+      // Handle empty response object
+      if (!error.response.data || Object.keys(error.response.data).length === 0) {
+        throw new Error('Registration failed. Please check your information and try again.');
+      }
+      
+      // Handle specific error cases
+      if (error.response.status === 400) {
+        const errorData = error.response.data;
+        
+        // Check for field-specific errors (like email already exists)
+        if (errorData.email) {
+          const emailErrors = Array.isArray(errorData.email) ? errorData.email : [errorData.email];
+          if (emailErrors.some((err: any) => err.includes('already exists') || err.includes('unique'))) {
+            throw new Error('This email address is already registered. Please use a different email or try logging in.');
+          }
+          throw new Error(`Email error: ${emailErrors.join(', ')}`);
+        }
+        
+        if (errorData.username) {
+          const usernameErrors = Array.isArray(errorData.username) ? errorData.username : [errorData.username];
+          if (usernameErrors.some((err: any) => err.includes('already exists') || err.includes('unique'))) {
+            throw new Error('This username is already taken. Please choose a different username.');
+          }
+          throw new Error(`Username error: ${usernameErrors.join(', ')}`);
+        }
+        
+        if (errorData.password) {
+          const passwordErrors = Array.isArray(errorData.password) ? errorData.password : [errorData.password];
+          throw new Error(`Password error: ${passwordErrors.join(', ')}`);
+        }
+        
+        // Check for general error messages
+        if (errorData.detail) {
+          throw new Error(errorData.detail);
+        }
+        
+        if (errorData.non_field_errors) {
+          const nonFieldErrors = Array.isArray(errorData.non_field_errors) ? errorData.non_field_errors : [errorData.non_field_errors];
+          throw new Error(nonFieldErrors.join(', '));
+        }
+      }
       
       // Prefer extracting from 'errors' key if present
       const errorData = error.response.data.errors ?? error.response.data;
@@ -201,6 +244,14 @@ axios.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
+    // Don't handle 401 errors from login endpoints - let them bubble up
+    if (error.response?.status === 401 && 
+        (originalRequest.url?.includes('/api/token/') || 
+         originalRequest.url?.includes('/auth/login') || 
+         originalRequest.url?.includes('/auth/google'))) {
+      return Promise.reject(error);
+    }
+    
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       
@@ -216,8 +267,8 @@ axios.interceptors.response.use(
         // Retry the original request
         return axios(originalRequest);
       } catch (refreshError) {
-        // Token refresh failed, redirect to login
-        if (typeof window !== 'undefined') {
+        // Token refresh failed, redirect to login only if not already on login page
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('login')) {
           window.location.href = '/';
         }
         return Promise.reject(refreshError);

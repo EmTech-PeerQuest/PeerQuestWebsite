@@ -1,24 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X, Eye, EyeOff, AlertCircle } from "lucide-react"
-<<<<<<< HEAD
-=======
 import LoadingModal from "@/components/ui/loading-modal"
 import GoogleAuthButton from "@/components/auth/GoogleAuthButton"
-import { useAuth } from "./auth-context"
+import ProfileCompletionModal from "@/components/auth/ProfileCompletionModal"
+import { useAuth } from "@/context/AuthContext"
 import { useRouter } from 'next/navigation';
->>>>>>> Profile/Settings
 
 interface AuthModalProps {
   isOpen: boolean
   mode: "login" | "register" | "forgot"
   setMode: (mode: "login" | "register" | "forgot") => void
   onClose: () => void
-<<<<<<< HEAD
-  onLogin: (credentials: { email: string; password: string }) => void
-  onRegister: (userData: { username: string; email: string; password: string; confirmPassword: string }) => void
-=======
   onLogin: (credentials: { username: string; password: string; rememberMe?: boolean }) => void
   onRegister: (userData: { 
     username: string; 
@@ -28,28 +22,21 @@ interface AuthModalProps {
     birthday?: string | null;
     gender?: string | null;
   }) => void
->>>>>>> Profile/Settings
   onForgotPassword?: (email: string) => void
 }
 
 export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister, onForgotPassword }: AuthModalProps) {
-<<<<<<< HEAD
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
-
-  const [loginForm, setLoginForm] = useState({
-    email: "",
-=======
   const [showLoginPassword, setShowLoginPassword] = useState(false)
   const [showRegisterPassword, setShowRegisterPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [authLoading, setAuthLoading] = useState(false)
+  const [showProfileCompletion, setShowProfileCompletion] = useState(false)
+  const [isProcessingLogin, setIsProcessingLogin] = useState(false) // Track if we're in the middle of login
+  const [userIsInteracting, setUserIsInteracting] = useState(false) // Track if user is actively interacting
 
   const [loginForm, setLoginForm] = useState({
     username: "",
->>>>>>> Profile/Settings
     password: "",
     rememberMe: false,
   })
@@ -72,12 +59,28 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
     email: "",
   })
 
-<<<<<<< HEAD
-=======
-  const { setUser } = useAuth();
+  const { refreshUser } = useAuth();
   const router = useRouter();
 
->>>>>>> Profile/Settings
+  // Debug modal state
+  useEffect(() => {
+    console.log('🔍 Modal state changed:', { isOpen, mode, authLoading, hasErrors: Object.keys(formErrors).length > 0 });
+  }, [isOpen, mode, authLoading, formErrors]);
+
+  // Prevent modal from closing if there are form errors (safety net)
+  useEffect(() => {
+    if (!isOpen && Object.keys(formErrors).length > 0) {
+      console.warn('🔍 Modal was closed but there are form errors! This should not happen.');
+    }
+  }, [isOpen, formErrors]);
+
+  // Prevent modal from closing while processing login
+  useEffect(() => {
+    if (!isOpen && isProcessingLogin) {
+      console.warn('🔍 Modal was closed while processing login! This should not happen.');
+    }
+  }, [isOpen, isProcessingLogin]);
+
   if (!isOpen) return null
 
   const validateEmail = (email: string) => {
@@ -92,17 +95,10 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   const validateLoginForm = () => {
     const errors: Record<string, string> = {}
 
-<<<<<<< HEAD
-    if (!loginForm.email) {
-      errors.email = "Email is required"
-    } else if (!validateEmail(loginForm.email)) {
-      errors.email = "Please enter a valid email"
-=======
     if (!loginForm.username) {
       errors.username = "Username is required"
     } else if (loginForm.username.length < 3) {
       errors.username = "Username must be at least 3 characters"
->>>>>>> Profile/Settings
     }
 
     if (!loginForm.password) {
@@ -163,51 +159,103 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
     return Object.keys(errors).length === 0
   }
 
-<<<<<<< HEAD
-  const handleLogin = () => {
-    if (validateLoginForm()) {
-      onLogin({
-        email: loginForm.email,
-        password: loginForm.password,
-      })
+  const handleLogin = async (e?: React.FormEvent) => {
+    console.log('🔍 handleLogin called', { event: e?.type, mode });
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('🔍 preventDefault and stopPropagation called');
     }
-  }
-
-  const handleRegister = () => {
-    if (validateRegisterForm()) {
-      onRegister({
-        username: registerForm.username,
-        email: registerForm.email,
-        password: registerForm.password,
-        confirmPassword: registerForm.confirmPassword,
-      })
-=======
-  const handleLogin = async () => {
     if (validateLoginForm()) {
+      console.log('🔍 Form validation passed, starting login');
+      setIsProcessingLogin(true) // Mark that we're processing login
       setAuthLoading(true)
       setFormErrors({})
+      
+      let timeoutId: NodeJS.Timeout | null = null;
+      
       try {
+        // Set a timeout to prevent hanging
+        timeoutId = setTimeout(() => {
+          console.log('🔍 Login timeout - resetting loading state');
+          setAuthLoading(false);
+          setFormErrors({ auth: "Login request timed out. Please try again." });
+        }, 15000); // 15 second timeout
+        
+        console.log('🔍 Calling onLogin with credentials');
         await onLogin({
           username: loginForm.username,
           password: loginForm.password,
           rememberMe: loginForm.rememberMe,
         })
+        console.log('🔍 Login successful');
+        
+        // Clear timeout if successful
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        
+        // Only close modal or redirect if login was successful
+        // The parent component should handle this via the onLogin callback
       } catch (err: any) {
+        // Clear timeout if error occurred
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        
+        console.log('🔍 Login failed with error:', err);
+        // Prevent any default actions that might cause a refresh
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        
         // Check if it's an email verification error
-        if (err?.response?.data?.verification_required) {
+        if (err?.response?.data?.verification_required || 
+            err?.message?.toLowerCase().includes('verify') ||
+            err?.message?.toLowerCase().includes('verification')) {
           setFormErrors({ 
             auth: "Please verify your email address before logging in. Check your inbox for the verification email."
           });
         } else {
-          setFormErrors({ auth: err?.message || "Login failed. Please try again." });
+          // Extract error message from different possible error structures
+          let errorMessage = "Login failed. Please try again.";
+          
+          if (err?.message) {
+            errorMessage = err.message;
+          } else if (err?.response?.data?.detail) {
+            errorMessage = err.response.data.detail;
+          } else if (err?.response?.data?.message) {
+            errorMessage = err.response.data.message;
+          }
+          
+          setFormErrors({ auth: errorMessage });
         }
+        console.log('🔍 Error set in modal, should stay open');
+        
+        // Explicitly prevent any page refresh or redirect
+        return false;
       } finally {
+        // Always clear timeout and reset loading state
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        setIsProcessingLogin(false) // Mark that we're done processing
         setAuthLoading(false)
+        console.log('🔍 Login process finished, loading set to false');
       }
+    } else {
+      console.log('🔍 Form validation failed');
     }
   }
 
-  const handleRegister = async () => {
+  const handleRegister = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (validateRegisterForm()) {
       setAuthLoading(true)
       setFormErrors({})
@@ -227,62 +275,12 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           gender: registerForm.gender || null,
         })
       } catch (err: any) {
-        // Robust error handling for duplicate registration
-        let msg = err?.message || "Registration failed. Please try again.";
-        // Helper to recursively extract all string messages from any value, including arrays of objects
-        function extractMessages(val: any): string[] {
-          if (!val) return [];
-          if (typeof val === 'string') return [val];
-          if (Array.isArray(val)) return val.flatMap(extractMessages);
-          if (typeof val === 'object') {
-            // If object has only string values, return them
-            let strings: string[] = [];
-            for (const v of Object.values(val)) {
-              strings = strings.concat(extractMessages(v));
-            }
-            return strings;
-          }
-          return [];
-        }
-        if (err?.response?.data && typeof err.response.data === 'object') {
-          const errorObj = err.response.data;
-          console.log('Registration error object:', errorObj); // Debug: log backend error
-          // Username duplicate
-          const usernameErr = errorObj.username;
-          if (
-            (Array.isArray(usernameErr) && usernameErr.some((m: any) => typeof m === 'string' && m.toLowerCase().includes('already')))
-            || (typeof usernameErr === 'string' && usernameErr.toLowerCase().includes('already'))
-            || (typeof usernameErr === 'object' && JSON.stringify(usernameErr).toLowerCase().includes('already'))
-          ) {
-            setFormErrors({ auth: "That username is already taken. Please choose another." });
-            return;
-          }
-          // Email duplicate
-          const emailErr = errorObj.email;
-          if (
-            (Array.isArray(emailErr) && emailErr.some((m: any) => typeof m === 'string' && m.toLowerCase().includes('already')))
-            || (typeof emailErr === 'string' && emailErr.toLowerCase().includes('already'))
-            || (typeof emailErr === 'object' && JSON.stringify(emailErr).toLowerCase().includes('already'))
-          ) {
-            setFormErrors({ auth: "That email is already registered. Please use another or log in." });
-            return;
-          }
-          // Recursively extract all string messages from errorObj, including nested arrays/objects
-          const allMessages = extractMessages(errorObj);
-          setFormErrors({ auth: allMessages.length ? allMessages.join('\n') : msg });
-          return;
-        }
-        if (typeof msg === 'string' && msg.toLowerCase().includes("username") && msg.toLowerCase().includes("already")) {
-          setFormErrors({ auth: "That username is already taken. Please choose another." });
-        } else if (typeof msg === 'string' && msg.toLowerCase().includes("email") && msg.toLowerCase().includes("already")) {
-          setFormErrors({ auth: "That email is already registered. Please use another or log in." });
-        } else {
-          setFormErrors({ auth: typeof msg === 'string' && msg ? msg : 'Registration failed. Please try again.' });
-        }
+        // The API layer already handles error parsing and provides clean messages
+        const errorMessage = err?.message || "Registration failed. Please try again.";
+        setFormErrors({ auth: errorMessage });
       } finally {
         setAuthLoading(false)
       }
->>>>>>> Profile/Settings
     }
   }
 
@@ -342,368 +340,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   }
 
   return (
-<<<<<<< HEAD
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#F4F0E6] rounded-lg w-full max-w-md relative max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="bg-[#CDAA7D] px-6 py-4 rounded-t-lg flex justify-between items-center sticky top-0 z-10">
-          <h2 className="text-xl font-bold text-[#2C1A1D]">
-            {mode === "login" ? "Enter the Tavern" : mode === "register" ? "Join the Tavern" : "Recover Your Password"}
-          </h2>
-          <button onClick={onClose} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Tabs for Login/Register */}
-        {mode !== "forgot" && (
-          <div className="flex border-b border-[#CDAA7D]">
-            <button
-              onClick={() => {
-                setMode("login")
-                setFormErrors({})
-              }}
-              className={`flex-1 py-3 text-center font-medium transition-colors ${
-                mode === "login" ? "text-[#2C1A1D] border-b-2 border-[#2C1A1D]" : "text-[#8B75AA] hover:text-[#2C1A1D]"
-              }`}
-            >
-              LOGIN
-            </button>
-            <button
-              onClick={() => {
-                setMode("register")
-                setFormErrors({})
-              }}
-              className={`flex-1 py-3 text-center font-medium transition-colors ${
-                mode === "register"
-                  ? "text-[#2C1A1D] border-b-2 border-[#2C1A1D]"
-                  : "text-[#8B75AA] hover:text-[#2C1A1D]"
-              }`}
-            >
-              REGISTER
-            </button>
-          </div>
-        )}
-
-        {/* Form Content */}
-        <div className="p-6 space-y-4">
-          {formErrors.auth && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded flex items-center">
-              <AlertCircle size={16} className="mr-2" />
-              <span>{formErrors.auth}</span>
-            </div>
-          )}
-
-          {mode === "login" && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">EMAIL</label>
-                <input
-                  type="email"
-                  className={`w-full px-3 py-2 border ${
-                    formErrors.email ? "border-red-500" : "border-[#CDAA7D]"
-                  } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                  placeholder="ENTER YOUR EMAIL"
-                  value={loginForm.email}
-                  onChange={(e) => setLoginForm((prev) => ({ ...prev, email: e.target.value }))}
-                />
-                {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">PASSWORD</label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    className={`w-full px-3 py-2 border ${
-                      formErrors.password ? "border-red-500" : "border-[#CDAA7D]"
-                    } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                    placeholder="••••••••"
-                    value={loginForm.password}
-                    onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#8B75AA]"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                {formErrors.password && <p className="text-red-500 text-xs mt-1">{formErrors.password}</p>}
-              </div>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="remember-me"
-                  checked={loginForm.rememberMe}
-                  onChange={(e) => setLoginForm((prev) => ({ ...prev, rememberMe: e.target.checked }))}
-                  className="w-4 h-4 text-[#8B75AA] border-[#CDAA7D] rounded focus:ring-[#8B75AA]"
-                />
-                <label htmlFor="remember-me" className="ml-2 text-sm text-[#2C1A1D]">
-                  REMEMBER ME
-                </label>
-              </div>
-              <button
-                onClick={handleLogin}
-                className="w-full bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
-              >
-                LOGIN
-              </button>
-              <div className="text-center">
-                <button
-                  onClick={() => {
-                    setMode("forgot")
-                    setFormErrors({})
-                  }}
-                  className="text-[#8B75AA] hover:underline text-sm"
-                >
-                  FORGOT PASSWORD?
-                </button>
-              </div>
-              <div className="text-center text-[#8B75AA] text-sm">OR LOGIN WITH</div>
-              <button className="w-full border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors flex items-center justify-center gap-2">
-                <span className="text-lg">G</span>
-                CONTINUE WITH GOOGLE
-              </button>
-            </>
-          )}
-
-          {mode === "register" && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">USERNAME</label>
-                <input
-                  type="text"
-                  className={`w-full px-3 py-2 border ${
-                    formErrors.username ? "border-red-500" : "border-[#CDAA7D]"
-                  } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                  placeholder="CHOOSE A USERNAME"
-                  value={registerForm.username}
-                  onChange={(e) => setRegisterForm((prev) => ({ ...prev, username: e.target.value }))}
-                />
-                {formErrors.username && <p className="text-red-500 text-xs mt-1">{formErrors.username}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">EMAIL</label>
-                <input
-                  type="email"
-                  className={`w-full px-3 py-2 border ${
-                    formErrors.email ? "border-red-500" : "border-[#CDAA7D]"
-                  } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                  placeholder="ENTER YOUR EMAIL"
-                  value={registerForm.email}
-                  onChange={(e) => setRegisterForm((prev) => ({ ...prev, email: e.target.value }))}
-                />
-                {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">PASSWORD</label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    className={`w-full px-3 py-2 border ${
-                      formErrors.password ? "border-red-500" : "border-[#CDAA7D]"
-                    } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                    placeholder="CREATE A PASSWORD"
-                    value={registerForm.password}
-                    onChange={(e) => setRegisterForm((prev) => ({ ...prev, password: e.target.value }))}
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#8B75AA]"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                {formErrors.password && <p className="text-red-500 text-xs mt-1">{formErrors.password}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">CONFIRM PASSWORD</label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? "text" : "password"}
-                    className={`w-full px-3 py-2 border ${
-                      formErrors.confirmPassword ? "border-red-500" : "border-[#CDAA7D]"
-                    } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                    placeholder="CONFIRM YOUR PASSWORD"
-                    value={registerForm.confirmPassword}
-                    onChange={(e) => setRegisterForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#8B75AA]"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  >
-                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                {formErrors.confirmPassword && (
-                  <p className="text-red-500 text-xs mt-1">{formErrors.confirmPassword}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">BIRTHDAY</label>
-                <div className="grid grid-cols-3 gap-2">
-                  <select
-                    className={`px-3 py-2 border ${
-                      formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"
-                    } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
-                    value={registerForm.birthday.month}
-                    onChange={(e) =>
-                      setRegisterForm((prev) => ({
-                        ...prev,
-                        birthday: { ...prev.birthday, month: e.target.value },
-                      }))
-                    }
-                  >
-                    <option value="">Month</option>
-                    {generateMonthOptions()}
-                  </select>
-
-                  <select
-                    className={`px-3 py-2 border ${
-                      formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"
-                    } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
-                    value={registerForm.birthday.day}
-                    onChange={(e) =>
-                      setRegisterForm((prev) => ({
-                        ...prev,
-                        birthday: { ...prev.birthday, day: e.target.value },
-                      }))
-                    }
-                  >
-                    <option value="">Day</option>
-                    {generateDayOptions()}
-                  </select>
-
-                  <select
-                    className={`px-3 py-2 border ${
-                      formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"
-                    } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
-                    value={registerForm.birthday.year}
-                    onChange={(e) =>
-                      setRegisterForm((prev) => ({
-                        ...prev,
-                        birthday: { ...prev.birthday, year: e.target.value },
-                      }))
-                    }
-                  >
-                    <option value="">Year</option>
-                    {generateYearOptions()}
-                  </select>
-                </div>
-                {formErrors.birthday && <p className="text-red-500 text-xs mt-1">{formErrors.birthday}</p>}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">GENDER (OPTIONAL)</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    className={`py-2 border ${
-                      registerForm.gender === "male" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#2C1A1D]"
-                    } rounded font-medium transition-colors flex items-center justify-center`}
-                    onClick={() => setRegisterForm((prev) => ({ ...prev, gender: "male" }))}
-                  >
-                    <span className="mr-2">♂</span>
-                    MALE
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`py-2 border ${
-                      registerForm.gender === "female" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#2C1A1D]"
-                    } rounded font-medium transition-colors flex items-center justify-center`}
-                    onClick={() => setRegisterForm((prev) => ({ ...prev, gender: "female" }))}
-                  >
-                    <span className="mr-2">♀</span>
-                    FEMALE
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-start">
-                <div className="flex items-center h-5">
-                  <input
-                    id="terms"
-                    type="checkbox"
-                    className={`w-4 h-4 text-[#8B75AA] border ${
-                      formErrors.agreeToTerms ? "border-red-500" : "border-[#CDAA7D]"
-                    } rounded focus:ring-[#8B75AA]`}
-                    checked={registerForm.agreeToTerms}
-                    onChange={(e) => setRegisterForm((prev) => ({ ...prev, agreeToTerms: e.target.checked }))}
-                  />
-                </div>
-                <label htmlFor="terms" className="ml-2 text-sm text-[#8B75AA]">
-                  BY CLICKING SIGN UP, YOU ARE AGREEING TO THE <span className="underline">TERMS OF USE</span> AND{" "}
-                  <span className="underline">PRIVACY POLICY</span>.
-                </label>
-              </div>
-              {formErrors.agreeToTerms && <p className="text-red-500 text-xs">{formErrors.agreeToTerms}</p>}
-
-              <button
-                onClick={handleRegister}
-                className="w-full bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
-              >
-                REGISTER
-              </button>
-
-              <div className="text-center text-[#8B75AA] text-sm">OR REGISTER WITH</div>
-              <button className="w-full border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors flex items-center justify-center gap-2">
-                <span className="text-lg">G</span>
-                CONTINUE WITH GOOGLE
-              </button>
-            </>
-          )}
-
-          {mode === "forgot" && (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">EMAIL ADDRESS</label>
-                <input
-                  type="email"
-                  className={`w-full px-3 py-2 border ${
-                    formErrors.email ? "border-red-500" : "border-[#CDAA7D]"
-                  } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                  placeholder="ENTER YOUR REGISTERED EMAIL"
-                  value={forgotForm.email}
-                  onChange={(e) => setForgotForm((prev) => ({ ...prev, email: e.target.value }))}
-                />
-                {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
-              </div>
-              <p className="text-sm text-[#8B75AA]">
-                ENTER YOUR EMAIL ADDRESS AND WE'LL SEND YOU A LINK TO RESET YOUR PASSWORD.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setMode("login")
-                    setFormErrors({})
-                  }}
-                  className="flex-1 border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors"
-                >
-                  CANCEL
-                </button>
-                <button
-                  onClick={handleForgotPassword}
-                  className="flex-1 bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
-                >
-                  SEND RESET LINK
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-=======
     <>
       {/* Aesthetic loading overlay on top of modal */}
       {authLoading && (
@@ -723,14 +359,41 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
         </div>
       )}
       {/* Modal content (z-40 so loading overlay is above) */}
-      <div className="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-30 backdrop-blur-sm">
-        <div className="bg-[#F4F0E6] rounded-lg w-full max-w-md relative max-h-[90vh] overflow-y-auto">
+      <div 
+        className="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-30 backdrop-blur-sm"
+        onClick={(e) => {
+          // Only close if the click is directly on the backdrop, not during text selection, and user is not actively interacting
+          if (e.target === e.currentTarget && !window.getSelection()?.toString() && !userIsInteracting) {
+            onClose();
+          }
+        }}
+        onMouseDown={(e) => {
+          // Prevent modal from closing during text selection
+          if (e.target !== e.currentTarget) {
+            e.stopPropagation();
+          }
+        }}
+      >
+        <div 
+          className="bg-[#F4F0E6] rounded-lg w-full max-w-md relative max-h-[90vh] overflow-y-auto"
+          onClick={(e) => {
+            e.stopPropagation();
+          }}
+          onMouseDown={(e) => {
+            // Prevent any mouse events from bubbling up to the backdrop
+            e.stopPropagation();
+          }}
+          onMouseUp={(e) => {
+            // Prevent any mouse events from bubbling up to the backdrop
+            e.stopPropagation();
+          }}
+        >
           {/* Header */}
           <div className="bg-[#CDAA7D] px-6 py-4 rounded-t-lg flex justify-between items-center sticky top-0 z-10">
             <h2 className="text-xl font-bold text-[#2C1A1D]">
               {mode === "login" ? "Enter the Tavern" : mode === "register" ? "Join the Tavern" : "Recover Your Password"}
             </h2>
-            <button onClick={onClose} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
+            <button onClick={onClose} type="button" className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
               <X size={20} />
             </button>
           </div>
@@ -739,6 +402,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           {mode !== "forgot" && (
             <div className="flex border-b border-[#CDAA7D]">
               <button
+                type="button"
                 onClick={() => {
                   setMode("login")
                   setFormErrors({})
@@ -750,6 +414,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                 LOGIN
               </button>
               <button
+                type="button"
                 onClick={() => {
                   setMode("register")
                   setFormErrors({})
@@ -766,7 +431,18 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           )}
 
           {/* Form Content */}
-          <div className="p-6 space-y-4">
+          <div 
+            className="p-6 space-y-5"
+            onMouseEnter={() => setUserIsInteracting(true)}
+            onMouseLeave={() => setUserIsInteracting(false)}
+            onFocus={() => setUserIsInteracting(true)}
+            onBlur={(e) => {
+              // Only set to false if focus is leaving the entire form area
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setUserIsInteracting(false);
+              }
+            }}
+          >
             {formErrors.auth && (
               <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded flex items-center">
                 <AlertCircle size={16} className="mr-2" />
@@ -783,107 +459,156 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
             )}
 
             {mode === "login" && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">USERNAME</label>
-                  <input
-                    type="text"
-                    className={`w-full px-3 py-2 border ${
-                      formErrors.username ? "border-red-500" : "border-[#CDAA7D]"
-                    } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                    placeholder="ENTER YOUR USERNAME"
-                    value={loginForm.username}
-                    onChange={(e) => setLoginForm((prev) => ({ ...prev, username: e.target.value }))}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleLogin()
-                    }}
-                  />
-                  {formErrors.username && <p className="text-red-500 text-xs mt-1">{formErrors.username}</p>}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">PASSWORD</label>
-                  <div className="relative">
+              <form onSubmit={(e) => {
+                console.log('🔍 Form submitted');
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🔍 Form submission prevented');
+                return false;
+              }}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#2C1A1D] mb-2">USERNAME</label>
                     <input
-                      type={showLoginPassword ? "text" : "password"}
+                      type="text"
                       className={`w-full px-3 py-2 border ${
-                        formErrors.password ? "border-red-500" : "border-[#CDAA7D]"
+                        formErrors.username ? "border-red-500" : "border-[#CDAA7D]"
                       } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                      placeholder="••••••••"
-                      value={loginForm.password}
-                      onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
+                      placeholder="ENTER YOUR USERNAME"
+                      value={loginForm.username}
+                      onChange={(e) => setLoginForm((prev) => ({ ...prev, username: e.target.value }))}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") handleLogin()
+                        console.log('🔍 Username field keydown:', e.key);
+                        if (e.key === "Enter") {
+                          console.log('🔍 Enter pressed on username field');
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleLogin(e);
+                          return false;
+                        }
                       }}
                     />
+                    {formErrors.username && <p className="text-red-500 text-xs mt-1">{formErrors.username}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-[#2C1A1D] mb-2">PASSWORD</label>
+                    <div className="relative">
+                      <input
+                        type={showLoginPassword ? "text" : "password"}
+                        className={`w-full px-3 py-2 border ${
+                          formErrors.password ? "border-red-500" : "border-[#CDAA7D]"
+                        } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
+                        placeholder="••••••••"
+                        value={loginForm.password}
+                        onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
+                        onKeyDown={(e) => {
+                          console.log('🔍 Password field keydown:', e.key);
+                          if (e.key === "Enter") {
+                            console.log('🔍 Enter pressed on password field');
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleLogin(e);
+                            return false;
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#8B75AA]"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                      >
+                        {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                    {formErrors.password && <p className="text-red-500 text-xs mt-1">{formErrors.password}</p>}
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="remember-me"
+                      checked={loginForm.rememberMe}
+                      onChange={(e) => setLoginForm((prev) => ({ ...prev, rememberMe: e.target.checked }))}
+                      className="w-4 h-4 text-[#8B75AA] border-[#CDAA7D] rounded focus:ring-[#8B75AA]"
+                    />
+                    <label htmlFor="remember-me" className="ml-2 text-sm text-[#2C1A1D]">
+                      REMEMBER ME
+                    </label>
+                  </div>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                  <button
+                    onClick={(e) => {
+                      console.log('🔍 Login button clicked');
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleLogin(e);
+                      return false;
+                    }}
+                    type="button"
+                    className="w-full bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
+                  >
+                    LOGIN
+                  </button>
+
+                  <div className="text-center">
                     <button
+                      onClick={() => {
+                        setMode("forgot")
+                        setFormErrors({})
+                      }}
                       type="button"
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#8B75AA]"
-                      onClick={() => setShowLoginPassword(!showLoginPassword)}
+                      className="text-[#8B75AA] hover:underline text-sm"
                     >
-                      {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      FORGOT PASSWORD?
                     </button>
                   </div>
-                  {formErrors.password && <p className="text-red-500 text-xs mt-1">{formErrors.password}</p>}
-                </div>
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="remember-me"
-                    checked={loginForm.rememberMe}
-                    onChange={(e) => setLoginForm((prev) => ({ ...prev, rememberMe: e.target.checked }))}
-                    className="w-4 h-4 text-[#8B75AA] border-[#CDAA7D] rounded focus:ring-[#8B75AA]"
-                  />
-                  <label htmlFor="remember-me" className="ml-2 text-sm text-[#2C1A1D]">
-                    REMEMBER ME
-                  </label>
-                </div>
-                <button
-                  onClick={handleLogin}
-                  className="w-full bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
-                >
-                  LOGIN
-                </button>
-                <div className="text-center">
-                  <button
-                    onClick={() => {
-                      setMode("forgot")
-                      setFormErrors({})
-                    }}
-                    className="text-[#8B75AA] hover:underline text-sm"
-                  >
-                    FORGOT PASSWORD?
-                  </button>
-                </div>
-                <div className="text-center text-[#8B75AA] text-sm">OR LOGIN WITH</div>
-                <div className="my-4 w-full flex items-center justify-center">
-                  <GoogleAuthButton
-                    onLoginSuccess={async (data: any) => {
-                      try {
-                        // Store tokens and user info from backend response
-                        if (data?.access) localStorage.setItem('access_token', data.access);
-                        if (data?.refresh) localStorage.setItem('refresh_token', data.refresh);
-                        // If backend returned a user object, update context and redirect
-                        if (data?.user) {
-                          // Google login always acts like "remember me" - store refresh token in localStorage
-                          onClose();
-                          router.push('/');
-                        } else if (data?.access && typeof window !== 'undefined') {
-                          // If only tokens, force reload to sync context
-                          window.location.reload();
-                        } else {
+
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-[#CDAA7D]"></div>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="px-2 bg-[#F4F0E6] text-[#8B75AA]">OR LOGIN WITH</span>
+                    </div>
+                  </div>
+
+                  <div className="w-full flex items-center justify-center">
+                    <GoogleAuthButton
+                      onLoginSuccess={async (data: any) => {
+                        try {
+                          // Store tokens and user info from backend response
+                          if (data?.access) localStorage.setItem('access_token', data.access);
+                          if (data?.refresh) localStorage.setItem('refresh_token', data.refresh);
+                          // If backend returned a user object, update context and redirect
+                          if (data?.user) {
+                            // Google login always acts like "remember me" - store refresh token in localStorage
+                            onClose();
+                            router.push('/');
+                          } else if (data?.access && typeof window !== 'undefined') {
+                            // Instead of forcing a reload, close modal and let context handle it
+                            onClose();
+                          } else {
+                            setFormErrors({ auth: "Google login failed. Please try again." });
+                          }
+                        } catch (err: any) {
                           setFormErrors({ auth: "Google login failed. Please try again." });
                         }
-                      } catch (err: any) {
-                        setFormErrors({ auth: "Google login failed. Please try again." });
-                      }
-                    }}
-                  />
+                      }}
+                      onShowProfileCompletion={() => {
+                        onClose();
+                        setShowProfileCompletion(true);
+                      }}
+                    />
+                  </div>
                 </div>
-              </>
+              </form>
             )}
 
             {mode === "register" && (
-              <>
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-[#2C1A1D] mb-2">USERNAME</label>
                   <input
@@ -895,7 +620,11 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     value={registerForm.username}
                     onChange={(e) => setRegisterForm((prev) => ({ ...prev, username: e.target.value }))}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") handleRegister()
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleRegister(e);
+                      }
                     }}
                   />
                   {formErrors.username && <p className="text-red-500 text-xs mt-1">{formErrors.username}</p>}
@@ -912,7 +641,11 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     value={registerForm.email}
                     onChange={(e) => setRegisterForm((prev) => ({ ...prev, email: e.target.value }))}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") handleRegister()
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleRegister(e);
+                      }
                     }}
                   />
                   {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
@@ -930,7 +663,11 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                       value={registerForm.password}
                       onChange={(e) => setRegisterForm((prev) => ({ ...prev, password: e.target.value }))}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") handleRegister()
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleRegister(e);
+                        }
                       }}
                     />
                     <button
@@ -943,6 +680,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                   </div>
                   {formErrors.password && <p className="text-red-500 text-xs mt-1">{formErrors.password}</p>}
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-[#2C1A1D] mb-2">CONFIRM PASSWORD</label>
                   <div className="relative">
@@ -955,7 +693,11 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                       value={registerForm.confirmPassword}
                       onChange={(e) => setRegisterForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") handleRegister()
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleRegister(e);
+                        }
                       }}
                     />
                     <button
@@ -1064,7 +806,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                 </div>
 
                 <div className="flex items-start">
-                  <div className="flex items-center h-5">
+                  <div className="flex items-center h-5 mt-1">
                     <input
                       id="terms"
                       type="checkbox"
@@ -1075,25 +817,31 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                       onChange={(e) => setRegisterForm((prev) => ({ ...prev, agreeToTerms: e.target.checked }))}
                     />
                   </div>
-                  <label htmlFor="terms" className="ml-2 text-sm text-[#8B75AA]">
+                  <label htmlFor="terms" className="ml-2 text-sm text-[#8B75AA] leading-relaxed">
                     BY CLICKING SIGN UP, YOU ARE AGREEING TO THE <span className="underline">TERMS OF USE</span> AND{" "}
                     <span className="underline">PRIVACY POLICY</span>.
                   </label>
                 </div>
                 {formErrors.agreeToTerms && <p className="text-red-500 text-xs">{formErrors.agreeToTerms}</p>}
 
-                <button
-                  onClick={handleRegister}
-                  className="w-full bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
-                  type="button"
-                >
-                  REGISTER
-                </button>
-              </>
+                <div className="pt-2">
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleRegister(e);
+                    }}
+                    className="w-full bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
+                    type="button"
+                  >
+                    REGISTER
+                  </button>
+                </div>
+              </div>
             )}
 
             {mode === "forgot" && (
-              <>
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-[#2C1A1D] mb-2">EMAIL ADDRESS</label>
                   <input
@@ -1107,11 +855,16 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                   />
                   {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
                 </div>
-                <p className="text-sm text-[#8B75AA]">
-                  ENTER YOUR EMAIL ADDRESS AND WE'LL SEND YOU A LINK TO RESET YOUR PASSWORD.
-                </p>
-                <div className="flex gap-3">
+
+                <div className="bg-[#8B75AA]/10 border border-[#8B75AA]/20 rounded-lg p-4">
+                  <p className="text-sm text-[#8B75AA] leading-relaxed">
+                    ENTER YOUR EMAIL ADDRESS AND WE'LL SEND YOU A LINK TO RESET YOUR PASSWORD.
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-2">
                   <button
+                    type="button"
                     onClick={() => {
                       setMode("login")
                       setFormErrors({})
@@ -1121,17 +874,27 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     CANCEL
                   </button>
                   <button
+                    type="button"
                     onClick={handleForgotPassword}
                     className="flex-1 bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
                   >
                     SEND RESET LINK
                   </button>
                 </div>
-              </>
+              </div>
             )}
           </div>
         </div>
       </div>
+      
+      <ProfileCompletionModal
+        isOpen={showProfileCompletion}
+        onClose={() => setShowProfileCompletion(false)}
+        onComplete={() => {
+          setShowProfileCompletion(false);
+          window.location.reload();
+        }}
+      />
     </>
   )
 }
@@ -1139,4 +902,3 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
 // Add custom slow spin animation
 // In your global CSS (e.g., globals.css or tailwind.config), add:
 // .animate-spin-slow { animation: spin 1.5s linear infinite; }
->>>>>>> Profile/Settings

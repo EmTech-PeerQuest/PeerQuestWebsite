@@ -2,7 +2,12 @@ import React from "react";
 import { GoogleLogin } from "@react-oauth/google";
 import api from "../../lib/api";
 
-const GoogleAuthButton = ({ onLoginSuccess }) => (
+interface GoogleAuthButtonProps {
+  onLoginSuccess?: (data: any) => void;
+  onShowProfileCompletion?: () => void;
+}
+
+const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({ onLoginSuccess, onShowProfileCompletion }) => (
   <GoogleLogin
     onSuccess={async (credentialResponse) => {
       try {
@@ -17,10 +22,20 @@ const GoogleAuthButton = ({ onLoginSuccess }) => (
         localStorage.setItem("jwt", res.data.access);
         localStorage.setItem("refresh", res.data.refresh);
         localStorage.setItem("user", JSON.stringify(res.data.user));
-        // Call a callback or update context if provided
+        
+        // Check if user needs to complete profile (no birthday or gender)
+        const user = res.data.user;
+        const needsProfileCompletion = !user.birthday || !user.gender;
+        
+        // Call appropriate callback
         if (onLoginSuccess) onLoginSuccess(res.data);
-        // Full page reload after successful login
-        window.location.reload();
+        
+        if (needsProfileCompletion && onShowProfileCompletion) {
+          onShowProfileCompletion();
+        } else {
+          // Full page reload after successful login
+          window.location.reload();
+        }
       } catch (err) {
         console.error("Google login failed:", err);
         alert("Google login failed. Please try again.");

@@ -1,57 +1,3 @@
-<<<<<<< HEAD
-'use client';
-
-import { useContext, useState } from 'react';
-import { AuthContext } from '@/context/AuthContext';
-import axiosAuth from '@/lib/api/auth';
-
-export default function ProfilePage() {
-  const { user } = useContext(AuthContext);
-  const [avatar, setAvatar] = useState<File | null>(null);
-
-  const handleUpload = async () => {
-    if (!avatar) return;
-
-    const formData = new FormData();
-    formData.append('avatar', avatar);
-
-    await axiosAuth.put('/auth/user/', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-
-    alert('Avatar updated. Refresh to see changes.');
-  };
-
-  return (
-    <main className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Your Profile</h1>
-
-      {user ? (
-        <div>
-          <p>Username: {user.username}</p>
-          <p>XP: {user.xp}</p>
-          <p>Level: {user.level}</p>
-          {user.avatar && <img src={user.avatar} width={100} />}
-        </div>
-      ) : (
-        <p>Loading user info...</p>
-      )}
-
-      <div className="mt-4">
-        <input type="file" onChange={(e) => setAvatar(e.target.files?.[0] || null)} />
-        <button
-          onClick={handleUpload}
-          className="bg-green-600 text-white px-3 py-1 mt-2 rounded"
-        >
-          Upload Avatar
-        </button>
-      </div>
-    </main>
-  );
-}
-=======
 "use client";
 import { useAuth } from "@/context/AuthContext";
 import { useState, useEffect } from "react";
@@ -70,6 +16,22 @@ function Profile({ currentUser, quests, guilds, navigateToSection }: ProfileProp
   const [activeTab, setActiveTab] = useState<"overview" | "quests" | "guilds" | "achievements">("overview");
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+
+  // Handle URL hash for tab selection
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash.replace("#", "");
+      if (hash && tabs.some((tab) => tab.id === hash)) {
+        setActiveTab(hash as any);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.location.hash = activeTab;
+    }
+  }, [activeTab]);
 
   // Filter quests by status
   const activeQuests = quests.filter((q) => q.status === "in_progress" && q.poster?.id === currentUser.id);
@@ -115,8 +77,18 @@ function Profile({ currentUser, quests, guilds, navigateToSection }: ProfileProp
             </div>
             {/* User Info */}
             <div className="flex-1 text-center sm:text-left">
-              <h2 className="text-xl sm:text-2xl font-bold">{currentUser.username || "HeroicAdventurer"}</h2>
-              <p className="text-[#CDAA7D]">Novice Adventurer</p>
+              <div className="flex items-center justify-center sm:justify-start gap-4">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold">{currentUser.username || "HeroicAdventurer"}</h2>
+                  <p className="text-[#CDAA7D]">Novice Adventurer</p>
+                </div>
+                <button
+                  onClick={() => window.location.href = '/settings'}
+                  className="bg-[#CDAA7D] text-[#2C1A1D] px-4 py-2 rounded-lg hover:bg-[#B89A6D] transition-colors text-sm font-medium"
+                >
+                  Settings
+                </button>
+              </div>
               {/* Level Bar */}
               <div className="mt-4 max-w-md mx-auto sm:mx-0">
                 <div className="flex justify-between text-sm mb-1">
@@ -130,7 +102,7 @@ function Profile({ currentUser, quests, guilds, navigateToSection }: ProfileProp
             </div>
             {/* Join Date */}
             <div className="text-center sm:text-right">
-              <div className="text-sm">Member since</div>
+              <div className="text-sm">Member sinces</div>
               <div>
                 {(() => {
                   // Try multiple possible date field names from backend
@@ -421,4 +393,3 @@ export default function ProfilePage() {
   }
   return <Profile currentUser={user} quests={quests} guilds={guilds} />;
 }
->>>>>>> Profile/Settings

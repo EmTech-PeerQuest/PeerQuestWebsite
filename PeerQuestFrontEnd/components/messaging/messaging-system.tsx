@@ -3,11 +3,7 @@
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { Search, Send, MoreVertical, Info, Paperclip, X, Download, FileText, ImageIcon, ArrowLeft } from "lucide-react"
-<<<<<<< HEAD
-import axios from "@/lib/api/auth"
-=======
 import axios from "axios"
->>>>>>> Profile/Settings
 import type { User } from "@/lib/types"
 
 interface MessagingSystemProps {
