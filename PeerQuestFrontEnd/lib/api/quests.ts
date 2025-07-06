@@ -106,12 +106,17 @@ export const QuestAPI = {
     files?: File[];
   }): Promise<QuestSubmission> {
     const { questSlug, questParticipantId, applicationId, submissionText, submissionLink, files = [] } = params;
+    if (!questSlug || typeof questSlug !== 'string' || !questSlug.trim()) {
+      throw new Error('Quest slug is missing or invalid. Please contact support.');
+    }
     const formData = new FormData();
+    // Only send one of quest_participant, application, or quest_slug
     if (questParticipantId) {
       formData.append("quest_participant", String(questParticipantId));
-    }
-    if (applicationId) {
+    } else if (applicationId) {
       formData.append("application", String(applicationId));
+    } else {
+      formData.append("quest_slug", questSlug);
     }
     // Combine text and link if link is provided
     let text = submissionText;

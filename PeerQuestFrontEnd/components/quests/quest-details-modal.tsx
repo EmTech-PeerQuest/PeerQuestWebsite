@@ -453,6 +453,7 @@ export function QuestDetailsModal({
           }}
           questParticipantId={myParticipant.id}
           questTitle={quest.title}
+          questSlug={quest.slug}
         />
       )}
 

@@ -23,11 +23,12 @@ class UserBasicSerializer(serializers.ModelSerializer):
 class QuestParticipantSerializer(serializers.ModelSerializer):
     user = UserBasicSerializer(read_only=True)
     quest_title = serializers.CharField(source='quest.title', read_only=True)
+    quest_slug = serializers.CharField(source='quest.slug', read_only=True)  # <-- Add this line
 
     class Meta:
         model = QuestParticipant
         fields = [
-            'id', 'user', 'quest_title', 'status', 'joined_at', 
+            'id', 'user', 'quest_title', 'quest_slug', 'status', 'joined_at', 
             'completed_at', 'progress_notes'
         ]
 
@@ -35,13 +36,14 @@ class QuestParticipantSerializer(serializers.ModelSerializer):
 class QuestSubmissionSerializer(serializers.ModelSerializer):
     participant_username = serializers.CharField(source='quest_participant.user.username', read_only=True)
     quest_title = serializers.CharField(source='quest_participant.quest.title', read_only=True)
+    quest_slug = serializers.CharField(source='quest_participant.quest.slug', read_only=True)  # <-- Add this line
     reviewed_by_username = serializers.CharField(source='reviewed_by.username', read_only=True)
 
     class Meta:
         model = QuestSubmission
         fields = [
-            'id', 'participant_username', 'quest_title', 'submission_text',
-            'submission_files', 'status', 'feedback', 'submitted_at',
+            'id', 'participant_username', 'quest_title', 'quest_slug',
+            'submission_text', 'submission_files', 'status', 'feedback', 'submitted_at',
             'reviewed_at', 'reviewed_by_username'
         ]
 
@@ -429,8 +431,6 @@ class QuestParticipantCreateSerializer(serializers.ModelSerializer):
 
 class QuestSubmissionCreateSerializer(serializers.ModelSerializer):
     """For creating quest submissions"""
-    
-    # Accept files as a list of uploads
     files = serializers.ListField(
         child=serializers.FileField(max_length=100000, allow_empty_file=False, use_url=False),
         write_only=True,
@@ -444,41 +444,47 @@ class QuestSubmissionCreateSerializer(serializers.ModelSerializer):
         write_only=True,
         help_text="Approved application ID (if submitting as an approved applicant)"
     )
+    quest_slug = serializers.CharField(write_only=True, required=False, help_text="Quest slug (alternative to quest_participant)")
+    slug = serializers.CharField(write_only=True, required=False, help_text="Quest slug (frontend fallback)")
 
     class Meta:
         model = QuestSubmission
-        fields = ['quest_participant', 'application', 'submission_text', 'submission_files', 'files']
+        fields = ['quest_participant', 'application', 'quest_slug', 'slug', 'submission_text', 'submission_files', 'files']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Import here to avoid circular import
         from applications.models import Application
         self.fields['application'].queryset = Application.objects.filter(status='approved')
 
     def validate(self, attrs):
         request = self.context['request']
+        # Debug logging for incoming data
+        print("\n===== QuestSubmissionCreateSerializer.validate =====")
+        print(f"attrs: {attrs}")
+        if hasattr(request, 'data'):
+            print(f"request.data: {getattr(request, 'data', None)}")
+        else:
+            print("request.data not available")
+        print("===============================================\n")
         quest_participant = attrs.get('quest_participant')
         application = attrs.get('application')
-        if not quest_participant and not application:
-            raise serializers.ValidationError("You must provide either a quest_participant or an approved application.")
-        if quest_participant and application:
-            raise serializers.ValidationError("Provide only one of quest_participant or application, not both.")
+        quest_slug = attrs.get('quest_slug') or attrs.get('slug')
+        if not quest_participant and not application and not quest_slug:
+            raise serializers.ValidationError("You must provide either a quest_participant, an approved application, or a quest_slug.")
+        if (quest_participant and application) or (quest_participant and quest_slug) or (application and quest_slug):
+            raise serializers.ValidationError("Provide only one of quest_participant, application, or quest_slug.")
         if application:
-            # Check application is approved and belongs to this user
             if application.status != 'approved':
                 raise serializers.ValidationError("Application is not approved.")
             if application.applicant != request.user:
                 raise serializers.ValidationError("You can only submit for your own approved application.")
-            # Check quest is active
             if application.quest.status not in ['open', 'in-progress']:
                 raise serializers.ValidationError("Cannot submit to a quest that is not active.")
         return attrs
 
     def validate_quest_participant(self, value):
-        # Ensure the participant belongs to the current user
         if value.user != self.context['request'].user:
             raise serializers.ValidationError("You can only submit for your own quest participation.")
-        # Ensure the quest is active
         if value.quest.status not in ['open', 'in-progress']:
             raise serializers.ValidationError("Cannot submit to a quest that is not active.")
         return value
@@ -493,14 +499,22 @@ class QuestSubmissionCreateSerializer(serializers.ModelSerializer):
         return files
 
     def create(self, validated_data):
-        from .models import QuestParticipant
+        from .models import Quest, QuestParticipant
         application = validated_data.pop('application', None)
         quest_participant = validated_data.get('quest_participant')
+        quest_slug = validated_data.pop('quest_slug', None) or validated_data.pop('slug', None)
         request = self.context.get('request')
         if application and not quest_participant:
-            # Auto-create or get QuestParticipant for this user/quest
             quest = application.quest
             user = application.applicant
+            participant, created = QuestParticipant.objects.get_or_create(
+                quest=quest, user=user,
+                defaults={"status": "joined"}
+            )
+            validated_data['quest_participant'] = participant
+        elif quest_slug and not quest_participant:
+            quest = Quest.objects.get(slug=quest_slug)
+            user = request.user
             participant, created = QuestParticipant.objects.get_or_create(
                 quest=quest, user=user,
                 defaults={"status": "joined"}

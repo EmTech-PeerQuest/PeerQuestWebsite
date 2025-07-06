@@ -854,7 +854,7 @@ export function QuestManagement({
                                   <div className="flex gap-3 pt-4 border-t border-gray-100">
                                     <button
                                       onClick={() => handleApproveApplication(application.id, quest.id)}
-                                      disabled={processingApplications.has(application.id)}
+                                      disabled={processingApplications.has(application.id) || application.status !== 'pending'}
                                       className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                                     >
                                       {processingApplications.has(application.id) ? (
@@ -871,7 +871,7 @@ export function QuestManagement({
                                     </button>
                                     <button
                                       onClick={() => handleRejectApplication(application.id, quest.id)}
-                                      disabled={processingApplications.has(application.id)}
+                                      disabled={processingApplications.has(application.id) || application.status !== 'pending'}
                                       className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                                     >
                                       {processingApplications.has(application.id) ? (

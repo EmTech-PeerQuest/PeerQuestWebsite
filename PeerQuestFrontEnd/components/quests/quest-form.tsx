@@ -720,11 +720,19 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
+                maxLength={100}
                 className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400"
                 placeholder="Enter a compelling title for your quest"
                 required
               />
-              {errors.title && <p className="mt-2 text-sm text-red-600">{errors.title}</p>}
+              <div className="flex justify-between items-center mt-1">
+                <div>
+                  {errors.title && <span className="text-sm text-red-600">{errors.title}</span>}
+                </div>
+                <span className="text-xs text-gray-500">
+                  {formData.title.length}/100 characters
+                </span>
+              </div>
             </div>
 
             {/* Description */}
