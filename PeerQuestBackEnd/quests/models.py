@@ -440,3 +440,17 @@ class QuestSubmission(models.Model):
 
     def __str__(self):
         return f"Submission for {self.quest_participant.quest.title} by {self.quest_participant.user.username}"
+
+
+class QuestSubmissionAttempt(models.Model):
+    participant = models.ForeignKey(QuestParticipant, on_delete=models.CASCADE, related_name='submission_attempts')
+    quest = models.ForeignKey(Quest, on_delete=models.CASCADE, related_name='submission_attempts')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='submission_attempts')
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('participant', 'quest', 'user', 'timestamp')
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"Attempt by {self.user} for {self.quest} at {self.timestamp}"

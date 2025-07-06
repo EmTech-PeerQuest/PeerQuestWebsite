@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Quest, QuestCategory, QuestParticipant, QuestSubmission
+from .models import Quest, QuestCategory, QuestParticipant, QuestSubmission, QuestSubmissionAttempt
 
 User = get_user_model()
 
@@ -483,6 +483,13 @@ class QuestSubmissionCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("You can only submit for your own approved application.")
             if application.quest.status not in ['open', 'in-progress']:
                 raise serializers.ValidationError("Cannot submit to a quest that is not active.")
+        # Restrict to 5 submissions per participant per quest
+        participant = quest_participant or (application and application.participant)
+        if participant:
+            from .models import QuestSubmission
+            count = QuestSubmission.objects.filter(quest_participant=participant).count()
+            if count >= 5:
+                raise serializers.ValidationError("You have reached the maximum of 5 submissions for this quest.")
         return attrs
 
     def validate_quest_participant(self, value):
@@ -523,6 +530,8 @@ class QuestSubmissionCreateSerializer(serializers.ModelSerializer):
                 defaults={"status": "joined"}
             )
             validated_data['quest_participant'] = participant
+        else:
+            participant = validated_data['quest_participant']
         files = validated_data.pop('files', [])
         submission = super().create(validated_data)
         # Save uploaded files and store their URLs/paths in submission_files
@@ -539,6 +548,12 @@ class QuestSubmissionCreateSerializer(serializers.ModelSerializer):
             file_objs.append({"file": url, "name": f.name})
         submission.submission_files = file_objs
         submission.save()
+        # Record a submission attempt
+        QuestSubmissionAttempt.objects.create(
+            participant=participant,
+            quest=participant.quest,
+            user=participant.user
+        )
         return submission
 
 

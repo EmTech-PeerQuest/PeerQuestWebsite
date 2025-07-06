@@ -167,8 +167,7 @@ export const QuestAPI = {
         }
       }
       // Log full backend error for debugging
-      // eslint-disable-next-line no-console
-      console.error("Backend submission error:", errorObj);
+      // console.error("Backend submission error:", errorObj);
       // Throw the full error object for the modal to handle
       const error = new Error(errorMsg);
       (error as any).backend = errorObj;
@@ -510,6 +509,20 @@ export const QuestAPI = {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(`Failed to update quest status: ${error.detail || response.statusText}`);
+    }
+    return response.json();
+  },
+
+  /**
+   * Get the number of submissions used and the submission limit for a quest
+   */
+  async getSubmissionCount(questSlug: string): Promise<{ submissions_used: number, submission_limit: number }> {
+    const response = await fetchWithAuth(
+      `${API_BASE_URL}/quests/quests/${questSlug}/submission_count/`,
+      { method: 'GET' }
+    );
+    if (!response.ok) {
+      return { submissions_used: 0, submission_limit: 5 }; // fallback
     }
     return response.json();
   },

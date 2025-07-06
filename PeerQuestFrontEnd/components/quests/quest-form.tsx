@@ -5,6 +5,7 @@ import { X, Calendar, Star } from "lucide-react"
 import { Quest } from "@/lib/types"
 import { QuestAPI, QuestCategory, CreateQuestData, UpdateQuestData, DifficultyTier } from "@/lib/api/quests"
 import { TransactionAPI } from "@/lib/api/transactions"
+import { ConfirmationModal } from "../modals/confirmation-modal"
 
 interface QuestFormProps {
   quest?: Quest | null
@@ -613,594 +614,565 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     return quest.gold_reward || 0;
   };
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
+
+  // Only show the confirmation modal when needed, hiding the quest form modal
+  if (showConfirmModal) {
+    return (
+      <ConfirmationModal
+        isOpen={showConfirmModal}
+        onClose={() => {
+          setShowConfirmModal(false);
+          setPendingSubmitEvent(null);
+        }}
+        onConfirm={async () => {
+          setShowConfirmModal(false);
+          if (pendingSubmitEvent) {
+            await doSubmit(pendingSubmitEvent);
+            setPendingSubmitEvent(null);
+          }
+        }}
+        title={isEditing ? "Confirm Quest Update" : "Confirm Quest Posting"}
+        message={isEditing ?
+          "Are you sure you want to update this quest? You will not be able to edit the gold reward after participants join."
+          : "Are you sure you want to post this quest? You will not be able to edit the gold reward after participants join."}
+        goldAmount={goldBudget}
+        confirmText={isEditing ? "Yes, Update Quest" : "Yes, Post Quest"}
+        currentUser={currentUser}
+      />
+    );
+  }
+
+  // Submission limit notice for quest creators
+  const submissionLimitNotice = (
+    <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-3 mb-4 flex items-center gap-2">
+      <Star className="w-5 h-5 text-yellow-500" />
+      <span>Participants may submit up to 5 times per quest. Further submissions will be blocked to prevent review spam.</span>
+    </div>
+  );
 
   // Lock gold budget if quest is not a draft (i.e., if it's open, in-progress, or completed)
   const isGoldBudgetLocked = isEditing && quest && ["open", "in-progress", "in_progress", "completed"].includes(quest.status)
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      {/* Confirm Modal */}
-      {showConfirmModal && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-40">
-          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-0 overflow-hidden">
-            {/* Gradient Header */}
-            <div className="p-6 rounded-t-xl" style={{background: 'linear-gradient(to right, #8C74AC, #D1B58E)'}}>
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-white">Confirm Post Quest</h3>
-                <button
-                  className="text-white/90 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full"
-                  onClick={() => { setShowConfirmModal(false); setPendingSubmitEvent(null); }}
-                  aria-label="Close confirmation modal"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            {/* Modal Body */}
-            <div className="p-6 bg-amber-50">
-              <p className="mb-4 text-gray-800 text-base">Are you sure you want to post this quest with a gold budget of <span className="font-bold text-amber-700">{goldBudget} gold</span>?</p>
-              <div className="mb-4 bg-amber-100 border border-amber-200 rounded-lg p-4">
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-gray-700">Total budget:</span>
-                  <span className="font-medium text-amber-700">{goldBudget} gold</span>
-                </div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-gray-700">5% commission:</span>
-                  <span className="font-medium text-amber-700">{commission} gold</span>
-                </div>
-                <div className="flex justify-between text-xs border-t border-amber-300 pt-1">
-                  <span className="text-gray-700">Quest reward:</span>
-                  <span className="font-medium text-amber-700">{questReward} gold</span>
-                </div>
-              </div>
-              <div className="flex justify-end gap-2 pt-2 border-t border-amber-200">
-                <button
-                  className="px-4 py-2 rounded border-2 border-amber-300 text-amber-800 bg-white font-bold hover:bg-amber-100 transition-all"
-                  onClick={() => { setShowConfirmModal(false); setPendingSubmitEvent(null); }}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="px-4 py-2 rounded bg-gradient-to-r from-purple-500 to-amber-500 text-white font-bold shadow hover:from-purple-600 hover:to-amber-600 transition-all"
-                  onClick={() => {
-                    setShowConfirmModal(false);
-                    if (pendingSubmitEvent) doSubmit(pendingSubmitEvent);
-                  }}
-                >
-                  Confirm
-                </button>
-              </div>
-            </div>
-          </div>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      {/* Confirmation Modal */}
+      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl relative max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-[#8B75AA] to-[#FBBF24] rounded-t-2xl">
+          <h2 className="text-2xl font-bold text-white font-serif flex items-center gap-2 drop-shadow">
+            <Star className="w-7 h-7 text-white" />
+            {isEditing ? 'Edit Quest' : 'Create a New Quest'}
+          </h2>
+          <button onClick={onClose} className="p-2 rounded-full bg-white/20 hover:bg-white/40 text-white" title="Close">
+            <X size={24} />
+          </button>
         </div>
-      )}
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Gradient Header */}
-        <div className="p-6 rounded-t-xl" style={{background: 'linear-gradient(to right, #8C74AC, #D1B58E)'}}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-white">
-                {isEditing ? 'Edit Quest' : 'Post a New Quest'}
-              </h2>
-              <p className="text-white/90 mt-1">
-                Share your quest with the tavern community
-              </p>
-            </div>
-            <button
-              onClick={onClose}
-              className="text-white/90 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-        </div>
+        <form
+          className="flex-1 overflow-y-auto px-6 py-6 bg-amber-50"
+          onSubmit={handleSubmit}
+        >
+          {submissionLimitNotice}
 
-        <div className="p-6 bg-amber-50">
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* General Error */}
-            {errors.general && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-sm text-red-600">{errors.general}</p>
+          {/* General Error */}
+          {errors.general && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm text-red-600">{errors.general}</p>
+            </div>
+          )}
+
+          {/* Title */}
+          <div>
+            <label htmlFor="title" className="flex items-center text-sm font-semibold text-amber-800 mb-2">
+              <div className="w-6 h-6 bg-amber-600 rounded-full flex items-center justify-center mr-3">
+                <span className="text-white text-xs">📝</span>
+              </div>
+              QUEST TITLE
+            </label>
+            <input
+              type="text"
+              id="title"
+              name="title"
+              value={formData.title}
+              onChange={handleChange}
+              maxLength={100}
+              className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400"
+              placeholder="Enter a compelling title for your quest"
+              required
+            />
+            <div className="flex justify-between items-center mt-1">
+              <div>
+                {errors.title && <span className="text-sm text-red-600">{errors.title}</span>}
+              </div>
+              <span className="text-xs text-gray-500">
+                {formData.title.length}/100 characters
+              </span>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label htmlFor="description" className="flex items-center text-sm font-semibold text-amber-800 mb-2">
+              <div className="w-6 h-6 bg-amber-600 rounded-full flex items-center justify-center mr-3">
+                <span className="text-white text-xs">👥</span>
+              </div>
+              QUEST DESCRIPTION
+            </label>
+            <textarea
+              id="description"
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              rows={4}
+              maxLength={2000}
+              className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 resize-none"
+              placeholder="Describe your quest in detail. What needs to be done? What are the requirements?"
+              required
+            />
+            <div className="flex justify-between items-center mt-1">
+              <div>
+                {errors.description && <span className="text-sm text-red-600">{errors.description}</span>}
+              </div>
+              <span className="text-xs text-gray-500">
+                {formData.description.length}/2000 characters
+              </span>
+            </div>
+          </div>
+
+          {/* Category */}
+          <div>
+            <label htmlFor="category" className="flex items-center text-sm font-semibold text-amber-800 mb-2">
+              <div className="w-6 h-6 bg-amber-600 rounded-full flex items-center justify-center mr-3">
+                <span className="text-white text-xs">📁</span>
+              </div>
+              CATEGORY *
+              {categories.length === 0 && (
+                <span className="ml-2 text-xs text-amber-600">(Loading...)</span>
+              )}
+            </label>
+            <select
+              id="category"
+              name="category"
+              value={formData.category}
+              onChange={handleChange}
+              disabled={categories.length === 0}
+              className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 ${
+                categories.length === 0 
+                  ? 'bg-gray-100 border-gray-300 cursor-not-allowed' 
+                  : 'bg-white border-amber-300'
+              } ${
+                errors.category ? 'border-red-500' : ''
+              }`}
+              required
+            >
+              <option value="0">
+                {categories.length === 0 ? 'Loading categories...' : 'Select Category'}
+              </option>
+              {categories.map(category => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            {errors.category && (
+              <div className="mt-2 flex items-center">
+                <span className="text-red-500 text-sm mr-1">⚠️</span>
+                <p className="text-sm text-red-600">{errors.category}</p>
               </div>
             )}
+            {categories.length === 0 && !errors.category && (
+              <div className="mt-2 flex items-center">
+                <span className="text-amber-500 text-sm mr-1">ℹ️</span>
+                <p className="text-sm text-amber-600">
+                  Categories are being loaded. Please wait a moment.
+                </p>
+              </div>
+            )}
+          </div>
 
-            {/* Title */}
-            <div>
-              <label htmlFor="title" className="flex items-center text-sm font-semibold text-amber-800 mb-2">
-                <div className="w-6 h-6 bg-amber-600 rounded-full flex items-center justify-center mr-3">
-                  <span className="text-white text-xs">📝</span>
+          {/* Difficulty Level */}
+          <div>
+            <label className="block text-sm font-semibold text-amber-800 mb-2">
+              DIFFICULTY LEVEL
+            </label>
+            <div className="space-y-3">
+              <input
+                type="range"
+                min="0"
+                max="3"
+                value={['initiate', 'adventurer', 'champion', 'mythic'].indexOf(formData.difficulty)}
+                onChange={(e) => {
+                  const difficultyMap: DifficultyTier[] = ['initiate', 'adventurer', 'champion', 'mythic']
+                  const newDifficulty = difficultyMap[parseInt(e.target.value)]
+                  setFormData(prev => ({ ...prev, difficulty: newDifficulty }))
+                  setGoldBudget(getGoldBudgetRangeForDifficulty(newDifficulty).min)
+                }}
+                className="w-full h-2 rounded-lg appearance-none cursor-pointer slider"
+                style={{
+                  background: 'linear-gradient(to right, #22c55e, #3b82f6, #fbbf24, #a21caf)',
+                }}
+              />
+              <div className={`text-white px-4 py-3 rounded-lg ${
+                formData.difficulty === 'initiate' ? 'bg-gradient-to-r from-green-500 to-green-600' :
+                formData.difficulty === 'adventurer' ? 'bg-gradient-to-r from-blue-400 to-blue-600' :
+                formData.difficulty === 'champion' ? 'bg-gradient-to-r from-yellow-400 to-orange-500' :
+                'bg-gradient-to-r from-purple-500 to-pink-500'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold uppercase">
+                    {formData.difficulty === 'initiate' && 'Initiate'}
+                    {formData.difficulty === 'adventurer' && 'Adventurer'}
+                    {formData.difficulty === 'champion' && 'Champion'}
+                    {formData.difficulty === 'mythic' && 'Mythic'}
+                  </span>
+                  <span className="font-bold">
+                    {getXPReward(formData.difficulty)} XP
+                  </span>
                 </div>
-                QUEST TITLE
+                <p className="text-sm opacity-90 mt-1">
+                  {formData.difficulty === 'initiate' && 'Perfect for beginners'}
+                  {formData.difficulty === 'adventurer' && 'A true adventure'}
+                  {formData.difficulty === 'champion' && 'Expert level required'}
+                  {formData.difficulty === 'mythic' && 'Legendary challenge for the bravest!'}
+
+                  {' '}Reward
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Deadline and Gold Reward */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="due_date" className="flex items-center text-sm font-semibold text-amber-800 mb-2">
+                <div className="w-6 h-6 bg-amber-600 rounded-full flex items-center justify-center mr-3">
+                  <span className="text-white text-xs">⏰</span>
+                </div>
+                DEADLINE *
               </label>
               <input
-                type="text"
-                id="title"
-                name="title"
-                value={formData.title}
+                type="date"
+                id="due_date"
+                name="due_date"
+                value={formData.due_date}
                 onChange={handleChange}
-                maxLength={100}
-                className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400"
-                placeholder="Enter a compelling title for your quest"
-                required
-              />
-              <div className="flex justify-between items-center mt-1">
-                <div>
-                  {errors.title && <span className="text-sm text-red-600">{errors.title}</span>}
-                </div>
-                <span className="text-xs text-gray-500">
-                  {formData.title.length}/100 characters
-                </span>
-              </div>
-            </div>
-
-            {/* Description */}
-            <div>
-              <label htmlFor="description" className="flex items-center text-sm font-semibold text-amber-800 mb-2">
-                <div className="w-6 h-6 bg-amber-600 rounded-full flex items-center justify-center mr-3">
-                  <span className="text-white text-xs">👥</span>
-                </div>
-                QUEST DESCRIPTION
-              </label>
-              <textarea
-                id="description"
-                name="description"
-                value={formData.description}
-                onChange={handleChange}
-                rows={4}
-                maxLength={2000}
-                className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 resize-none"
-                placeholder="Describe your quest in detail. What needs to be done? What are the requirements?"
-                required
-              />
-              <div className="flex justify-between items-center mt-1">
-                <div>
-                  {errors.description && <span className="text-sm text-red-600">{errors.description}</span>}
-                </div>
-                <span className="text-xs text-gray-500">
-                  {formData.description.length}/2000 characters
-                </span>
-              </div>
-            </div>
-
-            {/* Category */}
-            <div>
-              <label htmlFor="category" className="flex items-center text-sm font-semibold text-amber-800 mb-2">
-                <div className="w-6 h-6 bg-amber-600 rounded-full flex items-center justify-center mr-3">
-                  <span className="text-white text-xs">📁</span>
-                </div>
-                CATEGORY *
-                {categories.length === 0 && (
-                  <span className="ml-2 text-xs text-amber-600">(Loading...)</span>
-                )}
-              </label>
-              <select
-                id="category"
-                name="category"
-                value={formData.category}
-                onChange={handleChange}
-                disabled={categories.length === 0}
-                className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent text-gray-900 ${
-                  categories.length === 0 
-                    ? 'bg-gray-100 border-gray-300 cursor-not-allowed' 
-                    : 'bg-white border-amber-300'
-                } ${
-                  errors.category ? 'border-red-500' : ''
+                min={new Date().toISOString().split('T')[0]} // Prevent past dates
+                max={new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]} // Max 1 year
+                className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 ${
+                  errors.due_date ? 'border-red-500' : 'border-amber-300'
                 }`}
+                placeholder="dd/mm/yyyy"
                 required
-              >
-                <option value="0">
-                  {categories.length === 0 ? 'Loading categories...' : 'Select Category'}
-                </option>
-                {categories.map(category => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-              {errors.category && (
+              />
+              {errors.due_date && (
                 <div className="mt-2 flex items-center">
                   <span className="text-red-500 text-sm mr-1">⚠️</span>
-                  <p className="text-sm text-red-600">{errors.category}</p>
+                  <p className="text-sm text-red-600">{errors.due_date}</p>
                 </div>
               )}
-              {categories.length === 0 && !errors.category && (
+              {!errors.due_date && (
                 <div className="mt-2 flex items-center">
-                  <span className="text-amber-500 text-sm mr-1">ℹ️</span>
+                  <span className="text-amber-500 text-sm mr-1">💡</span>
                   <p className="text-sm text-amber-600">
-                    Categories are being loaded. Please wait a moment.
+                    Please select a deadline for your quest
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Difficulty Level */}
-            <div>
-              <label className="block text-sm font-semibold text-amber-800 mb-2">
-                DIFFICULTY LEVEL
-              </label>
-              <div className="space-y-3">
-                <input
-                  type="range"
-                  min="0"
-                  max="3"
-                  value={['initiate', 'adventurer', 'champion', 'mythic'].indexOf(formData.difficulty)}
-                  onChange={(e) => {
-                    const difficultyMap: DifficultyTier[] = ['initiate', 'adventurer', 'champion', 'mythic']
-                    const newDifficulty = difficultyMap[parseInt(e.target.value)]
-                    setFormData(prev => ({ ...prev, difficulty: newDifficulty }))
-                    setGoldBudget(getGoldBudgetRangeForDifficulty(newDifficulty).min)
-                  }}
-                  className="w-full h-2 rounded-lg appearance-none cursor-pointer slider"
-                  style={{
-                    background: 'linear-gradient(to right, #22c55e, #3b82f6, #fbbf24, #a21caf)',
-                  }}
-                />
-                <div className={`text-white px-4 py-3 rounded-lg ${
-                  formData.difficulty === 'initiate' ? 'bg-gradient-to-r from-green-500 to-green-600' :
-                  formData.difficulty === 'adventurer' ? 'bg-gradient-to-r from-blue-400 to-blue-600' :
-                  formData.difficulty === 'champion' ? 'bg-gradient-to-r from-yellow-400 to-orange-500' :
-                  'bg-gradient-to-r from-purple-500 to-pink-500'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold uppercase">
-                      {formData.difficulty === 'initiate' && 'Initiate'}
-                      {formData.difficulty === 'adventurer' && 'Adventurer'}
-                      {formData.difficulty === 'champion' && 'Champion'}
-                      {formData.difficulty === 'mythic' && 'Mythic'}
-                    </span>
-                    <span className="font-bold">
-                      {getXPReward(formData.difficulty)} XP
-                    </span>
-                  </div>
-                  <p className="text-sm opacity-90 mt-1">
-                    {formData.difficulty === 'initiate' && 'Perfect for beginners'}
-                    {formData.difficulty === 'adventurer' && 'A true adventure'}
-                    {formData.difficulty === 'champion' && 'Expert level required'}
-                    {formData.difficulty === 'mythic' && 'Legendary challenge for the bravest!'}
-
-                    {' '}Reward
-                  </p>
+            <div className="">
+              <label htmlFor="budget" className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                <div className="w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center mr-3">
+                  <span className="text-white text-xs">🪙</span>
                 </div>
-              </div>
-            </div>
-
-            {/* Deadline and Gold Reward */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label htmlFor="due_date" className="flex items-center text-sm font-semibold text-amber-800 mb-2">
-                  <div className="w-6 h-6 bg-amber-600 rounded-full flex items-center justify-center mr-3">
-                    <span className="text-white text-xs">⏰</span>
-                  </div>
-                  DEADLINE *
-                </label>
-                <input
-                  type="date"
-                  id="due_date"
-                  name="due_date"
-                  value={formData.due_date}
-                  onChange={handleChange}
-                  min={new Date().toISOString().split('T')[0]} // Prevent past dates
-                  max={new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]} // Max 1 year
-                  className={`w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 ${
-                    errors.due_date ? 'border-red-500' : 'border-amber-300'
-                  }`}
-                  placeholder="dd/mm/yyyy"
-                  required
-                />
-                {errors.due_date && (
-                  <div className="mt-2 flex items-center">
-                    <span className="text-red-500 text-sm mr-1">⚠️</span>
-                    <p className="text-sm text-red-600">{errors.due_date}</p>
-                  </div>
+                GOLD BUDGET
+                {isEditing && quest && quest.status === 'in-progress' && (
+                  <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                    Locked (In Progress)
+                  </span>
                 )}
-                {!errors.due_date && (
-                  <div className="mt-2 flex items-center">
-                    <span className="text-amber-500 text-sm mr-1">💡</span>
-                    <p className="text-sm text-amber-600">
-                      Please select a deadline for your quest
+              </label>
+              <div className="flex flex-col">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  id="budget"
+                  name="budget"
+                  value={goldBudget === 0 ? '' : goldBudget}
+                  onChange={(e) => {
+                    if (isGoldBudgetLocked) return;
+                    // Allow any digit input, update state
+                    let value = e.target.value.replace(/[^0-9]/g, '');
+                    setGoldBudget(value === '' ? 0 : parseInt(value, 10));
+                  }}
+                  onBlur={() => {}}
+                  min={getGoldBudgetRangeForDifficulty(formData.difficulty).min}
+                  max={Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())}
+                  disabled={!!isGoldBudgetLocked}
+                  className={`w-full px-4 py-3 border-2 rounded-lg text-gray-800 ${
+                    isGoldBudgetLocked
+                      ? 'border-gray-300 bg-gray-100 cursor-not-allowed'
+                      : 'border-amber-200 bg-white'
+                  }`}
+                  placeholder={`Enter gold (${getGoldBudgetRangeForDifficulty(formData.difficulty).min}-${getGoldBudgetRangeForDifficulty(formData.difficulty).max})`}
+                />
+                {/* Show error if out of range */}
+                {goldBudget !== 0 && (goldBudget < getGoldBudgetRangeForDifficulty(formData.difficulty).min || goldBudget > Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())) && (
+                  <span className="text-xs text-red-500 mt-1">Gold budget must be between {getGoldBudgetRangeForDifficulty(formData.difficulty).min} and {Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())}.</span>
+                )}
+                {/* Recommended gold budget range label */}
+                <div className="text-xs text-amber-700 mt-1 mb-2">
+                  Recommended for {formData.difficulty.charAt(0).toUpperCase() + formData.difficulty.slice(1)}: {getGoldBudgetRangeForDifficulty(formData.difficulty).min} - {getGoldBudgetRangeForDifficulty(formData.difficulty).max} gold
+                </div>
+                {/* Preset Add Gold Buttons */}
+                <div className="flex gap-2 mb-2">
+                  {[10, 100, 1000].map((amount) => (
+                    <button
+                      key={amount}
+                      type="button"
+                      className="px-3 py-1 rounded bg-amber-200 text-amber-900 font-semibold text-xs hover:bg-amber-300 border border-amber-300 transition-all"
+                      disabled={isGoldBudgetLocked || goldBudget >= Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())}
+                      onClick={() => {
+                        if (!isGoldBudgetLocked) {
+                          const max = Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing());
+                          setGoldBudget((prev) => {
+                            const next = prev + amount;
+                            return next > max ? max : next;
+                          });
+                        }
+                      }}
+                    >
+                      +{amount} gold
+                    </button>
+                  ))}
+                </div>
+                <div className="flex justify-between mt-1">
+                  <div className="flex items-center space-x-2">
+                    <p className="text-xs text-gray-500">
+                      {isEditing && quest && quest.status === 'in-progress' 
+                        ? 'Gold budget locked - quest is in progress'
+                        : 'Total gold budget (5% commission will be deducted)'
+                      }
                     </p>
                   </div>
+                  <div className="flex items-center">
+                    <svg className="w-3 h-3 text-amber-600 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"></path>
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0 .99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd"></path>
+                    </svg>
+                    <p className="text-xs font-medium"><span className="text-gray-700 font-bold">Available:</span> <span className="text-amber-600 font-bold">{userGoldBalance} gold</span></p>
+                  </div>
+                </div>
+                {goldBudget > 0 && (
+                  <div className="mt-1 bg-amber-50 border border-amber-200 rounded p-2">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-gray-700">Total budget:</span>
+                      <span className="font-medium text-amber-700">{goldBudget} gold</span>
+                    </div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-gray-700">5% commission:</span>
+                      <span className="font-medium text-amber-700">{commission} gold</span>
+                    </div>
+                    <div className="flex justify-between text-xs border-t border-amber-300 pt-1">
+                      <span className="text-gray-700">Quest reward:</span>
+                      <span className="font-medium text-amber-700">{questReward} gold</span>
+                    </div>
+                    
+                    {/* Show different messages based on quest status */}
+                    {isEditing && quest && quest.status === 'in-progress' ? (
+                      <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-2">
+                        <div className="flex items-start text-xs">
+                          <svg className="w-4 h-4 text-blue-500 mt-0.5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                          <span className="text-blue-700">
+                            <strong>Quest is in progress:</strong> Gold reward cannot be modified as participants have already committed based on the current reward of <strong>{questReward} gold</strong>.
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-2">
+                        <div className="flex items-start text-xs">
+                          <svg className="w-4 h-4 text-blue-500 mt-0.5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-blue-700">
+                            A total of <strong>{goldBudget} gold</strong> will be deducted from your balance when the quest is created. Participants will receive <strong>{questReward} gold</strong> upon completion.
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {errors.goldBudget && (
+                  <p className="mt-1 text-xs text-red-500">{errors.goldBudget}</p>
                 )}
               </div>
+            </div>
+          </div>
 
-              <div className="">
-                <label htmlFor="budget" className="flex items-center text-sm font-semibold text-gray-700 mb-2">
-                  <div className="w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center mr-3">
-                    <span className="text-white text-xs">🪙</span>
-                  </div>
-                  GOLD BUDGET
-                  {isEditing && quest && quest.status === 'in-progress' && (
-                    <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                      Locked (In Progress)
-                    </span>
-                  )}
-                </label>
-                <div className="flex flex-col">
+          {/* Post As Section */}
+          <div>
+            <label className="block text-sm font-semibold text-amber-800 mb-2">
+              POST AS
+            </label>
+            <div className="space-y-3">
+              {/* Individual Option */}
+              <div className="border-2 border-amber-300 rounded-lg p-4 bg-white">
+                <label className="flex items-center cursor-pointer">
                   <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    id="budget"
-                    name="budget"
-                    value={goldBudget === 0 ? '' : goldBudget}
-                    onChange={(e) => {
-                      if (isGoldBudgetLocked) return;
-                      // Allow any digit input, update state
-                      let value = e.target.value.replace(/[^0-9]/g, '');
-                      setGoldBudget(value === '' ? 0 : parseInt(value, 10));
-                    }}
-                    onBlur={() => {}}
-                    min={getGoldBudgetRangeForDifficulty(formData.difficulty).min}
-                    max={Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())}
-                    disabled={!!isGoldBudgetLocked}
-                    className={`w-full px-4 py-3 border-2 rounded-lg text-gray-800 ${
-                      isGoldBudgetLocked
-                        ? 'border-gray-300 bg-gray-100 cursor-not-allowed'
-                        : 'border-amber-200 bg-white'
-                    }`}
-                    placeholder={`Enter gold (${getGoldBudgetRangeForDifficulty(formData.difficulty).min}-${getGoldBudgetRangeForDifficulty(formData.difficulty).max})`}
+                    type="radio"
+                    name="postAs"
+                    value="individual"
+                    checked={postAs === 'individual'}
+                    onChange={(e) => setPostAs(e.target.value as 'individual' | 'guild')}
+                    className="mr-3 text-amber-600"
                   />
-                  {/* Show error if out of range */}
-                  {goldBudget !== 0 && (goldBudget < getGoldBudgetRangeForDifficulty(formData.difficulty).min || goldBudget > Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())) && (
-                    <span className="text-xs text-red-500 mt-1">Gold budget must be between {getGoldBudgetRangeForDifficulty(formData.difficulty).min} and {Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())}.</span>
-                  )}
-                  {/* Recommended gold budget range label */}
-                  <div className="text-xs text-amber-700 mt-1 mb-2">
-                    Recommended for {formData.difficulty.charAt(0).toUpperCase() + formData.difficulty.slice(1)}: {getGoldBudgetRangeForDifficulty(formData.difficulty).min} - {getGoldBudgetRangeForDifficulty(formData.difficulty).max} gold
-                  </div>
-                  {/* Preset Add Gold Buttons */}
-                  <div className="flex gap-2 mb-2">
-                    {[10, 100, 1000].map((amount) => (
-                      <button
-                        key={amount}
-                        type="button"
-                        className="px-3 py-1 rounded bg-amber-200 text-amber-900 font-semibold text-xs hover:bg-amber-300 border border-amber-300 transition-all"
-                        disabled={isGoldBudgetLocked || goldBudget >= Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())}
-                        onClick={() => {
-                          if (!isGoldBudgetLocked) {
-                            const max = Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing());
-                            setGoldBudget((prev) => {
-                              const next = prev + amount;
-                              return next > max ? max : next;
-                            });
-                          }
-                        }}
-                      >
-                        +{amount} gold
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex justify-between mt-1">
-                    <div className="flex items-center space-x-2">
-                      <p className="text-xs text-gray-500">
-                        {isEditing && quest && quest.status === 'in-progress' 
-                          ? 'Gold budget locked - quest is in progress'
-                          : 'Total gold budget (5% commission will be deducted)'
-                        }
-                      </p>
+                  <div className="flex items-center">
+                    <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center mr-3">
+                      <span className="text-white font-bold">T</span>
                     </div>
-                    <div className="flex items-center">
-                      <svg className="w-3 h-3 text-amber-600 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"></path>
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0 .99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd"></path>
-                      </svg>
-                      <p className="text-xs font-medium"><span className="text-gray-700 font-bold">Available:</span> <span className="text-amber-600 font-bold">{userGoldBalance} gold</span></p>
+                    <div>
+                      <div className="font-semibold text-gray-900">Individual (TavernKeeper)</div>
+                      <div className="text-sm text-gray-600">Post as yourself</div>
                     </div>
                   </div>
-                  {goldBudget > 0 && (
-                    <div className="mt-1 bg-amber-50 border border-amber-200 rounded p-2">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-700">Total budget:</span>
-                        <span className="font-medium text-amber-700">{goldBudget} gold</span>
-                      </div>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-700">5% commission:</span>
-                        <span className="font-medium text-amber-700">{commission} gold</span>
-                      </div>
-                      <div className="flex justify-between text-xs border-t border-amber-300 pt-1">
-                        <span className="text-gray-700">Quest reward:</span>
-                        <span className="font-medium text-amber-700">{questReward} gold</span>
-                      </div>
-                      
-                      {/* Show different messages based on quest status */}
-                      {isEditing && quest && quest.status === 'in-progress' ? (
-                        <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-2">
-                          <div className="flex items-start text-xs">
-                            <svg className="w-4 h-4 text-blue-500 mt-0.5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
-                            </svg>
-                            <span className="text-blue-700">
-                              <strong>Quest is in progress:</strong> Gold reward cannot be modified as participants have already committed based on the current reward of <strong>{questReward} gold</strong>.
-                            </span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-2">
-                          <div className="flex items-start text-xs">
-                            <svg className="w-4 h-4 text-blue-500 mt-0.5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span className="text-blue-700">
-                              A total of <strong>{goldBudget} gold</strong> will be deducted from your balance when the quest is created. Participants will receive <strong>{questReward} gold</strong> upon completion.
-                            </span>
-                          </div>
-                        </div>
+                </label>
+              </div>
+
+              {/* Guild Representative Option */}
+              <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50 opacity-50 pointer-events-none select-none">
+                <label className="flex items-center cursor-not-allowed">
+                  <input
+                    type="radio"
+                    name="postAs"
+                    value="guild"
+                    checked={false}
+                    onChange={() => {}} // No-op function
+                    className="mr-3 opacity-50"
+                    disabled
+                    tabIndex={-1}
+                  />
+                  <div className="flex items-center opacity-75">
+                    <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center mr-3">
+                      <span className="text-white font-bold">G</span>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-gray-500">Guild Representative</div>
+                      <div className="text-sm text-gray-400">Post on behalf of a guild (Coming Soon)</div>
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Requirements */}
+          <div>
+            <label htmlFor="requirements" className="block text-sm font-semibold text-amber-800 mb-2">
+              Requirements (optional)
+            </label>
+            <textarea
+              id="requirements"
+              name="requirements"
+              value={formData.requirements}
+              onChange={handleChange}
+              rows={3}
+              className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 resize-none"
+              placeholder="What skills or prerequisites are needed?"
+            />
+            {errors.requirements && <p className="mt-2 text-sm text-red-600">{errors.requirements}</p>}
+          </div>
+
+          {/* Resources */}
+          <div>
+            <label htmlFor="resources" className="block text-sm font-semibold text-amber-800 mb-2">
+              Resources (optional)
+            </label>
+            <textarea
+              id="resources"
+              name="resources"
+              value={formData.resources}
+              onChange={handleChange}
+              rows={3}
+              className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 resize-none"
+              placeholder="Links, files, or other resources that will help participants"
+            />
+            {errors.resources && <p className="mt-2 text-sm text-red-600">{errors.resources}</p>}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-4 pt-6">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-6 py-3 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="flex-1 px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-amber-500 border border-transparent rounded-lg hover:from-purple-600 hover:to-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isLoading 
+                ? (isEditing ? 'Updating...' : 'Creating...') 
+                : (isEditing ? 'Update Quest' : 'Post Quest')
+              }
+            </button>
+          </div>
+
+          {/* Quest Edit Gold Difference Indicator */}
+          {isEditing && quest && (() => {
+            const oldGoldReward = quest.gold_reward || 0
+            const oldBudget = oldGoldReward > 0 ? Math.ceil(oldGoldReward / 0.95) : 0
+            const newBudget = goldBudget
+            
+            // Special handling for in-progress quests
+            if (quest.status === 'in-progress') {
+              return (
+                <div className="mt-2 border rounded p-2 bg-blue-50 border-blue-200">
+                  <div className="flex items-start text-xs">
+                    <svg className="w-4 h-4 text-blue-500 mt-0.5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <span className="text-blue-700">
+                      <strong>Gold Reward Locked:</strong> This quest is currently in progress. The gold reward is locked at <strong>{oldGoldReward} gold</strong> to ensure fairness for all participants who have already committed to this quest.
+                    </span>
+                  </div>
+                </div>
+              )
+            }
+            const goldDifference = newBudget - oldBudget;
+            if (goldDifference !== 0) {
+              return (
+                <div className={`mt-2 border rounded p-2 ${
+                  goldDifference > 0 
+                    ? 'bg-orange-50 border-orange-200' 
+                    : 'bg-green-50 border-green-200'
+                }`}>
+                  <div className="flex items-start text-xs">
+                    <svg className={`w-4 h-4 mt-0.5 mr-1 flex-shrink-0 ${
+                      goldDifference > 0 ? 'text-orange-500' : 'text-green-500'
+                    }`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className={goldDifference > 0 ? 'text-orange-700' : 'text-green-700'}>
+                      <strong>Quest Edit:</strong> {goldDifference > 0 ? 'Increasing' : 'Decreasing'} gold reward from <strong>{oldGoldReward} gold</strong> to <strong>{questReward} gold</strong>.
+                      {goldDifference > 0 && (
+                        <> An additional <strong>{goldDifference} gold</strong> will be deducted from your balance.</>
                       )}
-                    </div>
-                  )}
-                  {errors.goldBudget && (
-                    <p className="mt-1 text-xs text-red-500">{errors.goldBudget}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Post As Section */}
-            <div>
-              <label className="block text-sm font-semibold text-amber-800 mb-2">
-                POST AS
-              </label>
-              <div className="space-y-3">
-                {/* Individual Option */}
-                <div className="border-2 border-amber-300 rounded-lg p-4 bg-white">
-                  <label className="flex items-center cursor-pointer">
-                    <input
-                      type="radio"
-                      name="postAs"
-                      value="individual"
-                      checked={postAs === 'individual'}
-                      onChange={(e) => setPostAs(e.target.value as 'individual' | 'guild')}
-                      className="mr-3 text-amber-600"
-                    />
-                    <div className="flex items-center">
-                      <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center mr-3">
-                        <span className="text-white font-bold">T</span>
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-900">Individual (TavernKeeper)</div>
-                        <div className="text-sm text-gray-600">Post as yourself</div>
-                      </div>
-                    </div>
-                  </label>
-                </div>
-
-                {/* Guild Representative Option */}
-                <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50 opacity-50 pointer-events-none select-none">
-                  <label className="flex items-center cursor-not-allowed">
-                    <input
-                      type="radio"
-                      name="postAs"
-                      value="guild"
-                      checked={false}
-                      onChange={() => {}} // No-op function
-                      className="mr-3 opacity-50"
-                      disabled
-                      tabIndex={-1}
-                    />
-                    <div className="flex items-center opacity-75">
-                      <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center mr-3">
-                        <span className="text-white font-bold">G</span>
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-500">Guild Representative</div>
-                        <div className="text-sm text-gray-400">Post on behalf of a guild (Coming Soon)</div>
-                      </div>
-                    </div>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {/* Requirements */}
-            <div>
-              <label htmlFor="requirements" className="block text-sm font-semibold text-amber-800 mb-2">
-                Requirements (optional)
-              </label>
-              <textarea
-                id="requirements"
-                name="requirements"
-                value={formData.requirements}
-                onChange={handleChange}
-                rows={3}
-                className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 resize-none"
-                placeholder="What skills or prerequisites are needed?"
-              />
-              {errors.requirements && <p className="mt-2 text-sm text-red-600">{errors.requirements}</p>}
-            </div>
-
-            {/* Resources */}
-            <div>
-              <label htmlFor="resources" className="block text-sm font-semibold text-amber-800 mb-2">
-                Resources (optional)
-              </label>
-              <textarea
-                id="resources"
-                name="resources"
-                value={formData.resources}
-                onChange={handleChange}
-                rows={3}
-                className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 resize-none"
-                placeholder="Links, files, or other resources that will help participants"
-              />
-              {errors.resources && <p className="mt-2 text-sm text-red-600">{errors.resources}</p>}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-4 pt-6">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 px-6 py-3 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="flex-1 px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-amber-500 border border-transparent rounded-lg hover:from-purple-600 hover:to-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isLoading 
-                  ? (isEditing ? 'Updating...' : 'Creating...') 
-                  : (isEditing ? 'Update Quest' : 'Post Quest')
-                }
-              </button>
-            </div>
-
-            {/* Quest Edit Gold Difference Indicator */}
-            {isEditing && quest && (() => {
-              const oldGoldReward = quest.gold_reward || 0
-              const oldBudget = oldGoldReward > 0 ? Math.ceil(oldGoldReward / 0.95) : 0
-              const newBudget = goldBudget
-              const goldDifference = newBudget - oldBudget
-              
-              // Special handling for in-progress quests
-              if (quest.status === 'in-progress') {
-                return (
-                  <div className="mt-2 border rounded p-2 bg-blue-50 border-blue-200">
-                    <div className="flex items-start text-xs">
-                      <svg className="w-4 h-4 text-blue-500 mt-0.5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                      <span className="text-blue-700">
-                        <strong>Gold Reward Locked:</strong> This quest is currently in progress. The gold reward is locked at <strong>{oldGoldReward} gold</strong> to ensure fairness for all participants who have already committed to this quest.
-                      </span>
-                    </div>
+                      {goldDifference < 0 && (
+                        <> <strong>{Math.abs(goldDifference)} gold</strong> will be refunded to your balance.</>
+                      )}
+                    </span>
                   </div>
-                )
-              }
-              
-              if (goldDifference !== 0) {
-                return (
-                  <div className={`mt-2 border rounded p-2 ${
-                    goldDifference > 0 
-                      ? 'bg-orange-50 border-orange-200' 
-                      : 'bg-green-50 border-green-200'
-                  }`}>
-                    <div className="flex items-start text-xs">
-                      <svg className={`w-4 h-4 mt-0.5 mr-1 flex-shrink-0 ${
-                        goldDifference > 0 ? 'text-orange-500' : 'text-green-500'
-                      }`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span className={goldDifference > 0 ? 'text-orange-700' : 'text-green-700'}>
-                        <strong>Quest Edit:</strong> {goldDifference > 0 ? 'Increasing' : 'Decreasing'} gold reward from <strong>{oldGoldReward} gold</strong> to <strong>{questReward} gold</strong>.
-                        {goldDifference > 0 && (
-                          <> An additional <strong>{goldDifference} gold</strong> will be deducted from your balance.</>
-                        )}
-                        {goldDifference < 0 && (
-                          <> <strong>{Math.abs(goldDifference)} gold</strong> will be refunded to your balance.</>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                )
-              }
-              return null
-            })()}
-          </form>
-        </div>
+                </div>
+              )
+            }
+            return null
+          })()}
+        </form>
       </div>
     </div>
   )

@@ -1,5 +1,5 @@
-import React, { useState, useRef, useCallback } from "react";
-import { X, UploadCloud, FileText, Image as ImageIcon, CheckCircle2, Clock } from "lucide-react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
+import { X, UploadCloud, FileText, Image as ImageIcon, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 
 
 
@@ -39,12 +39,45 @@ export const QuestSubmitWorkModal: React.FC<QuestSubmitWorkModalProps> = ({
   const [errors, setErrors] = useState<string>("");
   const [dragActive, setDragActive] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [submissionsUsed, setSubmissionsUsed] = useState<number | null>(null);
+  const [submissionLimit, setSubmissionLimit] = useState<number>(5);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const infoRef = useRef<HTMLDivElement | null>(null);
 
   // Optionally, you can pass submission status/timestamps as props
   // If provided, show them below the file upload
 
   if (!isOpen) return null;
+
+  // Helper to fetch submission count
+  const fetchSubmissionCount = useCallback(() => {
+    if (questSlug) {
+      import("@/lib/api/quests").then(({ QuestAPI }) => {
+        QuestAPI.getSubmissionCount(questSlug).then(res => {
+          setSubmissionsUsed(res.submissions_used);
+          setSubmissionLimit(res.submission_limit);
+        });
+      });
+    }
+  }, [questSlug]);
+
+  useEffect(() => {
+    if (isOpen && questSlug) {
+      fetchSubmissionCount();
+    }
+  }, [isOpen, questSlug, fetchSubmissionCount]);
+
+  // Submission limit notice
+  const submissionLimitNotice = (
+    <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-3 mb-4 flex items-center gap-2">
+      <AlertCircle className="w-5 h-5 text-yellow-500" />
+      <span>
+        {submissionsUsed !== null
+          ? `You have used ${submissionsUsed} out of ${submissionLimit} submissions for this quest.`
+          : `You may submit up to ${submissionLimit} times for this quest. Further submissions will be blocked.`}
+      </span>
+    </div>
+  );
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -126,6 +159,8 @@ export const QuestSubmitWorkModal: React.FC<QuestSubmitWorkModalProps> = ({
       setLink("");
       setFiles([]);
       setSuccess(true);
+      await new Promise((resolve) => setTimeout(resolve, 500)); // Wait for backend to update
+      fetchSubmissionCount(); // <-- Refresh attempts after submit
       onSuccess();
       // Optionally, auto-close after a short delay
       setTimeout(() => {
@@ -133,26 +168,68 @@ export const QuestSubmitWorkModal: React.FC<QuestSubmitWorkModalProps> = ({
         onClose();
       }, 1800);
     } catch (err: any) {
-      // Show full backend error if available, fallback to user-friendly message
-      let msg = err?.message || "An error occurred. Please try again.";
+      // Improved error handling
+      let msg = "An error occurred. Please try again.";
+      let isSubmissionCap = false;
       if (err?.backend) {
-        if (typeof err.backend.detail === "string" && err.backend.detail.trim().length > 0) {
-          msg = err.backend.detail;
+        // DRF ValidationError: { field: ["error"] }
+        if (typeof err.backend === "object" && !Array.isArray(err.backend)) {
+          // If 'detail' is present, show it
+          if (typeof err.backend.detail === "string" && err.backend.detail.trim().length > 0) {
+            msg = err.backend.detail;
+          } else {
+            // Show first field error if available
+            const firstKey = Object.keys(err.backend)[0];
+            let fieldMsg = "";
+            if (firstKey && Array.isArray(err.backend[firstKey]) && err.backend[firstKey].length > 0) {
+              fieldMsg = `${err.backend[firstKey][0]}`;
+            } else if (typeof err.backend[firstKey] === "string") {
+              fieldMsg = `${err.backend[firstKey]}`;
+            } else {
+              fieldMsg = JSON.stringify(err.backend);
+            }
+            // Custom friendly message for submission cap
+            if (
+              (firstKey === "non_field_errors" || firstKey === "detail") &&
+              typeof fieldMsg === "string" &&
+              fieldMsg.toLowerCase().includes("maximum of 5 submissions")
+            ) {
+              msg = "You have already submitted the maximum (5) times for this quest. No further submissions are allowed.";
+              isSubmissionCap = true;
+            } else {
+              msg = `${firstKey}: ${fieldMsg}`;
+            }
+          }
         } else if (typeof err.backend === "string" && err.backend.trim().length > 0) {
-          msg = err.backend;
-        } else if (Object.keys(err.backend).length > 0) {
-          msg = JSON.stringify(err.backend);
+          // Custom friendly message for submission cap (string case)
+          if (err.backend.toLowerCase().includes("maximum of 5 submissions")) {
+            msg = "You have already submitted the maximum (5) times for this quest. No further submissions are allowed.";
+            isSubmissionCap = true;
+          } else {
+            msg = err.backend;
+          }
         } else {
           msg = "Submission failed. The server did not return details. Please check your files and try again, or contact support if the problem persists.";
         }
+      } else if (err?.message && typeof err.message === "string") {
+        msg = err.message;
+      } else if (err instanceof TypeError && err.message.includes('NetworkError')) {
+        msg = "Network error: Please check your internet connection and try again.";
       }
       setErrors(msg);
       if (showToast) {
         showToast(msg, 'error');
       }
-      // For debugging
-      // eslint-disable-next-line no-console
-      console.error("Quest submission error:", err);
+      // Remove console error for user-facing errors
+      // if (process.env.NODE_ENV === 'development') {
+      //   // For debugging only, uncomment if needed
+      //   // console.error("Quest submission error:", err);
+      // }
+      // Scroll to info/error area if submission cap
+      if (isSubmissionCap && infoRef.current) {
+        infoRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        infoRef.current.focus({ preventScroll: true });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -173,29 +250,33 @@ export const QuestSubmitWorkModal: React.FC<QuestSubmitWorkModalProps> = ({
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-6 bg-amber-50">
-          {/* Submission status */}
-          {(isLoading || errors || success) && (
-            <div
-              className={`rounded-lg p-3 mb-2 flex items-center gap-2
-                ${errors ? "bg-red-50 border border-red-200 text-red-600" : ""}
-                ${isLoading ? "bg-blue-50 border border-blue-200 text-blue-700" : ""}
-                ${success ? "bg-green-50 border border-green-200 text-green-700" : ""}
-              `}
-            >
-              {isLoading ? (
-                <Clock className="w-5 h-5" />
-              ) : errors ? (
-                <X className="w-5 h-5" />
-              ) : (
-                <CheckCircle2 className="w-5 h-5 text-green-600" />
-              )}
-              {isLoading
-                ? "Submitting..."
-                : errors
-                ? errors
-                : "Submission successful!"}
-            </div>
-          )}
+          <div ref={infoRef} tabIndex={-1} aria-live="assertive">
+            {submissionLimitNotice}
+            {/* Submission status */}
+            {(isLoading || errors || success) && (
+              <div
+                className={`rounded-lg p-3 mb-2 flex items-center gap-2
+                  ${errors ? "bg-red-50 border border-red-200 text-red-600" : ""}
+                  ${isLoading ? "bg-blue-50 border border-blue-200 text-blue-700" : ""}
+                  ${success ? "bg-green-50 border border-green-200 text-green-700" : ""}
+                `}
+                style={errors && errors.includes('maximum (5) times') ? { fontWeight: 'bold', fontSize: '1.1em', outline: '2px solid #f59e42', outlineOffset: '2px' } : {}}
+              >
+                {isLoading ? (
+                  <Clock className="w-5 h-5" />
+                ) : errors ? (
+                  <X className="w-5 h-5" />
+                ) : (
+                  <CheckCircle2 className="w-5 h-5 text-green-600" />
+                )}
+                {isLoading
+                  ? "Submitting..."
+                  : errors
+                  ? errors
+                  : "Submission successful!"}
+              </div>
+            )}
+          </div>
           <div>
             <label className="block text-sm font-semibold text-amber-800 mb-2">Text Description</label>
             <textarea

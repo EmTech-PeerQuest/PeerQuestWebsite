@@ -1,11 +1,11 @@
 from rest_framework import generics, viewsets, filters, permissions, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, SAFE_METHODS, BasePermission
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Q, Count, F
-from .models import Quest, QuestCategory, QuestParticipant, QuestSubmission
+from .models import Quest, QuestCategory, QuestParticipant, QuestSubmission, QuestSubmissionAttempt
 from .serializers import (
     QuestListSerializer, QuestDetailSerializer, QuestCreateUpdateSerializer,
     QuestCategorySerializer, QuestParticipantSerializer, QuestParticipantCreateSerializer,
@@ -575,7 +575,7 @@ class QuestSubmissionFileDownloadView(generics.GenericAPIView):
         except (IndexError, AttributeError, KeyError, TypeError):
             raise Http404('File not found in submission.')
         # Restrict allowed file types
-        allowed_exts = {'.jpg', '.jpeg', '.png', '.pdf', '.doc', '.txt'}
+        allowed_exts = {'.jpg', '.jpeg', '.png', '.pdf', '.doc', '.docx', '.txt'}
         _, ext = os.path.splitext(orig_name.lower())
         if ext not in allowed_exts:
             return Response({'error': f'File type {ext} is not allowed.'}, status=403)
@@ -597,7 +597,21 @@ class QuestSubmissionFileDownloadView(generics.GenericAPIView):
         # Always set Content-Type to application/pdf for PDFs
         if ext == '.pdf':
             content_type = 'application/pdf'
+        elif ext == '.doc' or ext == '.docx':
+            content_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' if ext == '.docx' else 'application/msword'
         response = FileResponse(open(abs_path, 'rb'), as_attachment=True, filename=orig_name)
         if content_type:
             response['Content-Type'] = content_type
         return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_submission_count(request, quest_slug):
+    user = request.user
+    participant = QuestParticipant.objects.filter(user=user, quest__slug=quest_slug).first()
+    if not participant:
+        return Response({'submissions_used': 0, 'submission_limit': 5})
+    # Use the new model for counting attempts
+    attempt_count = QuestSubmissionAttempt.objects.filter(participant=participant, quest__slug=quest_slug, user=user).count()
+    return Response({'submissions_used': attempt_count, 'submission_limit': 5})

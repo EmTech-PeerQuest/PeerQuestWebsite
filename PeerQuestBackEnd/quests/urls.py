@@ -27,6 +27,7 @@ from .views import (
     # Admin Views
     AdminQuestListView,
     AdminQuestDetailView,
+    get_submission_count,
 )
 
 app_name = 'quests'
@@ -52,6 +53,7 @@ urlpatterns = [
     
     # Quest Submissions
     path('quests/<slug:quest_slug>/submissions/', QuestSubmissionListCreateView.as_view(), name='quest-submissions'),
+    path('quests/<slug:quest_slug>/submission_count/', get_submission_count, name='submission-count'),
     path('submissions/<int:pk>/', QuestSubmissionDetailView.as_view(), name='submission-detail'),
     path('submissions/<int:pk>/review/', QuestSubmissionReviewView.as_view(), name='submission-review'),
     path('submissions/<int:submission_id>/download/<int:file_index>/', QuestSubmissionFileDownloadView.as_view(), name='submission-file-download'),

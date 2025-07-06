@@ -1086,20 +1086,26 @@ export function QuestManagement({
         );
         if (!myParticipant && !myApprovedApp) return null;
         return (
-          <QuestSubmitWorkModal
-            isOpen={showSubmitWorkModal}
-            onClose={() => setShowSubmitWorkModal(false)}
-            onSuccess={async () => {
-              setShowSubmitWorkModal(false);
-              showToast("Work submitted successfully!", "success");
-              await loadMyQuests();
-            }}
-            questParticipantId={myParticipant ? myParticipant.id : undefined}
-            applicationId={myApprovedApp ? myApprovedApp.id : undefined}
-            questTitle={submitWorkQuest.title}
-            questSlug={submitWorkQuest.slug}
-            showToast={showToast}
-          />
+          <div>
+            <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-3 mb-4 flex items-center gap-2 justify-center">
+              <AlertCircle className="w-5 h-5 text-yellow-500" />
+              <span>Participants may submit up to 5 times per quest. Further submissions will be blocked.</span>
+            </div>
+            <QuestSubmitWorkModal
+              isOpen={showSubmitWorkModal}
+              onClose={() => setShowSubmitWorkModal(false)}
+              onSuccess={async () => {
+                setShowSubmitWorkModal(false);
+                showToast("Work submitted successfully!", "success");
+                await loadMyQuests();
+              }}
+              questParticipantId={myParticipant ? myParticipant.id : undefined}
+              applicationId={myApprovedApp ? myApprovedApp.id : undefined}
+              questTitle={submitWorkQuest.title}
+              questSlug={submitWorkQuest.slug}
+              showToast={showToast}
+            />
+          </div>
         );
       })()}
                       </div>

@@ -170,38 +170,37 @@ export async function fetchWithAuth(input: RequestInfo, init: RequestInit = {}, 
     
     // Log response errors for debugging
     if (!response.ok) {
-      console.error(`API Error: ${response.status} ${response.statusText}`);
-      
+      // Commented out to suppress console errors for user-facing API errors
+      // console.error(`API Error: ${response.status} ${response.statusText}`);
       // Clone the response so we can read the body without affecting later processing
       const responseClone = response.clone();
       const contentType = response.headers.get('content-type');
-      
       if (contentType && !contentType.includes('application/json')) {
-        console.error(`Received non-JSON response: ${contentType}`);
+        // console.error(`Received non-JSON response: ${contentType}`);
         const text = await responseClone.text();
-        console.error(`Response text preview: ${text.substring(0, 200)}...`);
+        // console.error(`Response text preview: ${text.substring(0, 200)}...`);
       } else {
         try {
           const errorJson = await responseClone.json();
-          console.error(`Response error JSON:`, errorJson);
+          // console.error(`Response error JSON:`, errorJson);
         } catch (e) {
-          console.error(`Could not parse error response as JSON`);
+          // console.error(`Could not parse error response as JSON`);
           const text = await responseClone.text();
-          console.error(`Response text preview: ${text.substring(0, 200)}...`);
+          // console.error(`Response text preview: ${text.substring(0, 200)}...`);
         }
       }
     }
     
     return response;
   } catch (error) {
-    console.error('❌ Fetch error details:', {
-      error: error,
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : 'No stack trace',
-      input: typeof input === 'string' ? input : 'Request object',
-      init: init
-    });
-    
+    // Remove console.error for user-facing errors
+    // console.error('❌ Fetch error details:', {
+    //   error: error,
+    //   message: error instanceof Error ? error.message : 'Unknown error',
+    //   stack: error instanceof Error ? error.stack : 'No stack trace',
+    //   input: typeof input === 'string' ? input : 'Request object',
+    //   init: init
+    // });
     // Re-throw with more context
     if (error instanceof Error) {
       throw new Error(`Fetch failed for ${typeof input === 'string' ? input : 'request'}: ${error.message}`);

@@ -87,6 +87,11 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({ isOpen, o
             <X size={24} />
           </button>
         </div>
+        {/* Submission limit notice below header, above mark as completed */}
+        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-3 mb-2 flex items-center gap-2 mx-6 mt-4">
+          <AlertCircle className="w-5 h-5 text-yellow-500" />
+          <span>Participants may submit up to 5 times per quest. Further submissions will be blocked.</span>
+        </div>
         {/* Mark as Completed button (if allowed) */}
         {canMarkComplete && (
           <div className="flex justify-end px-6 pt-4">

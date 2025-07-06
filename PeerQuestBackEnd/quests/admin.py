@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django import forms
-from .models import Quest, QuestCategory, QuestParticipant, QuestSubmission
+from .models import Quest, QuestCategory, QuestParticipant, QuestSubmission, QuestSubmissionAttempt
 
 
 class QuestAdminForm(forms.ModelForm):
@@ -381,3 +381,14 @@ class QuestSubmissionAdmin(admin.ModelAdmin):
             obj.quest_participant.quest.gold_reward
         )
     quest_details.short_description = 'Quest Details'
+
+
+@admin.register(QuestSubmissionAttempt)
+class QuestSubmissionAttemptAdmin(admin.ModelAdmin):
+    list_display = [
+        'id', 'participant', 'quest', 'user', 'timestamp'
+    ]
+    search_fields = ['participant__user__username', 'quest__title', 'user__username']
+    list_filter = ['quest', 'user', 'timestamp']
+    readonly_fields = ['timestamp']
+    list_per_page = 50
