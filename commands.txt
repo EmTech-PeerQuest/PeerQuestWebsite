@@ -12,6 +12,9 @@ py manage.py runserver
 
 ############ Frontend ############
 npm install --legacy-peer-deps
+npm install qrcode --legacy-peer-deps
+npm install @types/qrcode --legacy-peer-deps
+
 npm run dev
 
 ////////// Copy-Paste Friendly Setup Commands //////////

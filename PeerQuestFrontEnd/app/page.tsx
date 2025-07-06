@@ -31,7 +31,7 @@ export default function Home() {
   const [guildApplications, setGuildApplications] = useState<GuildApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshQuestBoard, setRefreshQuestBoard] = useState(0); // Trigger refresh without remounting
-  const { user: currentUser, login, register, logout } = useAuth();
+  const { user: currentUser, login, register, logout, refreshUser } = useAuth();
   const { refreshBalance } = useGoldBalance(); // Add gold balance refresh capability
   const { toast } = useToast();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -270,6 +270,7 @@ export default function Home() {
             isOpen={showGoldSystemModal}
             onClose={() => setShowGoldSystemModal(false)}
             currentUser={currentUser}
+            refreshUser={refreshUser}
             showToast={(message: string, type?: string) => {
               toast({ title: message, variant: type === "error" ? "destructive" : "default" });
             }}

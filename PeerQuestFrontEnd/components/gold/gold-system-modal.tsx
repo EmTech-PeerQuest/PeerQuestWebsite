@@ -1,10 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { X, Coins, TrendingUp, TrendingDown, ArrowUpDown } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { X, Coins, TrendingUp, TrendingDown, ArrowUpDown, CreditCard, Smartphone, CheckCircle, Clock, ArrowLeft } from "lucide-react"
 import type { User } from "@/lib/types"
 import { KYCVerificationModal } from '@/components/auth/kyc-verification-modal'
 import { TransactionAPI, Transaction } from '@/lib/api/transactions'
+import QRCode from 'qrcode'
+import { generateGCashQRData, getGCashConfig, validateGCashQR } from '@/lib/payment/gcash-qr'
 
 interface GoldSystemModalProps {
   isOpen: boolean
@@ -12,9 +14,37 @@ interface GoldSystemModalProps {
   currentUser?: User | null
   setCurrentUser?: (user: User | ((prev: User) => User)) => void
   showToast?: (message: string, type?: string) => void
+  refreshUser?: () => Promise<void>
 }
 
-export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, showToast }: GoldSystemModalProps) {
+// Payment Configuration - Easy to modify
+const PAYMENT_CONFIG = {
+  // Set to true to use your static GCash QR code image
+  // Set to false to generate dynamic QR codes with auto-fill amounts (recommended)
+  USE_STATIC_GCASH_QR: true, // ✅ MULTIPLE STATIC QRs: Different QR for each package!
+  
+  // Path to your GCash QR code image (relative to public folder)
+  GCASH_QR_IMAGE_PATH: '/images/payment/gcash-qr.png', // Default fallback
+  
+  // Multiple QR code paths for different packages
+  GCASH_QR_PATHS: {
+    70: '/images/payment/gcash-qr-70.png',     // 500 Gold - ₱70
+    350: '/images/payment/gcash-qr-350.png',   // 2800 Gold - ₱350
+    700: '/images/payment/gcash-qr-700.png',   // 6500 Gold - ₱700
+    1500: '/images/payment/gcash-qr-1500.png', // 14500 Gold - ₱1500
+  },
+  
+  // Your GCash details (displayed in payment instructions)
+  GCASH_MERCHANT_NAME: 'PeerQuest (MA*K JO*N WA**E Y.)', // Your actual GCash name from the QR
+  GCASH_MERCHANT_NUMBER: '09951723524', // Your actual GCash number (visible as 099****524)
+  GCASH_INSTRUCTIONS_ENABLED: true,
+  
+  // QR Code generation settings
+  QR_CODE_SIZE: 256,
+  QR_CODE_MARGIN: 2,
+}
+
+export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, showToast, refreshUser }: GoldSystemModalProps) {
   const [activeTab, setActiveTab] = useState<"purchase" | "transactions" | "goldex">("transactions")
   const [transactionFilter, setTransactionFilter] = useState("all")
   const [dateRange, setDateRange] = useState("all-time")
@@ -24,6 +54,15 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Purchase flow state
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false)
+  const [selectedPackage, setSelectedPackage] = useState<{amount: number, price: number, bonus?: string} | null>(null)
+  const [purchaseStep, setPurchaseStep] = useState<"confirm" | "payment" | "processing" | "success">("confirm")
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("")
+  const [paymentReference, setPaymentReference] = useState<string>("")
+  const [paymentTimeout, setPaymentTimeout] = useState<number>(300) // 5 minutes
+  const canvasRef = useRef<HTMLCanvasElement>(null)
 
   // Fetch user transactions from backend
   // SECURITY: This endpoint ensures all users (adventurers, quest makers, moderators, admins)
@@ -42,6 +81,11 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
       const transactionsData = await TransactionAPI.getMyTransactions()
       setTransactions(transactionsData || [])
       setError(null) // Clear any previous errors on success
+      
+      // Refresh user balance to ensure it's in sync
+      if (refreshUser) {
+        await refreshUser()
+      }
     } catch (error) {
       console.error('Error fetching transactions:', error)
       
@@ -125,18 +169,141 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
     { amount: 14500, price: 1500, usd: 26.79, rate: 0.103, popular: mostPopularAmount === 14500, bonus: "+2500 bonus coins" },
   ]
 
-  const purchaseGold = (amount: number, price: number) => {
-    if (setCurrentUser && currentUser) {
-      setCurrentUser((prev) => ({
-        ...prev,
-        gold: (prev.gold || 0) + amount,
-      }))
-      if (showToast) {
-        showToast(`Successfully purchased ${amount} gold for ₱${price}!`)
+  const purchaseGold = (amount: number, price: number, bonus?: string) => {
+    // Open the purchase modal instead of direct purchase
+    setSelectedPackage({ amount, price, bonus })
+    setShowPurchaseModal(true)
+    setPurchaseStep("confirm")
+  }
+
+  const generatePaymentReference = () => {
+    const timestamp = Date.now()
+    const random = Math.random().toString(36).substring(2, 8).toUpperCase()
+    return `PQ${timestamp}${random}`
+  }
+
+  const generateQRCode = async (paymentData: any) => {
+    try {
+      // Use configuration to determine QR code type
+      if (PAYMENT_CONFIG.USE_STATIC_GCASH_QR) {
+        // Use specific QR code based on package price
+        const price = paymentData.price as keyof typeof PAYMENT_CONFIG.GCASH_QR_PATHS
+        const qrPath = PAYMENT_CONFIG.GCASH_QR_PATHS[price] || PAYMENT_CONFIG.GCASH_QR_IMAGE_PATH
+        setQrCodeDataUrl(qrPath)
+        console.log(`Using static QR for ₱${paymentData.price}: ${qrPath}`)
+        return
       }
-      // Refresh transactions to show the new purchase
-      fetchTransactions()
+      
+      // Generate GCash QR Ph compliant QR code with auto-fill amount
+      const gcashConfig = getGCashConfig()
+      
+      const gcashQRData = generateGCashQRData({
+        merchantName: PAYMENT_CONFIG.GCASH_MERCHANT_NAME,
+        merchantAccount: PAYMENT_CONFIG.GCASH_MERCHANT_NUMBER,
+        amount: paymentData.price,
+        currency: 'PHP',
+        description: `${paymentData.amount} Gold Coins${paymentData.bonus ? ` (${paymentData.bonus})` : ''}`
+      }, {
+        merchantName: PAYMENT_CONFIG.GCASH_MERCHANT_NAME,
+        merchantAccount: PAYMENT_CONFIG.GCASH_MERCHANT_NUMBER
+      })
+
+      // Validate the generated QR data
+      if (!validateGCashQR(gcashQRData)) {
+        throw new Error('Generated QR code does not conform to GCash QR Ph standard')
+      }
+
+      // Generate QR code image from the GCash QR Ph data
+      const dataUrl = await QRCode.toDataURL(gcashQRData, {
+        width: PAYMENT_CONFIG.QR_CODE_SIZE,
+        margin: PAYMENT_CONFIG.QR_CODE_MARGIN,
+        color: {
+          dark: '#2C1A1D',
+          light: '#FFFFFF'
+        },
+        errorCorrectionLevel: 'M'
+      })
+      
+      setQrCodeDataUrl(dataUrl)
+      
+      // Log for debugging (remove in production)
+      console.log('Generated GCash QR Ph data:', gcashQRData)
+      console.log('Payment amount will auto-fill when scanned:', paymentData.price, 'PHP')
+      
+    } catch (error) {
+      console.error('Error generating GCash QR code:', error)
+      if (showToast) {
+        showToast('Failed to generate payment QR code', 'error')
+      }
+      
+      // Fallback to static QR if dynamic generation fails
+      if (!PAYMENT_CONFIG.USE_STATIC_GCASH_QR) {
+        console.log('Falling back to static QR code')
+        setQrCodeDataUrl(PAYMENT_CONFIG.GCASH_QR_IMAGE_PATH)
+      }
     }
+  }
+
+  const handlePurchaseConfirm = async () => {
+    if (!selectedPackage) return
+
+    setPurchaseStep("payment")
+
+    // Generate QR code
+    await generateQRCode({
+      amount: selectedPackage.amount,
+      price: selectedPackage.price,
+      bonus: selectedPackage.bonus
+    })
+
+    // Start payment timeout countdown
+    setPaymentTimeout(300) // 5 minutes
+    const interval = setInterval(() => {
+      setPaymentTimeout(prev => {
+        if (prev <= 1) {
+          clearInterval(interval)
+          handlePurchaseCancel()
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+  }
+
+  const handlePurchaseCancel = () => {
+    setShowPurchaseModal(false)
+    setSelectedPackage(null)
+    setPurchaseStep("confirm")
+    setQrCodeDataUrl("")
+    setPaymentTimeout(300)
+  }
+
+  const simulatePaymentSuccess = () => {
+    setPurchaseStep("processing")
+    
+    // Simulate payment processing
+    setTimeout(() => {
+      if (setCurrentUser && currentUser && selectedPackage) {
+        setCurrentUser((prev) => ({
+          ...prev,
+          gold: (prev.gold || 0) + selectedPackage.amount,
+        }))
+        
+        setPurchaseStep("success")
+        
+        if (showToast) {
+          showToast(`Successfully purchased ${selectedPackage.amount} gold for ₱${selectedPackage.price}!`)
+        }
+        
+        // Refresh transactions to show the new purchase
+        fetchTransactions()
+        
+        // Auto-close after success
+        setTimeout(() => {
+          handlePurchaseCancel()
+        }, 3000)
+      }
+    }, 2000)
   }
 
   const handleCashOut = () => {
@@ -446,7 +613,7 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                     className={`relative border-2 rounded-lg p-6 cursor-pointer transition-all hover:shadow-lg ${
                       pkg.popular ? "border-[#8B75AA] bg-[#8B75AA]/5" : "border-[#CDAA7D] hover:border-[#8B75AA]/50"
                     }`}
-                    onClick={() => purchaseGold(pkg.amount, pkg.price)}
+                    onClick={() => purchaseGold(pkg.amount, pkg.price, pkg.bonus)}
                   >
                     {pkg.popular && (
                       <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-[#8B75AA] text-white px-3 py-1 rounded-full text-xs font-bold">
@@ -796,20 +963,254 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
             </div>
           )}
         </div>
-        {/* KYC Verification Modal */}
-        {showKYCModal && (
-          <KYCVerificationModal
-            isOpen={showKYCModal}
-            onClose={() => setShowKYCModal(false)}
-            onComplete={() => {
-              processCashout(Number.parseInt(cashoutAmount))
-              setShowKYCModal(false)
-            }}
-            cashoutAmount={Number.parseInt(cashoutAmount || "0")}
-            showToast={showToast}
-          />
-        )}
-      </div>
+      </div>      {/* Purchase Confirmation Modal */}
+      {showPurchaseModal && selectedPackage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-[#F4F0E6] rounded-lg w-full max-w-lg max-h-[90vh] flex flex-col">
+            {/* Confirm Purchase Step */}
+            {purchaseStep === "confirm" && (
+              <>
+                {/* Header - Fixed */}
+                <div className="bg-[#CDAA7D] px-6 py-4 flex justify-between items-center flex-shrink-0">
+                  <h2 className="text-xl font-bold text-[#2C1A1D]">Confirm Purchase</h2>
+                  <button onClick={handlePurchaseCancel} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Content - Scrollable */}
+                <div className="flex-1 overflow-y-auto p-6 max-h-[calc(90vh-140px)]">
+                  <div className="bg-white border border-[#CDAA7D] rounded-lg p-6 mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <Coins size={32} className="text-[#CDAA7D]" />
+                        <div>
+                          <div className="text-xl font-bold text-[#2C1A1D]">
+                            {selectedPackage.amount.toLocaleString()} Gold
+                          </div>
+                          {selectedPackage.bonus && (
+                            <div className="text-sm text-[#8B75AA]">{selectedPackage.bonus}</div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-[#2C1A1D]">₱{selectedPackage.price.toLocaleString()}</div>
+                        <div className="text-sm text-[#8B75AA]">
+                          ₱{(selectedPackage.price / selectedPackage.amount).toFixed(2)} per gold
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Smartphone size={16} className="text-blue-600" />
+                      <span className="font-semibold text-blue-800">Payment Method</span>
+                    </div>
+                    <div className="text-sm text-blue-700">
+                      You'll be redirected to GCash for secure payment processing. 
+                      Scan the QR code with your GCash app to complete the transaction.
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handlePurchaseCancel}
+                      className="flex-1 py-3 px-4 border border-[#CDAA7D] text-[#2C1A1D] rounded hover:bg-[#CDAA7D]/10 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handlePurchaseConfirm}
+                      className="flex-1 py-3 px-4 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699] transition-colors font-semibold"
+                    >
+                      Continue to Payment
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Payment Step */}
+            {purchaseStep === "payment" && (
+              <>
+                {/* Header - Fixed */}
+                <div className="bg-[#CDAA7D] px-6 py-4 flex justify-between items-center flex-shrink-0">
+                  <div className="flex items-center gap-3">
+                    <button onClick={handlePurchaseCancel} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
+                      <ArrowLeft size={20} />
+                    </button>
+                    <h2 className="text-xl font-bold text-[#2C1A1D]">GCash Payment</h2>
+                  </div>
+                  <button onClick={handlePurchaseCancel} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {/* Content - Scrollable */}
+                <div className="flex-1 overflow-y-auto p-6 max-h-[calc(90vh-140px)]">
+                  <div className="text-center mb-6">
+                    <div className="bg-white border border-[#CDAA7D] rounded-lg p-6 mb-4">
+                      <div className="mb-4">
+                        <div className="text-lg font-bold text-[#2C1A1D] mb-1">
+                          {selectedPackage.amount.toLocaleString()} Gold Coins
+                        </div>
+                        <div className="text-2xl font-bold text-[#8B75AA]">₱{selectedPackage.price.toLocaleString()}</div>
+                        {selectedPackage.bonus && (
+                          <div className="text-sm text-green-600 mt-1">{selectedPackage.bonus}</div>
+                        )}
+                      </div>
+                      
+                      {qrCodeDataUrl && (
+                        <div className="mb-4">
+                          <img src={qrCodeDataUrl} alt="GCash Payment QR Code" className="mx-auto mb-2 max-w-64 h-auto" />
+                          <div className="text-sm text-[#8B75AA] mb-2">Scan with GCash app to pay</div>
+                          {!PAYMENT_CONFIG.USE_STATIC_GCASH_QR ? (
+                            <div className="bg-green-50 border border-green-200 rounded p-3 text-sm">
+                              <div className="font-semibold text-green-800 mb-1">✨ Smart QR Code - Auto-Fill Amount!</div>
+                              <div className="text-green-700">
+                                1. Open your <strong>GCash app</strong><br />
+                                2. Tap <strong>"Pay QR"</strong><br />
+                                3. Scan the QR code above<br />
+                                4. <strong>Amount (₱{selectedPackage.price.toLocaleString()}) will auto-fill!</strong><br />
+                                5. Complete the payment<br />
+                                7. Screenshot your receipt for confirmation
+                              </div>
+                              <div className="mt-2 text-xs text-green-600">
+                                💡 This QR code follows GCash QR Ph standard for automatic amount entry.
+                              </div>
+                            </div>
+                          ) : qrCodeDataUrl.includes('/images/payment/') && PAYMENT_CONFIG.GCASH_INSTRUCTIONS_ENABLED && (
+                            <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm">
+                              <div className="font-semibold text-blue-800 mb-1">📱 GCash Payment Instructions:</div>
+                              <div className="text-blue-700">
+                                1. Open your <strong>GCash app</strong><br />
+                                2. Tap <strong>"Pay QR"</strong><br />
+                                3. Scan the QR code above<br />
+                                4. Complete the payment<br />
+                                5. Screenshot your receipt for confirmation
+                              </div>
+                              <div className="mt-2 text-xs text-blue-600">
+                                💡 Payment will be verified manually. Please keep your receipt.
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      <div className="text-xs text-[#8B75AA] bg-gray-50 p-3 rounded border-l-4 border-blue-400">
+                        <div className="grid grid-cols-1 gap-2">
+                          <div>
+                            <div className="font-semibold mb-1">💳 Merchant:</div>
+                            <div>{PAYMENT_CONFIG.GCASH_MERCHANT_NAME}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Clock size={16} className="text-yellow-600" />
+                        <span className="font-semibold text-yellow-800">Time Remaining</span>
+                      </div>
+                      <div className="text-lg font-bold text-yellow-800">
+                        {Math.floor(paymentTimeout / 60)}:{(paymentTimeout % 60).toString().padStart(2, '0')}
+                      </div>
+                      <div className="text-sm text-yellow-600">Payment expires automatically</div>
+                    </div>
+
+                    <button
+                      onClick={simulatePaymentSuccess}
+                      className="w-full py-3 px-4 bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-semibold mb-2"
+                    >
+                      I've Completed Payment (Demo)
+                    </button>
+                    
+                    <button
+                      onClick={handlePurchaseCancel}
+                      className="w-full py-2 px-4 border border-[#CDAA7D] text-[#2C1A1D] rounded hover:bg-[#CDAA7D]/10 transition-colors"
+                    >
+                      Cancel Payment
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Processing Step */}
+            {purchaseStep === "processing" && (
+              <>
+                {/* Header - Fixed */}
+                <div className="bg-[#CDAA7D] px-6 py-4 flex justify-between items-center flex-shrink-0">
+                  <h2 className="text-xl font-bold text-[#2C1A1D]">Processing Payment</h2>
+                  <div></div> {/* Empty div for spacing */}
+                </div>
+
+                {/* Content - Scrollable */}
+                <div className="p-6 text-center overflow-y-auto max-h-[calc(90vh-80px)]">
+                  <div className="mb-6">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[#8B75AA] mx-auto mb-4"></div>
+                    <h3 className="text-lg font-semibold text-[#2C1A1D] mb-2">Confirming Payment</h3>
+                    <p className="text-[#8B75AA]">Please wait while we confirm your payment...</p>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Success Step */}
+            {purchaseStep === "success" && (
+              <>
+                {/* Header - Fixed */}
+                <div className="bg-[#CDAA7D] px-6 py-4 flex justify-between items-center flex-shrink-0">
+                  <h2 className="text-xl font-bold text-[#2C1A1D]">Payment Successful!</h2>
+                  <div></div> {/* Empty div for spacing */}
+                </div>
+
+                {/* Content - Scrollable */}
+                <div className="p-6 text-center overflow-y-auto max-h-[calc(90vh-80px)]">
+                  <div className="mb-6">
+                    <CheckCircle size={64} className="text-green-600 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-[#2C1A1D] mb-2">Transaction Complete</h3>
+                    <p className="text-[#8B75AA] mb-4">
+                      Your {selectedPackage.amount.toLocaleString()} gold coins have been added to your account.
+                    </p>
+                    {selectedPackage.bonus && (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                        <div className="text-sm font-semibold text-green-800">Bonus Applied!</div>
+                        <div className="text-xs text-green-600">{selectedPackage.bonus}</div>
+                      </div>
+                    )}
+                    <div className="text-sm text-[#8B75AA]">
+                      Transaction will appear in your history shortly.
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={handlePurchaseCancel}
+                    className="w-full py-3 px-4 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699] transition-colors font-semibold"
+                  >
+                    Continue
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* KYC Verification Modal */}
+      {showKYCModal && (
+        <KYCVerificationModal
+          isOpen={showKYCModal}
+          onClose={() => setShowKYCModal(false)}
+          onComplete={() => {
+            processCashout(Number.parseInt(cashoutAmount))
+            setShowKYCModal(false)
+          }}
+          cashoutAmount={Number.parseInt(cashoutAmount || "0")}
+          showToast={showToast}
+        />
+      )}
     </div>
   )
 }

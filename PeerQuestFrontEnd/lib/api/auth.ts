@@ -96,14 +96,23 @@ export const fetchUser = async (token: string) => {
     });
     return response;
   } catch (error: any) {
+    console.log('🔍 fetchUser error details:', {
+      status: error?.response?.status,
+      detail: error?.response?.data?.detail,
+      message: error?.message
+    });
+    
     // Detect JWT errors
     const detail = error?.response?.data?.detail || "";
     if (
       error?.response?.status === 401 &&
       (detail.includes("token not valid") || detail.includes("token has expired") || detail.includes("credentials were not provided"))
     ) {
+      console.warn('🚨 Token validation failed:', detail);
       throw new TokenInvalidError(detail || "Token not valid");
     }
+    
+    console.error('🚨 Non-token error in fetchUser:', error);
     throw error;
   }
 };
