@@ -148,5 +148,31 @@ celerybeat-schedule
 celerybeat.pid
 gunicorn.pid
 *.pem
+
+# === DATABASE FILES ===
+# SQLite
+*.sqlite3
+*.sqlite
+*.db
+*.database
+db.sqlite3
+database.sqlite3
+
+# PostgreSQL
+*.pgdump
+*.pgsql
+*.sql
+
+# MySQL
+*.mysql
+*.my
+
+# General database files
+*.mdb
+*.accdb
+*.fdb
+*.odb
+*.dbf
+
 # Ignore SQLite database file
 PeerQuestBackEnd/db.sqlite3
