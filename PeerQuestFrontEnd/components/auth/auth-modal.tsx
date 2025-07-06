@@ -65,25 +65,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   const { refreshUser } = useAuth();
   const router = useRouter();
 
-  // Debug modal state
-  useEffect(() => {
-    console.log('🔍 Modal state changed:', { isOpen, mode, authLoading, hasErrors: Object.keys(formErrors).length > 0 });
-  }, [isOpen, mode, authLoading, formErrors]);
-
-  // Prevent modal from closing if there are form errors (safety net)
-  useEffect(() => {
-    if (!isOpen && Object.keys(formErrors).length > 0) {
-      console.warn('🔍 Modal was closed but there are form errors! This should not happen.');
-    }
-  }, [isOpen, formErrors]);
-
-  // Prevent modal from closing while processing login
-  useEffect(() => {
-    if (!isOpen && isProcessingLogin) {
-      console.warn('🔍 Modal was closed while processing login! This should not happen.');
-    }
-  }, [isOpen, isProcessingLogin]);
-
   if (!isOpen) return null
 
   const validateEmail = (email: string) => {
@@ -153,27 +134,19 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   const validateRegisterForm = () => {
     const errors: Record<string, string> = {}
 
-    console.log('🔍 Validating register form:', registerForm);
-
     // Enhanced username validation matching backend logic
     if (!registerForm.username || registerForm.username.trim() === "") {
       errors.username = "Username is required"
-      console.log('🔍 Username validation failed:', registerForm.username);
     } else if (registerForm.username.trim().length < 3) {
       errors.username = "Username must be at least 3 characters"
-      console.log('🔍 Username too short:', registerForm.username.trim().length);
     } else if (registerForm.username.trim().length > 20) {
       errors.username = "Username must be 20 characters or less"
-      console.log('🔍 Username too long:', registerForm.username.trim().length);
     } else if (!/^[a-zA-Z0-9_]+$/.test(registerForm.username.trim())) {
       errors.username = "Username can only contain letters, numbers, and underscores"
-      console.log('🔍 Username contains invalid characters:', registerForm.username.trim());
     } else if (/^\d+$/.test(registerForm.username.trim())) {
       errors.username = "Username cannot be numbers only"
-      console.log('🔍 Username is numbers only:', registerForm.username.trim());
     } else if (/(.)\1{3,}/.test(registerForm.username.trim())) {
       errors.username = "Username cannot have more than 3 repeating characters in a row"
-      console.log('🔍 Username has too many repeating characters:', registerForm.username.trim());
     } else {
       // Enhanced leet speak and inappropriate content detection
       const leetMap: { [key: string]: string } = {
@@ -222,7 +195,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
       for (const word of inappropriateWords) {
         if (normalized.includes(word)) {
           errors.username = "Username contains inappropriate content or leet speak substitutions"
-          console.log('🔍 Username contains inappropriate word:', word, 'in normalized:', normalized);
           break;
         }
       }
@@ -237,7 +209,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
       for (const word of reservedWords) {
         if (normalized.includes(word)) {
           errors.username = `Username cannot contain reserved word '${word}'`
-          console.log('🔍 Username contains reserved word:', word, 'in normalized:', normalized);
           break;
         }
       }
@@ -246,53 +217,35 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
     // Email validation
     if (!registerForm.email || registerForm.email.trim() === "") {
       errors.email = "Email is required"
-      console.log('🔍 Email validation failed:', registerForm.email);
     } else if (!validateEmail(registerForm.email.trim())) {
       errors.email = "Please enter a valid email"
-      console.log('🔍 Email format invalid:', registerForm.email.trim());
     }
 
     // Password validation - simplified since we have real-time feedback
     if (!registerForm.password) {
       errors.password = "Password is required"
-      console.log('🔍 Password validation failed:', registerForm.password);
     } else if (!validatePassword(registerForm.password)) {
       errors.password = "Please create a stronger password"
-      console.log('🔍 Password validation failed:', registerForm.password.length);
     }
 
     // Confirm password validation
     if (!registerForm.confirmPassword) {
       errors.confirmPassword = "Please confirm your password"
-      console.log('🔍 Confirm password validation failed:', registerForm.confirmPassword);
     } else if (registerForm.password !== registerForm.confirmPassword) {
       errors.confirmPassword = "Passwords do not match"
-      console.log('🔍 Passwords do not match:', { password: registerForm.password, confirmPassword: registerForm.confirmPassword });
     }
 
     // Birthday validation
-    console.log('🔍 Birthday validation:', {
-      month: registerForm.birthday.month,
-      day: registerForm.birthday.day,
-      year: registerForm.birthday.year,
-      monthEmpty: !registerForm.birthday.month,
-      dayEmpty: !registerForm.birthday.day,
-      yearEmpty: !registerForm.birthday.year
-    });
-
     if (!registerForm.birthday.month || !registerForm.birthday.day || !registerForm.birthday.year ||
         registerForm.birthday.month === "" || registerForm.birthday.day === "" || registerForm.birthday.year === "") {
       errors.birthday = "Please enter your full birthday"
-      console.log('🔍 Birthday validation failed');
     }
 
     // Terms validation
     if (!registerForm.agreeToTerms) {
       errors.agreeToTerms = "You must agree to the Terms of Use"
-      console.log('🔍 Terms agreement validation failed:', registerForm.agreeToTerms);
     }
 
-    console.log('🔍 Final validation errors:', errors);
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -311,15 +264,12 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   }
 
   const handleLogin = async (e?: React.FormEvent) => {
-    console.log('🔍 handleLogin called', { event: e?.type, mode });
     if (e) {
       e.preventDefault();
       e.stopPropagation();
-      console.log('🔍 preventDefault and stopPropagation called');
     }
     if (validateLoginForm()) {
-      console.log('🔍 Form validation passed, starting login');
-      setIsProcessingLogin(true) // Mark that we're processing login
+      setIsProcessingLogin(true)
       setAuthLoading(true)
       setFormErrors({})
       
@@ -328,18 +278,15 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
       try {
         // Set a timeout to prevent hanging
         timeoutId = setTimeout(() => {
-          console.log('🔍 Login timeout - resetting loading state');
           setAuthLoading(false);
           setFormErrors({ auth: "Login request timed out. Please try again." });
         }, 15000); // 15 second timeout
         
-        console.log('🔍 Calling onLogin with credentials');
         await onLogin({
           username: loginForm.username,
           password: loginForm.password,
           rememberMe: loginForm.rememberMe,
         })
-        console.log('🔍 Login successful');
         
         // Clear timeout if successful
         if (timeoutId) {
@@ -347,8 +294,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           timeoutId = null;
         }
         
-        // Only close modal or redirect if login was successful
-        // The parent component should handle this via the onLogin callback
       } catch (err: any) {
         // Clear timeout if error occurred
         if (timeoutId) {
@@ -356,7 +301,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           timeoutId = null;
         }
         
-        console.log('🔍 Login failed with error:', err);
         // Prevent any default actions that might cause a refresh
         if (e) {
           e.preventDefault();
@@ -370,7 +314,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           setFormErrors({ 
             auth: "Please verify your email address before logging in. Check your inbox for the verification email, or enter your email below to resend it."
           });
-          setShowResendVerification(true); // Show resend verification component
+          setShowResendVerification(true);
         } else {
           // Extract error message from different possible error structures
           let errorMessage = "Login failed. Please try again.";
@@ -384,9 +328,8 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           }
           
           setFormErrors({ auth: errorMessage });
-          setShowResendVerification(false); // Hide resend verification component
+          setShowResendVerification(false);
         }
-        console.log('🔍 Error set in modal, should stay open');
         
         // Explicitly prevent any page refresh or redirect
         return false;
@@ -395,23 +338,18 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
         if (timeoutId) {
           clearTimeout(timeoutId);
         }
-        setIsProcessingLogin(false) // Mark that we're done processing
+        setIsProcessingLogin(false)
         setAuthLoading(false)
-        console.log('🔍 Login process finished, loading set to false');
       }
-    } else {
-      console.log('🔍 Form validation failed');
     }
   }
 
   const handleRegister = async (e?: React.FormEvent) => {
-    console.log('🔍 handleRegister called');
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
     if (validateRegisterForm()) {
-      console.log('🔍 Register form validation passed');
       setAuthLoading(true)
       setFormErrors({})
       try {
@@ -420,8 +358,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
         if (registerForm.birthday.year && registerForm.birthday.month && registerForm.birthday.day) {
           formattedBirthday = `${registerForm.birthday.year}-${registerForm.birthday.month.padStart(2, '0')}-${registerForm.birthday.day.padStart(2, '0')}`;
         }
-        
-        console.log('🔍 Formatted birthday:', formattedBirthday);
         
         await onRegister({
           username: registerForm.username,
@@ -432,13 +368,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           gender: registerForm.gender || null,
         })
         
-        console.log('🔍 Registration completed successfully');
-        // Registration was successful - the parent component will handle closing the modal and showing success message
-        
       } catch (err: any) {
-        console.log('🔍 Registration error:', err);
-        console.log('🔍 Full error object:', err);
-        
         // The API layer already handles error parsing and provides clean messages
         const errorMessage = err?.message || "Registration failed. Please try again.";
         
@@ -455,21 +385,16 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
       } finally {
         setAuthLoading(false)
       }
-    } else {
-      console.log('🔍 Register form validation failed');
     }
   }
 
   const handleForgotPassword = async () => {
     if (validateForgotForm()) {
-      console.log('🔍 Forgot password form validation passed');
       setAuthLoading(true);
       setFormErrors({});
       
       try {
-        console.log('🔍 Sending forgot password request for email:', forgotForm.email);
         await forgotPassword(forgotForm.email);
-        console.log('🔍 Forgot password request successful');
         
         // Show success message
         setFormErrors({ 
@@ -480,15 +405,12 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
         setForgotForm({ email: "" });
         
       } catch (err: any) {
-        console.log('🔍 Forgot password error:', err);
         // The API layer already handles error parsing and provides clean messages
         const errorMessage = err?.message || "Failed to send password reset email. Please try again.";
         setFormErrors({ auth: errorMessage });
       } finally {
         setAuthLoading(false);
       }
-    } else {
-      console.log('🔍 Forgot password form validation failed');
     }
   }
 
@@ -668,10 +590,8 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
 
             {mode === "login" && (
               <form onSubmit={(e) => {
-                console.log('🔍 Form submitted');
                 e.preventDefault();
                 e.stopPropagation();
-                console.log('🔍 Form submission prevented');
                 return false;
               }}>
                 <div className="space-y-4">
@@ -686,9 +606,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                       value={loginForm.username}
                       onChange={(e) => setLoginForm((prev) => ({ ...prev, username: e.target.value }))}
                       onKeyDown={(e) => {
-                        console.log('🔍 Username field keydown:', e.key);
                         if (e.key === "Enter") {
-                          console.log('🔍 Enter pressed on username field');
                           e.preventDefault();
                           e.stopPropagation();
                           handleLogin(e);
@@ -711,9 +629,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                         value={loginForm.password}
                         onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
                         onKeyDown={(e) => {
-                          console.log('🔍 Password field keydown:', e.key);
                           if (e.key === "Enter") {
-                            console.log('🔍 Enter pressed on password field');
                             e.preventDefault();
                             e.stopPropagation();
                             handleLogin(e);
@@ -749,7 +665,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                 <div className="mt-6 space-y-4">
                   <button
                     onClick={(e) => {
-                      console.log('🔍 Login button clicked');
                       e.preventDefault();
                       e.stopPropagation();
                       handleLogin(e);
@@ -843,7 +758,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     placeholder="CHOOSE A USERNAME"
                     value={registerForm.username}
                     onChange={(e) => {
-                      console.log('🔍 Username changed to:', e.target.value);
                       setRegisterForm((prev) => ({ ...prev, username: e.target.value }))
                     }}
                     onKeyDown={(e) => {
@@ -955,7 +869,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                       } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
                       value={registerForm.birthday.month}
                       onChange={(e) => {
-                        console.log('🔍 Birthday month changed to:', e.target.value);
                         setRegisterForm((prev) => ({
                           ...prev,
                           birthday: { ...prev.birthday, month: e.target.value },
@@ -972,7 +885,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                       } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
                       value={registerForm.birthday.day}
                       onChange={(e) => {
-                        console.log('🔍 Birthday day changed to:', e.target.value);
                         setRegisterForm((prev) => ({
                           ...prev,
                           birthday: { ...prev.birthday, day: e.target.value },
@@ -989,7 +901,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                       } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
                       value={registerForm.birthday.year}
                       onChange={(e) => {
-                        console.log('🔍 Birthday year changed to:', e.target.value);
                         setRegisterForm((prev) => ({
                           ...prev,
                           birthday: { ...prev.birthday, year: e.target.value },
@@ -1051,7 +962,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                       } rounded focus:ring-[#8B75AA]`}
                       checked={registerForm.agreeToTerms}
                       onChange={(e) => {
-                        console.log('🔍 Terms agreement changed to:', e.target.checked);
                         setRegisterForm((prev) => ({ ...prev, agreeToTerms: e.target.checked }))
                       }}
                     />
@@ -1146,7 +1056,3 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
     </>
   )
 }
-
-// Add custom slow spin animation
-// In your global CSS (e.g., globals.css or tailwind.config), add:
-// .animate-spin-slow { animation: spin 1.5s linear infinite; }

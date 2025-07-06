@@ -55,7 +55,6 @@ export default function Home() {
         setQuests([]);
         setGuilds([]);
         setGuildApplications([]);
-        console.error("Initialization failed", err);
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -193,15 +192,11 @@ export default function Home() {
             setMode={setAuthMode}
             onClose={() => setShowAuthModal(false)}
             onLogin={async (credentials) => {
-              console.log('🔍 Page.tsx onLogin called');
               try {
-                console.log('🔍 Page.tsx calling AuthContext login');
                 await login(credentials);
-                console.log('🔍 Page.tsx login successful, closing modal');
                 setShowAuthModal(false);
                 // No redirect, stay on homepage
               } catch (error) {
-                console.log('🔍 Page.tsx login failed, keeping modal open:', error);
                 // Don't close modal on login failure - let the modal handle the error
                 // Re-throw the error so the modal can handle it
                 throw error;
@@ -209,14 +204,11 @@ export default function Home() {
             }}
             onRegister={async (data) => {
               try {
-                console.log('🔍 Page.tsx starting registration');
                 await register(data);
-                console.log('🔍 Page.tsx registration successful');
                 // Close modal after successful registration
                 setShowAuthModal(false);
                 // The AuthContext will handle the redirect to the success page
               } catch (error) {
-                console.log('🔍 Page.tsx registration failed:', error);
                 // Don't close modal on register failure - let the modal handle the error
                 throw error;
               }

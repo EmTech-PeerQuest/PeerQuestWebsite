@@ -78,8 +78,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const res = await fetchUserApi(token);
       
-      console.log('[AuthContext] Raw backend user data:', res.data);
-      
       // Transform backend user data to frontend User type
       const avatarUrl = res.data.avatar_url || res.data.avatar_data;
       let finalAvatar = undefined;
@@ -91,15 +89,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           // Base64 images can be quite long, so we'll be more lenient
           if (avatarUrl.length < 15000000) { // ~10MB limit for base64
             finalAvatar = avatarUrl;
-          } else {
-            console.warn('[AuthContext] Avatar data too large, skipping');
           }
         } else {
           // For URLs, keep a reasonable length limit
           if (avatarUrl.length < 2000) {
             finalAvatar = avatarUrl;
-          } else {
-            console.warn('[AuthContext] Avatar URL too long, skipping');
           }
         }
       }
@@ -118,7 +112,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         gold: res.data.gold_balance || res.data.gold || 0,
       };
       
-      console.log('[AuthContext] Transformed user data:', transformedUser);
+
       
       setUser(transformedUser);
       localStorage.setItem('user', JSON.stringify(transformedUser));
@@ -158,13 +152,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const login = async (credentials: { username: string; password: string; rememberMe?: boolean }) => {
-    console.log('🔍 AuthContext login called');
     try {
-      console.log('🔍 AuthContext calling API login');
       const res = await apiLogin(credentials.username, credentials.password);
       const { access, refresh } = res.data;
       
-      console.log('🔍 AuthContext API login successful');
       // Store access token in localStorage
       localStorage.setItem('access_token', access);
       
@@ -179,11 +170,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.removeItem('remember_me');
       }
       
-      console.log('🔍 AuthContext calling loadUser');
       await loadUser(access, true); // Pass true to indicate this is from login
-      console.log('🔍 AuthContext login process completed successfully');
     } catch (error: any) {
-      console.log('🔍 AuthContext login failed:', error);
       
       // Clear any tokens that might have been set
       localStorage.removeItem('access_token');
@@ -205,20 +193,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
       
       // Re-throw the error to be handled by the modal
-      console.log('🔍 AuthContext rethrowing error for modal to handle');
       throw error;
     }
   };
 
   const register = async (data: { username: string; email: string; password: string; confirmPassword: string; birthday?: string | null; gender?: string | null }) => {
     try {
-      console.log('🔍 AuthContext: Starting registration');
       // Call backend registration API
       const response = await apiRegister(data);
-      console.log('🔍 AuthContext: Registration response:', response);
       
       // Registration was successful - redirect to success page with email
-      console.log('🔍 AuthContext: Registration successful, redirecting to success page');
       
       // Show success message about email verification
       toast({
@@ -233,7 +217,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       // Don't return the response, just complete successfully
     } catch (err: any) {
-      console.log('🔍 AuthContext: Registration failed:', err);
       // Show error toast
       toast({ 
         title: 'Registration failed', 
@@ -245,7 +228,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = () => {
-    console.log('🔍 Logging out and clearing all stored data...');
     
     // Clear all authentication data
     localStorage.removeItem('access_token');
@@ -259,7 +241,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Reset user state
     setUser(null);
     
-    console.log('✅ All stored data cleared');
     
     // Redirect to home page
     router.push('/');
@@ -267,7 +248,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Utility function to clear all auth-related cache data
   const clearAllAuthCache = () => {
-    console.log('🔍 Clearing all authentication cache data...');
     
     // Clear localStorage
     localStorage.removeItem('access_token');
@@ -289,7 +269,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Reset user state
     setUser(null);
     
-    console.log('✅ All authentication cache cleared');
   };
 
   const refreshAccessToken = async (): Promise<string | null> => {
@@ -338,32 +317,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       let timeoutId: NodeJS.Timeout | null = null;
       
       try {
-        console.log('🔍 Starting auth initialization...');
         
         // Add a timeout to prevent hanging
         timeoutId = setTimeout(() => {
-          console.warn('Auth initialization timeout - forcing loading to false');
           setLoading(false);
         }, 5000); // 5 second timeout (reduced from 10)
         
         const token = localStorage.getItem('access_token');
-        console.log('🔍 Found access token:', !!token);
         
         if (token) {
           try {
-            console.log('🔍 Loading user with existing token...');
             await loadUser(token);
-            console.log('🔍 User loaded successfully');
           } catch (error) {
             // Access token might be expired, try to refresh
-            console.log('Access token failed, attempting refresh...');
             const newToken = await refreshAccessToken();
             
             if (newToken) {
               try {
-                console.log('🔍 Loading user with refreshed token...');
                 await loadUser(newToken);
-                console.log('🔍 User loaded with refreshed token');
               } catch (refreshError) {
                 console.error('Failed to load user after token refresh:', refreshError);
               }
@@ -372,17 +343,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } else {
           // No access token, try to refresh if we have a refresh token
           const refreshToken = localStorage.getItem('refresh_token') || sessionStorage.getItem('refresh_token');
-          console.log('🔍 Found refresh token:', !!refreshToken);
           
           if (refreshToken) {
-            console.log('No access token but found refresh token, attempting refresh...');
             const newToken = await refreshAccessToken();
             
             if (newToken) {
               try {
-                console.log('🔍 Loading user with new token from refresh...');
                 await loadUser(newToken);
-                console.log('🔍 User loaded with new token');
               } catch (refreshError) {
                 console.error('Failed to load user after token refresh:', refreshError);
               }
@@ -390,7 +357,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }
         }
         
-        console.log('🔍 Auth initialization completed successfully');
+        
       } catch (error) {
         console.error('Auth initialization error:', error);
       } finally {
@@ -398,7 +365,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (timeoutId) {
           clearTimeout(timeoutId);
         }
-        console.log('🔍 Setting loading to false...');
         setLoading(false);
       }
     };

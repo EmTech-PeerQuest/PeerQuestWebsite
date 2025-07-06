@@ -18,9 +18,6 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
 
-  // Debug: log the currentUser to see what avatar data we have
-  console.log('Profile component currentUser avatar:', currentUser.avatar);
-
   // Filter quests by status
   const activeQuests = quests.filter((q) => q.status === "in_progress" && q.applicants?.some(app => app.userId === currentUser.id && app.status === "accepted"))
   const createdQuests = quests.filter((q) => q.poster.id === currentUser.id)

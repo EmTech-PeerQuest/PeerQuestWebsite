@@ -98,18 +98,11 @@ export async function fetchUserInfo() {
       throw new Error("No access token found. Please log in.");
     }
     
-    console.log('API_BASE_URL:', API_BASE_URL);
-    console.log('Making request to:', `${API_BASE_URL}/api/users/settings/`);
-    console.log('Token:', token.substring(0, 20) + '...');
-    
     const res = await axios.get(`${API_BASE_URL}/api/users/settings/`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
-    
-    console.log('Response status:', res.status);
-    console.log('Response data:', res.data);
     
     const data = res.data;
     
@@ -129,15 +122,8 @@ export async function fetchUserInfo() {
       privacySettings: data.privacy_settings || {},
     };
     
-    console.log('Mapped data:', mappedData);
-    console.log('Birthday value:', data.birthday, 'Type:', typeof data.birthday);
-    console.log('Gender value:', data.gender, 'Type:', typeof data.gender);
-    
     return mappedData;
   } catch (err: any) {
-    console.error('fetchUserInfo error:', err);
-    console.error('Error response:', err.response?.data);
-    console.error('Error status:', err.response?.status);
     throw new Error("Failed to fetch user info");
   }
 }
@@ -157,9 +143,6 @@ async function updateUserProfile(data: any) {
     );
     return res.data;
   } catch (err: any) {
-    console.error('Update profile error:', err);
-    console.error('Response data:', err.response?.data);
-    console.error('Response status:', err.response?.status);
     
     if (err.response && err.response.data) {
       // Handle different error formats
@@ -235,9 +218,7 @@ export default function AccountTab({
   useEffect(() => {
     (async () => {
       try {
-        console.log('AccountTab: Fetching user info...');
         const info = await fetchUserInfo();
-        console.log('AccountTab: Received user info:', info);
         
         setAccountForm((prev: any) => {
           const updated = { 
@@ -247,11 +228,9 @@ export default function AccountTab({
             birthday: info.birthday || prev.birthday || "",
             gender: info.gender || prev.gender || ""
           };
-          console.log('AccountTab: Updated form state:', updated);
           return updated;
         });
       } catch (e) {
-        console.error('[AccountTab] Failed to fetch user info:', e);
         // You might want to show an error message to the user here
         alert('Failed to load account information. Please refresh the page and try again.');
       }
@@ -405,7 +384,6 @@ export default function AccountTab({
       
       alert(t('accountTab.saveSuccess'));
     } catch (err: any) {
-      console.error('Save error:', err);
       alert(err);
     } finally {
       setLoadingSave(false);
