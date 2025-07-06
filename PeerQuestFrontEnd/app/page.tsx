@@ -23,10 +23,11 @@ import { QuestManagement } from '@/components/quests/quest-management'
 import { EnhancedGuildManagement } from '@/components/guilds/enhanced-guild-management'
 import { AdminPanel } from '@/components/admin/admin-panel'
 import { AIChatbot } from '@/components/ai/ai-chatbot'
-import type { User, Quest, Guild, GuildApplication } from "@/lib/types"
+import type { User, Quest, Guild, GuildApplication, CreateGuildData } from "@/lib/types"
 import { mockUsers, mockQuests, mockGuilds } from "@/lib/mock-data"
 import { authService } from "@/lib/auth-service"
 import { addSpendingRecord } from "@/lib/spending-utils"
+import { useGuilds, useGuildActions } from "@/hooks/useGuilds"
 
 declare global {
   interface Window {
@@ -56,9 +57,12 @@ export default function Home() {
   const [toast, setToast] = useState<{ message: string; type: string } | null>(null)
   const [users, setUsers] = useState<User[]>(mockUsers || [])
   const [quests, setQuests] = useState<Quest[]>(mockQuests || [])
-  const [guilds, setGuilds] = useState<Guild[]>(mockGuilds || [])
   const [guildApplications, setGuildApplications] = useState<GuildApplication[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(false)
+
+  // Use guild hooks for backend integration
+  const { guilds, loading: guildsLoading, error: guildsError, refetch: refetchGuilds } = useGuilds({ autoFetch: true })
+  const { createGuild, joinGuild, loading: guildActionLoading, error: guildActionError } = useGuildActions()
 
   // Expose modal functions to window
   useEffect(() => {
@@ -191,58 +195,48 @@ export default function Home() {
     showToast(`Quest posted! ${questData.questCost} gold deducted for reward pool.`, "success")
   }
 
-  const handleGuildSubmit = (guildData: Partial<Guild> & { guildCreationCost?: number }) => {
+  const handleGuildSubmit = async (guildData: any) => {
     if (!currentUser) return
 
-    // Deduct gold from user for guild creation and add spending record
-    if (guildData.guildCreationCost) {
-      const updatedUser = addSpendingRecord(
-        currentUser,
-        guildData.guildCreationCost,
-        "guild_creation",
-        `Created guild: ${guildData.name}`,
-      )
-      setCurrentUser({ ...updatedUser, gold: updatedUser.gold - guildData.guildCreationCost })
-    }
+    try {
+      // Deduct gold from user for guild creation and add spending record
+      if (guildData.guildCreationCost) {
+        const updatedUser = addSpendingRecord(
+          currentUser,
+          guildData.guildCreationCost,
+          "guild_creation",
+          `Created guild: ${guildData.name}`,
+        )
+        setCurrentUser({ ...updatedUser, gold: (updatedUser.gold || 0) - guildData.guildCreationCost })
+      }
 
-    const newGuild: Guild = {
-      id: Date.now(),
-      name: guildData.name || "Untitled Guild",
-      description: guildData.description || "",
-      emblem: guildData.emblem || "🏆",
-      specialization: guildData.specialization || "general",
-      category: guildData.category || "Other",
-      members: 1,
-      membersList: [currentUser.id],
-      poster: currentUser,
-      admins: [currentUser.id],
-      createdAt: new Date(),
-      applications: [],
-      funds: 0,
-      settings: {
-        joinRequirements: {
-          manualApproval: true,
-          minimumLevel: 1,
-          requiresApplication: true,
-        },
-        visibility: {
-          publiclyVisible: true,
-          showOnHomePage: true,
-          allowDiscovery: true,
-        },
-        permissions: {
-          whoCanPost: "members",
-          whoCanInvite: "members",
-          whoCanKick: "admins",
-        },
-      },
-      roles: [],
-      socialLinks: [],
-    }
+      // Create guild data for API
+      const createGuildData: CreateGuildData = {
+        name: guildData.name || "Untitled Guild",
+        description: guildData.description || "",
+        specialization: guildData.specialization || "general",
+        preset_emblem: guildData.emblem || "🏆",
+        privacy: guildData.privacy || "public",
+        welcome_message: guildData.welcomeMessage || "",
+        tags: guildData.tags || [],
+        custom_emblem: guildData.useCustomEmblem ? guildData.customEmblemFile : null,
+        require_approval: guildData.requireApproval !== false,
+        minimum_level: guildData.minimumLevel || 1,
+        allow_discovery: guildData.allowDiscovery !== false,
+        show_on_home_page: guildData.showOnHomePage !== false,
+        who_can_post_quests: guildData.whoCanPost || 'all_members',
+        who_can_invite_members: guildData.whoCanInvite || 'all_members',
+        social_links: guildData.socialLinks || [],
+      }
 
-    setGuilds([newGuild, ...guilds])
-    setShowCreateGuildModal(false)
-    showToast(`Guild created! ${guildData.guildCreationCost} gold deducted for guild registration.`, "success")
+      await createGuild(createGuildData)
+      await refetchGuilds() // Refresh the guild list
+      setShowCreateGuildModal(false)
+      showToast(`Guild created successfully!`, "success")
+    } catch (error) {
+      console.error('Error creating guild:', error)
+      showToast('Failed to create guild. Please try again.', "error")
+    }
   }
 
   const handleQuestClick = (quest: Quest) => {
@@ -260,38 +254,21 @@ export default function Home() {
     setShowEditQuestModal(false)
   }
 
-  const handleApplyForGuild = (guildId: number, message: string) => {
+  const handleApplyForGuild = async (guildId: number, message: string) => {
     if (!currentUser) {
       showToast("Please log in to apply for guilds", "error")
       setShowAuthModal(true)
       return
     }
 
-    const newApplication: GuildApplication = {
-      id: Date.now(),
-      userId: currentUser.id,
-      username: currentUser.username,
-      avatar: currentUser.avatar,
-      message,
-      status: "pending",
-      appliedAt: new Date(),
+    try {
+      await joinGuild(guildId.toString(), message)
+      await refetchGuilds() // Refresh the guild list to show updated membership
+      showToast("Guild application submitted successfully!", "success")
+    } catch (error) {
+      console.error('Error applying for guild:', error)
+      showToast('Failed to apply for guild. Please try again.', "error")
     }
-
-    // Add application to guild
-    setGuilds((prevGuilds) =>
-      prevGuilds.map((guild) => {
-        if (guild.id === guildId) {
-          return {
-            ...guild,
-            applications: [...(guild.applications || []), newApplication],
-          }
-        }
-        return guild
-      }),
-    )
-
-    setGuildApplications([...guildApplications, newApplication])
-    showToast("Guild application submitted successfully!", "success")
   }
 
   const handleGoldPurchase = (amount: number) => {

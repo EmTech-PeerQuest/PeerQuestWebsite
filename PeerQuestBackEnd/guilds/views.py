@@ -74,10 +74,27 @@ class GuildCreateView(generics.CreateAPIView):
     API view to create a new guild
     """
     serializer_class = GuildCreateUpdateSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.AllowAny]  # Temporarily allow any for frontend testing
     
     def perform_create(self, serializer):
-        serializer.save()
+        # For testing, use the first available user or create a default user
+        user = None
+        if self.request.user.is_authenticated:
+            user = self.request.user
+        else:
+            # For testing purposes, use the first available user
+            User = get_user_model()
+            user = User.objects.first()
+            if not user:
+                # Create a test user if none exists
+                user = User.objects.create_user(
+                    email='frontend@test.com',
+                    user_name='frontend_test',
+                    first_name='Frontend',
+                    password='testpass123'
+                )
+        
+        serializer.save(owner=user)
 
 
 class GuildUpdateView(generics.UpdateAPIView):

@@ -74,12 +74,14 @@ class GuildCreateUpdateSerializer(serializers.ModelSerializer):
         child=serializers.CharField(max_length=30),
         max_length=5,
         required=False,
-        allow_empty=True
+        allow_empty=True,
+        write_only=True
     )
     social_links = serializers.ListField(
         child=serializers.DictField(),
         required=False,
-        allow_empty=True
+        allow_empty=True,
+        write_only=True
     )
     
     class Meta:
@@ -90,6 +92,48 @@ class GuildCreateUpdateSerializer(serializers.ModelSerializer):
             'minimum_level', 'allow_discovery', 'show_on_home_page',
             'who_can_post_quests', 'who_can_invite_members', 'tags', 'social_links'
         ]
+    
+    def to_representation(self, instance):
+        """Override to handle related fields properly for response"""
+        # Get base data from all non-related fields
+        data = {}
+        for field_name, field in self.fields.items():
+            if not field.write_only:
+                attribute = field.get_attribute(instance)
+                if attribute is not None:
+                    data[field_name] = field.to_representation(attribute)
+                else:
+                    data[field_name] = None
+        
+        # Add additional fields for response
+        data['guild_id'] = str(instance.guild_id)
+        data['created_at'] = instance.created_at.isoformat() if instance.created_at else None
+        data['updated_at'] = instance.updated_at.isoformat() if instance.updated_at else None
+        
+        # Handle owner information
+        if hasattr(instance, 'owner') and instance.owner:
+            data['owner'] = {
+                'id': instance.owner.id,
+                'user_name': instance.owner.user_name,
+                'first_name': instance.owner.first_name,
+                'email': instance.owner.email
+            }
+        
+        # Handle tags
+        if hasattr(instance, 'tags'):
+            data['tags'] = [tag.tag for tag in instance.tags.all()]
+        
+        # Handle social_links
+        if hasattr(instance, 'social_links'):
+            data['social_links'] = [
+                {'platform_name': link.platform_name, 'url': link.url}
+                for link in instance.social_links.all()
+            ]
+        
+        # Add member count
+        data['member_count'] = getattr(instance, 'member_count', 0)
+        
+        return data
     
     def validate_tags(self, value):
         if len(value) > 5:
@@ -108,8 +152,10 @@ class GuildCreateUpdateSerializer(serializers.ModelSerializer):
         tags_data = validated_data.pop('tags', [])
         social_links_data = validated_data.pop('social_links', [])
         
-        # Set owner to current user
-        validated_data['owner'] = self.context['request'].user
+        # Owner should be set by the view's perform_create method
+        # If not set, get from request context
+        if 'owner' not in validated_data:
+            validated_data['owner'] = self.context['request'].user
         
         guild = Guild.objects.create(**validated_data)
         
