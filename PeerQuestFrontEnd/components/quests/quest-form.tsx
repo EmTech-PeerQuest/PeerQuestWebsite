@@ -939,8 +939,30 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                     <span className="text-xs text-red-500 mt-1">Gold budget must be between {getGoldBudgetRangeForDifficulty(formData.difficulty).min} and {Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())}.</span>
                   )}
                   {/* Recommended gold budget range label */}
-                  <div className="text-xs text-amber-700 mt-1">
+                  <div className="text-xs text-amber-700 mt-1 mb-2">
                     Recommended for {formData.difficulty.charAt(0).toUpperCase() + formData.difficulty.slice(1)}: {getGoldBudgetRangeForDifficulty(formData.difficulty).min} - {getGoldBudgetRangeForDifficulty(formData.difficulty).max} gold
+                  </div>
+                  {/* Preset Add Gold Buttons */}
+                  <div className="flex gap-2 mb-2">
+                    {[10, 100, 1000].map((amount) => (
+                      <button
+                        key={amount}
+                        type="button"
+                        className="px-3 py-1 rounded bg-amber-200 text-amber-900 font-semibold text-xs hover:bg-amber-300 border border-amber-300 transition-all"
+                        disabled={isGoldBudgetLocked || goldBudget >= Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())}
+                        onClick={() => {
+                          if (!isGoldBudgetLocked) {
+                            const max = Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing());
+                            setGoldBudget((prev) => {
+                              const next = prev + amount;
+                              return next > max ? max : next;
+                            });
+                          }
+                        }}
+                      >
+                        +{amount} gold
+                      </button>
+                    ))}
                   </div>
                   <div className="flex justify-between mt-1">
                     <div className="flex items-center space-x-2">
