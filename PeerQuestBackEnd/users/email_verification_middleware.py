@@ -40,8 +40,9 @@ class EmailVerificationMiddleware(MiddlewareMixin):
         if not hasattr(request, 'user') or not request.user.is_authenticated:
             return None
         
-        # Check if user's email is verified
-        if not request.user.email_verified:
+        # Check if user's email is verified (skip for superusers)
+        # Superusers are exempt from email verification requirements
+        if not request.user.email_verified and not request.user.is_superuser:
             return JsonResponse({
                 'errors': ['Please verify your email address before accessing this resource.'],
                 'verification_required': True

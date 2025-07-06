@@ -60,6 +60,10 @@ class User(AbstractUser):
             from django.utils import timezone
             self.last_password_change = timezone.now()
         
+        # Automatically verify superusers
+        if self.is_superuser and not self.email_verified:
+            self.email_verified = True
+        
         self.level = self.calculate_level()
         super().save(*args, **kwargs)
 

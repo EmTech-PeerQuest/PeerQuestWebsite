@@ -164,17 +164,25 @@ class RegisterView(APIView):
             if serializer.is_valid():
                 user = serializer.save()
                 
+                # Automatically verify superusers
+                if user.is_superuser:
+                    user.email_verified = True
+                    user.save()
+                
                 # Generate JWT tokens
                 refresh = RefreshToken.for_user(user)
                 access_token = str(refresh.access_token)
                 refresh_token = str(refresh)
                 
-                # Send verification email
-                try:
-                    send_verification_email(user)
-                except Exception as e:
-                    print(f"Failed to send verification email: {e}")
-                    # Don't fail registration if email fails
+                # Send verification email (skip for superusers)
+                email_sent = False
+                if not user.is_superuser:
+                    try:
+                        send_verification_email(user)
+                        email_sent = True
+                    except Exception as e:
+                        print(f"Failed to send verification email: {e}")
+                        # Don't fail registration if email fails
                 
                 return Response({
                     'message': 'Registration successful',
@@ -183,10 +191,11 @@ class RegisterView(APIView):
                         'username': user.username,
                         'email': user.email,
                         'display_name': user.display_name,
+                        'email_verified': user.email_verified,
                     },
                     'access': access_token,
                     'refresh': refresh_token,
-                    'email_sent': True
+                    'email_sent': email_sent
                 }, status=status.HTTP_201_CREATED)
             else:
                 # Return validation errors
@@ -409,8 +418,9 @@ class EmailVerifiedTokenObtainPairView(TokenObtainPairView):
                 'detail': 'Invalid username or password.'
             }, status=status.HTTP_401_UNAUTHORIZED)
         
-        # Check if user's email is verified
-        if not user.email_verified:
+        # Check if user's email is verified (skip for superusers)
+        # Superusers are exempt from email verification requirements
+        if not user.email_verified and not user.is_superuser:
             return Response({
                 'detail': 'Please verify your email address before logging in. Check your inbox for the verification email.',
                 'verification_required': True
