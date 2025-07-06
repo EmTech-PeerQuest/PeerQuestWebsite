@@ -208,8 +208,18 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     }
   }, [isOpen, isEditing, quest])
 
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingSubmitEvent, setPendingSubmitEvent] = useState<React.FormEvent | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
+    // Show confirmation modal before actually submitting
+    setPendingSubmitEvent(e);
+    setShowConfirmModal(true);
+  };
+
+  // Actual submit logic, extracted from handleSubmit
+  const doSubmit = async (e: React.FormEvent) => {
     setIsLoading(true)
     setErrors({})
 
@@ -589,11 +599,11 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
   // Gold budget range mapping by difficulty
   const getGoldBudgetRangeForDifficulty = (difficulty: string) => {
     switch (difficulty) {
-      case 'initiate': return { min: 100, max: 199 }
-      case 'adventurer': return { min: 200, max: 299 }
-      case 'champion': return { min: 300, max: 399 }
-      case 'mythic': return { min: 400, max: 499 }
-      default: return { min: 100, max: 199 }
+      case 'initiate': return { min: 100, max: 1000 }
+      case 'adventurer': return { min: 1001, max: 2500 }
+      case 'champion': return { min: 2501, max: 5000 }
+      case 'mythic': return { min: 5001, max: 10000 }
+      default: return { min: 100, max: 1000 }
     }
   }
 
@@ -610,6 +620,61 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      {/* Confirm Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-40">
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-0 overflow-hidden">
+            {/* Gradient Header */}
+            <div className="p-6 rounded-t-xl" style={{background: 'linear-gradient(to right, #8C74AC, #D1B58E)'}}>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-white">Confirm Post Quest</h3>
+                <button
+                  className="text-white/90 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-full"
+                  onClick={() => { setShowConfirmModal(false); setPendingSubmitEvent(null); }}
+                  aria-label="Close confirmation modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            {/* Modal Body */}
+            <div className="p-6 bg-amber-50">
+              <p className="mb-4 text-gray-800 text-base">Are you sure you want to post this quest with a gold budget of <span className="font-bold text-amber-700">{goldBudget} gold</span>?</p>
+              <div className="mb-4 bg-amber-100 border border-amber-200 rounded-lg p-4">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-gray-700">Total budget:</span>
+                  <span className="font-medium text-amber-700">{goldBudget} gold</span>
+                </div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-gray-700">5% commission:</span>
+                  <span className="font-medium text-amber-700">{commission} gold</span>
+                </div>
+                <div className="flex justify-between text-xs border-t border-amber-300 pt-1">
+                  <span className="text-gray-700">Quest reward:</span>
+                  <span className="font-medium text-amber-700">{questReward} gold</span>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-amber-200">
+                <button
+                  className="px-4 py-2 rounded border-2 border-amber-300 text-amber-800 bg-white font-bold hover:bg-amber-100 transition-all"
+                  onClick={() => { setShowConfirmModal(false); setPendingSubmitEvent(null); }}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-4 py-2 rounded bg-gradient-to-r from-purple-500 to-amber-500 text-white font-bold shadow hover:from-purple-600 hover:to-amber-600 transition-all"
+                  onClick={() => {
+                    setShowConfirmModal(false);
+                    if (pendingSubmitEvent) doSubmit(pendingSubmitEvent);
+                  }}
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Gradient Header */}
         <div className="p-6 rounded-t-xl" style={{background: 'linear-gradient(to right, #8C74AC, #D1B58E)'}}>
@@ -891,7 +956,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                         <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"></path>
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0 .99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd"></path>
                       </svg>
-                      <p className="text-xs font-medium">Available: <span className="text-amber-600 font-bold">{userGoldBalance} gold</span></p>
+                      <p className="text-xs font-medium"><span className="text-gray-700 font-bold">Available:</span> <span className="text-amber-600 font-bold">{userGoldBalance} gold</span></p>
                     </div>
                   </div>
                   {goldBudget > 0 && (
