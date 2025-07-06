@@ -37,9 +37,50 @@ PROFANITY_LIST = [
     'whorester', 'whoreweed', 'whorey', 'wigger', 'wop', 'yid', 'zipperhead'
 ]
 
+# Enhanced leet speak mapping for more comprehensive filtering
 LEET_MAP = {
-    '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '9': 'g',
+    # Number substitutions
+    '0': 'o', '1': 'i', '2': 'z', '3': 'e', '4': 'a', '5': 's', '6': 'g', '7': 't', '8': 'b', '9': 'g',
+    
+    # Symbol substitutions
     '@': 'a', '$': 's', '!': 'i', '|': 'i', '+': 't', '?': 'q', '(': 'c', ')': 'c',
+    '*': 'a', '%': 'o', '^': 'a', '&': 'a', '#': 'h', '~': 'n', '=': 'e',
+    
+    # Letter substitutions (common leet speak) - enhanced to catch more substitutions
+    'q': 'g', 'x': 'k', 'z': 's', 'ph': 'f', 'ck': 'k', 'kk': 'ck',
+    'vv': 'w', 'ii': 'u', 'rn': 'm', '|_|': 'u', '|-|': 'h', '|3': 'b',
+    '|)': 'd', '(_)': 'u', '[]': 'o', '/\\': 'a', '\\/': 'v', '><': 'x',
+    
+    # Common visual substitutions and obfuscations
+    'qq': 'gg',  # double q to double g
+    'qg': 'gg',  # mixed q and g
+    'gq': 'gg',  # mixed g and q
+    'qu': 'gu',  # qu combination to gu
+    'kw': 'qu',  # kw to qu
+    'ks': 'x',   # ks to x
+    'w': 'vv',   # w to double v
+    'n': 'rn',   # n to rn (common visual trick)
+    'm': 'nn',   # m to nn
+}
+
+# Additional patterns that should be normalized - enhanced for better detection
+SUBSTITUTION_PATTERNS = {
+    # Multi-character substitutions that need to be checked first
+    'qu': 'g',     # qu -> g substitution (common way to hide 'g' words)
+    'qg': 'gg',    # qg -> gg substitution
+    'gq': 'gg',    # gq -> gg substitution
+    'kw': 'qu',    # kw -> qu substitution
+    'ks': 'x',     # ks -> x substitution
+    'ph': 'f',     # ph -> f substitution
+    'uff': 'ough', # uff -> ough substitution
+    'vv': 'w',     # vv -> w substitution
+    'rn': 'm',     # rn -> m substitution (visual trick)
+    'nn': 'm',     # nn -> m substitution
+    'ii': 'u',     # ii -> u substitution
+    'oo': 'o',     # oo -> o (reduce double letters)
+    'qq': 'g',     # qq -> g substitution
+    'xx': 'x',     # xx -> x (reduce double letters)
+    'zz': 's',     # zz -> s substitution
 }
 
 def levenshtein(s1, s2):
@@ -59,9 +100,89 @@ def levenshtein(s1, s2):
     return previous_row[-1]
 
 def normalize_username(value):
+    """
+    Normalize username by converting leet speak and other substitutions
+    to detect hidden profanity and inappropriate content.
+    Enhanced to better catch 'q' for 'g' substitutions and other obfuscations.
+    """
+    if not value:
+        return ""
+    
+    # First normalize unicode
     value = unicodedata.normalize('NFKC', value)
     value = ''.join(c for c in value if not unicodedata.combining(c))
     value = value.encode('ascii', 'ignore').decode('ascii')
-    for _ in range(2):
-        value = value.translate(str.maketrans(LEET_MAP))
+    value = value.lower()
+    
+    # Apply substitution patterns (multi-character replacements first)
+    # Do this multiple times to catch nested patterns
+    for _ in range(3):
+        for pattern, replacement in SUBSTITUTION_PATTERNS.items():
+            value = value.replace(pattern, replacement)
+    
+    # Apply leet speak transformations multiple times to catch nested substitutions
+    for _ in range(4):  # Increased passes to catch more complex substitutions
+        # Apply character substitutions
+        for leet_char, normal_char in LEET_MAP.items():
+            value = value.replace(leet_char, normal_char)
+    
+    # Additional specific checks for common obfuscations
+    # Handle specific 'q' for 'g' patterns that might be missed
+    value = value.replace('q', 'g')  # Direct q -> g replacement
+    
+    # Handle repetitive characters that might be used for obfuscation
+    import re
+    # Replace multiple consecutive identical characters with single character
+    value = re.sub(r'(.)\1+', r'\1', value)
+    
     return value
+
+def validate_username_content(username):
+    """
+    Validate username content for inappropriate material.
+    Returns (is_valid, error_message)
+    """
+    if not username:
+        return False, "Username is required"
+    
+    # Basic length and character checks
+    if len(username) < 3:
+        return False, "Username must be at least 3 characters long"
+    
+    if len(username) > 20:
+        return False, "Username must be 20 characters or less"
+    
+    # Check for allowed characters only (alphanumeric and underscore)
+    import re
+    if not re.match(r'^[a-zA-Z0-9_]+$', username):
+        return False, "Username can only contain letters, numbers, and underscores"
+    
+    # Normalize username to detect hidden profanity
+    normalized = normalize_username(username)
+    
+    # Check against profanity list
+    for word in PROFANITY_LIST:
+        if word in normalized:
+            return False, "Username contains inappropriate content"
+    
+    # Additional checks for common problematic patterns
+    problematic_patterns = [
+        'admin', 'moderator', 'mod', 'staff', 'support', 'help', 'bot', 'system',
+        'root', 'null', 'undefined', 'test', 'demo', 'guest', 'anonymous', 'anon',
+        'api', 'www', 'mail', 'email', 'ftp', 'http', 'https', 'ssl', 'tls'
+    ]
+    
+    for pattern in problematic_patterns:
+        if pattern in normalized:
+            return False, f"Username cannot contain reserved word '{pattern}'"
+    
+    # Check for excessive repeating characters
+    import re
+    if re.search(r'(.)\1{3,}', username):  # 4 or more repeating characters
+        return False, "Username cannot have more than 3 repeating characters in a row"
+    
+    # Check for numbers only
+    if username.isdigit():
+        return False, "Username cannot be numbers only"
+    
+    return True, ""

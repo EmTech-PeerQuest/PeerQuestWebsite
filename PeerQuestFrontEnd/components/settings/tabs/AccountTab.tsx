@@ -10,6 +10,85 @@ import axios from "axios";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
+// Client-side username validation - enhanced to match backend
+function validateUsernameClient(username: string): boolean {
+  if (!username) return true; // Allow empty for now
+  
+  // Basic length check
+  if (username.length < 3 || username.length > 20) return false;
+  
+  // Only allow alphanumeric and underscore
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) return false;
+  
+  // Don't allow numbers only
+  if (/^\d+$/.test(username)) return false;
+  
+  // Don't allow excessive repeating characters
+  if (/(.)\1{3,}/.test(username)) return false;
+  
+  // Enhanced leet speak prevention - matches backend logic
+  const leetMap: { [key: string]: string } = {
+    '0': 'o', '1': 'i', '2': 'z', '3': 'e', '4': 'a', '5': 's', '6': 'g', '7': 't', '8': 'b', '9': 'g',
+    '@': 'a', '$': 's', '!': 'i', '|': 'i', '+': 't', '?': 'q', '(': 'c', ')': 'c',
+    '*': 'a', '%': 'o', '^': 'a', '&': 'a', '#': 'h', '~': 'n', '=': 'e',
+    'q': 'g', 'x': 'k', 'z': 's', 'vv': 'w', 'ii': 'u', 'rn': 'm'
+  };
+  
+  // Multi-character substitutions first
+  const substitutionPatterns: { [key: string]: string } = {
+    'qu': 'g', 'qg': 'gg', 'gq': 'gg', 'kw': 'qu', 'ks': 'x', 'ph': 'f',
+    'uff': 'ough', 'vv': 'w', 'rn': 'm', 'nn': 'm', 'ii': 'u', 'oo': 'o',
+    'qq': 'g', 'xx': 'x', 'zz': 's'
+  };
+  
+  let normalized = username.toLowerCase();
+  
+  // Apply substitution patterns multiple times
+  for (let i = 0; i < 3; i++) {
+    for (const [pattern, replacement] of Object.entries(substitutionPatterns)) {
+      // Escape special regex characters in the pattern
+      const escapedPattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      normalized = normalized.replace(new RegExp(escapedPattern, 'g'), replacement);
+    }
+  }
+  
+  // Apply character substitutions multiple times
+  for (let i = 0; i < 4; i++) {
+    for (const [leet, normal] of Object.entries(leetMap)) {
+      // Escape special regex characters in the leet character
+      const escapedLeet = leet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      normalized = normalized.replace(new RegExp(escapedLeet, 'g'), normal);
+    }
+  }
+  
+  // Direct q -> g replacement (ensure this is caught)
+  normalized = normalized.replace(/q/g, 'g');
+  
+  // Check for basic inappropriate words (expanded list)
+  const inappropriateWords = [
+    'admin', 'mod', 'staff', 'bot', 'test', 'null', 'fuck', 'shit', 'damn', 'bitch',
+    'ass', 'hell', 'crap', 'piss', 'cock', 'dick', 'pussy', 'tit', 'nigger', 'nigga',
+    'fag', 'gay', 'homo', 'retard', 'rape', 'nazi', 'hitler', 'porn', 'sex', 'cum'
+  ];
+  
+  for (const word of inappropriateWords) {
+    if (normalized.includes(word)) return false;
+  }
+  
+  // Check for reserved words
+  const reservedWords = [
+    'admin', 'moderator', 'mod', 'staff', 'support', 'help', 'bot', 'system',
+    'root', 'null', 'undefined', 'test', 'demo', 'guest', 'anonymous', 'anon',
+    'api', 'www', 'mail', 'email', 'ftp', 'http', 'https', 'ssl', 'tls'
+  ];
+  
+  for (const word of reservedWords) {
+    if (normalized.includes(word)) return false;
+  }
+  
+  return true;
+}
+
 // Fetch user info and map backend fields to frontend state
 export async function fetchUserInfo() {
   try {
@@ -35,7 +114,6 @@ export async function fetchUserInfo() {
     const data = res.data;
     
     const mappedData = {
-      displayName: data.display_name || "",
       username: data.username || "",
       email: data.email || "",
       bio: data.bio || "",
@@ -249,6 +327,13 @@ export default function AccountTab({
   const handleSave = async () => {
     setLoadingSave(true);
     try {
+      // Validate username before saving
+      if (accountForm.username && !validateUsernameClient(accountForm.username)) {
+        alert("Username contains invalid characters or inappropriate content. Please choose a different username.");
+        setLoadingSave(false);
+        return;
+      }
+
       // Validate social links before saving
       const socialLinkErrors = validateSocialLinks(accountForm.socialLinks || {});
       if (socialLinkErrors.length > 0) {
@@ -273,7 +358,6 @@ export default function AccountTab({
       
       // Prepare the payload with proper field mapping
       const payload: any = {
-        display_name: accountForm.displayName || null,
         username: accountForm.username || null,
         email: accountForm.email || null,
         bio: accountForm.bio || null,
@@ -366,30 +450,36 @@ export default function AccountTab({
           />
         </div>
         
-        {/* Display Name */}
-        <div>
-          <label className="block text-sm font-medium mb-2">{t('accountTab.displayName')}</label>
-          <div className="flex items-center">
-            <input
-              type="text"
-              className="flex-1 px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-              value={accountForm.displayName || ""}
-              placeholder={t('accountTab.displayNamePlaceholder')}
-              onChange={e => setAccountForm((prev: any) => ({ ...prev, displayName: e.target.value }))}
-            />
-          </div>
-        </div>
         {/* Username */}
         <div>
           <label className="block text-sm font-medium mb-2">{t('accountTab.username')}</label>
           <div className="flex items-center">
             <input
               type="text"
-              className="flex-1 px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+              className={`flex-1 px-3 py-2 bg-[#3D2A2F] border rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm ${
+                accountForm.username && !validateUsernameClient(accountForm.username) 
+                  ? 'border-red-500' 
+                  : 'border-[#CDAA7D]'
+              }`}
               value={accountForm.username || ""}
               placeholder={t('accountTab.usernamePlaceholder')}
-              onChange={e => setAccountForm((prev: any) => ({ ...prev, username: e.target.value }))}
+              onChange={e => {
+                const value = e.target.value;
+                // Always update the form, but show visual feedback for invalid usernames
+                setAccountForm((prev: any) => ({ ...prev, username: value }));
+              }}
             />
+          </div>
+          <div className="text-xs mt-1">
+            {accountForm.username && !validateUsernameClient(accountForm.username) ? (
+              <span className="text-red-400">
+                Username must be 3-20 characters, contain only letters/numbers/underscores, and cannot contain inappropriate content or leet speak substitutions (like 'q' for 'g').
+              </span>
+            ) : (
+              <span className="text-[#8B75AA]">
+                Username can only contain letters, numbers, and underscores. No inappropriate content or leet speak allowed.
+              </span>
+            )}
           </div>
         </div>
         {/* Email */}

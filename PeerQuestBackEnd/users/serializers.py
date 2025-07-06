@@ -14,12 +14,29 @@ class UserInfoUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            "display_name", "username", "email", "bio", "birthday", "gender", "location",
+            "username", "email", "bio", "birthday", "gender", "location",
             "social_links", "settings", "avatar_url", "avatar_data", "preferred_language", "timezone",
             "notification_preferences", "privacy_settings", "two_factor_enabled", "two_factor_method",
             "backup_codes_generated", "spending_limits"
         ]
         extra_kwargs = {field: {"required": False, "allow_null": True} for field in fields}
+    
+    def validate_username(self, value):
+        if not value:
+            return value
+        
+        # Use enhanced username validation
+        from .validators import validate_username_content
+        is_valid, error_message = validate_username_content(value)
+        
+        if not is_valid:
+            raise serializers.ValidationError(error_message)
+        
+        # Check if username is already taken by another user
+        if User.objects.filter(username=value).exclude(id=self.instance.id if self.instance else None).exists():
+            raise serializers.ValidationError("A user with this username already exists.")
+        
+        return value
 
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
@@ -41,7 +58,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'password_confirm', 'display_name', 'birthday', 'gender']
+        fields = ['username', 'email', 'password', 'password_confirm', 'birthday', 'gender']
         extra_kwargs = {
             'password': {'write_only': True},
             'password_confirm': {'write_only': True},
@@ -52,13 +69,48 @@ class RegisterSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         # Check if passwords match
         if attrs['password'] != attrs['password_confirm']:
-            raise serializers.ValidationError("Passwords do not match.")
+            raise serializers.ValidationError({"password_confirm": ["Passwords do not match."]})
         
-        # Validate password strength
-        try:
-            validate_password(attrs['password'])
-        except Exception as e:
-            raise serializers.ValidationError({"password": list(e.messages)})
+        # Validate password strength - check if this is for a superuser
+        # Note: Since we're in registration, we don't have the user object yet
+        # We'll check the username to see if it's a superuser pattern
+        username = attrs.get('username', '')
+        is_likely_superuser = username.lower() in ['admin', 'superadmin', 'root', 'administrator']
+        
+        # Use our friendly password strength checker
+        from .password_validators import PasswordStrengthChecker
+        checker = PasswordStrengthChecker()
+        
+        # Create a temporary user object for validation
+        temp_user = type('TempUser', (), {
+            'username': username,
+            'email': attrs.get('email', ''),
+            'is_superuser': is_likely_superuser
+        })()
+        
+        result = checker.check_password_strength(attrs['password'], temp_user)
+        
+        # For superusers, just check basic length
+        if is_likely_superuser:
+            if len(attrs['password']) < 8:
+                raise serializers.ValidationError({"password": ["Password must be at least 8 characters long."]})
+        else:
+            # For regular users, check if password meets minimum requirements
+            if not result['is_valid']:
+                # Show only the most critical error - make it simple
+                error_messages = []
+                if len(attrs['password']) < 8:
+                    error_messages.append("Password must be at least 8 characters long")
+                elif not result['requirements']['uppercase']:
+                    error_messages.append("Password must contain at least one uppercase letter")
+                elif not result['requirements']['lowercase']:
+                    error_messages.append("Password must contain at least one lowercase letter")  
+                elif not result['requirements']['numbers']:
+                    error_messages.append("Password must contain at least one number")
+                
+                # Only show the first error to keep it simple
+                if error_messages:
+                    raise serializers.ValidationError({"password": [error_messages[0]]})
         
         return attrs
     
@@ -66,14 +118,15 @@ class RegisterSerializer(serializers.ModelSerializer):
         # Normalize and validate username
         value = value.strip()
         
+        # Use enhanced username validation
+        from .validators import validate_username_content
+        is_valid, error_message = validate_username_content(value)
+        
+        if not is_valid:
+            raise serializers.ValidationError(error_message)
+        
         if User.objects.filter(username=value).exists():
             raise serializers.ValidationError("A user with this username already exists.")
-        
-        # Check profanity
-        normalized = normalize_username(value)
-        for word in PROFANITY_LIST:
-            if word in normalized:
-                raise serializers.ValidationError("Username contains inappropriate content.")
         
         return value
     
@@ -97,8 +150,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
-            password=validated_data['password'],
-            display_name=validated_data.get('display_name', validated_data['username'])
+            password=validated_data['password']
         )
         
         # Set additional fields if provided

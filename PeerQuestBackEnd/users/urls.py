@@ -3,7 +3,8 @@ from .views import (
     UserProfileView, RegisterView, GoogleLoginCallbackView, 
     UserInfoSettingsView, PasswordChangeView, EmailVerificationView, 
     ResendVerificationView, PasswordResetView, PasswordResetConfirmView,
-    LogoutView, LogoutAllView, UserSessionsView, RevokeSessionView
+    LogoutView, LogoutAllView, UserSessionsView, RevokeSessionView,
+    PasswordStrengthCheckView
 )
 
 urlpatterns = [
@@ -16,6 +17,7 @@ urlpatterns = [
     path("resend-verification/", ResendVerificationView.as_view(), name="resend-verification"),
     path("password-reset/", PasswordResetView.as_view(), name="password-reset"),
     path("password-reset-confirm/", PasswordResetConfirmView.as_view(), name="password-reset-confirm"),
+    path("password-strength-check/", PasswordStrengthCheckView.as_view(), name="password-strength-check"),
     
     # Token/Session management
     path("logout/", LogoutView.as_view(), name="logout"),

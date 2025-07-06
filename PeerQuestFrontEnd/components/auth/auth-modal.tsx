@@ -8,7 +8,8 @@ import ProfileCompletionModal from "@/components/auth/ProfileCompletionModal"
 import { ResendVerification } from "@/components/auth/resend-verification"
 import { forgotPassword } from "@/lib/api/auth"
 import { useAuth } from "@/context/AuthContext"
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation'
+import { PasswordInputWithStrength } from "@/components/ui/password-input-with-strength";
 
 interface AuthModalProps {
   isOpen: boolean
@@ -29,7 +30,6 @@ interface AuthModalProps {
 
 export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister, onForgotPassword }: AuthModalProps) {
   const [showLoginPassword, setShowLoginPassword] = useState(false)
-  const [showRegisterPassword, setShowRegisterPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [authLoading, setAuthLoading] = useState(false)
@@ -92,7 +92,45 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   }
 
   const validatePassword = (password: string) => {
+    // Basic client-side validation - detailed validation happens in real-time
     return password.length >= 8
+  }
+
+  const validateUsername = (username: string) => {
+    if (!username) return false;
+    
+    // Basic length check
+    if (username.length < 3 || username.length > 20) return false;
+    
+    // Only allow alphanumeric and underscore
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) return false;
+    
+    // Don't allow numbers only
+    if (/^\d+$/.test(username)) return false;
+    
+    // Don't allow excessive repeating characters
+    if (/(.)\1{3,}/.test(username)) return false;
+    
+    // Basic leet speak prevention
+    const leetMap: { [key: string]: string } = {
+      '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '9': 'g',
+      'q': 'g', 'x': 'k', 'z': 's'
+    };
+    
+    let normalized = username.toLowerCase();
+    for (const [leet, normal] of Object.entries(leetMap)) {
+      // Escape special regex characters in the leet character
+      const escapedLeet = leet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      normalized = normalized.replace(new RegExp(escapedLeet, 'g'), normal);
+    }
+    
+    // Check for basic inappropriate words
+    const inappropriateWords = ['admin', 'mod', 'staff', 'bot', 'test', 'null', 'fuck', 'shit', 'damn'];
+    for (const word of inappropriateWords) {
+      if (normalized.includes(word)) return false;
+    }
+    
+    return true;
   }
 
   const validateLoginForm = () => {
@@ -117,13 +155,92 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
 
     console.log('🔍 Validating register form:', registerForm);
 
-    // Username validation
+    // Enhanced username validation matching backend logic
     if (!registerForm.username || registerForm.username.trim() === "") {
       errors.username = "Username is required"
       console.log('🔍 Username validation failed:', registerForm.username);
     } else if (registerForm.username.trim().length < 3) {
       errors.username = "Username must be at least 3 characters"
       console.log('🔍 Username too short:', registerForm.username.trim().length);
+    } else if (registerForm.username.trim().length > 20) {
+      errors.username = "Username must be 20 characters or less"
+      console.log('🔍 Username too long:', registerForm.username.trim().length);
+    } else if (!/^[a-zA-Z0-9_]+$/.test(registerForm.username.trim())) {
+      errors.username = "Username can only contain letters, numbers, and underscores"
+      console.log('🔍 Username contains invalid characters:', registerForm.username.trim());
+    } else if (/^\d+$/.test(registerForm.username.trim())) {
+      errors.username = "Username cannot be numbers only"
+      console.log('🔍 Username is numbers only:', registerForm.username.trim());
+    } else if (/(.)\1{3,}/.test(registerForm.username.trim())) {
+      errors.username = "Username cannot have more than 3 repeating characters in a row"
+      console.log('🔍 Username has too many repeating characters:', registerForm.username.trim());
+    } else {
+      // Enhanced leet speak and inappropriate content detection
+      const leetMap: { [key: string]: string } = {
+        '0': 'o', '1': 'i', '2': 'z', '3': 'e', '4': 'a', '5': 's', '6': 'g', '7': 't', '8': 'b', '9': 'g',
+        '@': 'a', '$': 's', '!': 'i', '|': 'i', '+': 't', '?': 'q', '(': 'c', ')': 'c',
+        '*': 'a', '%': 'o', '^': 'a', '&': 'a', '#': 'h', '~': 'n', '=': 'e',
+        'q': 'g', 'x': 'k', 'z': 's', 'vv': 'w', 'ii': 'u', 'rn': 'm'
+      };
+      
+      const substitutionPatterns: { [key: string]: string } = {
+        'qu': 'g', 'qg': 'gg', 'gq': 'gg', 'kw': 'qu', 'ks': 'x', 'ph': 'f',
+        'uff': 'ough', 'vv': 'w', 'rn': 'm', 'nn': 'm', 'ii': 'u', 'oo': 'o',
+        'qq': 'g', 'xx': 'x', 'zz': 's'
+      };
+      
+      let normalized = registerForm.username.toLowerCase();
+      
+      // Apply substitution patterns multiple times
+      for (let i = 0; i < 3; i++) {
+        for (const [pattern, replacement] of Object.entries(substitutionPatterns)) {
+          // Escape special regex characters in the pattern
+          const escapedPattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          normalized = normalized.replace(new RegExp(escapedPattern, 'g'), replacement);
+        }
+      }
+      
+      // Apply character substitutions multiple times
+      for (let i = 0; i < 4; i++) {
+        for (const [leet, normal] of Object.entries(leetMap)) {
+          // Escape special regex characters in the leet character
+          const escapedLeet = leet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          normalized = normalized.replace(new RegExp(escapedLeet, 'g'), normal);
+        }
+      }
+      
+      // Direct q -> g replacement (ensure this is caught)
+      normalized = normalized.replace(/q/g, 'g');
+      
+      // Check for inappropriate words
+      const inappropriateWords = [
+        'admin', 'mod', 'staff', 'bot', 'test', 'null', 'fuck', 'shit', 'damn', 'bitch',
+        'ass', 'hell', 'crap', 'piss', 'cock', 'dick', 'pussy', 'tit', 'nigger', 'nigga',
+        'fag', 'gay', 'homo', 'retard', 'rape', 'nazi', 'hitler', 'porn', 'sex', 'cum'
+      ];
+      
+      for (const word of inappropriateWords) {
+        if (normalized.includes(word)) {
+          errors.username = "Username contains inappropriate content or leet speak substitutions"
+          console.log('🔍 Username contains inappropriate word:', word, 'in normalized:', normalized);
+          break;
+        }
+      }
+      
+      // Check for reserved words
+      const reservedWords = [
+        'admin', 'moderator', 'mod', 'staff', 'support', 'help', 'bot', 'system',
+        'root', 'null', 'undefined', 'test', 'demo', 'guest', 'anonymous', 'anon',
+        'api', 'www', 'mail', 'email', 'ftp', 'http', 'https', 'ssl', 'tls'
+      ];
+      
+      for (const word of reservedWords) {
+        if (normalized.includes(word)) {
+          errors.username = `Username cannot contain reserved word '${word}'`
+          console.log('🔍 Username contains reserved word:', word, 'in normalized:', normalized);
+          break;
+        }
+      }
     }
 
     // Email validation
@@ -135,13 +252,13 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
       console.log('🔍 Email format invalid:', registerForm.email.trim());
     }
 
-    // Password validation
+    // Password validation - simplified since we have real-time feedback
     if (!registerForm.password) {
       errors.password = "Password is required"
       console.log('🔍 Password validation failed:', registerForm.password);
     } else if (!validatePassword(registerForm.password)) {
-      errors.password = "Password must be at least 8 characters"
-      console.log('🔍 Password too short:', registerForm.password.length);
+      errors.password = "Please create a stronger password"
+      console.log('🔍 Password validation failed:', registerForm.password.length);
     }
 
     // Confirm password validation
@@ -320,9 +437,21 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
         
       } catch (err: any) {
         console.log('🔍 Registration error:', err);
+        console.log('🔍 Full error object:', err);
+        
         // The API layer already handles error parsing and provides clean messages
         const errorMessage = err?.message || "Registration failed. Please try again.";
-        setFormErrors({ auth: errorMessage });
+        
+        // Check if this is a password-related error
+        if (errorMessage.includes('Password error:') || errorMessage.includes('password')) {
+          setFormErrors({ password: errorMessage.replace('Password error: ', '') });
+        } else if (errorMessage.includes('Username error:') || errorMessage.includes('username')) {
+          setFormErrors({ username: errorMessage.replace('Username error: ', '') });
+        } else if (errorMessage.includes('Email error:') || errorMessage.includes('email')) {
+          setFormErrors({ email: errorMessage.replace('Email error: ', '') });
+        } else {
+          setFormErrors({ auth: errorMessage });
+        }
       } finally {
         setAuthLoading(false)
       }
@@ -772,31 +901,16 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
 
                 <div>
                   <label className="block text-sm font-medium text-[#2C1A1D] mb-2">PASSWORD</label>
-                  <div className="relative">
-                    <input
-                      type={showRegisterPassword ? "text" : "password"}
-                      className={`w-full px-3 py-2 border ${
-                        formErrors.password ? "border-red-500" : "border-[#CDAA7D]"
-                      } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                      placeholder="CREATE A PASSWORD"
-                      value={registerForm.password}
-                      onChange={(e) => setRegisterForm((prev) => ({ ...prev, password: e.target.value }))}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleRegister(e);
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#8B75AA]"
-                      onClick={() => setShowRegisterPassword(!showRegisterPassword)}
-                    >
-                      {showRegisterPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
+                  <PasswordInputWithStrength
+                    password={registerForm.password}
+                    onPasswordChange={(password) => setRegisterForm((prev) => ({ ...prev, password }))}
+                    username={registerForm.username}
+                    email={registerForm.email}
+                    placeholder="CREATE A PASSWORD"
+                    className={`${
+                      formErrors.password ? "border-red-500" : "border-[#CDAA7D]"
+                    } bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
+                  />
                   {formErrors.password && <p className="text-red-500 text-xs mt-1">{formErrors.password}</p>}
                 </div>
 

@@ -33,6 +33,8 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
+from .password_validators import PasswordStrengthChecker
+import re
 import jwt
 
 class LogoutView(APIView):
@@ -335,13 +337,20 @@ class RegisterView(APIView):
                     'email_sent': email_sent
                 }, status=status.HTTP_201_CREATED)
             else:
-                # Return validation errors
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                # Return detailed validation errors
+                print("Registration validation errors:", serializer.errors)  # Debug logging
+                return Response({
+                    'error': 'Registration failed',
+                    'details': serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
                 
         except Exception as e:
+            print(f"Registration error: {e}")  # Debug logging
+            import traceback
+            traceback.print_exc()
             return Response({
                 'error': 'Registration failed',
-                'detail': 'Server error occurred'
+                'detail': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -508,26 +517,81 @@ class PasswordChangeView(APIView):
         
         # Verify current password
         if not user.check_password(current_password):
+            # Log failed password change attempt
+            self._log_security_event(
+                user, 
+                'failed_password_change', 
+                request,
+                {'reason': 'incorrect_current_password'}
+            )
             return Response({
                 "errors": ["Current password is incorrect."]
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            # Validate new password
-            validate_password(new_password, user)
+            # Check if user is superadmin
+            if user.is_superuser:
+                # Superadmins have relaxed password requirements
+                if len(new_password) < 8:
+                    return Response({
+                        "errors": ["Password must be at least 8 characters long."]
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                # Regular users must meet all password requirements
+                validate_password(new_password, user)
             
-            # Set new password
+            # Set new password (this will also update last_password_change)
             user.set_password(new_password)
             user.save()
             
+            # Log successful password change
+            self._log_security_event(
+                user, 
+                'password_change', 
+                request,
+                {'initiated_by': 'user'}
+            )
+            
             return Response({
-                "detail": "Password changed successfully."
+                "detail": "Password changed successfully.",
+                "security_notice": "Your password has been changed successfully. All other sessions have been terminated." if not user.is_superuser else "Password changed successfully."
             }, status=status.HTTP_200_OK)
             
         except Exception as e:
+            # Log failed password change attempt
+            self._log_security_event(
+                user, 
+                'failed_password_change', 
+                request,
+                {'reason': 'validation_error', 'error': str(e)}
+            )
             return Response({
                 "errors": [str(e)]
             }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def _log_security_event(self, user, event_type, request, details=None):
+        """Log security events."""
+        from .models import SecurityEvent
+        
+        ip_address = self._get_client_ip(request)
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+        
+        SecurityEvent.objects.create(
+            user=user,
+            event_type=event_type,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            details=details or {}
+        )
+    
+    def _get_client_ip(self, request):
+        """Get client IP address."""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+        return ip
 
 
 class EmailVerifiedTokenObtainPairView(TokenObtainPairView):
@@ -667,9 +731,17 @@ class PasswordResetConfirmView(APIView):
                 'detail': 'Invalid or expired password reset link.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Validate the new password
+        # Validate the new password with security exemption for superadmins
         try:
-            validate_password(new_password, user)
+            if user.is_superuser:
+                # Superadmins have relaxed password requirements
+                if len(new_password) < 8:
+                    return Response({
+                        'new_password': ['Password must be at least 8 characters long.']
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                # Regular users must meet all password requirements
+                validate_password(new_password, user)
         except serializers.ValidationError as e:
             return Response({
                 'new_password': e.messages
@@ -679,6 +751,138 @@ class PasswordResetConfirmView(APIView):
         user.set_password(new_password)
         user.save()
         
+        # Log security event
+        self._log_security_event(
+            user, 
+            'password_reset', 
+            request,
+            {'initiated_by': 'password_reset_link'}
+        )
+        
         return Response({
-            'detail': 'Password has been reset successfully.'
+            'detail': 'Password has been reset successfully.',
+            'security_notice': 'Your password has been reset successfully. Please log in with your new password.' if not user.is_superuser else 'Password reset successfully.'
         }, status=status.HTTP_200_OK)
+    
+    def _log_security_event(self, user, event_type, request, details=None):
+        """Log security events."""
+        from .models import SecurityEvent
+        
+        ip_address = self._get_client_ip(request)
+        user_agent = request.META.get('HTTP_USER_AGENT', '')
+        
+        SecurityEvent.objects.create(
+            user=user,
+            event_type=event_type,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            details=details or {}
+        )
+    
+    def _get_client_ip(self, request):
+        """Get client IP address."""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+        return ip
+
+
+class PasswordStrengthCheckView(APIView):
+    """
+    Enhanced real-time password strength checking with detailed feedback.
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        password = request.data.get('password', '')
+        username = request.data.get('username', '')
+        email = request.data.get('email', '')
+        
+        if not password:
+            return Response({
+                'success': False,
+                'error': 'Password is required.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Create a temporary user object for personal info checking
+            temp_user = None
+            if username or email:
+                temp_user = type('TempUser', (), {
+                    'username': username,
+                    'email': email,
+                    'display_name': username,
+                    'is_superuser': False
+                })()
+            
+            # Check if this is likely a superuser
+            is_likely_superuser = username and username.lower() in ['admin', 'superadmin', 'root', 'administrator']
+            
+            # Use our enhanced password strength checker
+            strength_checker = PasswordStrengthChecker()
+            result = strength_checker.check_password_strength(password, temp_user)
+            
+            # Add superuser exemption logic
+            if is_likely_superuser:
+                result['is_superuser_exempt'] = True
+                if len(password) >= 8:
+                    result['strength'] = 'adequate_for_admin'
+                    result['feedback'].append("Password meets minimum requirements for admin users.")
+                    result['errors'] = []  # Clear errors for superusers
+                else:
+                    result['errors'] = ["Password must be at least 8 characters long for admin users."]
+            else:
+                result['is_superuser_exempt'] = False
+            
+            return Response({
+                'success': True,
+                'data': result
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+class PasswordStrengthView(APIView):
+    """
+    API endpoint for real-time password strength checking.
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        """
+        Check password strength and return detailed feedback.
+        """
+        try:
+            password = request.data.get('password', '')
+            username = request.data.get('username', '')
+            email = request.data.get('email', '')
+            
+            # Create a temporary user object for personal info checking
+            temp_user = None
+            if username or email:
+                temp_user = type('TempUser', (), {
+                    'username': username,
+                    'email': email,
+                    'display_name': username,
+                    'is_superuser': False
+                })()
+            
+            # Check password strength
+            strength_checker = PasswordStrengthChecker()
+            result = strength_checker.check_password_strength(password, temp_user)
+            
+            return Response({
+                'success': True,
+                'data': result
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)

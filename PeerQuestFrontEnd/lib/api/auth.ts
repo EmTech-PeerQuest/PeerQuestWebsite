@@ -119,6 +119,32 @@ export const register = async (userData: {
       if (error.response.status === 400) {
         const errorData = error.response.data;
         
+        // Check for detailed error response from backend
+        if (errorData.details) {
+          // Handle the new structured error format
+          const details = errorData.details;
+          
+          if (details.password) {
+            const passwordErrors = Array.isArray(details.password) ? details.password : [details.password];
+            throw new Error(`Password error: ${passwordErrors.join(', ')}`);
+          }
+          
+          if (details.username) {
+            const usernameErrors = Array.isArray(details.username) ? details.username : [details.username];
+            throw new Error(`Username error: ${usernameErrors.join(', ')}`);
+          }
+          
+          if (details.email) {
+            const emailErrors = Array.isArray(details.email) ? details.email : [details.email];
+            throw new Error(`Email error: ${emailErrors.join(', ')}`);
+          }
+          
+          if (details.password_confirm) {
+            const confirmErrors = Array.isArray(details.password_confirm) ? details.password_confirm : [details.password_confirm];
+            throw new Error(`Password confirmation error: ${confirmErrors.join(', ')}`);
+          }
+        }
+        
         // Check for field-specific errors (like email already exists)
         if (errorData.email) {
           const emailErrors = Array.isArray(errorData.email) ? errorData.email : [errorData.email];
@@ -405,6 +431,21 @@ export const resetPasswordConfirm = async (uid: string, token: string, newPasswo
       throw new Error(error.response.data.detail);
     }
     
+    throw error;
+  }
+};
+
+// Password strength check
+export const checkPasswordStrength = async (password: string, username?: string, email?: string) => {
+  try {
+    const response = await axios.post(`${API_BASE}/api/users/password-strength-check/`, {
+      password,
+      username,
+      email
+    });
+    return response.data;
+  } catch (error: any) {
+    console.error('Password strength check failed:', error?.response?.data);
     throw error;
   }
 };

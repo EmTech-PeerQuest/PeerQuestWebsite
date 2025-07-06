@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth.hashers import make_password, check_password
 import uuid
 
 class User(AbstractUser):
@@ -69,8 +70,17 @@ class User(AbstractUser):
         super().save(*args, **kwargs)
 
     def set_password(self, raw_password):
-        """Override set_password to update last_password_change timestamp."""
+        """Override set_password to update last_password_change timestamp and track password history."""
         from django.utils import timezone
+        
+        # Skip password history for superadmins if this is not their first password
+        if not self.is_superuser and self.pk:
+            # Add current password to history before changing it
+            # Import here to avoid circular imports
+            from .models import PasswordHistory
+            if self.password:  # Only add to history if there's an existing password
+                PasswordHistory.add_password_to_history(self, self.password)
+        
         super().set_password(raw_password)
         self.last_password_change = timezone.now()
 
@@ -167,3 +177,60 @@ class UserAchievement(models.Model):
 
     class Meta:
         unique_together = ('user', 'achievement_name')
+
+class PasswordHistory(models.Model):
+    """Track user password history for security."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_history')
+    password_hash = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = _('Password History')
+        verbose_name_plural = _('Password Histories')
+    
+    def set_password(self, raw_password):
+        """Set the password hash."""
+        self.password_hash = make_password(raw_password)
+    
+    def check_password(self, raw_password):
+        """Check if the raw password matches this historical password."""
+        return check_password(raw_password, self.password_hash)
+    
+    @classmethod
+    def add_password_to_history(cls, user, raw_password):
+        """Add a password to the user's history."""
+        password_history = cls(user=user)
+        password_history.set_password(raw_password)
+        password_history.save()
+        
+        # Keep only the last 10 passwords
+        old_passwords = cls.objects.filter(user=user).order_by('-created_at')[10:]
+        if old_passwords:
+            cls.objects.filter(id__in=[p.id for p in old_passwords]).delete()
+
+class SecurityEvent(models.Model):
+    """Track security-related events."""
+    EVENT_TYPES = [
+        ('password_change', 'Password Change'),
+        ('password_reset', 'Password Reset'),
+        ('failed_login', 'Failed Login'),
+        ('successful_login', 'Successful Login'),
+        ('account_lockout', 'Account Lockout'),
+        ('suspicious_activity', 'Suspicious Activity'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='security_events')
+    event_type = models.CharField(max_length=50, choices=EVENT_TYPES)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True)
+    details = models.JSONField(default=dict, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = _('Security Event')
+        verbose_name_plural = _('Security Events')
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.event_type} - {self.timestamp}"

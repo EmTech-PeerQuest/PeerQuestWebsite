@@ -78,13 +78,60 @@ DATABASES = {
     }
 }
 
-# Password validation
+# Enhanced Password validation with superadmin exemption
 AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'users.password_validators.EnhancedMinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 12,
+            'exempt_superadmin': True,
+        }
+    },
+    {
+        'NAME': 'users.password_validators.ComplexityValidator',
+        'OPTIONS': {
+            'require_uppercase': True,
+            'require_lowercase': True,
+            'require_numbers': True,
+            'require_symbols': True,
+            'exempt_superadmin': True,
+        }
+    },
+    {
+        'NAME': 'users.password_validators.PasswordHistoryValidator',
+        'OPTIONS': {
+            'history_count': 5,
+            'exempt_superadmin': True,
+        }
+    },
+    {
+        'NAME': 'users.password_validators.PersonalInfoValidator',
+        'OPTIONS': {
+            'exempt_superadmin': True,
+        }
+    },
+    {
+        'NAME': 'users.password_validators.SequentialCharacterValidator',
+        'OPTIONS': {
+            'max_sequential': 3,
+            'exempt_superadmin': True,
+        }
+    },
+    {
+        'NAME': 'users.password_validators.CommonPasswordValidatorEnhanced',
+        'OPTIONS': {
+            'exempt_superadmin': True,
+        }
+    },
+    # Keep the original Django validators as fallback
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 8,
+        }
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
