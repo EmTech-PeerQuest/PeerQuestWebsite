@@ -312,18 +312,23 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
       }
     }
     
+    // Gold budget range validation based on difficulty
+    const range = getGoldBudgetRangeForDifficulty(formData.difficulty);
+    if (goldBudget < range.min || goldBudget > range.max) {
+      validationErrors.goldBudget = `Gold budget must be between ${range.min} and ${range.max} for ${formData.difficulty.charAt(0).toUpperCase() + formData.difficulty.slice(1)} difficulty.`;
+    }
+    
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors)
       setIsLoading(false)
-      
+
       // Scroll to the first error field in order of importance
-      const fieldPriority = ['title', 'description', 'category', 'due_date', 'goldReward']
+      const fieldPriority = ['title', 'description', 'category', 'due_date', 'goldBudget']
       const firstErrorField = fieldPriority.find(field => validationErrors[field])
-      
+
       if (firstErrorField) {
-        // Use setTimeout to ensure the error state is updated before scrolling
         setTimeout(() => {
-          const errorElement = document.getElementById(firstErrorField)
+          const errorElement = document.getElementById(firstErrorField === 'goldBudget' ? 'budget' : firstErrorField)
           if (errorElement) {
             errorElement.scrollIntoView({ 
               behavior: 'smooth', 
@@ -333,7 +338,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
           }
         }, 100)
       }
-      
+
       return
     }
 
@@ -466,7 +471,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
               // Process each field in the error response
               for (const [field, errorMessages] of Object.entries(parsedError)) {
                 if (field === 'status_code') continue; // Skip status code field
-                
+               
                 if (Array.isArray(errorMessages)) {
                   formattedErrors[field] = errorMessages.join(', ')
                 } else if (typeof errorMessages === 'string') {
@@ -841,22 +846,19 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                 </label>
                 <div className="flex flex-col">
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     id="budget"
                     name="budget"
-                    value={goldBudget}
+                    value={goldBudget === 0 ? '' : goldBudget}
                     onChange={(e) => {
-                      if (isGoldBudgetLocked) {
-                        return;
-                      }
-                      let value = parseInt(e.target.value) || 0;
-                      const range = getGoldBudgetRangeForDifficulty(formData.difficulty);
-                      if (value < range.min) value = range.min;
-                      if (value > range.max) value = range.max;
-                      const maxBudget = calculateMaxBudgetForEditing();
-                      if (value > maxBudget) value = maxBudget;
-                      setGoldBudget(value);
+                      if (isGoldBudgetLocked) return;
+                      // Allow any digit input, update state
+                      let value = e.target.value.replace(/[^0-9]/g, '');
+                      setGoldBudget(value === '' ? 0 : parseInt(value, 10));
                     }}
+                    onBlur={() => {}}
                     min={getGoldBudgetRangeForDifficulty(formData.difficulty).min}
                     max={Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())}
                     disabled={!!isGoldBudgetLocked}
@@ -867,6 +869,10 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                     }`}
                     placeholder={`Enter gold (${getGoldBudgetRangeForDifficulty(formData.difficulty).min}-${getGoldBudgetRangeForDifficulty(formData.difficulty).max})`}
                   />
+                  {/* Show error if out of range */}
+                  {goldBudget !== 0 && (goldBudget < getGoldBudgetRangeForDifficulty(formData.difficulty).min || goldBudget > Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())) && (
+                    <span className="text-xs text-red-500 mt-1">Gold budget must be between {getGoldBudgetRangeForDifficulty(formData.difficulty).min} and {Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())}.</span>
+                  )}
                   {/* Recommended gold budget range label */}
                   <div className="text-xs text-amber-700 mt-1">
                     Recommended for {formData.difficulty.charAt(0).toUpperCase() + formData.difficulty.slice(1)}: {getGoldBudgetRangeForDifficulty(formData.difficulty).min} - {getGoldBudgetRangeForDifficulty(formData.difficulty).max} gold
