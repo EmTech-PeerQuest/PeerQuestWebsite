@@ -367,6 +367,15 @@ export function QuestDetailsModal({
                   {quest.applications_count} {quest.applications_count === 1 ? "person has" : "people have"} applied for
                   this quest.
                 </p>
+                <button
+                  className="mt-4 px-5 py-2 bg-gradient-to-r from-amber-500 to-purple-500 text-white rounded-lg font-semibold shadow hover:from-amber-600 hover:to-purple-600 transition-colors"
+                  onClick={() => {
+                    // TODO: Implement view submissions modal or navigation
+                    showToast("View submissions feature coming soon!", "info");
+                  }}
+                >
+                  View Submitted Work
+                </button>
               </div>
             )}
           </div>

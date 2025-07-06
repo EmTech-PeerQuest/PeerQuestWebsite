@@ -19,6 +19,7 @@ from .views import (
     QuestSubmissionListCreateView,
     QuestSubmissionDetailView,
     QuestSubmissionReviewView,
+    QuestSubmissionFileDownloadView,
     
     # Statistics and Dashboard
     QuestStatsView,
@@ -53,6 +54,7 @@ urlpatterns = [
     path('quests/<slug:quest_slug>/submissions/', QuestSubmissionListCreateView.as_view(), name='quest-submissions'),
     path('submissions/<int:pk>/', QuestSubmissionDetailView.as_view(), name='submission-detail'),
     path('submissions/<int:pk>/review/', QuestSubmissionReviewView.as_view(), name='submission-review'),
+    path('submissions/<int:submission_id>/download/<int:file_index>/', QuestSubmissionFileDownloadView.as_view(), name='submission-file-download'),
     
     # Statistics and Dashboard
     path('stats/', QuestStatsView.as_view(), name='quest-stats'),
@@ -101,6 +103,7 @@ Submissions:
 - PUT/PATCH /api/quests/submissions/{id}/ - Update submission
 - DELETE /api/quests/submissions/{id}/ - Delete submission
 - PATCH /api/quests/submissions/{id}/review/ - Review submission (creators only)
+- GET /api/quests/submissions/{submission_id}/download/{file_index}/ - Download submission file
 
 Statistics:
 - GET /api/quests/stats/ - Get user quest statistics

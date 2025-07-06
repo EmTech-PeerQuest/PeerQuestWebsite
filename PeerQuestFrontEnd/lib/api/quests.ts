@@ -1,7 +1,7 @@
 import { Quest } from '@/lib/types'
 import { fetchWithAuth } from '@/lib/auth'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
 // Helper function to get headers with authentication
 const getAuthHeaders = () => {
@@ -50,16 +50,17 @@ export interface QuestParticipant {
 }
 
 export interface QuestSubmission {
-  id: number
-  participant_username: string
-  quest_title: string
-  submission_text: string
-  submission_files: string[]
-  status: 'pending' | 'approved' | 'rejected' | 'needs_revision'
-  feedback: string
-  submitted_at: string
-  reviewed_at?: string
-  reviewed_by_username?: string
+  id: number;
+  participant_username: string;
+  quest_title: string;
+  description: string;
+  link?: string;
+  submission_files: (string | { file: string })[];
+  status: 'pending' | 'approved' | 'rejected' | 'needs_revision';
+  feedback: string;
+  submitted_at: string;
+  reviewed_at?: string;
+  reviewed_by_username?: string;
 }
 
 export interface QuestFilters {
@@ -101,11 +102,11 @@ export const QuestAPI = {
     questSlug: string;
     questParticipantId?: number;
     applicationId?: number;
-    submissionText: string;
-    submissionLink?: string;
+    description: string;
+    link?: string;
     files?: File[];
   }): Promise<QuestSubmission> {
-    const { questSlug, questParticipantId, applicationId, submissionText, submissionLink, files = [] } = params;
+    const { questSlug, questParticipantId, applicationId, description, link, files = [] } = params;
     if (!questSlug || typeof questSlug !== 'string' || !questSlug.trim()) {
       throw new Error('Quest slug is missing or invalid. Please contact support.');
     }
@@ -118,12 +119,12 @@ export const QuestAPI = {
     } else {
       formData.append("quest_slug", questSlug);
     }
-    // Combine text and link if link is provided
-    let text = submissionText;
-    if (submissionLink) {
-      text = text ? text + "\nLink: " + submissionLink : submissionLink;
+    if (description) {
+      formData.append("description", description);
     }
-    formData.append("submission_text", text);
+    if (link) {
+      formData.append("link", link);
+    }
     files.forEach((file) => formData.append("files", file));
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
     const response = await fetchWithAuth(

@@ -420,7 +420,8 @@ class QuestSubmission(models.Model):
     ]
 
     quest_participant = models.ForeignKey(QuestParticipant, on_delete=models.CASCADE, related_name='submissions')
-    submission_text = models.TextField()
+    description = models.TextField(blank=True, help_text="Text description of the submission")
+    link = models.URLField(blank=True, null=True, help_text="Optional link to submitted work")
     submission_files = models.JSONField(default=list, blank=True, help_text="List of file URLs or paths")
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='pending')
     feedback = models.TextField(blank=True)

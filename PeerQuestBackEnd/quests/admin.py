@@ -300,8 +300,8 @@ class QuestParticipantAdmin(admin.ModelAdmin):
 @admin.register(QuestSubmission)
 class QuestSubmissionAdmin(admin.ModelAdmin):
     list_display = [
-        'id', 'quest_participant', 'participant_user', 'quest_title', 'status', 
-        'submitted_at', 'reviewed_at', 'reviewed_by', 'submission_preview'
+        'id', 'quest_participant', 'participant_user', 'quest_title', 'description', 'link', 'status', 
+        'submitted_at', 'reviewed_at', 'reviewed_by', 'submission_files_preview'
     ]
     list_filter = [
         'status', 'submitted_at', 'reviewed_at', 
@@ -309,7 +309,7 @@ class QuestSubmissionAdmin(admin.ModelAdmin):
     ]
     search_fields = [
         'quest_participant__user__username', 'quest_participant__quest__title',
-        'submission_text', 'feedback', 'reviewed_by__username'
+        'description', 'link', 'feedback', 'reviewed_by__username'
     ]
     readonly_fields = ['submitted_at', 'participant_details', 'quest_details']
     list_per_page = 50
@@ -317,7 +317,7 @@ class QuestSubmissionAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Submission Info', {
-            'fields': ('quest_participant', 'submission_text', 'submission_files')
+            'fields': ('quest_participant', 'description', 'link', 'submission_files')
         }),
         ('Review', {
             'fields': ('status', 'feedback', 'reviewed_by', 'reviewed_at')
@@ -346,11 +346,11 @@ class QuestSubmissionAdmin(admin.ModelAdmin):
     quest_title.short_description = 'Quest'
     quest_title.admin_order_field = 'quest_participant__quest__title'
 
-    def submission_preview(self, obj):
-        if obj.submission_text:
-            return obj.submission_text[:50] + '...' if len(obj.submission_text) > 50 else obj.submission_text
-        return 'No submission text'
-    submission_preview.short_description = 'Submission Preview'
+    def submission_files_preview(self, obj):
+        if obj.submission_files:
+            return ', '.join([str(f) for f in obj.submission_files])
+        return 'No files uploaded'
+    submission_files_preview.short_description = 'Files'
 
     def participant_details(self, obj):
         return format_html("""

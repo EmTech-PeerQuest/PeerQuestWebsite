@@ -36,14 +36,17 @@ class QuestParticipantSerializer(serializers.ModelSerializer):
 class QuestSubmissionSerializer(serializers.ModelSerializer):
     participant_username = serializers.CharField(source='quest_participant.user.username', read_only=True)
     quest_title = serializers.CharField(source='quest_participant.quest.title', read_only=True)
-    quest_slug = serializers.CharField(source='quest_participant.quest.slug', read_only=True)  # <-- Add this line
+    quest_slug = serializers.CharField(source='quest_participant.quest.slug', read_only=True)
     reviewed_by_username = serializers.CharField(source='reviewed_by.username', read_only=True)
+    submission_files = serializers.ListField(child=serializers.CharField(), read_only=True)
+    description = serializers.CharField(read_only=True)
+    link = serializers.CharField(read_only=True)
 
     class Meta:
         model = QuestSubmission
         fields = [
             'id', 'participant_username', 'quest_title', 'quest_slug',
-            'submission_text', 'submission_files', 'status', 'feedback', 'submitted_at',
+            'description', 'link', 'submission_files', 'status', 'feedback', 'submitted_at',
             'reviewed_at', 'reviewed_by_username'
         ]
 
@@ -449,7 +452,7 @@ class QuestSubmissionCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = QuestSubmission
-        fields = ['quest_participant', 'application', 'quest_slug', 'slug', 'submission_text', 'submission_files', 'files']
+        fields = ['quest_participant', 'application', 'quest_slug', 'slug', 'description', 'link', 'submission_files', 'files']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -523,17 +526,18 @@ class QuestSubmissionCreateSerializer(serializers.ModelSerializer):
         files = validated_data.pop('files', [])
         submission = super().create(validated_data)
         # Save uploaded files and store their URLs/paths in submission_files
-        file_urls = submission.submission_files or []
+        file_objs = submission.submission_files or []
         for f in files:
             from django.core.files.storage import default_storage
             from django.core.files.base import ContentFile
+            f.seek(0)  # Ensure pointer is at start
             path = default_storage.save(f"submissions/{f.name}", ContentFile(f.read()))
             if hasattr(default_storage, 'url'):
                 url = default_storage.url(path)
             else:
                 url = path
-            file_urls.append(url)
-        submission.submission_files = file_urls
+            file_objs.append({"file": url, "name": f.name})
+        submission.submission_files = file_objs
         submission.save()
         return submission
 

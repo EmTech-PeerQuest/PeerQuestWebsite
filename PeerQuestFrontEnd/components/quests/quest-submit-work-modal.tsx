@@ -32,8 +32,8 @@ export const QuestSubmitWorkModal: React.FC<QuestSubmitWorkModalProps> = ({
   showToast,
 }) => {
 
-  const [submissionText, setSubmissionText] = useState("");
-  const [submissionLink, setSubmissionLink] = useState("");
+  const [description, setDescription] = useState("");
+  const [link, setLink] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<string>("");
@@ -118,12 +118,12 @@ export const QuestSubmitWorkModal: React.FC<QuestSubmitWorkModalProps> = ({
         questSlug,
         ...(questParticipantId ? { questParticipantId } : {}),
         ...(applicationId ? { applicationId } : {}),
-        submissionText,
-        submissionLink,
+        description,
+        link,
         files,
       });
-      setSubmissionText("");
-      setSubmissionLink("");
+      setDescription("");
+      setLink("");
       setFiles([]);
       setSuccess(true);
       onSuccess();
@@ -201,8 +201,8 @@ export const QuestSubmitWorkModal: React.FC<QuestSubmitWorkModalProps> = ({
             <textarea
               className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white text-gray-900"
               rows={4}
-              value={submissionText}
-              onChange={(e) => setSubmissionText(e.target.value)}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe your work or add notes"
               required
             />
@@ -212,8 +212,8 @@ export const QuestSubmitWorkModal: React.FC<QuestSubmitWorkModalProps> = ({
             <input
               type="url"
               className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white text-gray-900"
-              value={submissionLink}
-              onChange={(e) => setSubmissionLink(e.target.value)}
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
               placeholder="Paste a link to your work (if any)"
             />
           </div>

@@ -11,6 +11,11 @@ from .serializers import (
     QuestCategorySerializer, QuestParticipantSerializer, QuestParticipantCreateSerializer,
     QuestSubmissionSerializer, QuestSubmissionCreateSerializer, QuestSubmissionReviewSerializer
 )
+from django.http import FileResponse, Http404
+from django.conf import settings
+import os
+import mimetypes
+import urllib.parse
 
 
 # Custom Permissions
@@ -545,3 +550,54 @@ class AdminQuestDetailView(generics.RetrieveUpdateDestroyAPIView):
         else:
             print(f"⚠️ Failed to refund gold for quest deletion: {refund_result.get('error', 'Unknown error')}")
             return Response({'error': refund_result.get('error', 'Refund failed')}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class QuestSubmissionFileDownloadView(generics.GenericAPIView):
+    """
+    Serve a file from a QuestSubmission as an attachment, preserving the original filename.
+    Only the quest creator or the participant who made the submission can download.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, submission_id, file_index):
+        submission = get_object_or_404(QuestSubmission, id=submission_id)
+        user = request.user
+        quest = submission.quest_participant.quest
+        participant = submission.quest_participant.user
+        # Only quest creator or participant can download
+        if not (user == quest.creator or user == participant):
+            return Response({'error': 'Permission denied.'}, status=403)
+        files = submission.submission_files or []
+        try:
+            file_obj = files[file_index]
+            file_url = file_obj.get('file')
+            orig_name = file_obj.get('name', 'submission_file')
+        except (IndexError, AttributeError, KeyError, TypeError):
+            raise Http404('File not found in submission.')
+        # Restrict allowed file types
+        allowed_exts = {'.jpg', '.jpeg', '.png', '.pdf', '.doc', '.txt'}
+        _, ext = os.path.splitext(orig_name.lower())
+        if ext not in allowed_exts:
+            return Response({'error': f'File type {ext} is not allowed.'}, status=403)
+        # file_url is relative to MEDIA_URL, get absolute path
+        print(f"[DOWNLOAD DEBUG] file_url: {file_url}")
+        if file_url.startswith(settings.MEDIA_URL):
+            rel_path = file_url[len(settings.MEDIA_URL):]
+        else:
+            rel_path = file_url
+        rel_path = urllib.parse.unquote(rel_path)  # Decode URL-encoded characters
+        print(f"[DOWNLOAD DEBUG] rel_path: {rel_path}")
+        abs_path = os.path.join(settings.MEDIA_ROOT, rel_path)
+        print(f"[DOWNLOAD DEBUG] abs_path: {abs_path}")
+        if not os.path.exists(abs_path):
+            print(f"[DOWNLOAD DEBUG] File does not exist at: {abs_path}")
+            raise Http404('File does not exist.')
+        # Guess content type
+        content_type, _ = mimetypes.guess_type(orig_name)
+        # Always set Content-Type to application/pdf for PDFs
+        if ext == '.pdf':
+            content_type = 'application/pdf'
+        response = FileResponse(open(abs_path, 'rb'), as_attachment=True, filename=orig_name)
+        if content_type:
+            response['Content-Type'] = content_type
+        return response

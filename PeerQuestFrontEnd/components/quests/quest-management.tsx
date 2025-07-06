@@ -27,6 +27,7 @@ import { QuestDetailsModal } from "./quest-details-modal"
 import QuestSubmitWorkModal from "./quest-submit-work-modal"
 import QuestForm from "./quest-form"
 import { QuestManagementApplicationsModal } from "@/components/modals/quest-management-applications-modal"
+import QuestSubmissionsModal from "@/components/modals/quest-submissions-modal"
 import { useGoldBalance } from "@/context/GoldBalanceContext"
 
 interface QuestManagementProps {
@@ -89,6 +90,8 @@ export function QuestManagement({
     }
   };
   const [userApplications, setUserApplications] = useState<Application[]>([])
+  const [showSubmissionsModal, setShowSubmissionsModal] = useState(false);
+  const [submissionsQuest, setSubmissionsQuest] = useState<Quest | null>(null);
 
   // Load user's quests on component mount and when currentUser changes
   useEffect(() => {
@@ -783,13 +786,17 @@ export function QuestManagement({
                           <h4 className="text-lg font-bold text-[#2C1A1D] font-serif">
                             Applications Log ({questApplications[quest.id]?.length || quest.applications_count || 0})
                           </h4>
+                          {/* Show View Submitted Work button for in-progress quests */}
                           {quest.status === "in-progress" && (
                             <button
-                              onClick={() => handleCompleteQuest(quest.slug)}
-                              className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors"
+                              onClick={() => {
+                                setSubmissionsQuest(quest);
+                                setShowSubmissionsModal(true);
+                              }}
+                              className="flex items-center gap-2 px-6 py-3 bg-[#8B75AA] text-white rounded-xl hover:bg-[#7A6699] transition-colors font-semibold"
                             >
-                              <CheckCircle size={16} />
-                              <span>Mark as Completed</span>
+                              <Eye size={20} />
+                              <span>View Submitted Work</span>
                             </button>
                           )}
                         </div>
@@ -947,6 +954,14 @@ export function QuestManagement({
                                 )}
                               </div>
                             ))}
+
+                            {/* No applications message */}
+                            {questApplications[quest.id].length === 0 && (
+                              <div className="text-center py-8 bg-white rounded-xl border border-dashed border-gray-300">
+                                <User className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                <p className="text-gray-500">No applications yet. Share your quest to attract adventurers!</p>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="text-center py-8 bg-white rounded-xl border border-dashed border-gray-300">
@@ -994,8 +1009,7 @@ export function QuestManagement({
                                     <p className="text-gray-600">
                                       {userApp.status === 'approved' && userApp.reviewed_at
                                         ? `Approved on ${new Date(userApp.reviewed_at).toLocaleDateString()}`
-                                        : `Applied on ${new Date(userApp.applied_at).toLocaleDateString()}`
-                                      }
+                                        : `Applied on ${new Date(userApp.applied_at).toLocaleDateString()}`}
                                     </p>
                                   </div>
                                   {userApp.status === 'pending' && (
@@ -1036,16 +1050,28 @@ export function QuestManagement({
                             (app) => app.quest.id === quest.id && app.status === "approved"
                           );
                           return myParticipant || hasApprovedApp ? (
-                            <button
-                              onClick={() => {
-                                setSubmitWorkQuest(quest);
-                                setShowSubmitWorkModal(true);
-                              }}
-                              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#8B75AA] text-white rounded-xl hover:bg-[#7A6699] transition-colors font-semibold"
-                            >
-                              <CheckCircle size={20} />
-                              <span>Submit Completed Work</span>
-                            </button>
+                            <div className="flex flex-col sm:flex-row gap-3 w-full">
+                              <button
+                                onClick={() => {
+                                  setSubmitWorkQuest(quest);
+                                  setShowSubmitWorkModal(true);
+                                }}
+                                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-[#8B75AA] text-white rounded-xl hover:bg-[#7A6699] transition-colors font-semibold"
+                              >
+                                <CheckCircle size={20} />
+                                <span>Submit Completed Work</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSubmissionsQuest(quest);
+                                  setShowSubmissionsModal(true);
+                                }}
+                                className="flex items-center gap-2 px-6 py-3 bg-[#8B75AA] text-white rounded-xl hover:bg-[#7A6699] transition-colors font-semibold"
+                              >
+                                <Eye size={20} />
+                                <span>View Submitted Work</span>
+                              </button>
+                            </div>
                           ) : null;
                         })()}
       {/* Quest Submit Work Modal */}
@@ -1181,6 +1207,26 @@ export function QuestManagement({
           currentUser={currentUser}
           questId={selectedQuestForApplications?.id}
           onApplicationProcessed={loadMyQuests}
+        />
+      )}
+
+      {/* Submissions Modal */}
+      {showSubmissionsModal && submissionsQuest && (
+        <QuestSubmissionsModal
+          isOpen={showSubmissionsModal}
+          onClose={() => {
+            setShowSubmissionsModal(false);
+            setSubmissionsQuest(null);
+          }}
+          quest={submissionsQuest}
+          currentUser={currentUser}
+          showToast={showToast}
+          // Add mark as completed handler and status
+          onMarkComplete={async () => {
+            await handleCompleteQuest(submissionsQuest.slug);
+            setShowSubmissionsModal(false);
+          }}
+          canMarkComplete={submissionsQuest.status === "in-progress" && activeTab === "created"}
         />
       )}
     </section>
