@@ -13,6 +13,7 @@ interface AuthContextProps {
   logout: () => void;
   loginWithGoogle: (googleCredential: string) => Promise<void>;
   refreshUser: () => Promise<void>;
+  clearAllAuthCache: () => void;
 }
 
 
@@ -23,6 +24,7 @@ const AuthContext = createContext<AuthContextProps>({
   logout: () => {},
   loginWithGoogle: async () => {},
   refreshUser: async () => {},
+  clearAllAuthCache: () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -243,15 +245,51 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = () => {
-    // Clear all tokens and user data
+    console.log('🔍 Logging out and clearing all stored data...');
+    
+    // Clear all authentication data
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
-    sessionStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
-    localStorage.removeItem('remember_me');
+    localStorage.removeItem('jwt');
     
+    // Clear any other cached data
+    sessionStorage.clear();
+    
+    // Reset user state
     setUser(null);
+    
+    console.log('✅ All stored data cleared');
+    
+    // Redirect to home page
     router.push('/');
+  };
+
+  // Utility function to clear all auth-related cache data
+  const clearAllAuthCache = () => {
+    console.log('🔍 Clearing all authentication cache data...');
+    
+    // Clear localStorage
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('jwt');
+    
+    // Clear sessionStorage
+    sessionStorage.clear();
+    
+    // Clear cookies
+    document.cookie.split(";").forEach((c) => {
+      const eqPos = c.indexOf("=");
+      const name = eqPos > -1 ? c.substr(0, eqPos) : c;
+      document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+      document.cookie = name + "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=localhost";
+    });
+    
+    // Reset user state
+    setUser(null);
+    
+    console.log('✅ All authentication cache cleared');
   };
 
   const refreshAccessToken = async (): Promise<string | null> => {
@@ -392,7 +430,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loginWithGoogle, refreshUser }}>
+    <AuthContext.Provider value={{ user, login, register, logout, loginWithGoogle, refreshUser, clearAllAuthCache }}>
       {loading ? <ThemedLoading /> : children}
     </AuthContext.Provider>
   );

@@ -15,6 +15,7 @@ class EmailVerificationMiddleware(MiddlewareMixin):
         '/api/users/verify-email/',
         '/api/users/resend-verification/',
         '/api/users/google-login-callback/',
+        '/api/google-login-callback/',  # Add correct Google login callback URL
         '/api/auth/password-reset/',  # Allow password reset for unverified users
         '/api/token/refresh/',  # Allow token refresh (user already authenticated)
         '/admin/',

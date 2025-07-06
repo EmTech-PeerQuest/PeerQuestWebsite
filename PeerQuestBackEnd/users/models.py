@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+from rest_framework_simplejwt.tokens import RefreshToken
 import uuid
 
 class User(AbstractUser):
@@ -76,6 +77,56 @@ class User(AbstractUser):
     def calculate_level(self):
         # Implement your level calculation logic
         return min(100, max(1, self.experience_points // 1000))
+
+class BlacklistedToken(models.Model):
+    """Model to track blacklisted/revoked tokens"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    token_jti = models.CharField(max_length=255, unique=True, db_index=True)  # JWT ID from token
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='blacklisted_tokens')
+    token_type = models.CharField(max_length=20, choices=[
+        ('access', 'Access Token'),
+        ('refresh', 'Refresh Token'),
+    ])
+    blacklisted_at = models.DateTimeField(auto_now_add=True)
+    reason = models.CharField(max_length=100, choices=[
+        ('logout', 'User Logout'),
+        ('password_change', 'Password Changed'),
+        ('security_breach', 'Security Breach'),
+        ('account_deactivation', 'Account Deactivated'),
+        ('manual_revoke', 'Manual Revocation'),
+    ], default='logout')
+    
+    class Meta:
+        db_table = 'blacklisted_tokens'
+        indexes = [
+            models.Index(fields=['token_jti']),
+            models.Index(fields=['user', 'blacklisted_at']),
+        ]
+    
+    def __str__(self):
+        return f"Blacklisted {self.token_type} token for {self.user.username}"
+
+class UserSession(models.Model):
+    """Model to track active user sessions"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sessions')
+    refresh_token_jti = models.CharField(max_length=255, unique=True, db_index=True)
+    device_info = models.JSONField(default=dict, blank=True)  # Browser, OS, etc.
+    ip_address = models.GenericIPAddressField()
+    user_agent = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_activity = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+    
+    class Meta:
+        db_table = 'user_sessions'
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['refresh_token_jti']),
+        ]
+    
+    def __str__(self):
+        return f"Session for {self.user.username} from {self.ip_address}"
 
 class UserSkill(models.Model):
     class ProficiencyLevel(models.TextChoices):

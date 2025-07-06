@@ -76,5 +76,6 @@ def send_password_reset_email(user, reset_url):
         return True
         
     except Exception as e:
-        print(f"Error sending password reset email to {user.email}: {str(e)}")
+        # Error sending password reset email
+        pass
         return False

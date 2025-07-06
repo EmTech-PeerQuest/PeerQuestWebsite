@@ -8,6 +8,7 @@ from django.conf.urls.static import static
 from django.views.generic import TemplateView
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.http import JsonResponse
+from django.utils import timezone
 from users.views import GoogleLoginCallbackView, EmailVerifiedTokenObtainPairView
 
 from rest_framework_simplejwt.views import (
@@ -51,6 +52,12 @@ urlpatterns = [
 
     # CSRF protection
     path('api/csrf/', ensure_csrf_cookie(csrf)),
+
+    # Test endpoint to verify backend is working
+    path('test/', lambda request: JsonResponse({'status': 'Backend is working'}), name='test'),
+
+    # Test Google callback endpoint
+    path('test-google/', lambda request: JsonResponse({'status': 'Google callback endpoint accessible'}), name='test-google'),
 ]
 
 if settings.DEBUG:

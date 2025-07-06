@@ -33,15 +33,15 @@ INSTALLED_APPS = [
 ]
 
 # Middleware
-# Middleware order is important: Debug first, then security/session, then CORS, then common/csrf/auth, then JWT last
+# Middleware order is important: Security first, then session, then CORS, then common/csrf/auth, then JWT last
 MIDDLEWARE = [
-    'users.debug_middleware.DebugMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',  # Add locale middleware for i18n
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+    'users.token_middleware.TokenBlacklistMiddleware',  # Token blacklist check
     'users.middleware.JWTAuthMiddleware',  # <-- moved above AuthenticationMiddleware
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'users.email_verification_middleware.EmailVerificationMiddleware',  # Email verification check

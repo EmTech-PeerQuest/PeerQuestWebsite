@@ -5,7 +5,7 @@ from datetime import timedelta
 from django.utils import timezone
 from django.shortcuts import redirect
 
-print("USERS.VIEWS.PY LOADED")
+# Users views module loaded
 
 from rest_framework.generics import RetrieveUpdateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -17,8 +17,8 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.shortcuts import redirect
-from .models import User
-from .services import google_get_access_token, google_get_user_info, create_user_and_token
+from .models import User, UserSession, BlacklistedToken
+from .services import google_get_access_token, google_get_user_info, create_user_and_token, TokenManager
 from .email_utils import send_verification_email, generate_verification_token
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
@@ -33,7 +33,143 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
+import jwt
 
+class LogoutView(APIView):
+    """Handle user logout and token blacklisting"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            # Get the refresh token from request
+            refresh_token = request.data.get('refresh_token')
+            
+            if refresh_token:
+                try:
+                    # Decode the refresh token to get JTI
+                    decoded_token = jwt.decode(
+                        refresh_token, 
+                        settings.SECRET_KEY, 
+                        algorithms=['HS256'],
+                        options={"verify_signature": False}
+                    )
+                    refresh_jti = decoded_token.get('jti')
+                    
+                    # Blacklist the specific refresh token
+                    if refresh_jti:
+                        TokenManager.blacklist_token(
+                            refresh_jti, 
+                            request.user, 
+                            'refresh', 
+                            'logout'
+                        )
+                        
+                        # Deactivate the session
+                        UserSession.objects.filter(
+                            refresh_token_jti=refresh_jti,
+                            user=request.user
+                        ).update(is_active=False)
+                        
+                except jwt.InvalidTokenError:
+                    # Token is invalid, but that's okay for logout
+                    pass
+            
+            # Also blacklist the current access token
+            auth_header = request.META.get('HTTP_AUTHORIZATION')
+            if auth_header and auth_header.startswith('Bearer '):
+                access_token = auth_header.split(' ')[1]
+                try:
+                    decoded_access = jwt.decode(
+                        access_token, 
+                        settings.SECRET_KEY, 
+                        algorithms=['HS256'],
+                        options={"verify_signature": False}
+                    )
+                    access_jti = decoded_access.get('jti')
+                    if access_jti:
+                        TokenManager.blacklist_token(
+                            access_jti, 
+                            request.user, 
+                            'access', 
+                            'logout'
+                        )
+                except jwt.InvalidTokenError:
+                    pass
+            
+            # User logged out successfully
+            return Response({'message': 'Logout successful'}, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            # Logout error occurred
+            return Response({'error': 'Logout failed'}, status=status.HTTP_400_BAD_REQUEST)
+
+class LogoutAllView(APIView):
+    """Logout from all sessions (blacklist all user tokens)"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            # Blacklist all tokens for this user
+            TokenManager.blacklist_user_tokens(request.user, 'logout')
+            
+            # All sessions terminated successfully
+            return Response({'message': 'All sessions logged out successfully'}, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            # Logout all error occurred
+            return Response({'error': 'Logout all failed'}, status=status.HTTP_400_BAD_REQUEST)
+
+class UserSessionsView(APIView):
+    """Get all active sessions for the current user"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            sessions = TokenManager.get_user_sessions(request.user)
+            
+            session_data = []
+            for session in sessions:
+                session_data.append({
+                    'id': str(session.id),
+                    'device_info': session.device_info,
+                    'ip_address': session.ip_address,
+                    'created_at': session.created_at,
+                    'last_activity': session.last_activity,
+                    'is_current': session.refresh_token_jti == self.get_current_refresh_jti(request),
+                })
+            
+            return Response({'sessions': session_data}, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            # Get sessions error occurred
+            return Response({'error': 'Failed to get sessions'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    def get_current_refresh_jti(self, request):
+        """Helper to get current refresh token JTI from request"""
+        # This would typically come from the refresh token stored on the client
+        # For now, we'll return None as it's not always available
+        return None
+
+class RevokeSessionView(APIView):
+    """Revoke a specific session"""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            session_id = request.data.get('session_id')
+            if not session_id:
+                return Response({'error': 'Session ID required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            success = TokenManager.revoke_session(session_id, request.user)
+            
+            if success:
+                return Response({'message': 'Session revoked successfully'}, status=status.HTTP_200_OK)
+            else:
+                return Response({'error': 'Session not found or already revoked'}, status=status.HTTP_404_NOT_FOUND)
+                
+        except Exception as e:
+            # Revoke session error occurred
+            return Response({'error': 'Failed to revoke session'}, status=status.HTTP_400_BAD_REQUEST)
 
 class UserInfoSettingsView(RetrieveUpdateDestroyAPIView):
     serializer_class = UserInfoUpdateSerializer
@@ -49,25 +185,27 @@ class GoogleLoginCallbackView(APIView):
     authentication_classes = []  # Force DRF to skip authentication for this view
 
     def dispatch(self, request, *args, **kwargs):
-        print("DISPATCH CALLED FOR GOOGLELOGINCALLBACKVIEW", request.method, request.path)
-        print("request.user:", request.user)
         return super().dispatch(request, *args, **kwargs)
 
     def post(self, request):
-        #print("GOOGLE LOGIN CALLBACK VIEW REACHED (POST)")  # DEBUG
-        #print("POST DATA:", request.data)
+        # Check if Google OAuth2 settings are configured
+        if not settings.GOOGLE_OAUTH2_CLIENT_ID:
+            return Response({'error': 'Google OAuth2 not configured on server'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
         # Accept Google ID token from frontend
         credential = request.data.get('credential')
         if not credential:
-            print("NO CREDENTIAL FOUND IN POST DATA")
             return Response({'error': 'Missing Google credential.'}, status=status.HTTP_400_BAD_REQUEST)
+        
         try:
-            # Verify the token with Google
+            # Verify the token with Google - add clock tolerance for small time differences
             idinfo = id_token.verify_oauth2_token(
                 credential,
                 google_requests.Request(),
-                settings.GOOGLE_OAUTH2_CLIENT_ID
+                settings.GOOGLE_OAUTH2_CLIENT_ID,
+                clock_skew_in_seconds=60  # Allow up to 60 seconds clock difference
             )
+            
             # idinfo contains user's Google profile info
             user_data = {
                 'email': idinfo.get('email'),
@@ -76,17 +214,16 @@ class GoogleLoginCallbackView(APIView):
                 'first_name': idinfo.get('given_name', ''),
                 'last_name': idinfo.get('family_name', ''),
             }
-            token_data = create_user_and_token(user_data)
-            #print("GOOGLE LOGIN TOKEN DATA:", token_data)  # DEBUG PRINT
+            
+            token_data = create_user_and_token(user_data, request)
             return Response(token_data)
+            
+        except ValueError as e:
+            return Response({'error': f'Invalid Google token: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            #print("GOOGLE LOGIN ERROR:", str(e))  # DEBUG PRINT
-            #traceback.print_exc()  # Print full traceback for debugging
-            return Response({'error': str(e) or 'Failed to verify Google credential.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Server error occurred'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def get(self, request):
-        print("GOOGLE LOGIN CALLBACK VIEW REACHED (GET)")  # DEBUG
-        print("GET DATA:", request.GET)
         code = request.GET.get('code')
         error = request.GET.get('error')
 
@@ -181,8 +318,8 @@ class RegisterView(APIView):
                         send_verification_email(user)
                         email_sent = True
                     except Exception as e:
-                        print(f"Failed to send verification email: {e}")
                         # Don't fail registration if email fails
+                        pass
                 
                 return Response({
                     'message': 'Registration successful',
@@ -202,10 +339,9 @@ class RegisterView(APIView):
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
                 
         except Exception as e:
-            print(f"Registration error: {e}")
             return Response({
                 'error': 'Registration failed',
-                'detail': str(e)
+                'detail': 'Server error occurred'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -487,7 +623,6 @@ The PeerQuest Tavern Team
                 fail_silently=False,
             )
         except Exception as e:
-            print(f"Failed to send password reset email: {e}")
             return Response({
                 'detail': 'Failed to send password reset email. Please try again later.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

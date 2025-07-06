@@ -2,7 +2,8 @@ from django.urls import path
 from .views import (
     UserProfileView, RegisterView, GoogleLoginCallbackView, 
     UserInfoSettingsView, PasswordChangeView, EmailVerificationView, 
-    ResendVerificationView, PasswordResetView, PasswordResetConfirmView
+    ResendVerificationView, PasswordResetView, PasswordResetConfirmView,
+    LogoutView, LogoutAllView, UserSessionsView, RevokeSessionView
 )
 
 urlpatterns = [
@@ -15,4 +16,10 @@ urlpatterns = [
     path("resend-verification/", ResendVerificationView.as_view(), name="resend-verification"),
     path("password-reset/", PasswordResetView.as_view(), name="password-reset"),
     path("password-reset-confirm/", PasswordResetConfirmView.as_view(), name="password-reset-confirm"),
+    
+    # Token/Session management
+    path("logout/", LogoutView.as_view(), name="logout"),
+    path("logout-all/", LogoutAllView.as_view(), name="logout-all"),
+    path("sessions/", UserSessionsView.as_view(), name="user-sessions"),
+    path("revoke-session/", RevokeSessionView.as_view(), name="revoke-session"),
 ]
