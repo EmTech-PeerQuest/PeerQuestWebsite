@@ -10,6 +10,9 @@ import { forgotPassword } from "@/lib/api/auth"
 import { useAuth } from "@/context/AuthContext"
 import { useRouter } from 'next/navigation'
 import { PasswordInputWithStrength } from "@/components/ui/password-input-with-strength";
+import { Button } from "@/components/ui/button"
+import { useClickSound } from "@/hooks/use-click-sound"
+import { useAudioContext } from "@/context/audio-context"
 
 interface AuthModalProps {
   isOpen: boolean

@@ -3,6 +3,9 @@
 import { X, ScrollText, Users, CheckCircle, XCircle, Clock, Star, CircleDollarSign, Calendar } from "lucide-react"
 import type { Quest, User as UserType } from "@/lib/types"
 import { getDifficultyClass } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { useClickSound } from "@/hooks/use-click-sound"
+import { useAudioContext } from "@/context/audio-context"
 
 interface ApplicationsModalProps {
   isOpen: boolean
@@ -15,6 +18,9 @@ interface ApplicationsModalProps {
 export function ApplicationsModal({ isOpen, onClose, quests, currentUser, setQuests }: ApplicationsModalProps) {
   if (!isOpen || !currentUser) return null
 
+  const { soundEnabled, volume } = useAudioContext()
+  const { playSound } = useClickSound({ enabled: soundEnabled, volume })
+
   const myApplications = quests.filter((quest) => quest.applicants.some((app) => app.userId === currentUser.id))
   const myQuests = quests.filter((quest) => quest.poster.id === currentUser.id && quest.applicants.length > 0)
 
@@ -24,7 +30,7 @@ export function ApplicationsModal({ isOpen, onClose, quests, currentUser, setQue
         if (q.id === questId) {
           return {
             ...q,
-            status: "in-progress",
+            status: "in_progress" as const,
             applicants: q.applicants.map((app) => {
               if (app.userId === applicantId) {
                 return { ...app, status: "accepted" }
@@ -85,9 +91,15 @@ export function ApplicationsModal({ isOpen, onClose, quests, currentUser, setQue
               <h2 className="text-3xl font-bold font-serif mb-2">Quest Applications</h2>
               <p className="text-white/90">Manage your quest applications and review incoming requests</p>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-xl transition-colors">
+            <Button 
+              onClick={onClose} 
+              variant="ghost"
+              size="icon"
+              className="p-2 hover:bg-white/20 rounded-xl transition-colors text-white hover:text-white"
+              soundType="modal"
+            >
               <X size={24} />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -171,7 +183,7 @@ export function ApplicationsModal({ isOpen, onClose, quests, currentUser, setQue
                             <Clock size={18} className="text-red-500" />
                             <div>
                               <p className="text-xs text-gray-500">Deadline</p>
-                              <p className="font-medium text-gray-700">{quest.deadline.toLocaleDateString()}</p>
+                              <p className="font-medium text-gray-700">{new Date(quest.deadline).toLocaleDateString()}</p>
                             </div>
                           </div>
                         </div>
@@ -271,20 +283,26 @@ export function ApplicationsModal({ isOpen, onClose, quests, currentUser, setQue
 
                             {applicant.status === "pending" && quest.status === "open" && (
                               <div className="flex gap-2 sm:flex-col lg:flex-row">
-                                <button
+                                <Button
                                   onClick={() => handleApproveApplicant(quest.id, applicant.userId)}
-                                  className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-medium"
+                                  variant="default"
+                                  size="sm"
+                                  className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white"
+                                  soundType="success"
                                 >
                                   <CheckCircle size={16} />
                                   <span className="hidden sm:inline">Accept</span>
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                   onClick={() => handleRejectApplicant(quest.id, applicant.userId)}
-                                  className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-colors font-medium"
+                                  variant="destructive"
+                                  size="sm"
+                                  className="flex items-center gap-2"
+                                  soundType="error"
                                 >
                                   <XCircle size={16} />
                                   <span className="hidden sm:inline">Reject</span>
-                                </button>
+                                </Button>
                               </div>
                             )}
                           </div>

@@ -4,6 +4,8 @@ import { useState } from "react"
 import { X, Coins, TrendingUp, TrendingDown, ArrowUpDown } from "lucide-react"
 import type { User } from "@/lib/types"
 import { KYCVerificationModal } from '@/components/auth/kyc-verification-modal'
+import { useClickSound } from '@/hooks/use-click-sound'
+import { useAudioContext } from '@/context/audio-context'
 
 interface GoldSystemModalProps {
   isOpen: boolean
@@ -23,6 +25,9 @@ interface Transaction {
 }
 
 export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, showToast }: GoldSystemModalProps) {
+  const { soundEnabled, volume } = useAudioContext()
+  const { playSound } = useClickSound({ enabled: soundEnabled, volume })
+  
   const [activeTab, setActiveTab] = useState<"purchase" | "transactions" | "goldex">("transactions")
   const [transactionFilter, setTransactionFilter] = useState("outgoing")
   const [dateRange, setDateRange] = useState("all-time")
@@ -151,7 +156,10 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
         {/* Header */}
         <div className="bg-[#CDAA7D] px-6 py-4 flex justify-between items-center">
           <h2 className="text-xl font-bold text-[#2C1A1D]">Gold Treasury</h2>
-          <button onClick={onClose} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
+          <button onClick={() => {
+            playSound('modal');
+            onClose();
+          }} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
             <X size={20} />
           </button>
         </div>
@@ -159,7 +167,10 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
         {/* Tab Navigation */}
         <div className="flex border-b border-[#CDAA7D]">
           <button
-            onClick={() => setActiveTab("purchase")}
+            onClick={() => {
+              playSound('tab');
+              setActiveTab("purchase");
+            }}
             className={`flex-1 py-3 px-4 text-center font-medium transition-colors ${
               activeTab === "purchase"
                 ? "text-[#2C1A1D] border-b-2 border-[#2C1A1D] bg-[#CDAA7D]/20"

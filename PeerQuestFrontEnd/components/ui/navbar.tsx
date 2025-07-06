@@ -7,6 +7,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { LanguageSwitcher } from '@/components/ui/language-switcher';
 import { useRouter } from 'next/navigation';
+import { useClickSound } from '@/hooks/use-click-sound';
+import { useAudioContext } from '@/context/audio-context';
 
 interface NavbarProps {
   activeSection: string
@@ -30,6 +32,9 @@ export function Navbar({
   const { user: currentUser } = useAuth(); // Use context directly
   const { t } = useTranslation();
   const router = useRouter();
+  const { soundEnabled, volume } = useAudioContext();
+  const { playSound } = useClickSound({ enabled: soundEnabled, volume });
+  
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
   const [unreadMessages, setUnreadMessages] = useState(2)
@@ -39,6 +44,9 @@ export function Navbar({
   const [avatarError, setAvatarError] = useState(false)
 
   const handleNavigation = (section: string) => {
+    // Play navigation sound
+    playSound('nav');
+    
     // Use section-based navigation for profile and settings
     if (section === "profile" || section === "settings") {
       setActiveSection(section);
@@ -304,7 +312,10 @@ export function Navbar({
             <div className="hidden md:flex items-center space-x-4">
               <LanguageSwitcher />
               <button
-                onClick={openAuthModal}
+                onClick={() => {
+                  playSound('button');
+                  openAuthModal();
+                }}
                 className="bg-[#CDAA7D] text-[#2C1A1D] px-4 py-2 rounded hover:bg-[#B8941F] transition-colors uppercase font-medium"
               >
                 {t('navbar.enterTavern')}

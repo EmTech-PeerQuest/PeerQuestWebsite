@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/context/AuthContext";
 import { ProfilePhotoUploader } from "@/components/ui/profile-photo-uploader";
+import { DebouncedButton, SubmitButton, DangerButton } from "@/components/ui/debounced-button";
+import { useUserInfo } from "@/hooks/use-api-request";
 import axios from "axios";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -203,6 +205,9 @@ export default function AccountTab({
   const { t, ready } = useTranslation();
   const { currentLanguage, changeLanguage, availableLanguages, isReady } = useLanguage();
   
+  // Use the new API hook for better error handling and spam prevention
+  const { fetchUserInfo: fetchUserInfoAPI, isLoading: isLoadingUserInfo, error: userInfoError } = useUserInfo();
+  
   // Don't render until i18n is ready
   if (!isReady || !ready) {
     return (
@@ -214,29 +219,72 @@ export default function AccountTab({
     );
   }
   
-  // Fetch and sync user info on mount
+  // Fetch and sync user info on mount with better error handling
   useEffect(() => {
-    (async () => {
-      try {
-        const info = await fetchUserInfo();
-        
-        setAccountForm((prev: any) => {
-          const updated = { 
-            ...prev, 
-            ...info,
-            // Ensure birthday and gender are properly set
-            birthday: info.birthday || prev.birthday || "",
-            gender: info.gender || prev.gender || ""
-          };
-          return updated;
-        });
-      } catch (e) {
-        // You might want to show an error message to the user here
-        alert('Failed to load account information. Please refresh the page and try again.');
+    let isMounted = true; // Prevent state updates if component unmounts
+    
+    const loadUserInfo = async () => {
+      // Check authentication first
+      const accessToken = localStorage.getItem('access_token');
+      const refreshToken = localStorage.getItem('refresh_token');
+      
+      if (!accessToken && !refreshToken) {
+        if (isMounted) {
+          alert('Please log in to access your account information.');
+          window.location.href = '/login';
+        }
+        return;
       }
-    })();
+      
+      // Check if we're already loading to prevent duplicate calls
+      if (isLoadingUserInfo) {
+        return;
+      }
+      
+      try {
+        const info = await fetchUserInfoAPI();
+        
+        // Only update state if component is still mounted and we got data
+        if (isMounted && info) {
+          setAccountForm((prev: any) => {
+            const updated = { 
+              ...prev, 
+              ...info,
+              // Ensure birthday and gender are properly set
+              birthday: info.birthday || prev.birthday || "",
+              gender: info.gender || prev.gender || ""
+            };
+            return updated;
+          });
+        }
+      } catch (e) {
+        // Only show error if component is still mounted
+        if (isMounted) {
+          // Show a more user-friendly error message based on the error type
+          if (userInfoError?.status === 401) {
+            alert('Your session has expired. Please log in again.');
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            window.location.href = '/login';
+          } else if (userInfoError?.status === 500) {
+            alert('Server error. Please try again in a moment.');
+          } else {
+            alert('Failed to load account information. Please refresh the page and try again.');
+          }
+        }
+      }
+    };
+    
+    // Delay the API call slightly to prevent immediate calls on navigation
+    const timeoutId = setTimeout(loadUserInfo, 100);
+    
+    // Cleanup function
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // Only run once on mount
   
   const [loadingSave, setLoadingSave] = useState(false);
   const [loadingDelete, setLoadingDelete] = useState(false);
@@ -537,27 +585,36 @@ export default function AccountTab({
             <div>
               <label className="block text-sm font-medium mb-2">{t('accountTab.gender')}</label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <button
+                <DebouncedButton
                   type="button"
+                  variant={accountForm.gender === "male" ? "default" : "outline"}
                   className={`py-2 px-4 border ${accountForm.gender === "male" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded font-medium transition-colors flex items-center justify-center text-sm`}
                   onClick={() => setAccountForm((prev: any) => ({ ...prev, gender: "male" }))}
+                  soundType="soft"
+                  debounceMs={150}
                 >
                   <span className="mr-2">♂</span>{t('accountTab.male')}
-                </button>
-                <button
+                </DebouncedButton>
+                <DebouncedButton
                   type="button"
+                  variant={accountForm.gender === "female" ? "default" : "outline"}
                   className={`py-2 px-4 border ${accountForm.gender === "female" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded font-medium transition-colors flex items-center justify-center text-sm`}
                   onClick={() => setAccountForm((prev: any) => ({ ...prev, gender: "female" }))}
+                  soundType="soft"
+                  debounceMs={150}
                 >
                   <span className="mr-2">♀</span>{t('accountTab.female')}
-                </button>
-                <button
+                </DebouncedButton>
+                <DebouncedButton
                   type="button"
+                  variant={accountForm.gender === "prefer-not-to-say" ? "default" : "outline"}
                   className={`py-2 px-4 border ${accountForm.gender === "prefer-not-to-say" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded font-medium transition-colors flex items-center justify-center text-sm`}
                   onClick={() => setAccountForm((prev: any) => ({ ...prev, gender: "prefer-not-to-say" }))}
+                  soundType="soft"
+                  debounceMs={150}
                 >
                   <span className="mr-2">🤐</span>Prefer not to say
-                </button>
+                </DebouncedButton>
               </div>
             </div>
             <div>
@@ -707,14 +764,17 @@ export default function AccountTab({
         {/* Save Button */}
         <div className="pt-4">
           <div className="flex gap-3">
-            <button
+            <SubmitButton
               onClick={handleSave}
-              disabled={loadingSave}
+              disabled={loadingSave || isLoadingUserInfo}
               className="flex-1 sm:flex-none px-6 py-2 bg-[#8B75AA] text-white rounded font-medium hover:bg-[#7A6699] transition-colors flex items-center justify-center disabled:opacity-60"
+              loadingText={t('accountTab.saving')}
+              successText={t('accountTab.saved') || 'Saved!'}
+              errorText={t('accountTab.saveError') || 'Error saving!'}
             >
               <Save size={16} className="mr-2" />
-              {loadingSave ? t('accountTab.saving') : t('accountTab.saveChanges')}
-            </button>
+              {t('accountTab.saveChanges')}
+            </SubmitButton>
           </div>
         </div>
         {/* Delete Account Section */}
@@ -730,7 +790,7 @@ export default function AccountTab({
             value={accountForm.deleteConfirm || ""}
             onChange={e => setAccountForm((prev: any) => ({ ...prev, deleteConfirm: e.target.value }))}
           />
-          <button
+          <DangerButton
             onClick={() => {
               if (accountForm.deleteConfirm === user?.username) {
                 handleDelete();
@@ -740,9 +800,11 @@ export default function AccountTab({
             }}
             disabled={loadingDelete}
             className="w-full sm:w-auto px-6 py-2 bg-red-600 text-white rounded font-medium hover:bg-red-700 transition-colors flex items-center justify-center disabled:opacity-60"
+            loadingText={t('accountTab.deleting')}
+            errorText={t('accountTab.deleteError') || 'Error deleting!'}
           >
-            {loadingDelete ? t('accountTab.deleting') : t('accountTab.deleteAccount')}
-          </button>
+            {t('accountTab.deleteAccount')}
+          </DangerButton>
         </div>
       </div>
     </div>

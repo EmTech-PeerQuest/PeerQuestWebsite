@@ -51,7 +51,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     variant, 
     size, 
     asChild = false,
-    soundType,
+    soundType = 'button',
     playClickSound = true,
     playHoverSound = false,
     customSound,
@@ -61,32 +61,26 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ...props 
   }, ref) => {
     const { soundEnabled, volume } = useAudioContext()
-    
-    // Auto-determine sound type based on variant if not specified
-    const actualSoundType = soundType || (() => {
-      switch (variant) {
-        case 'destructive': return 'error'
-        case 'outline': 
-        case 'ghost': return 'soft'
-        case 'secondary': return 'tab'
-        case 'link': return 'nav'
-        default: return 'button'
-      }
-    })()
-    
     const { playSound } = useClickSound({ 
       enabled: soundEnabled && !disabled, 
       volume,
-      soundType: actualSoundType,
+      soundType,
       customSound
     })
 
     const handleClick = React.useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
       if (playClickSound && soundEnabled && !disabled) {
+        // Play different sounds based on button variant
+        let actualSoundType: ClickSoundType = soundType
+        if (variant === 'destructive') {
+          actualSoundType = 'error'
+        } else if (variant === 'outline' || variant === 'ghost') {
+          actualSoundType = 'soft'
+        }
         playSound(actualSoundType)
       }
       onClick?.(event)
-    }, [playClickSound, soundEnabled, disabled, actualSoundType, playSound, onClick])
+    }, [playClickSound, soundEnabled, disabled, soundType, variant, playSound, onClick])
 
     const handleMouseEnter = React.useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
       if (playHoverSound && soundEnabled && !disabled) {

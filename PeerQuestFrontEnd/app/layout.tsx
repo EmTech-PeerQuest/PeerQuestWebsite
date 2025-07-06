@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { LanguageProvider } from '@/context/LanguageContext';
+import { AudioProvider } from '@/context/audio-context';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 
 export const metadata: Metadata = {
@@ -19,7 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!}>
           <LanguageProvider>
-            <AuthProvider>{children}</AuthProvider>
+            <AudioProvider>
+              <AuthProvider>{children}</AuthProvider>
+            </AudioProvider>
           </LanguageProvider>
         </GoogleOAuthProvider>
       </body>
