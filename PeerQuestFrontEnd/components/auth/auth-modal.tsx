@@ -733,11 +733,26 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                   <input
                     type="email"
                     className={`w-full px-3 py-2 border ${
-                      formErrors.email ? "border-red-500" : "border-[#CDAA7D]"
+                      formErrors.email ? "border-red-500" : 
+                      registerForm.email && !validateEmail(registerForm.email) ? "border-orange-500" :
+                      registerForm.email && validateEmail(registerForm.email) ? "border-green-500" :
+                      "border-[#CDAA7D]"
                     } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
                     placeholder="ENTER YOUR EMAIL"
                     value={registerForm.email}
-                    onChange={(e) => setRegisterForm((prev) => ({ ...prev, email: e.target.value }))}
+                    onChange={(e) => {
+                      const emailValue = e.target.value;
+                      setRegisterForm((prev) => ({ ...prev, email: emailValue }));
+                      
+                      // Clear email error when user starts typing a valid email
+                      if (formErrors.email && emailValue && validateEmail(emailValue)) {
+                        setFormErrors((prev) => {
+                          const newErrors = { ...prev };
+                          delete newErrors.email;
+                          return newErrors;
+                        });
+                      }
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
@@ -747,6 +762,12 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     }}
                   />
                   {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
+                  {!formErrors.email && registerForm.email && !validateEmail(registerForm.email) && (
+                    <p className="text-orange-500 text-xs mt-1">Please enter a valid email address</p>
+                  )}
+                  {!formErrors.email && registerForm.email && validateEmail(registerForm.email) && (
+                    <p className="text-green-500 text-xs mt-1">✓ Valid email format</p>
+                  )}
                 </div>
 
                 <div>
