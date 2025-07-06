@@ -64,8 +64,8 @@ export async function fetchWithAuth(input: RequestInfo, init: RequestInit = {}, 
     init.headers = {};
   }
   
-  // Set Content-Type if not present
-  if (!init.headers.hasOwnProperty('Content-Type') && !init.body?.toString().includes('FormData')) {
+  // Set Content-Type if not present and not FormData
+  if (!init.headers.hasOwnProperty('Content-Type') && !(init.body instanceof FormData)) {
     (init.headers as any)['Content-Type'] = 'application/json';
   }
   

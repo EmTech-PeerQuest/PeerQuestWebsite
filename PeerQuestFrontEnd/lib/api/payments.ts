@@ -29,6 +29,13 @@ export const PaymentAPI = {
     try {
       console.log('🔍 Submitting payment proof...');
       
+      // Check if user is authenticated before submitting
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      if (!token) {
+        console.warn('⚠️ No access token found. User may need to log in.');
+        throw new Error('Authentication required. Please log in and try again.');
+      }
+      
       const formData = new FormData()
       formData.append('payment_reference', data.payment_reference)
       formData.append('package_amount', data.package_amount.toString())
@@ -36,12 +43,10 @@ export const PaymentAPI = {
       formData.append('bonus', data.bonus || '')
       formData.append('receipt', data.receipt)
 
-      const response = await fetch(`${API_BASE_URL}/payments/submit-proof/`, {
+      const response = await fetchWithAuth(`${API_BASE_URL}/payments/submit-proof/`, {
         method: 'POST',
         body: formData,
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        }
+        // Note: Don't set Content-Type for FormData - browser will set it with boundary
       })
 
       if (response.ok) {
@@ -51,8 +56,16 @@ export const PaymentAPI = {
       } else {
         const contentType = response.headers.get('content-type')
         if (contentType && contentType.includes('application/json')) {
-          const error = await response.json()
-          throw new Error(error.message || 'Failed to submit payment proof')
+          try {
+            const error = await response.json()
+            // Handle different error response formats
+            const errorMessage = error.message || error.detail || error.error || 
+                               (typeof error === 'string' ? error : 'Failed to submit payment proof')
+            throw new Error(errorMessage)
+          } catch (jsonError) {
+            // If JSON parsing fails, fall back to status-based error
+            throw new Error(`Server error (${response.status}): ${response.statusText || 'Failed to submit payment proof'}`)
+          }
         } else {
           // Handle HTML error pages (Django error pages)
           const errorText = await response.text()

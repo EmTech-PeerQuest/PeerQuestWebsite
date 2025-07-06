@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        button { margin: 5px; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Authentication Debug Test</h1>
+    
+    <div>
+        <button onclick="checkLocalStorage()">Check localStorage</button>
+        <button onclick="testLogin()">Test Login</button>
+        <button onclick="testRefresh()">Test Token Refresh</button>
+        <button onclick="testTransactions()">Test Transactions API</button>
+        <button onclick="clearTokens()">Clear All Tokens</button>
+    </div>
+    
+    <div id="results"></div>
+    
+    <script>
+        const API_BASE_URL = 'http://localhost:8000/api';
+        
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            results.appendChild(div);
+            console.log(message);
+        }
+        
+        function checkLocalStorage() {
+            const accessToken = localStorage.getItem('access_token');
+            const refreshToken = localStorage.getItem('refresh_token');
+            
+            log(`Access Token: ${accessToken ? 'Present (' + accessToken.substring(0, 20) + '...)' : 'Not found'}`, accessToken ? 'success' : 'warning');
+            log(`Refresh Token: ${refreshToken ? 'Present (' + refreshToken.substring(0, 20) + '...)' : 'Not found'}`, refreshToken ? 'success' : 'warning');
+        }
+        
+        async function testLogin() {
+            try {
+                log('Testing login with admin credentials...', 'info');
+                
+                const response = await fetch(`${API_BASE_URL}/token/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('access_token', data.access);
+                    localStorage.setItem('refresh_token', data.refresh);
+                    log('✅ Login successful! Tokens stored.', 'success');
+                } else {
+                    const errorText = await response.text();
+                    log(`❌ Login failed: ${response.status} ${errorText}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Login error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testRefresh() {
+            const refreshToken = localStorage.getItem('refresh_token');
+            if (!refreshToken) {
+                log('❌ No refresh token available', 'error');
+                return;
+            }
+            
+            try {
+                log('Testing token refresh...', 'info');
+                
+                const response = await fetch(`${API_BASE_URL}/token/refresh/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refresh: refreshToken })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem('access_token', data.access);
+                    log('✅ Token refresh successful!', 'success');
+                } else {
+                    const errorText = await response.text();
+                    log(`❌ Token refresh failed: ${response.status} ${errorText}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Token refresh error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testTransactions() {
+            const accessToken = localStorage.getItem('access_token');
+            if (!accessToken) {
+                log('❌ No access token available', 'error');
+                return;
+            }
+            
+            try {
+                log('Testing transactions API...', 'info');
+                
+                const response = await fetch(`${API_BASE_URL}/transactions/transactions/`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ Transactions API successful! Found ${data.results ? data.results.length : 0} transactions.`, 'success');
+                } else {
+                    const errorText = await response.text();
+                    log(`❌ Transactions API failed: ${response.status} ${errorText}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Transactions API error: ${error.message}`, 'error');
+            }
+        }
+        
+        function clearTokens() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user');
+            log('🗑️ All tokens cleared', 'warning');
+        }
+        
+        // Check localStorage on page load
+        window.onload = function() {
+            checkLocalStorage();
+        };
+    </script>
+</body>
+</html>
