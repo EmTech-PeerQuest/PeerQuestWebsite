@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     'xp',
     'guilds',
     'transactions',
+    'payments',
 
     # DRF and tools
     'rest_framework',

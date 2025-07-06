@@ -5,6 +5,7 @@ import { X, Coins, TrendingUp, TrendingDown, ArrowUpDown, CreditCard, Smartphone
 import type { User } from "@/lib/types"
 import { KYCVerificationModal } from '@/components/auth/kyc-verification-modal'
 import { TransactionAPI, Transaction } from '@/lib/api/transactions'
+import { PaymentAPI } from '@/lib/api/payments'
 import QRCode from 'qrcode'
 import { generateGCashQRData, getGCashConfig, validateGCashQR } from '@/lib/payment/gcash-qr'
 
@@ -58,10 +59,14 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
   // Purchase flow state
   const [showPurchaseModal, setShowPurchaseModal] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState<{amount: number, price: number, bonus?: string} | null>(null)
-  const [purchaseStep, setPurchaseStep] = useState<"confirm" | "payment" | "processing" | "success">("confirm")
+  const [purchaseStep, setPurchaseStep] = useState<"confirm" | "payment" | "upload" | "success">("confirm")
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("")
   const [paymentReference, setPaymentReference] = useState<string>("")
   const [paymentTimeout, setPaymentTimeout] = useState<number>(300) // 5 minutes
+  const [receiptImage, setReceiptImage] = useState<File | null>(null)
+  const [receiptPreview, setReceiptPreview] = useState<string>("")
+  const [uploading, setUploading] = useState(false)
+  const [submissionResult, setSubmissionResult] = useState<any>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   // Fetch user transactions from backend
@@ -202,6 +207,7 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
         merchantAccount: PAYMENT_CONFIG.GCASH_MERCHANT_NUMBER,
         amount: paymentData.price,
         currency: 'PHP',
+        reference: paymentData.reference,
         description: `${paymentData.amount} Gold Coins${paymentData.bonus ? ` (${paymentData.bonus})` : ''}`
       }, {
         merchantName: PAYMENT_CONFIG.GCASH_MERCHANT_NAME,
@@ -247,13 +253,17 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
   const handlePurchaseConfirm = async () => {
     if (!selectedPackage) return
 
+    // Generate payment reference for tracking
+    const reference = generatePaymentReference()
+    setPaymentReference(reference)
     setPurchaseStep("payment")
 
     // Generate QR code
     await generateQRCode({
       amount: selectedPackage.amount,
       price: selectedPackage.price,
-      bonus: selectedPackage.bonus
+      bonus: selectedPackage.bonus,
+      reference
     })
 
     // Start payment timeout countdown
@@ -275,35 +285,82 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
     setSelectedPackage(null)
     setPurchaseStep("confirm")
     setQrCodeDataUrl("")
+    setPaymentReference("")
     setPaymentTimeout(300)
+    setReceiptImage(null)
+    setReceiptPreview("")
+    setUploading(false)
+    setSubmissionResult(null)
   }
 
-  const simulatePaymentSuccess = () => {
-    setPurchaseStep("processing")
-    
-    // Simulate payment processing
-    setTimeout(() => {
-      if (setCurrentUser && currentUser && selectedPackage) {
-        setCurrentUser((prev) => ({
-          ...prev,
-          gold: (prev.gold || 0) + selectedPackage.amount,
-        }))
-        
-        setPurchaseStep("success")
-        
+  const handleReceiptUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
         if (showToast) {
-          showToast(`Successfully purchased ${selectedPackage.amount} gold for ₱${selectedPackage.price}!`)
+          showToast('Please upload an image file', 'error')
         }
-        
-        // Refresh transactions to show the new purchase
-        fetchTransactions()
-        
-        // Auto-close after success
-        setTimeout(() => {
-          handlePurchaseCancel()
-        }, 3000)
+        return
       }
-    }, 2000)
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        if (showToast) {
+          showToast('Image size must be less than 5MB', 'error')
+        }
+        return
+      }
+
+      setReceiptImage(file)
+      
+      // Create preview
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setReceiptPreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const submitPaymentProof = async () => {
+    if (!receiptImage || !selectedPackage || !paymentReference) {
+      if (showToast) {
+        showToast('Please upload your payment receipt', 'error')
+      }
+      return
+    }
+
+    setUploading(true)
+
+    try {
+      const result = await PaymentAPI.submitPaymentProof({
+        payment_reference: paymentReference,
+        package_amount: selectedPackage.amount,
+        package_price: selectedPackage.price,
+        bonus: selectedPackage.bonus || '',
+        receipt: receiptImage
+      })
+      
+      console.log('Payment submission result:', result)
+      
+      // Store result for success modal
+      setSubmissionResult(result)
+      
+      // Show success step
+      setPurchaseStep("success")
+    } catch (error) {
+      console.error('Error submitting payment proof:', error)
+      if (showToast) {
+        showToast(error instanceof Error ? error.message : 'Failed to submit payment proof', 'error')
+      }
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const proceedToUpload = () => {
+    setPurchaseStep("upload")
   }
 
   const handleCashOut = () => {
@@ -1073,7 +1130,8 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                                 2. Tap <strong>"Pay QR"</strong><br />
                                 3. Scan the QR code above<br />
                                 4. <strong>Amount (₱{selectedPackage.price.toLocaleString()}) will auto-fill!</strong><br />
-                                5. Complete the payment<br />
+                                5. Reference: <strong>{paymentReference}</strong> (auto-filled)<br />
+                                6. Complete the payment<br />
                                 7. Screenshot your receipt for confirmation
                               </div>
                               <div className="mt-2 text-xs text-green-600">
@@ -1120,10 +1178,10 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                     </div>
 
                     <button
-                      onClick={simulatePaymentSuccess}
+                      onClick={proceedToUpload}
                       className="w-full py-3 px-4 bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-semibold mb-2"
                     >
-                      I've Completed Payment (Demo)
+                      I've Completed Payment - Upload Receipt
                     </button>
                     
                     <button
@@ -1137,21 +1195,94 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
               </>
             )}
 
-            {/* Processing Step */}
-            {purchaseStep === "processing" && (
+            {/* Upload Receipt Step */}
+            {purchaseStep === "upload" && (
               <>
                 {/* Header - Fixed */}
                 <div className="bg-[#CDAA7D] px-6 py-4 flex justify-between items-center flex-shrink-0">
-                  <h2 className="text-xl font-bold text-[#2C1A1D]">Processing Payment</h2>
-                  <div></div> {/* Empty div for spacing */}
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setPurchaseStep("payment")} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
+                      <ArrowLeft size={20} />
+                    </button>
+                    <h2 className="text-xl font-bold text-[#2C1A1D]">Upload Payment Receipt</h2>
+                  </div>
+                  <button onClick={handlePurchaseCancel} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
+                    <X size={20} />
+                  </button>
                 </div>
 
                 {/* Content - Scrollable */}
-                <div className="p-6 text-center overflow-y-auto max-h-[calc(90vh-80px)]">
-                  <div className="mb-6">
-                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[#8B75AA] mx-auto mb-4"></div>
-                    <h3 className="text-lg font-semibold text-[#2C1A1D] mb-2">Confirming Payment</h3>
-                    <p className="text-[#8B75AA]">Please wait while we confirm your payment...</p>
+                <div className="flex-1 overflow-y-auto p-6 max-h-[calc(90vh-140px)]">
+                  <div className="text-center mb-6">
+                    <div className="bg-white border border-[#CDAA7D] rounded-lg p-6 mb-6">
+                      <div className="mb-4">
+                        <div className="text-lg font-bold text-[#2C1A1D] mb-1">
+                          {selectedPackage.amount.toLocaleString()} Gold Coins
+                        </div>
+                        <div className="text-2xl font-bold text-[#8B75AA]">₱{selectedPackage.price.toLocaleString()}</div>
+                      </div>
+
+                      <div className="bg-blue-50 border border-blue-200 rounded p-4 mb-4">
+                        <div className="font-semibold text-blue-800 mb-2">📸 Upload Your Payment Receipt</div>
+                        <div className="text-sm text-blue-700 mb-4">
+                          Please upload a clear screenshot of your GCash payment receipt to verify your transaction.
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <div>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleReceiptUpload}
+                              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#8B75AA] file:text-white hover:file:bg-[#7A6699]"
+                            />
+                            <div className="text-xs text-gray-500 mt-1">
+                              Supported formats: JPG, PNG, GIF (Max 5MB)
+                            </div>
+                          </div>
+
+                          {receiptPreview && (
+                            <div className="mt-4">
+                              <div className="text-sm font-semibold text-gray-700 mb-2">Preview:</div>
+                              <img 
+                                src={receiptPreview} 
+                                alt="Receipt Preview" 
+                                className="max-w-full h-auto max-h-64 mx-auto border rounded"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm mb-4">
+                        <div className="font-semibold text-yellow-800 mb-1">⚠️ Important:</div>
+                        <div className="text-yellow-700">
+                          • Make sure the receipt shows the exact amount: ₱{selectedPackage.price.toLocaleString()}<br />
+                          • Receipt should be clear and readable<br />
+                          • Verification typically takes 2-24 hours
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setPurchaseStep("payment")}
+                        className="flex-1 py-2 px-4 border border-[#CDAA7D] text-[#2C1A1D] rounded hover:bg-[#CDAA7D]/10 transition-colors"
+                      >
+                        Back
+                      </button>
+                      <button
+                        onClick={submitPaymentProof}
+                        disabled={!receiptImage || uploading}
+                        className={`flex-1 py-3 px-4 rounded font-semibold transition-colors ${
+                          receiptImage && !uploading
+                            ? "bg-[#8B75AA] text-white hover:bg-[#7A6699]"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        }`}
+                      >
+                        {uploading ? "Uploading..." : "Submit for Verification"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </>
@@ -1162,7 +1293,7 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
               <>
                 {/* Header - Fixed */}
                 <div className="bg-[#CDAA7D] px-6 py-4 flex justify-between items-center flex-shrink-0">
-                  <h2 className="text-xl font-bold text-[#2C1A1D]">Payment Successful!</h2>
+                  <h2 className="text-xl font-bold text-[#2C1A1D]">Payment Submitted!</h2>
                   <div></div> {/* Empty div for spacing */}
                 </div>
 
@@ -1170,26 +1301,68 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                 <div className="p-6 text-center overflow-y-auto max-h-[calc(90vh-80px)]">
                   <div className="mb-6">
                     <CheckCircle size={64} className="text-green-600 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-[#2C1A1D] mb-2">Transaction Complete</h3>
+                    <h3 className="text-lg font-semibold text-[#2C1A1D] mb-2">Receipt Uploaded Successfully</h3>
                     <p className="text-[#8B75AA] mb-4">
-                      Your {selectedPackage.amount.toLocaleString()} gold coins have been added to your account.
+                      Your payment proof has been submitted for verification. Your {selectedPackage.amount.toLocaleString()} gold coins{selectedPackage.bonus ? ` (${selectedPackage.bonus})` : ''} will be added to your account once verified.
                     </p>
-                    {selectedPackage.bonus && (
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
-                        <div className="text-sm font-semibold text-green-800">Bonus Applied!</div>
-                        <div className="text-xs text-green-600">{selectedPackage.bonus}</div>
+                    
+                    {submissionResult?.batch_info && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                        <div className="text-sm font-semibold text-blue-800 mb-2">Verification Details</div>
+                        <div className="text-sm text-blue-700 space-y-1">
+                          <div><strong>Payment Reference:</strong> {paymentReference}</div>
+                          <div><strong>Batch:</strong> {submissionResult.batch_info.batch_name}</div>
+                          <div><strong>Processing Time:</strong> {new Date(submissionResult.batch_info.processing_time).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          })}</div>
+                        </div>
                       </div>
                     )}
-                    <div className="text-sm text-[#8B75AA]">
-                      Transaction will appear in your history shortly.
+                    
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                      <div className="text-sm font-semibold text-yellow-800 mb-1">What happens next?</div>
+                      <div className="text-sm text-yellow-700 space-y-1 text-left">
+                        <div>• Your payment will be reviewed by our admin team</div>
+                        <div>• Verification typically takes a few hours</div>
+                        <div>• Gold will be automatically added once approved</div>
+                        <div>• Check "My Transactions" tab for status updates</div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-sm text-[#8B75AA] mb-4">
+                      You can safely close this window. Your submission is being processed.
                     </div>
                   </div>
                   
                   <button
-                    onClick={handlePurchaseCancel}
+                    onClick={() => {
+                      // Close modal and switch to transactions tab
+                      handlePurchaseCancel()
+                      setActiveTab("transactions")
+                      
+                      // Refresh transactions and user data
+                      if (refreshUser) {
+                        refreshUser()
+                      }
+                      fetchTransactions()
+                      
+                      // Show success toast
+                      if (showToast && submissionResult) {
+                        let message = submissionResult.message || 'Payment proof submitted successfully'
+                        if (submissionResult.batch_info) {
+                          message = `Payment submitted! Reference: ${paymentReference}. Check "My Transactions" for updates.`
+                        }
+                        showToast(message, 'success')
+                      }
+                    }}
                     className="w-full py-3 px-4 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699] transition-colors font-semibold"
                   >
-                    Continue
+                    View My Transactions
                   </button>
                 </div>
               </>
