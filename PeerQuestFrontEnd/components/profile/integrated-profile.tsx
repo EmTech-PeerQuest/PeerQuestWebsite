@@ -47,17 +47,40 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
     fetchSkills();
   }, [currentUser?.id]);
 
-  // Filter quests by status
-  const activeQuests = quests.filter((q) => q.status === "in_progress" && q.applicants?.some(app => app.userId === currentUser.id && app.status === "accepted"))
-  const createdQuests = quests.filter((q) => q.poster.id === currentUser.id)
-  const completedQuests = quests.filter((q) => q.status === "completed" && q.applicants?.some(app => app.userId === currentUser.id && app.status === "accepted"))
 
-  // Get user's guilds - for now, empty array since we don't have guild membership info
-  const userGuilds = [] // TODO: Implement guild membership filtering when backend supports it
+  // Filter quests by status (robust fallback)
+  const activeQuests = Array.isArray(quests)
+    ? quests.filter((q) => q.status === "in_progress" && Array.isArray(q.applicants) && q.applicants.some(app => app.userId === currentUser.id && app.status === "accepted"))
+    : [];
+  const createdQuests = Array.isArray(quests)
+    ? quests.filter((q) => q.poster && q.poster.id === currentUser.id)
+    : [];
+  const completedQuests = Array.isArray(quests)
+    ? quests.filter((q) => q.status === "completed" && Array.isArray(q.applicants) && q.applicants.some(app => app.userId === currentUser.id && app.status === "accepted"))
+    : [];
+
+  // Get user's guilds from currentUser.guilds or fallback to prop
+  let userGuilds: Guild[] = [];
+  if (Array.isArray(currentUser.guilds) && currentUser.guilds.length > 0) {
+    // If currentUser.guilds is an array of guild objects or ids
+    if (typeof currentUser.guilds[0] === 'object') {
+      userGuilds = currentUser.guilds as Guild[];
+    } else if (typeof currentUser.guilds[0] === 'number' || typeof currentUser.guilds[0] === 'string') {
+      userGuilds = guilds.filter(g =>
+        Array.isArray(currentUser.guilds) &&
+        currentUser.guilds.some((id: any) => id === g.id)
+      );
+    }
+  } else if (Array.isArray(guilds)) {
+    // fallback: show all guilds if userGuilds is not available
+    userGuilds = guilds;
+  }
 
   // Calculate XP progress
   const xpForNextLevel = 1000 // Example value
-  const xpProgress = currentUser.xp ? ((currentUser.xp % xpForNextLevel) / xpForNextLevel) * 100 : 0
+  const xpProgress = typeof currentUser.xp === 'number' && currentUser.xp > 0
+    ? ((currentUser.xp % xpForNextLevel) / xpForNextLevel) * 100
+    : 0;
 
   const tabs = [
     { id: "overview", label: "Overview" },
@@ -111,10 +134,25 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
             <div className="text-center sm:text-right">
               <div className="text-sm">Member since</div>
               <div>
-                {formatJoinDate(
-                  currentUser.createdAt || currentUser.dateJoined,
-                  { capitalizeFirst: true }
-                )}
+                {(() => {
+                  let dateRaw = currentUser.createdAt || currentUser.dateJoined;
+                  if (dateRaw && dateRaw !== 'null' && dateRaw !== 'undefined') {
+                    let dateStr = typeof dateRaw === 'string' ? dateRaw : String(dateRaw);
+                    try {
+                      // Try to parse as Date and format as locale date string if possible
+                      const parsed = new Date(dateStr);
+                      if (!isNaN(parsed.getTime())) {
+                        return parsed.toLocaleDateString();
+                      }
+                      // Fallback to formatJoinDate if available
+                      return formatJoinDate(dateStr, { capitalizeFirst: true });
+                    } catch (e) {
+                      console.warn('Could not format join date:', dateRaw, e);
+                      return <span className="text-gray-400">Invalid date</span>;
+                    }
+                  }
+                  return <span className="text-gray-400">Unknown</span>;
+                })()}
               </div>
             </div>
           </div>
@@ -182,19 +220,27 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span>Quests Completed:</span>
-                  <span className="font-medium">{currentUser.completedQuests || 1}</span>
+                  <span className="font-medium">{
+                    Array.isArray(completedQuests) ? completedQuests.length : 0
+                  }</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Quests Created:</span>
-                  <span className="font-medium">{createdQuests.length || 0}</span>
+                  <span className="font-medium">{
+                    Array.isArray(createdQuests) ? createdQuests.length : 0
+                  }</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Guilds Joined:</span>
-                  <span className="font-medium">{userGuilds.length || 3}</span>
+                  <span className="font-medium">{
+                    Array.isArray(userGuilds) ? userGuilds.length : 0
+                  }</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Gold:</span>
-                  <span className="font-medium text-[#CDAA7D]">{currentUser.gold || 1200}</span>
+                  <span className="font-medium text-[#CDAA7D]">{
+                    typeof currentUser.gold === 'number' ? currentUser.gold : 0
+                  }</span>
                 </div>
               </div>
             </div>
@@ -253,7 +299,7 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
                       <p className="text-sm text-gray-600 mb-2">{quest.description}</p>
                       <div className="flex flex-col sm:flex-row sm:justify-between gap-2 text-sm">
                         <span>Reward: {quest.reward} Gold</span>
-                        <span>Due: {new Date(quest.deadline).toLocaleDateString()}</span>
+                        <span>Due: {quest.deadline ? new Date(quest.deadline).toLocaleDateString() : 'N/A'}</span>
                       </div>
                     </div>
                   ))}

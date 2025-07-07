@@ -19,7 +19,7 @@ import { GoldSystemModal } from '@/components/gold/gold-system-modal';
 import { useRouter } from 'next/navigation';
 import Spinner from '@/components/ui/spinner';
 import LoadingModal from '@/components/ui/loading-modal';
-import { EnhancedProfile } from '@/components/auth/enhanced-profile';
+import { IntegratedProfile } from '@/components/profile/integrated-profile';
 import { UserSearch } from '@/components/search/user-search';
 import type { User, Quest, Guild, GuildApplication } from "@/lib/types"
 import { fetchInitialData } from '@/lib/api/init-data'
@@ -216,7 +216,9 @@ export default function Home() {
             quests={quests}
             guilds={guilds}
             currentUser={currentUser}
-            showToast={showToast}
+            showToast={(message: string, type?: string) => {
+              toast({ title: message, variant: type === "error" ? "destructive" : "default" });
+            }}
           />
         )}
 
@@ -266,38 +268,12 @@ export default function Home() {
         {activeSection === "about" && <About />}
 
         {activeSection === "profile" && currentUser && (
-          <div className="max-w-2xl mx-auto py-8">
-            <EnhancedProfile
-              user={{
-                id: Number(currentUser.id),
-                name: currentUser.displayName ?? currentUser.username ?? "User",
-                level: currentUser.level ?? 1,
-                experience: currentUser.xp ?? 0,
-                gold: currentUser.gold ?? 0,
-                completedQuests: quests.filter(q => q.status === "completed" && (q.assignedTo ?? "") == String(currentUser.id)).length,
-                guilds: guilds.filter(g => Array.isArray(g.members) && g.members.map(String).includes(String(currentUser.id))).map(g => g.name ?? ""),
-              }}
-              quests={quests.map(q => ({
-                ...q,
-                assignedTo: Number(q.assignedTo ?? 0),
-                xp: q.xp ?? 0,
-                reward: q.reward ?? 0,
-                title: q.title ?? "",
-                description: q.description ?? "",
-                status: q.status ?? "",
-                createdAt: q.createdAt ? new Date(q.createdAt) : new Date(),
-                completedAt: q.completedAt ? new Date(q.completedAt) : undefined,
-              }))}
-              guilds={guilds.map(g => ({
-                ...g,
-                emblem: g.emblem ?? "",
-                name: g.name ?? "",
-              }))}
-              showToast={(message, type) => {
-                toast({ title: message, variant: type === "error" ? "destructive" : "default" });
-              }}
-            />
-          </div>
+          <IntegratedProfile
+            currentUser={currentUser}
+            quests={quests}
+            guilds={guilds}
+            navigateToSection={setActiveSection}
+          />
         )}
 
         {showAuthModal && (

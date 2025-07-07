@@ -149,19 +149,7 @@ export function Navbar({
           {currentUser ? (
             <>
               <div className="hidden md:flex items-center space-x-2 mr-4">
-                <div className="bg-[#CDAA7D]/10 px-3 py-1 rounded-full flex items-center">
-                  <span className="text-[#CDAA7D] font-medium">{(currentUser as any).gold || 0} {t('navbar.gold')}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      openGoldPurchaseModal()
-                    }}
-                    className="ml-2 text-xs bg-[#CDAA7D] text-white px-2 py-0.5 rounded hover:bg-[#B89A6D] transition-colors"
-                  >
-                    +
-                  </button>
-                  <GoldBalance openGoldPurchaseModal={openGoldPurchaseModal} />
-                </div>
+                <GoldBalance openGoldPurchaseModal={openGoldPurchaseModal} />
               </div>
 
               <div className="hidden md:flex items-center space-x-4">
@@ -266,7 +254,7 @@ export function Navbar({
                       </div>
                       <button
                         onClick={() => {
-                          router.push('/profile');
+                          handleNavigation("profile");
                           setUserDropdownOpen(false);
                         }}
                         className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
@@ -348,15 +336,7 @@ export function Navbar({
             <LanguageSwitcher />
             {currentUser && (
               <div className="flex items-center mr-4">
-                <div className="bg-[#CDAA7D]/10 px-2 py-1 rounded-full flex items-center">
-                  <span className="text-[#CDAA7D] text-sm font-medium">{(currentUser as any).gold || 0}</span>
-                  <button
-                    onClick={openGoldPurchaseModal}
-                    className="ml-1 text-xs bg-[#CDAA7D] text-white px-1.5 py-0.5 rounded hover:bg-[#B89A6D] transition-colors"
-                  >
-                    +
-                  </button>
-                </div>
+                <GoldBalance openGoldPurchaseModal={openGoldPurchaseModal} />
               </div>
             )}
             <button
@@ -521,7 +501,7 @@ export function Navbar({
       )}
 
       {/* Notifications dropdown */}
-      {notificationsOpen && (
+      {notificationsOpen && typeof window !== 'undefined' && (
         <div className="absolute right-4 md:right-24 top-16 w-80 bg-white rounded-md shadow-lg py-1 z-50">
           <Notifications
             currentUser={currentUser}
@@ -531,21 +511,19 @@ export function Navbar({
       )}
 
       {/* Quest Form Modal */}
-      <QuestForm
-        quest={null}
-        isOpen={showQuestForm}
-        onClose={() => {
-          setShowQuestForm(false)
-        }}
-        onSuccess={handleQuestFormSuccess}
-        isEditing={false}
-        currentUser={currentUser}
-      />
+      {typeof window !== 'undefined' && (
+        <QuestForm
+          quest={null}
+          isOpen={showQuestForm}
+          onClose={() => {
+            setShowQuestForm(false)
+          }}
+          onSuccess={handleQuestFormSuccess}
+          isEditing={false}
+          currentUser={currentUser}
+        />
+      )}
     </nav>
   )
 }
 
-// Keep the old Navbar export as NavbarLegacy for easy revert
-export function NavbarLegacy(props: NavbarProps) {
-  return Navbar(props);
-}
