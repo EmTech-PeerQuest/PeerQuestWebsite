@@ -36,12 +36,14 @@ export const getXpProgress = (xp: number) => {
 
 export const getDifficultyClass = (difficulty: string) => {
   switch (difficulty) {
-    case "easy":
-      return "badge-easy"
-    case "medium":
-      return "badge-medium"
-    case "hard":
-      return "badge-hard"
+    case "initiate":
+      return "badge-easy"  // Keep same styling for now
+    case "adventurer":
+      return "badge-medium"  // Keep same styling for now
+    case "champion":
+      return "badge-hard"  // Keep same styling for now
+    case "mythic":
+      return "badge-purple"
     default:
       return "badge-purple"
   }

@@ -452,11 +452,8 @@ export function QuestManagement({
 
   const getTierBadge = (difficulty: string) => {
     const tierMap: Record<string, { label: string; color: string; icon: string }> = {
-      easy: { label: "Initiate Tier", color: "bg-green-200 text-green-900", icon: "📜" },
       initiate: { label: "Initiate Tier", color: "bg-green-200 text-green-900", icon: "📜" },
-      medium: { label: "Adventurer Tier", color: "bg-amber-200 text-amber-900", icon: "🧭" },
       adventurer: { label: "Adventurer Tier", color: "bg-amber-200 text-amber-900", icon: "🧭" },
-      hard: { label: "Champion Tier", color: "bg-red-200 text-red-900", icon: "⚔️" },
       champion: { label: "Champion Tier", color: "bg-red-200 text-red-900", icon: "⚔️" },
       mythic: { label: "Mythic Tier", color: "bg-violet-200 text-violet-900", icon: "👑" },
     };
@@ -486,12 +483,14 @@ export function QuestManagement({
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty.toLowerCase()) {
-      case "easy":
+      case "initiate":
         return "bg-green-100 text-green-800 border-green-200"
-      case "medium":
+      case "adventurer":
         return "bg-yellow-100 text-yellow-800 border-yellow-200"
-      case "hard":
+      case "champion":
         return "bg-red-100 text-red-800 border-red-200"
+      case "mythic":
+        return "bg-purple-100 text-purple-800 border-purple-200"
       default:
         return "bg-gray-100 text-gray-800 border-gray-200"
     }
@@ -975,31 +974,33 @@ export function QuestManagement({
                                 )}
 
                                 {(application.status === 'approved' || application.status === 'pending') && (
-                                  <div className="flex gap-2 items-center mt-2">
+                                  <div className="flex flex-col gap-2 items-center mt-2">
                                     {removalTarget === application.id ? (
-                                      <>
+                                      <div className="flex flex-col sm:flex-row gap-2 items-center w-full max-w-md">
                                         <input
                                           type="text"
-                                          className="px-2 py-1 border rounded text-sm flex-1"
+                                          className="px-2 py-1 border rounded-lg text-sm flex-1 min-w-0"
                                           placeholder="Reason (optional)"
                                           value={removalReason}
                                           onChange={e => setRemovalReason(e.target.value)}
                                           autoFocus
                                         />
-                                        <button
-                                          onClick={() => handleRemoveApplicant(application.id, quest.id)}
-                                          disabled={processingApplications.has(application.id)}
-                                          className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-semibold disabled:opacity-50"
-                                        >
-                                          {processingApplications.has(application.id) ? 'Kicking...' : 'Confirm'}
-                                        </button>
-                                        <button
-                                          onClick={() => { setRemovalTarget(null); setRemovalReason(""); }}
-                                          className="px-2 py-1 text-xs text-gray-500 hover:text-gray-800"
-                                        >Cancel</button>
-                                      </>
+                                        <div className="flex gap-2">
+                                          <button
+                                            onClick={() => handleRemoveApplicant(application.id, quest.id)}
+                                            disabled={processingApplications.has(application.id)}
+                                            className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 text-xs font-semibold disabled:opacity-50 transition-colors"
+                                          >
+                                            {processingApplications.has(application.id) ? 'Kicking...' : 'Confirm'}
+                                          </button>
+                                          <button
+                                            onClick={() => { setRemovalTarget(null); setRemovalReason(""); }}
+                                            className="px-3 py-2 text-xs text-gray-500 hover:text-gray-800 rounded-lg transition-colors"
+                                          >Cancel</button>
+                                        </div>
+                                      </div>
                                     ) : (
-                                      <div className="flex flex-col gap-2">
+                                      <div className="flex flex-col gap-2 items-center">
                                         {quest.status === 'in-progress' && (
                                           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 mb-2">
                                             <p className="text-yellow-800 text-xs font-medium">
@@ -1010,7 +1011,7 @@ export function QuestManagement({
                                         <button
                                           onClick={() => { setRemovalTarget(application.id); setRemovalReason(""); }}
                                           disabled={processingApplications.has(application.id)}
-                                          className="px-4 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 text-xs font-semibold disabled:opacity-50"
+                                          className="px-6 py-3 bg-orange-500 text-white rounded-xl hover:bg-orange-600 text-sm font-semibold disabled:opacity-50 transition-colors min-w-[140px] mb-4"
                                           title={
                                             quest.status === 'in-progress' 
                                               ? "Kick participant (will revert quest to 'Open' if no participants remain)"
@@ -1026,7 +1027,7 @@ export function QuestManagement({
 
                                 {/* Show review information for processed applications */}
                                 {application.status !== 'pending' && (
-                                  <div className="pt-4 border-t border-gray-100">
+                                  <div className="pt-4 border-t border-gray-100 mt-4">
                                     <div className="flex items-center gap-2 text-sm text-gray-600">
                                       {application.status === 'approved' ? (
                                         <CheckCircle size={16} className="text-green-600" />

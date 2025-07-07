@@ -65,7 +65,7 @@ export interface Quest {
     name: string
     description?: string
   }
-  difficulty: 'easy' | 'medium' | 'hard'
+  difficulty: 'initiate' | 'adventurer' | 'champion' | 'mythic'
   status: 'open' | 'in-progress' | 'in_progress' | 'completed' // Include both variants
   xp_reward: number
   gold_reward?: number
@@ -183,7 +183,7 @@ export interface Application {
   quest: {
     id: number
     title: string
-    difficulty: 'easy' | 'medium' | 'hard'
+    difficulty: 'initiate' | 'adventurer' | 'champion' | 'mythic'
     status: 'open' | 'in-progress' | 'completed'
     xp_reward: number
     gold_reward: number

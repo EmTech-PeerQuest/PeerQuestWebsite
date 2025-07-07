@@ -260,17 +260,17 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
                     )}
                     {/* Submission action buttons for quest creators - on all pending submissions */}
                     {canReviewSubmissions && submission.status === 'pending' && (
-                      <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-200">
+                      <div className="flex flex-col sm:flex-row gap-3 mt-3 pt-3 border-t border-gray-200 justify-center">
                         <button
                           onClick={() => onApproveSubmission?.(submission.id)}
-                          className="flex items-center gap-2 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold text-sm"
+                          className="flex items-center justify-center gap-2 px-6 py-3 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-semibold text-sm min-w-[140px] sm:flex-1 sm:max-w-[200px]"
                         >
                           <CheckCircle2 size={16} />
                           <span>Approve</span>
                         </button>
                         <button
                           onClick={() => onMarkNeedsRevision?.(submission.id)}
-                          className="flex items-center gap-2 px-3 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-semibold text-sm"
+                          className="flex items-center justify-center gap-2 px-6 py-3 bg-yellow-500 text-white rounded-xl hover:bg-yellow-600 transition-colors font-semibold text-sm min-w-[140px] sm:flex-1 sm:max-w-[200px]"
                         >
                           <AlertCircle size={16} />
                           <span>Needs Revision</span>

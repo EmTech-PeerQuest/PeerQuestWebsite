@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Navbar } from '@/components/ui/navbar'
 import { Hero } from '@/components/ui/hero'
-import { QuestBoard } from '@/components/quests/quest-board-clean'
+import { QuestBoard } from '@/components/quests/quest-board'
 import { QuestManagement } from '@/components/quests/quest-management'
 import { GuildHall } from '@/components/guilds/guild-hall'
 import { About } from "@/components/about"

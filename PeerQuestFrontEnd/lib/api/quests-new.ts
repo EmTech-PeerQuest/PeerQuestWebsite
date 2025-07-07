@@ -2,6 +2,9 @@ import { Quest } from '@/lib/types'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
+// Type definitions
+export type DifficultyTier = 'initiate' | 'adventurer' | 'champion' | 'mythic'
+
 // Helper function to get auth headers
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
@@ -68,7 +71,7 @@ export interface CreateQuestData {
   title: string
   description: string
   category: number
-  difficulty: 'easy' | 'medium' | 'hard'
+  difficulty: DifficultyTier
   max_participants: number
   due_date?: string
   requirements?: string

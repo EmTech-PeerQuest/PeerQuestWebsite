@@ -46,13 +46,10 @@ export function TavernQuestCard({
   // Fantasy Tier System
   const getTierInfo = (difficulty: string) => {
     switch (difficulty.toLowerCase()) {
-      case "easy":
       case "initiate":
         return { label: "Initiate Tier", color: "bg-green-200 text-green-900 border-green-300", icon: "📜" };
-      case "medium":
       case "adventurer":
         return { label: "Adventurer Tier", color: "bg-amber-200 text-amber-900 border-amber-300", icon: "🧭" };
-      case "hard":
       case "champion":
         return { label: "Champion Tier", color: "bg-red-200 text-red-900 border-red-300", icon: "⚔️" };
       case "mythic":
