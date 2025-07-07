@@ -6,7 +6,7 @@ import { Hero } from '@/components/ui/hero'
 import { QuestBoard } from '@/components/quests/quest-board'
 import { GuildHall } from '@/components/guilds/guild-hall'
 import { UserSearch } from '@/components/user-search';
-import { MessagingSystem } from '@/components/messaging/messaging-system';
+import MessagingSystem from '@/components/messaging/messaging-system';
 import { QuestManagement } from '@/components/quests/quest-management';
 import { AdminPanel } from '@/components/admin/admin-panel';
 import { EnhancedGuildManagement } from '@/components/guilds/enhanced-guild-management';

@@ -112,3 +112,27 @@ export const fetchUser = async (token: string) => {
 export const logout = async () => {
   // No-op for JWT
 };
+
+// Add this to the bottom of auth.ts
+
+import type { User } from "@/lib/types";
+
+// Helper to fetch current user based on JWT in localStorage
+export async function getSessionUser(): Promise<User | null> {
+  const token = localStorage.getItem("access_token");
+  if (!token) return null;
+
+  try {
+    const response = await fetchUser(token);
+    return response.data as User;
+  } catch (error) {
+    if (error instanceof TokenInvalidError) {
+      console.warn("Token is invalid or expired. Clearing localStorage.");
+      localStorage.removeItem("access_token");
+      return null;
+    }
+
+    console.error("Unexpected error in getSessionUser:", error);
+    return null;
+  }
+}

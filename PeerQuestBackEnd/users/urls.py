@@ -7,6 +7,8 @@ from .views import (
     UserProfileView,
     RegisterView
 )
+# Import UserSearchView from messaging.views
+from messaging.views import UserSearchView # <--- ADD THIS IMPORT LINE
 
 urlpatterns = [
     # Authenticated user endpoints
@@ -21,4 +23,8 @@ urlpatterns = [
     # Additional endpoints from other branch
     path("register/", RegisterView.as_view(), name="register"),
     path("profile/", UserProfileView.as_view(), name="profile"),
+    
+    # --- ADD THIS LINE HERE ---
+    # Search for users to start new conversations
+    path('search/', UserSearchView.as_view(), name='user-search'),
 ]

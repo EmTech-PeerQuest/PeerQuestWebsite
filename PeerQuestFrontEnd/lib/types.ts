@@ -1,8 +1,10 @@
 export interface User {
-  id: string | number;
-  email: string;
-  username?: string;
+  id: string;
+  email?: string;
+  username: string;
   avatar?: string;
+  isOnline?: boolean;
+  lastSeen?: string;
   isBanned?: boolean;
   banReason?: string;
   roles?: string[];
@@ -17,29 +19,24 @@ export interface User {
   bio?: string;
 }
 
-
-
 export interface Quest {
-  id: number
-  title: string
-  description: string
-  category: string
-  difficulty: 'easy' | 'medium' | 'hard'
-  reward: number
-  xp: number
-  status: 'open' | 'in_progress' | 'completed'
-  poster: User
-  createdAt: string // or `Date` if you're consistent
-  deadline: string  // same here
-  applicants: any[]
-  isGuildQuest?: boolean
-  guildId?: number
-  guildReward?: number
-  completedAt?: string
+  id: number;
+  title: string;
+  description: string;
+  category: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  reward: number;
+  xp: number;
+  status: 'open' | 'in_progress' | 'completed';
+  poster: User;
+  createdAt: string; // or `Date` if you're consistent
+  deadline: string;  // same here
+  applicants: any[]; // Consider defining a more specific type for applicants if possible
+  isGuildQuest?: boolean;
+  guildId?: number;
+  guildReward?: number;
+  completedAt?: string;
 }
-
-
-
 
 export interface Guild {
   id: string | number;
@@ -59,11 +56,74 @@ export interface Guild {
 }
 
 export interface GuildApplication {
-  id: number
-  userId: number
-  username: string
-  avatar?: string
-  message: string
-  status: 'pending' | 'accepted' | 'rejected'
-  appliedAt: Date
+  id: number;
+  userId: number;
+  username: string;
+  avatar?: string;
+  message: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  appliedAt: Date;
 }
+
+export interface Conversation {
+  id: string;
+  is_group: boolean;
+  name?: string;
+  description?: string; // Add this if you want description to be part of the conversation
+  participants: User[];
+  last_message?: string;
+  updated_at: string;
+  unread_count?: number;
+  last_message_date?: string; 
+  created_at?: string;
+  guildId?: string; // If relevant for your guild-specific conversations
+}
+
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  sender: {
+    id: string;
+    username: string;
+    avatar?: string;
+  };
+  // Make receiver and recipient_id optional to correctly handle group chats
+  receiver?: { // <-- Made optional
+    id: string;
+    username: string;
+    avatar?: string;
+  };
+  content: string;
+  created_at: string;
+  read: boolean;
+  recipient_id?: string; // <-- Made optional
+  message_type: "text" | "file" | string; // Broaden if other types exist, or make a specific union
+  status: "sending" | "sent" | "delivered" | "read" | "failed";
+  timestamp: string;
+  attachments?: Attachment[];
+}
+
+export interface TypingUser {
+  user_id: string;
+  username: string;
+  is_typing?: boolean;
+}
+
+export interface Attachment {
+  id: string;
+  filename: string;
+  file_size: number;
+  file_size_human?: string;
+  content_type: string;
+  file_type?: string;
+  thumbnail?: string;
+  url: string;
+  is_image?: boolean;
+}
+
+// Add MessageStatus type to include "failed" for your components:
+export type MessageStatus = "sending" | "sent" | "delivered" | "read" | "failed";
+
+// Update UserStatus to match the "online" | "idle" | "offline" from MessagingSystem
+export type UserStatus = "online" | "idle" | "offline" | "away" | "busy"; // Added idle and offline
