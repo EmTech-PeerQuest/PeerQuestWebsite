@@ -258,22 +258,22 @@ export default function SkillsManager() {
               <div className="bg-white rounded-lg shadow-sm p-4 sticky top-6">
                 <h3 className="font-semibold text-[#2C1A1D] mb-4">Categories</h3>
                 <div className="space-y-2">
-                  {categories.map((category) => (
-                    <button
-                      key={category}
-                      onClick={() => setActiveCategory(category)}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                        activeCategory === category
-                          ? "bg-[#8B75AA] text-white"
-                          : "hover:bg-[#8B75AA]/10 text-[#2C1A1D]"
-                      }`}
-                    >
-                      {category}
-                      <span className="float-right text-xs opacity-70">
-                        {skillsByCategory[category]?.length || 0}
-                      </span>
-                    </button>
-                  ))}
+                    {categories.map((category, idx) => (
+                      <button
+                        key={category + '-' + idx}
+                        onClick={() => setActiveCategory(category)}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                          activeCategory === category
+                            ? "bg-[#8B75AA] text-white"
+                            : "hover:bg-[#8B75AA]/10 text-[#2C1A1D]"
+                        }`}
+                      >
+                        {category}
+                        <span className="float-right text-xs opacity-70">
+                          {skillsByCategory[category]?.length || 0}
+                        </span>
+                      </button>
+                    ))}
                 </div>
               </div>
             </div>
@@ -287,79 +287,80 @@ export default function SkillsManager() {
                       {activeCategory}
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {skillsByCategory[activeCategory]?.map((skill) => {
-                        if (!skill.id || skill.id === 'undefined') {
-                          console.warn('[DEBUG] Skipping skill with invalid id in render:', skill);
-                          return null;
-                        }
-                        const isSelected = selectedSkills.has(skill.id)
-                        const skillDetails = selectedSkills.get(skill.id)
-                        return (
-                          <div
-                            key={skill.id}
-                            className={`border rounded-lg p-4 transition-all relative ${
-                              isSelected
-                                ? "border-[#8B75AA] bg-[#8B75AA]/10"
-                                : "border-gray-200 hover:border-[#8B75AA]/30"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <h3 className="font-medium text-[#2C1A1D]">{skill.name}</h3>
-                                {skill.description && (
-                                  <p className="text-sm text-gray-600 mt-1">{skill.description}</p>
-                                )}
+                      {Array.isArray(skillsByCategory[activeCategory]) && skillsByCategory[activeCategory].length > 0 ? (
+                        skillsByCategory[activeCategory].map((skill, idx) => {
+                          if (!skill || !skill.id) return null;
+                          const isSelected = selectedSkills.has(skill.id)
+                          const skillDetails = selectedSkills.get(skill.id)
+                          return (
+                            <div
+                              key={String(skill.id) + '-' + idx}
+                              className={`border rounded-lg p-4 transition-all relative ${
+                                isSelected
+                                  ? "border-[#8B75AA] bg-[#8B75AA]/10"
+                                  : "border-gray-200 hover:border-[#8B75AA]/30"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <h3 className="font-medium text-[#2C1A1D]">{skill.name}</h3>
+                                  {skill.description && (
+                                    <p className="text-sm text-gray-600 mt-1">{skill.description}</p>
+                                  )}
+                                </div>
+                                <button
+                                  className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-colors text-lg font-bold ml-2 ${
+                                    isSelected
+                                      ? "bg-[#8B75AA] border-[#8B75AA] text-white hover:bg-[#CDAA7D] hover:border-[#CDAA7D] hover:text-[#2C1A1D]"
+                                      : "border-gray-300 bg-white text-[#8B75AA] hover:bg-[#8B75AA]/10"
+                                  }`}
+                                  aria-label={isSelected ? `Remove ${skill.name}` : `Select ${skill.name}`}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    handleSkillToggle(skill);
+                                  }}
+                                >
+                                  {isSelected ? '−' : '+'}
+                                </button>
                               </div>
-                              <button
-                                className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-colors text-lg font-bold ml-2 ${
-                                  isSelected
-                                    ? "bg-[#8B75AA] border-[#8B75AA] text-white hover:bg-[#CDAA7D] hover:border-[#CDAA7D] hover:text-[#2C1A1D]"
-                                    : "border-gray-300 bg-white text-[#8B75AA] hover:bg-[#8B75AA]/10"
-                                }`}
-                                aria-label={isSelected ? `Remove ${skill.name}` : `Select ${skill.name}`}
-                                onClick={e => {
-                                  e.stopPropagation();
-                                  handleSkillToggle(skill);
-                                }}
-                              >
-                                {isSelected ? '−' : '+'}
-                              </button>
+                              {isSelected && (
+                                <div className="mt-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+                                  <div>
+                                    <label className="block text-sm font-medium text-[#2C1A1D] mb-1">
+                                      Proficiency Level
+                                    </label>
+                                    <select
+                                      value={skillDetails?.proficiency_level || 'beginner'}
+                                      onChange={(e) => updateSkillDetails(skill.id, 'proficiency_level', e.target.value)}
+                                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                                    >
+                                      <option value="beginner">Beginner</option>
+                                      <option value="intermediate">Intermediate</option>
+                                      <option value="advanced">Advanced</option>
+                                      <option value="expert">Expert</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-[#2C1A1D] mb-1">
+                                      Years of Experience
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      max="50"
+                                      value={skillDetails?.years_experience || 0}
+                                      onChange={(e) => updateSkillDetails(skill.id, 'years_experience', parseInt(e.target.value) || 0)}
+                                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                                    />
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                            {isSelected && (
-                              <div className="mt-4 space-y-3" onClick={(e) => e.stopPropagation()}>
-                                <div>
-                                  <label className="block text-sm font-medium text-[#2C1A1D] mb-1">
-                                    Proficiency Level
-                                  </label>
-                                  <select
-                                    value={skillDetails?.proficiency_level || 'beginner'}
-                                    onChange={(e) => updateSkillDetails(skill.id, 'proficiency_level', e.target.value)}
-                                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                                  >
-                                    <option value="beginner">Beginner</option>
-                                    <option value="intermediate">Intermediate</option>
-                                    <option value="advanced">Advanced</option>
-                                    <option value="expert">Expert</option>
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="block text-sm font-medium text-[#2C1A1D] mb-1">
-                                    Years of Experience
-                                  </label>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max="50"
-                                    value={skillDetails?.years_experience || 0}
-                                    onChange={(e) => updateSkillDetails(skill.id, 'years_experience', parseInt(e.target.value) || 0)}
-                                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
-                                  />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
+                          )
+                        })
+                      ) : (
+                        <div className="text-gray-400 text-center col-span-2 py-8">No skills found in this category.</div>
+                      )}
                     </div>
                   </>
                 )}

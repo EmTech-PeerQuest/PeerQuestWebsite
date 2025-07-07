@@ -964,27 +964,32 @@ class SkillsListView(APIView):
         try:
             # Get skills from database
             skills = Skill.objects.filter(is_active=True).order_by('category', 'name')
-            
+
             # Organize by category
             skills_by_category = {}
             for skill in skills:
                 if skill.category not in skills_by_category:
                     skills_by_category[skill.category] = []
                 skills_by_category[skill.category].append({
-                    'id': skill.id,
+                    'id': str(skill.id),
                     'name': skill.name,
                     'description': skill.description
                 })
-            
-            # If no skills in database, return predefined skills
+
+            # If no skills in database, return predefined skills as objects with fake UUIDs
+            import uuid
             if not skills_by_category:
-                skills_by_category = COLLEGE_SKILLS
-            
+                for cat, arr in COLLEGE_SKILLS.items():
+                    skills_by_category[cat] = [
+                        {'id': str(uuid.uuid5(uuid.NAMESPACE_DNS, name)), 'name': name, 'description': ''}
+                        for name in arr
+                    ]
+
             return Response({
                 'success': True,
                 'skills_by_category': skills_by_category
             }, status=status.HTTP_200_OK)
-            
+
         except Exception as e:
             return Response({
                 'success': False,
