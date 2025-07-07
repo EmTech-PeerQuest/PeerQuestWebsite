@@ -529,8 +529,65 @@ export default function AccountTab({
                 className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] h-28 md:h-32 resize-none text-sm"
                 value={accountForm.bio || ""}
                 placeholder={t('accountTab.bioPlaceholder')}
-                onChange={e => setAccountForm((prev: any) => ({ ...prev, bio: e.target.value }))}
+                onChange={e => {
+                  let value = e.target.value;
+                  // Normalize: remove leet speak and common substitutions
+                  const leetMap = {
+                    '0': 'o', '1': 'i', '2': 'z', '3': 'e', '4': 'a', '5': 's', '6': 'g', '7': 't', '8': 'b', '9': 'g',
+                    '@': 'a', '$': 's', '!': 'i', '|': 'i', '+': 't', '?': 'q', '(': 'c', ')': 'c',
+                    '*': 'a', '%': 'o', '^': 'a', '&': 'a', '#': 'h', '~': 'n', '=': 'e',
+                    'q': 'g', 'x': 'k', 'z': 's', 'vv': 'w', 'ii': 'u', 'rn': 'm'
+                  };
+                  // Replace leet chars (escape leet keys)
+                  let normalized = value.toLowerCase();
+                  for (let i = 0; i < 2; i++) {
+                    for (const [leet, normal] of Object.entries(leetMap)) {
+                      // Escape special regex characters in leet
+                      const escapedLeet = leet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                      try {
+                        const regex = new RegExp(escapedLeet, 'g');
+                        normalized = normalized.replace(regex, normal);
+                      } catch (err) {
+                        // If regex fails, skip this leet pattern
+                        continue;
+                      }
+                    }
+                  }
+                  // Remove excessive repeating characters (4+)
+                  value = value.replace(/(.)\1{3,}/g, '$1$1$1');
+                  // Inappropriate words (expanded, word boundaries)
+                  const inappropriateWords = [
+                    'admin', 'mod', 'staff', 'bot', 'test', 'null', 'fuck', 'shit', 'damn', 'bitch',
+                    'ass', 'hell', 'crap', 'piss', 'cock', 'dick', 'pussy', 'tit', 'nigger', 'nigga',
+                    'fag', 'gay', 'homo', 'retard', 'rape', 'nazi', 'hitler', 'porn', 'sex', 'cum',
+                    'cunt', 'slut', 'whore', 'bastard', 'twat', 'wank', 'jerk', 'suck', 'screw', 'anal',
+                    'spank', 'orgy', 'milf', 'dildo', 'fisting', 'handjob', 'blowjob', 'ejaculate', 'sperm', 'scat', 'scum', 'meth', 'heroin', 'cocaine', 'weed', 'marijuana', 'lsd', 'crack', 'opioid', 'opium', 'molest', 'abuse', 'beastiality', 'zoophilia', 'incest', 'pedo', 'paedo', 'child', 'kill', 'murder', 'suicide', 'terror', 'bomb', 'explosive', 'shoot', 'stab', 'gun', 'knife', 'blood', 'gore', 'torture', 'lynch', 'hang', 'execute', 'overdose', 'addict', 'overkill'
+                  ];
+                  // Find the first inappropriate word present (word boundary)
+                  let foundWord = null;
+                  for (const word of inappropriateWords) {
+                    // Escape special regex characters in word
+                    const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    let regex = null;
+                    try {
+                      regex = new RegExp(`\\b${escapedWord}\\b`, 'i');
+                    } catch (err) {
+                      // If regex fails, skip this word
+                      continue;
+                    }
+                    if (regex && regex.test(normalized)) {
+                      foundWord = word;
+                      break;
+                    }
+                  }
+                  setAccountForm((prev: any) => ({ ...prev, bio: value, bioInappropriate: foundWord }));
+                }}
               />
+              {accountForm.bioInappropriate && (
+                <div className="text-xs text-red-400 mt-1">
+                  {`The word "${accountForm.bioInappropriate}" is not allowed in your bio.`}
+                </div>
+              )}
             </div>
             {/* Birthday */}
             <div>
