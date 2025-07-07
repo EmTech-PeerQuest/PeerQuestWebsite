@@ -196,24 +196,32 @@ export function QuestManagement({
         const isInParticipants = quest.participants_detail && 
           quest.participants_detail.some((p: any) => String(p.user?.id) === String(currentUser?.id))
         
-        // Check if user has an approved application for this quest (exclude kicked participants)
+        // Check if user has an approved application for this quest
         const hasApprovedApplication = userApplications.some(app => 
           app.quest.id === quest.id && app.status === 'approved'
         )
+        
+        // Check if user has been kicked from this quest
+        const hasBeenKicked = userApplications.some(app => 
+          app.quest.id === quest.id && app.status === 'kicked'
+        )
 
         // DEBUG: Log each quest evaluation
-        if (isInParticipants || hasApprovedApplication) {
+        if ((isInParticipants || hasApprovedApplication) && !hasBeenKicked) {
           console.log('🔍 Quest Management Debug - Quest included in participating:', {
             questId: quest.id,
             questTitle: quest.title,
             isInParticipants,
             hasApprovedApplication,
+            hasBeenKicked,
             participantsCount: quest.participants_detail?.length || 0,
             participants: quest.participants_detail?.map(p => ({ userId: p.user?.id, username: p.user?.username }))
           })
         }
         
-        return isInParticipants || hasApprovedApplication
+        // Include if user is participating AND has not been kicked OR has an active approved application
+        // Note: Kicked users who re-apply and get approved should show up again
+        return (isInParticipants || hasApprovedApplication) && !hasBeenKicked
       })
 
       // DEBUG: Log final results
@@ -1064,6 +1072,8 @@ export function QuestManagement({
                                         ? 'bg-green-100 text-green-800 border-green-200'
                                         : userApp.status === 'pending'
                                         ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                                        : userApp.status === 'kicked'
+                                        ? 'bg-orange-100 text-orange-800 border-orange-200'
                                         : 'bg-red-100 text-red-800 border-red-200'
                                     }`}>
                                       {userApp.status === 'approved' ? 'Participating' : userApp.status.charAt(0).toUpperCase() + userApp.status.slice(1)}
@@ -1071,6 +1081,8 @@ export function QuestManagement({
                                     <p className="text-gray-600">
                                       {userApp.status === 'approved' && userApp.reviewed_at
                                         ? `Approved on ${new Date(userApp.reviewed_at).toLocaleDateString()}`
+                                        : userApp.status === 'kicked' && userApp.reviewed_at
+                                        ? `Kicked on ${new Date(userApp.reviewed_at).toLocaleDateString()}`
                                         : `Applied on ${new Date(userApp.applied_at).toLocaleDateString()}`}
                                     </p>
                                   </div>
@@ -1082,6 +1094,11 @@ export function QuestManagement({
                                   {userApp.status === 'rejected' && (
                                     <p className="text-sm text-red-600">
                                       Your application was not accepted for this quest.
+                                    </p>
+                                  )}
+                                  {userApp.status === 'kicked' && (
+                                    <p className="text-sm text-orange-600">
+                                      You have been removed from this quest by the quest giver.
                                     </p>
                                   )}
                                 </div>
@@ -1111,7 +1128,12 @@ export function QuestManagement({
                           const hasApprovedApp = userApplications.some(
                             (app) => app.quest.id === quest.id && app.status === "approved"
                           );
-                          return myParticipant || hasApprovedApp ? (
+                          // Check if user has been kicked
+                          const hasBeenKicked = userApplications.some(
+                            (app) => app.quest.id === quest.id && app.status === "kicked"
+                          );
+                          // Only show submit buttons if user is participant AND not kicked
+                          return (myParticipant || hasApprovedApp) && !hasBeenKicked ? (
                             <div className="flex flex-col sm:flex-row gap-3 w-full">
                               <button
                                 onClick={() => {
@@ -1146,7 +1168,12 @@ export function QuestManagement({
         const myApprovedApp = userApplications.find(
           (app) => app.quest.id === submitWorkQuest.id && app.status === "approved"
         );
-        if (!myParticipant && !myApprovedApp) return null;
+        // Check if user has been kicked
+        const hasBeenKicked = userApplications.some(
+          (app) => app.quest.id === submitWorkQuest.id && app.status === "kicked"
+        );
+        // Don't show modal if user doesn't have access or has been kicked
+        if ((!myParticipant && !myApprovedApp) || hasBeenKicked) return null;
         return (
           <div>
             <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-3 mb-4 flex items-center gap-2 justify-center">

@@ -6,7 +6,7 @@ import { X, CircleDollarSign, Star, Clock, Palette, Code, PenTool, Users, CheckC
 import type { Quest, User, Application } from "@/lib/types"
 import { formatTimeRemaining, getDifficultyClass } from "@/lib/utils"
 import { QuestAPI } from "@/lib/api/quests"
-import { getMyApplications } from "@/lib/api/applications"
+import { getMyApplications, getApplicationAttempts, type ApplicationAttemptInfo } from "@/lib/api/applications"
 import { useGoldBalance } from "@/context/GoldBalanceContext"
 
 interface QuestDetailsModalProps {
@@ -36,6 +36,8 @@ export function QuestDetailsModal({
 }: QuestDetailsModalProps) {
   const [userApplications, setUserApplications] = useState<Application[]>([])
   const [isLoadingApplications, setIsLoadingApplications] = useState(false)
+  const [attemptInfo, setAttemptInfo] = useState<ApplicationAttemptInfo | null>(null)
+  const [isLoadingAttempts, setIsLoadingAttempts] = useState(false)
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showSubmitWorkModal, setShowSubmitWorkModal] = useState(false)
@@ -67,14 +69,19 @@ export function QuestDetailsModal({
   const questNotAvailable = quest ? (quest.status === 'in-progress' || quest.status === 'completed') : false
 
   // Check if user is already a participant (either through participants_detail or approved application)
-  const isAlreadyParticipant = (quest?.participants_detail?.some((p) => p.user.id === currentUser?.id) || false) || hasApprovedApplication
+  // BUT exclude kicked users - they should no longer be considered participants
+  const isAlreadyParticipant = !hasBeenKicked && (
+    (quest?.participants_detail?.some((p) => p.user.id === currentUser?.id) || false) || 
+    hasApprovedApplication
+  )
 
   // Load user applications when modal opens and user is authenticated
   useEffect(() => {
     if (isOpen && isAuthenticated && currentUser) {
       loadUserApplications()
+      loadAttemptInfo()
     }
-  }, [isOpen, isAuthenticated, currentUser])
+  }, [isOpen, isAuthenticated, currentUser, quest?.id])
 
   const loadUserApplications = async () => {
     try {
@@ -88,6 +95,24 @@ export function QuestDetailsModal({
     }
   }
 
+  // Load application attempt information
+  const loadAttemptInfo = async () => {
+    if (!quest || !isAuthenticated) return
+    
+    setIsLoadingAttempts(true)
+    try {
+      const info = await getApplicationAttempts(quest.id)
+      setAttemptInfo(info)
+      console.log('📊 Quest Details Modal - Attempt info loaded:', info)
+    } catch (error) {
+      console.error('Failed to load attempt info:', error)
+      // Don't show error to user, just fail silently
+      setAttemptInfo(null)
+    } finally {
+      setIsLoadingAttempts(false)
+    }
+  }
+
   if (!isOpen || !quest) return null
 
   // Find the participant record for the current user
@@ -95,8 +120,8 @@ export function QuestDetailsModal({
     (p) => p.user.id === currentUser?.id
   );
 
-  // Only allow submit if user is still a participant and the quest is not open
-  const canSubmitWork = !!myParticipant && quest.status !== "open";
+  // Only allow submit if user is still a participant and the quest is not open AND user hasn't been kicked
+  const canSubmitWork = !!myParticipant && quest.status !== "open" && !hasBeenKicked;
 
   // Debug logging for quest details
   console.log('👁️ Quest Details Modal - Quest data:', {
@@ -143,8 +168,9 @@ export function QuestDetailsModal({
       
       console.log('✅ Quest Details Modal - Application submitted successfully')
       showToast("Application submitted successfully!")
-      // Refresh applications to update button state
+      // Refresh applications and attempt info to update button state
       await loadUserApplications()
+      await loadAttemptInfo()
       
       // Refresh quest data to update applications_count
       if (onQuestUpdate) {
@@ -217,6 +243,70 @@ export function QuestDetailsModal({
   }
 
   const isQuestOwner = currentUser && quest.creator && quest.creator.id === currentUser.id
+
+  // Check application eligibility based on new rules
+  const getApplicationEligibility = () => {
+    if (!quest || !currentUser) return { canApply: false, reason: "Not authenticated" }
+    
+    if (!isAuthenticated) return { canApply: false, reason: "Please log in to apply for quests" }
+    
+    if (questNotAvailable) {
+      return { 
+        canApply: false, 
+        reason: quest.status === 'in-progress' ? "Quest In Progress" : "Quest Completed" 
+      }
+    }
+    
+    if (hasAlreadyApplied) {
+      return { canApply: false, reason: "Application Pending" }
+    }
+    
+    if (hasApprovedApplication || isAlreadyParticipant) {
+      return { canApply: false, reason: "Already Participating" }
+    }
+    
+    // Use attempt info from the API if available
+    if (attemptInfo) {
+      if (!attemptInfo.can_apply) {
+        // Create a detailed reason with attempt count
+        if (attemptInfo.max_attempts !== null) {
+          return { 
+            canApply: false, 
+            reason: `Max attempts reached (${attemptInfo.attempt_count}/${attemptInfo.max_attempts})` 
+          }
+        } else {
+          return { canApply: false, reason: attemptInfo.reason }
+        }
+      }
+      
+      // If they can apply, show attempt count if they have previous attempts
+      if (attemptInfo.attempt_count > 0) {
+        const attemptsText = attemptInfo.max_attempts 
+          ? ` (${attemptInfo.attempt_count}/${attemptInfo.max_attempts})`
+          : ` (${attemptInfo.attempt_count} attempts)`
+        
+        if (attemptInfo.last_application_status === 'kicked') {
+          return { canApply: true, reason: `Re-apply${attemptsText}` }
+        } else if (attemptInfo.last_application_status === 'rejected') {
+          const remaining = attemptInfo.max_attempts ? attemptInfo.max_attempts - attemptInfo.attempt_count : 'unlimited'
+          return { canApply: true, reason: `Try again${attemptsText}, ${remaining} remaining` }
+        }
+      }
+    }
+    
+    // Fallback to old logic if attemptInfo not available
+    if (hasBeenKicked) {
+      return { canApply: true, reason: "Can re-apply after being kicked" }
+    }
+    
+    if (hasRejectedApplication) {
+      return { canApply: true, reason: "Can re-apply after rejection" }
+    }
+    
+    return { canApply: true, reason: "Can apply" }
+  }
+  
+  const applicationEligibility = getApplicationEligibility()
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -349,6 +439,16 @@ export function QuestDetailsModal({
                 <p className="text-amber-700">
                   You have already applied for this quest. Your application is currently pending review.
                 </p>
+                {/* Show attempt info if available */}
+                {attemptInfo && attemptInfo.attempt_count > 0 && (
+                  <div className="mt-2 text-sm text-amber-600 bg-amber-100 rounded px-2 py-1">
+                    {attemptInfo.max_attempts ? (
+                      <>Application attempt <span className="font-bold">{attemptInfo.attempt_count}/{attemptInfo.max_attempts}</span></>
+                    ) : (
+                      <>Application #{attemptInfo.attempt_count}</>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -359,8 +459,32 @@ export function QuestDetailsModal({
                   <h4 className="text-lg font-bold text-red-800">Application Status</h4>
                 </div>
                 <p className="text-red-700">
-                  Your application for this quest was not accepted. You can apply again if the quest is still open.
+                  Your application for this quest was not accepted. 
+                  {attemptInfo && attemptInfo.can_apply 
+                    ? " You can apply again if the quest is still open."
+                    : " You have reached the maximum number of application attempts."
+                  }
                 </p>
+                {/* Show attempt info */}
+                {attemptInfo && attemptInfo.attempt_count > 0 && (
+                  <div className="mt-2 text-sm bg-red-100 rounded px-2 py-1">
+                    {attemptInfo.max_attempts ? (
+                      <span className="text-red-700">
+                        Attempts used: <span className="font-bold">{attemptInfo.attempt_count}/{attemptInfo.max_attempts}</span>
+                        {attemptInfo.can_apply ? (
+                          <span className="text-green-700 ml-2">({attemptInfo.max_attempts - attemptInfo.attempt_count} remaining)</span>
+                        ) : (
+                          <span className="text-red-800 ml-2 font-medium">(No attempts remaining)</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-red-700">
+                        Total attempts: <span className="font-bold">{attemptInfo.attempt_count}</span>
+                        <span className="text-green-700 ml-2">(Unlimited attempts available)</span>
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -368,11 +492,18 @@ export function QuestDetailsModal({
               <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <AlertCircle size={20} className="text-orange-700" />
-                  <h4 className="text-lg font-bold text-orange-800">Kicked from Quest</h4>
+                  <h4 className="text-lg font-bold text-orange-800">Previously Removed</h4>
                 </div>
                 <p className="text-orange-700">
-                  You have been removed from this quest by the quest giver. You cannot participate in this quest anymore.
+                  You were previously removed from this quest by the quest giver. However, you can re-apply if you wish to participate again.
                 </p>
+                {/* Show attempt info for kicked users */}
+                {attemptInfo && attemptInfo.attempt_count > 0 && (
+                  <div className="mt-2 text-sm text-orange-600 bg-orange-100 rounded px-2 py-1">
+                    Previous applications: <span className="font-bold">{attemptInfo.attempt_count}</span>
+                    <span className="text-green-700 ml-2 font-medium">(Unlimited reapplications allowed)</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -434,29 +565,21 @@ export function QuestDetailsModal({
               <button
                 onClick={() => applyForQuest(quest.id)}
                 className={`px-6 py-2 rounded-lg font-medium shadow-md transition-colors ${
-                  !isAuthenticated || isAlreadyParticipant || hasAlreadyApplied || isLoadingApplications || questNotAvailable || hasBeenKicked
+                  !applicationEligibility.canApply || isLoadingApplications
                     ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
                     : 'bg-[#8B75AA] text-white hover:bg-[#7A6699]'
                 }`}
-                disabled={!isAuthenticated || isAlreadyParticipant || hasAlreadyApplied || isLoadingApplications || questNotAvailable || hasBeenKicked}
+                disabled={!applicationEligibility.canApply || isLoadingApplications || isLoadingAttempts}
               >
-                {!isAuthenticated
-                  ? "Login to Apply"
-                  : questNotAvailable
-                    ? quest.status === 'in-progress' 
-                      ? "Quest In Progress"
-                      : "Quest Completed"
-                  : isAlreadyParticipant
-                    ? "Already Participating"
-                    : hasAlreadyApplied
-                      ? "Application Pending"
-                      : hasBeenKicked
-                        ? "Kicked from Quest"
-                      : isLoadingApplications
-                        ? "Loading..."
-                        : hasRejectedApplication
-                          ? "Apply Again"
-                          : "Apply for Quest"}
+                {isLoadingApplications || isLoadingAttempts
+                  ? "Loading..."
+                  : !applicationEligibility.canApply
+                    ? applicationEligibility.reason
+                    : attemptInfo && attemptInfo.attempt_count > 0
+                      ? attemptInfo.last_application_status === 'kicked'
+                        ? "Re-apply to Quest"
+                        : "Apply Again"
+                      : "Apply for Quest"}
               </button>
             )}
           </div>

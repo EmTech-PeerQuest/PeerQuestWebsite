@@ -127,3 +127,33 @@ export const kickParticipant = async (applicationId: number, reason?: string): P
     throw error
   }
 }
+
+// Get application attempt information for a quest
+export interface ApplicationAttemptInfo {
+  quest_id: number
+  attempt_count: number
+  max_attempts: number | null
+  can_apply: boolean
+  reason: string
+  last_application_status: string | null
+}
+
+export const getApplicationAttempts = async (questId: number): Promise<ApplicationAttemptInfo> => {
+  try {
+    console.log('📊 API: Getting application attempts for quest', questId)
+    const response = await fetch(`${API_BASE_URL}/applications/check_attempts/?quest_id=${questId}`, {
+      headers: getAuthHeaders(),
+    })
+    
+    if (response.status === 401) {
+      throw new Error('Authentication required. Please log in.')
+    }
+    
+    const result = await handleApiResponse<ApplicationAttemptInfo>(response)
+    console.log('✅ API: Application attempts retrieved', result)
+    return result
+  } catch (error) {
+    console.error('❌ API: Error getting application attempts:', error)
+    throw error
+  }
+}

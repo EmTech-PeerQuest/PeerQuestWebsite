@@ -19,7 +19,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from .models import Application
+from .models import Application, ApplicationAttempt
 from .serializers import (
     ApplicationListSerializer,
     ApplicationDetailSerializer,
@@ -218,6 +218,63 @@ class ApplicationViewSet(ModelViewSet):
                 {'error': 'Failed to reject application.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+    
+    @action(detail=False, methods=['get'])
+    def check_attempts(self, request):
+        """Check application attempt count for a specific quest"""
+        quest_id = request.query_params.get('quest_id')
+        
+        if not quest_id:
+            return Response(
+                {'error': 'quest_id parameter is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            quest_id = int(quest_id)
+        except ValueError:
+            return Response(
+                {'error': 'quest_id must be a valid integer'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Import here to avoid circular imports
+        from quests.models import Quest
+        from .models import ApplicationAttempt
+        
+        try:
+            quest = Quest.objects.get(id=quest_id)
+        except Quest.DoesNotExist:
+            return Response(
+                {'error': 'Quest not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get attempt information
+        attempt_count = ApplicationAttempt.get_attempt_count(quest, request.user)
+        can_apply, reason = ApplicationAttempt.can_apply_again(quest, request.user)
+        
+        # Get status of last application if any
+        last_application = Application.objects.filter(
+            quest=quest, 
+            applicant=request.user
+        ).order_by('-applied_at').first()
+        
+        last_status = last_application.status if last_application else None
+        
+        # Determine max attempts based on user's history
+        max_attempts = 4  # Default for rejected users
+        if last_status == 'kicked':
+            max_attempts = None  # Unlimited for kicked users
+        
+        return Response({
+            'quest_id': quest_id,
+            'attempt_count': attempt_count,
+            'max_attempts': max_attempts,
+            'can_apply': can_apply,
+            'reason': reason,
+            'last_application_status': last_status
+        })
 
 # Temporary test views for debugging
 from rest_framework.decorators import api_view, permission_classes

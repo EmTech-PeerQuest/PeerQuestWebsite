@@ -69,7 +69,7 @@ class Application(models.Model):
         return f"{self.applicant.username} -> {self.quest.title} ({self.get_status_display()})"
 
     def clean(self):
-        """Custom validation to prevent duplicate pending applications and kicked user re-applications"""
+        """Custom validation to enforce application limits and prevent duplicate pending applications"""
         if self.status == 'pending':
             # Check for existing pending applications for same quest+applicant
             existing_pending = Application.objects.filter(
@@ -85,23 +85,21 @@ class Application(models.Model):
                     'Please wait for a response before applying again.'
                 )
             
-            # Check if user was previously kicked from this quest
-            existing_kicked = Application.objects.filter(
-                quest=self.quest,
-                applicant=self.applicant,
-                status='kicked'
-            ).exclude(pk=self.pk)
-            
-            if existing_kicked.exists():
+            # Check application attempt limits using the new system
+            can_apply, reason = ApplicationAttempt.can_apply_again(self.quest, self.applicant)
+            if not can_apply:
                 from django.core.exceptions import ValidationError
-                raise ValidationError(
-                    'You cannot re-apply to this quest because you were previously removed by the quest creator.'
-                )
+                raise ValidationError(reason)
 
     def save(self, *args, **kwargs):
-        """Override save to run validation"""
+        """Override save to run validation and record application attempts"""
         self.clean()
+        is_new = self.pk is None
         super().save(*args, **kwargs)
+        
+        # Record application attempt when creating a new application
+        if is_new and self.status == 'pending':
+            ApplicationAttempt.record_attempt(self)
 
     def approve(self, reviewer):
         """Approve the application and assign the quest to the applicant"""
@@ -242,3 +240,104 @@ class Application(models.Model):
     @property
     def can_be_reviewed(self):
         return self.status == 'pending'
+
+
+class ApplicationAttempt(models.Model):
+    """
+    Track application attempts for each user per quest.
+    Used to enforce limits on re-applications after rejection.
+    """
+    quest = models.ForeignKey(
+        'quests.Quest',
+        on_delete=models.CASCADE,
+        related_name='application_attempts',
+        help_text="Quest being applied to"
+    )
+    applicant = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='application_attempts',
+        help_text="User making the application attempt"
+    )
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.CASCADE,
+        related_name='attempts',
+        help_text="The application record this attempt belongs to"
+    )
+    attempt_number = models.PositiveIntegerField(
+        help_text="Sequential attempt number for this user/quest combination"
+    )
+    timestamp = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this attempt was made"
+    )
+    
+    class Meta:
+        unique_together = ('quest', 'applicant', 'attempt_number')
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['quest', 'applicant']),
+            models.Index(fields=['applicant', 'timestamp']),
+        ]
+
+    def __str__(self):
+        return f"Attempt #{self.attempt_number} by {self.applicant.username} for quest '{self.quest.title}'"
+    
+    @classmethod
+    def get_attempt_count(cls, quest, applicant):
+        """Get the current number of attempts for a user on a quest"""
+        return cls.objects.filter(quest=quest, applicant=applicant).count()
+    
+    @classmethod
+    def can_apply_again(cls, quest, applicant):
+        """
+        Check if a user can apply again to a quest.
+        Rules:
+        - Kicked users can apply unlimited times
+        - Rejected users can only apply 3 more times (4 total attempts including first)
+        - Approved/pending users cannot apply again
+        """
+        # Get the latest application status
+        latest_application = Application.objects.filter(
+            quest=quest, 
+            applicant=applicant
+        ).order_by('-applied_at').first()
+        
+        if not latest_application:
+            # No previous application, can apply
+            return True, "Can apply"
+        
+        if latest_application.status == 'pending':
+            return False, "You already have a pending application for this quest"
+        
+        if latest_application.status == 'approved':
+            return False, "You are already participating in this quest"
+        
+        if latest_application.status == 'kicked':
+            # Kicked users can apply unlimited times
+            return True, "Can re-apply (kicked users have unlimited attempts)"
+        
+        if latest_application.status == 'rejected':
+            # Check attempt count
+            attempt_count = cls.get_attempt_count(quest, applicant)
+            max_attempts = 4  # 1 initial + 3 re-attempts
+            
+            if attempt_count < max_attempts:
+                remaining = max_attempts - attempt_count
+                return True, f"Can re-apply ({remaining} attempts remaining after rejection)"
+            else:
+                return False, f"Maximum application attempts ({max_attempts}) reached for this quest"
+        
+        return False, "Unknown application status"
+    
+    @classmethod
+    def record_attempt(cls, application):
+        """Record a new application attempt"""
+        attempt_count = cls.get_attempt_count(application.quest, application.applicant)
+        return cls.objects.create(
+            quest=application.quest,
+            applicant=application.applicant,
+            application=application,
+            attempt_number=attempt_count + 1
+        )

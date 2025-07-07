@@ -6,6 +6,8 @@ export interface ApiErrorResponse {
   detail?: string
   error?: string
   message?: string
+  non_field_errors?: string[]
+  [key: string]: any  // Allow for field-specific errors
 }
 
 /**
@@ -22,7 +24,30 @@ export async function handleApiResponse<T>(response: Response): Promise<T> {
       
       if (contentType && contentType.includes('application/json')) {
         const errorData: ApiErrorResponse = await response.json()
-        errorMessage = errorData.detail || errorData.error || errorData.message || errorMessage
+        
+        // Handle different error formats from Django REST Framework
+        if (errorData.non_field_errors && Array.isArray(errorData.non_field_errors)) {
+          // DRF validation errors with non_field_errors
+          errorMessage = errorData.non_field_errors[0]
+        } else if (errorData.detail) {
+          // Standard DRF error detail
+          errorMessage = errorData.detail
+        } else if (errorData.error) {
+          // Custom error field
+          errorMessage = errorData.error
+        } else if (errorData.message) {
+          // Custom message field
+          errorMessage = errorData.message
+        } else {
+          // Check for field-specific errors
+          const fieldErrors = Object.keys(errorData)
+            .filter(key => key !== 'status_code' && Array.isArray(errorData[key]))
+            .map(key => `${key}: ${errorData[key][0]}`)
+          
+          if (fieldErrors.length > 0) {
+            errorMessage = fieldErrors[0]
+          }
+        }
       } else {
         // If response is not JSON (e.g., HTML error page), get the text
         const errorText = await responseClone.text()
