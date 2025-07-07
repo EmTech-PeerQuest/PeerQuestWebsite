@@ -162,3 +162,30 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.save()
         
         return user
+
+class UserSearchSerializer(serializers.ModelSerializer):
+    """Serializer for user search results"""
+    user_skills = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'display_name', 'avatar_url', 'avatar_data', 
+            'bio', 'level', 'experience_points', 'location', 'user_skills'
+        ]
+        read_only_fields = ['id', 'level', 'experience_points']
+    
+    def get_user_skills(self, obj):
+        """Get user's skills with proficiency levels"""
+        from .models import UserSkill
+        skills = UserSkill.objects.filter(user=obj).select_related('skill')
+        return [
+            {
+                'skill_name': skill.skill.name if skill.skill else 'Unknown',
+                'category': skill.skill.category if skill.skill else 'Unknown',
+                'proficiency_level': skill.proficiency_level,
+                'years_experience': skill.years_experience,
+                'is_verified': skill.is_verified
+            }
+            for skill in skills
+        ]

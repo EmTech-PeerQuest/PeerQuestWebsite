@@ -29,6 +29,10 @@ export interface User {
   birthday?: string;
   gender?: string;
   location?: string;
+  // Additional properties for search functionality
+  skills?: string[];
+  guilds?: Guild[];
+  badges?: Badge[];
   socialLinks?: {
     facebook?: string;
     twitter?: string;
@@ -119,4 +123,13 @@ export interface GuildApplication {
   message: string
   status: 'pending' | 'accepted' | 'rejected'
   appliedAt: Date
+}
+
+export interface Badge {
+  id: string | number;
+  name: string;
+  icon: string;
+  description?: string;
+  rarity?: 'common' | 'rare' | 'epic' | 'legendary';
+  earnedAt?: string;
 }

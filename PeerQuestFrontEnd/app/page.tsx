@@ -15,6 +15,7 @@ import { AuthModal } from '@/components/auth/auth-modal';
 import { useRouter } from 'next/navigation';
 import { IntegratedProfile } from '@/components/profile/integrated-profile';
 import { Settings } from '@/components/settings/settings';
+import { UserSearch } from '@/components/search/user-search';
 import Spinner from '@/components/ui/spinner';
 import LoadingModal from '@/components/ui/loading-modal';
 
@@ -25,6 +26,7 @@ export default function Home() {
   const [activeSection, setActiveSection] = useState<string>("home");
   const [quests, setQuests] = useState<Quest[]>([]);
   const [guilds, setGuilds] = useState<Guild[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [guildApplications, setGuildApplications] = useState<GuildApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const { user: currentUser, login, register, logout } = useAuth();
@@ -40,20 +42,51 @@ export default function Home() {
     }
   }, [currentUser]);
 
+  // Transform backend user data to match frontend User type
+  const transformUserData = (backendUser: any): User => {
+    return {
+      id: backendUser.id,
+      username: backendUser.username,
+      displayName: backendUser.display_name || backendUser.username,
+      email: backendUser.email,
+      avatar: backendUser.avatar_url || "👤",
+      level: backendUser.level || 1,
+      xp: backendUser.experience_points || 0,
+      bio: backendUser.bio || "",
+      completedQuests: 0, // This would need to be calculated from quests
+      createdQuests: 0,
+      joinedGuilds: 0,
+      gold: backendUser.gold_balance || 0,
+      skills: backendUser.user_skills ? backendUser.user_skills.map((skill: any) => skill.skill_name) : [],
+      guilds: [], // This would need to be fetched from guilds API
+      badges: [], // This would need to be fetched from achievements
+      location: backendUser.location || "",
+      birthday: backendUser.birthday || "",
+      socialLinks: backendUser.social_links || {}
+    }
+  }
+
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
+    
     fetchInitialData()
       .then((data) => {
         if (!isMounted) return;
         setQuests(data?.quests || []);
         setGuilds(data?.guilds || []);
+        
+        // Transform user data from backend format
+        const transformedUsers = data?.users ? data.users.map(transformUserData) : [];
+        setUsers(transformedUsers);
+        
         setGuildApplications(data?.guildApplications || []);
       })
       .catch((err) => {
         if (!isMounted) return;
         setQuests([]);
         setGuilds([]);
+        setUsers([]); // No fallback to mock data
         setGuildApplications([]);
       })
       .finally(() => {
@@ -82,6 +115,15 @@ export default function Home() {
 
   // Only show loading modal for initial data load (not after login/register)
   const showInitialLoading = loading && !currentUser;
+
+  // Simple toast implementation
+  const showToast = (message: string, type: string = 'info') => {
+    toast({ 
+      title: message, 
+      variant: type === 'error' ? 'destructive' : 'default',
+      duration: 3000 
+    });
+  };
 
   return (
     <ToastProvider>
@@ -142,9 +184,13 @@ export default function Home() {
         )}
 
         {activeSection === "search" && (
-          <div className="flex flex-col items-center justify-center py-16">
-            <div className="text-[#8B75AA] text-lg font-medium">Search feature coming soon...</div>
-          </div>
+          <UserSearch
+            users={users}
+            quests={quests}
+            guilds={guilds}
+            currentUser={currentUser}
+            showToast={showToast}
+          />
         )}
 
         {activeSection === "messages" && currentUser && (

@@ -52,6 +52,8 @@ export function Navbar({
       setActiveSection(section);
     } else if (section === "messages") {
       router.push("/messages");
+    } else if (section === "search") {
+      setActiveSection("search");
     } else if (section === "quest-management") {
       router.push("/quests");
     } else if (section === "guild-management") {

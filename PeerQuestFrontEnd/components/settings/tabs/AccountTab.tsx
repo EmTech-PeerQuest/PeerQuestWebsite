@@ -464,10 +464,10 @@ export default function AccountTab({
 
   return (
     <div className="p-4 md:p-6">
-      <h3 className="text-xl font-bold mb-6">{t('accountTab.title')}</h3>
-      <div className="space-y-6">
+      <h3 className="text-xl font-bold mb-4">{t('accountTab.title')}</h3>
+      <div className="space-y-4">
         {/* Profile Photo Section */}
-        <div>
+        <div className="bg-[#3D2A2F]/50 p-6 rounded-lg border border-[#CDAA7D]/30">
           <label className="block text-sm font-medium mb-4">{t('profilePhoto.profilePhoto')}</label>
           <ProfilePhotoUploader
             currentPhoto={accountForm.avatarUrl}
@@ -477,12 +477,12 @@ export default function AccountTab({
         </div>
         
         {/* Username */}
-        <div>
-          <label className="block text-sm font-medium mb-2">{t('accountTab.username')}</label>
+        <div className="space-y-2">
+          <label className="block text-sm font-medium mb-1">{t('accountTab.username')}</label>
           <div className="flex items-center">
             <input
               type="text"
-              className={`flex-1 px-3 py-2 bg-[#3D2A2F] border rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm ${
+              className={`flex-1 px-4 py-3 bg-[#3D2A2F] border rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm ${
                 accountForm.username && !validateUsernameClient(accountForm.username) 
                   ? 'border-red-500' 
                   : 'border-[#CDAA7D]'
@@ -509,40 +509,41 @@ export default function AccountTab({
           </div>
         </div>
         {/* Email */}
-        <div>
-          <label className="block text-sm font-medium mb-2">{t('accountTab.email')}</label>
+        <div className="space-y-2">
+          <label className="block text-sm font-medium mb-1">{t('accountTab.email')}</label>
           <div className="flex items-center">
             <input
               type="email"
-              className="flex-1 px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+              className="flex-1 px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
               value={accountForm.email || ""}
               placeholder={t('accountTab.emailPlaceholder')}
               onChange={e => setAccountForm((prev: any) => ({ ...prev, email: e.target.value }))}
             />
           </div>
           <div className="flex items-center mt-1">
-            <span className="text-xs bg-green-800 text-green-200 px-2 py-0.5 rounded">{t('accountTab.verified')}</span>
+            <span className="text-xs bg-green-800 text-green-200 px-3 py-1 rounded-full">{t('accountTab.verified')}</span>
           </div>
         </div>
+        
         {/* Bio */}
-        <div>
-          <label className="block text-sm font-medium mb-2">{t('accountTab.bio')}</label>
+        <div className="space-y-2">
+          <label className="block text-sm font-medium mb-1">{t('accountTab.bio')}</label>
           <textarea
-            className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] h-20 md:h-24 resize-none text-sm"
+            className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] h-28 md:h-32 resize-none text-sm"
             value={accountForm.bio || ""}
             placeholder={t('accountTab.bioPlaceholder')}
             onChange={e => setAccountForm((prev: any) => ({ ...prev, bio: e.target.value }))}
           />
         </div>
         {/* Personal Section */}
-        <div>
+        <div className="bg-[#3D2A2F]/30 p-4 rounded-lg border border-[#CDAA7D]/20">
           <h4 className="text-lg font-bold mb-3">{t('accountTab.personal')}</h4>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">{t('accountTab.birthday')}</label>
               <input
                 type="date"
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(() => {
                   const val = accountForm.birthday;
                   
@@ -579,16 +580,16 @@ export default function AccountTab({
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, birthday: e.target.value }))}
               />
               <div className="flex items-center mt-1">
-                <span className="text-xs bg-blue-800 text-blue-200 px-2 py-0.5 rounded">{t('accountTab.verified')}</span>
+                <span className="text-xs bg-blue-800 text-blue-200 px-3 py-1 rounded-full">{t('accountTab.verified')}</span>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.gender')}</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label className="block text-sm font-medium mb-1">{t('accountTab.gender')}</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <DebouncedButton
                   type="button"
                   variant={accountForm.gender === "male" ? "default" : "outline"}
-                  className={`py-2 px-4 border ${accountForm.gender === "male" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded font-medium transition-colors flex items-center justify-center text-sm`}
+                  className={`py-3 px-4 border ${accountForm.gender === "male" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded-lg font-medium transition-colors flex items-center justify-center text-sm`}
                   onClick={() => setAccountForm((prev: any) => ({ ...prev, gender: "male" }))}
                   soundType="soft"
                   debounceMs={150}
@@ -598,7 +599,7 @@ export default function AccountTab({
                 <DebouncedButton
                   type="button"
                   variant={accountForm.gender === "female" ? "default" : "outline"}
-                  className={`py-2 px-4 border ${accountForm.gender === "female" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded font-medium transition-colors flex items-center justify-center text-sm`}
+                  className={`py-3 px-4 border ${accountForm.gender === "female" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded-lg font-medium transition-colors flex items-center justify-center text-sm`}
                   onClick={() => setAccountForm((prev: any) => ({ ...prev, gender: "female" }))}
                   soundType="soft"
                   debounceMs={150}
@@ -608,7 +609,7 @@ export default function AccountTab({
                 <DebouncedButton
                   type="button"
                   variant={accountForm.gender === "prefer-not-to-say" ? "default" : "outline"}
-                  className={`py-2 px-4 border ${accountForm.gender === "prefer-not-to-say" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded font-medium transition-colors flex items-center justify-center text-sm`}
+                  className={`py-3 px-4 border ${accountForm.gender === "prefer-not-to-say" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded-lg font-medium transition-colors flex items-center justify-center text-sm`}
                   onClick={() => setAccountForm((prev: any) => ({ ...prev, gender: "prefer-not-to-say" }))}
                   soundType="soft"
                   debounceMs={150}
@@ -618,9 +619,9 @@ export default function AccountTab({
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.location')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.location')}</label>
               <select
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={accountForm.location || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, location: e.target.value }))}
               >
@@ -670,9 +671,9 @@ export default function AccountTab({
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.language')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.language')}</label>
               <select
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={currentLanguage}
                 onChange={e => handleLanguageChange(e.target.value)}
               >
@@ -686,74 +687,74 @@ export default function AccountTab({
           </div>
         </div>
         {/* Social Networks Section */}
-        <div>
+        <div className="bg-[#3D2A2F]/30 p-4 rounded-lg border border-[#CDAA7D]/20">
           <h4 className="text-lg font-bold mb-3">{t('accountTab.socialNetworks')}</h4>
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.facebook')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.facebook')}</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(accountForm.socialLinks && accountForm.socialLinks.facebook) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, facebook: e.target.value } }))}
                 placeholder={t('accountTab.facebookPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.twitter')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.twitter')}</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(accountForm.socialLinks && accountForm.socialLinks.twitter) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, twitter: e.target.value } }))}
                 placeholder={t('accountTab.twitterPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.youtube')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.youtube')}</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(accountForm.socialLinks && accountForm.socialLinks.youtube) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, youtube: e.target.value } }))}
                 placeholder={t('accountTab.youtubePlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.twitch')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.twitch')}</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(accountForm.socialLinks && accountForm.socialLinks.twitch) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, twitch: e.target.value } }))}
                 placeholder={t('accountTab.twitchPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.github')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.github')}</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(accountForm.socialLinks && accountForm.socialLinks.github) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, github: e.target.value } }))}
                 placeholder={t('accountTab.githubPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.linkedin')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.linkedin')}</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(accountForm.socialLinks && accountForm.socialLinks.linkedin) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, linkedin: e.target.value } }))}
                 placeholder={t('accountTab.linkedinPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.website')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.website')}</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(accountForm.socialLinks && accountForm.socialLinks.website) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, website: e.target.value } }))}
                 placeholder={t('accountTab.websitePlaceholder')}
@@ -762,12 +763,12 @@ export default function AccountTab({
           </div>
         </div>
         {/* Save Button */}
-        <div className="pt-4">
-          <div className="flex gap-3">
+        <div className="pt-4 border-t border-[#CDAA7D]/30">
+          <div className="flex gap-3 justify-center sm:justify-start">
             <SubmitButton
               onClick={handleSave}
               disabled={loadingSave || isLoadingUserInfo}
-              className="flex-1 sm:flex-none px-6 py-2 bg-[#8B75AA] text-white rounded font-medium hover:bg-[#7A6699] transition-colors flex items-center justify-center disabled:opacity-60"
+              className="px-8 py-3 bg-[#8B75AA] text-white rounded-lg font-medium hover:bg-[#7A6699] transition-colors flex items-center justify-center disabled:opacity-60 min-w-[160px]"
               loadingText={t('accountTab.saving')}
               successText={t('accountTab.saved') || 'Saved!'}
               errorText={t('accountTab.saveError') || 'Error saving!'}
@@ -778,33 +779,39 @@ export default function AccountTab({
           </div>
         </div>
         {/* Delete Account Section */}
-        <div className="mt-10 border-t border-[#CDAA7D]/40 pt-8">
-          <h4 className="text-lg font-bold mb-3 text-red-400">{t('accountTab.deleteAccount')}</h4>
-          <p className="mb-4 text-sm text-[#F4F0E6]/80">
-            <span className="font-semibold text-red-400">{t('accountTab.warning')}</span> {t('accountTab.deleteWarning')}
-          </p>
-          <input
-            type="text"
-            className="w-full px-3 py-2 mb-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-red-400 text-sm"
-            placeholder={t('accountTab.deleteConfirmPlaceholder', { username: user?.username })}
-            value={accountForm.deleteConfirm || ""}
-            onChange={e => setAccountForm((prev: any) => ({ ...prev, deleteConfirm: e.target.value }))}
-          />
-          <DangerButton
-            onClick={() => {
-              if (accountForm.deleteConfirm === user?.username) {
-                handleDelete();
-              } else {
-                alert(t('accountTab.deleteConfirmError'));
-              }
-            }}
-            disabled={loadingDelete}
-            className="w-full sm:w-auto px-6 py-2 bg-red-600 text-white rounded font-medium hover:bg-red-700 transition-colors flex items-center justify-center disabled:opacity-60"
-            loadingText={t('accountTab.deleting')}
-            errorText={t('accountTab.deleteError') || 'Error deleting!'}
-          >
-            {t('accountTab.deleteAccount')}
-          </DangerButton>
+        <div className="mt-8 border-t-2 border-red-400/40 pt-4">
+          <div className="bg-red-900/20 p-4 rounded-lg border border-red-400/30">
+            <h4 className="text-lg font-bold mb-4 text-red-400">{t('accountTab.deleteAccount')}</h4>
+            <p className="mb-6 text-sm text-[#F4F0E6]/80 leading-relaxed">
+              <span className="font-semibold text-red-400">{t('accountTab.warning')}</span> {t('accountTab.deleteWarning')}
+            </p>
+            
+            <div className="space-y-4">
+              <input
+                type="text"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-red-400 text-sm"
+                placeholder={t('accountTab.deleteConfirmPlaceholder', { username: user?.username })}
+                value={accountForm.deleteConfirm || ""}
+                onChange={e => setAccountForm((prev: any) => ({ ...prev, deleteConfirm: e.target.value }))}
+              />
+              
+              <DangerButton
+                onClick={() => {
+                  if (accountForm.deleteConfirm === user?.username) {
+                    handleDelete();
+                  } else {
+                    alert(t('accountTab.deleteConfirmError'));
+                  }
+                }}
+                disabled={loadingDelete}
+                className="w-full sm:w-auto px-6 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center disabled:opacity-60 min-w-[160px]"
+                loadingText={t('accountTab.deleting')}
+                errorText={t('accountTab.deleteError') || 'Error deleting!'}
+              >
+                {t('accountTab.deleteAccount')}
+              </DangerButton>
+            </div>
+          </div>
         </div>
       </div>
     </div>

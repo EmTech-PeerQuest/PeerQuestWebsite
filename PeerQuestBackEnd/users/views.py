@@ -12,7 +12,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import serializers, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .serializers import UserProfileSerializer, RegisterSerializer, UserInfoUpdateSerializer
+from .serializers import UserProfileSerializer, RegisterSerializer, UserInfoUpdateSerializer, UserSearchSerializer
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
@@ -879,6 +879,75 @@ class PasswordStrengthView(APIView):
             return Response({
                 'success': True,
                 'data': result
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+class UserSearchView(APIView):
+    """Search for users by username, skills, or location"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            # Get search parameters
+            query = request.GET.get('q', '').strip()
+            skills = request.GET.get('skills', '').strip()
+            location = request.GET.get('location', '').strip()
+            min_level = request.GET.get('min_level', '')
+            max_level = request.GET.get('max_level', '')
+            
+            # Build the search query
+            from django.db.models import Q
+            from .models import UserSkill
+            
+            search_query = Q()
+            
+            # Search by username or display name
+            if query:
+                search_query |= Q(username__icontains=query) | Q(display_name__icontains=query)
+            
+            # Search by location
+            if location:
+                search_query &= Q(location__icontains=location)
+            
+            # Search by level range
+            if min_level:
+                try:
+                    search_query &= Q(level__gte=int(min_level))
+                except ValueError:
+                    pass
+                    
+            if max_level:
+                try:
+                    search_query &= Q(level__lte=int(max_level))
+                except ValueError:
+                    pass
+            
+            # Get base users
+            users = User.objects.filter(search_query).exclude(id=request.user.id)
+            
+            # Filter by skills if provided
+            if skills:
+                skill_list = [skill.strip() for skill in skills.split(',') if skill.strip()]
+                if skill_list:
+                    # Get users who have any of the specified skills
+                    users_with_skills = UserSkill.objects.filter(
+                        skill__name__in=skill_list
+                    ).values_list('user_id', flat=True)
+                    users = users.filter(id__in=users_with_skills)
+            
+            # Limit results and serialize
+            users = users[:50]  # Limit to 50 results
+            serializer = UserSearchSerializer(users, many=True)
+            
+            return Response({
+                'success': True,
+                'results': serializer.data,
+                'count': len(serializer.data)
             }, status=status.HTTP_200_OK)
             
         except Exception as e:

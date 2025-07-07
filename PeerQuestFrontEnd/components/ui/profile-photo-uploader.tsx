@@ -107,7 +107,7 @@ export function ProfilePhotoUploader({
   return (
     <>
       <div className={`relative ${className}`}>
-        <div className="flex flex-col items-center space-y-4">
+        <div className="flex flex-col items-center space-y-4 p-4">
           {/* Photo Display */}
           <div className="relative group">
             <div className="w-32 h-32 rounded-full border-4 border-[#CDAA7D] overflow-hidden bg-[#3D2A2F] flex items-center justify-center">
@@ -161,7 +161,7 @@ export function ProfilePhotoUploader({
 
         {/* Drag and Drop Zone */}
         <div
-          className={`mt-4 border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+          className={`mt-8 border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
             dragOver 
               ? 'border-[#8B75AA] bg-[#8B75AA]/10' 
               : 'border-[#CDAA7D] bg-[#3D2A2F]/20'

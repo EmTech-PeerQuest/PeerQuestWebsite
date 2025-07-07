@@ -5,6 +5,64 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.hashers import make_password, check_password
 import uuid
 
+# College student skills categories
+COLLEGE_SKILLS = {
+    'Programming & Tech': [
+        'Python', 'JavaScript', 'Java', 'C++', 'HTML/CSS', 'React', 'Node.js', 
+        'SQL', 'Git', 'Web Development', 'Mobile App Development', 'Data Analysis',
+        'Machine Learning', 'Cybersecurity', 'UI/UX Design', 'Database Management'
+    ],
+    'Business & Finance': [
+        'Financial Analysis', 'Accounting', 'Marketing', 'Project Management',
+        'Business Strategy', 'Excel', 'PowerPoint', 'Market Research',
+        'Social Media Marketing', 'Content Creation', 'Sales', 'Entrepreneurship'
+    ],
+    'Design & Creative': [
+        'Graphic Design', 'Video Editing', 'Photography', 'Adobe Creative Suite',
+        'Illustration', 'Animation', 'Web Design', 'Logo Design', 'Branding',
+        'Digital Art', 'Typography', 'Print Design'
+    ],
+    'Writing & Communication': [
+        'Technical Writing', 'Creative Writing', 'Content Writing', 'Copywriting',
+        'Editing', 'Proofreading', 'Public Speaking', 'Presentation Skills',
+        'Blog Writing', 'Academic Writing', 'Translation', 'Social Media Content'
+    ],
+    'Science & Research': [
+        'Research Methods', 'Data Collection', 'Statistical Analysis', 'Lab Skills',
+        'Scientific Writing', 'Literature Review', 'SPSS', 'R Programming',
+        'Survey Design', 'Experimental Design', 'Critical Thinking', 'Problem Solving'
+    ],
+    'Language': [
+        'Spanish', 'French', 'German', 'Chinese (Mandarin)', 'Japanese', 'Korean',
+        'Arabic', 'Portuguese', 'Italian', 'Russian', 'Hindi', 'ESL Teaching'
+    ],
+    'Education & Tutoring': [
+        'Math Tutoring', 'Science Tutoring', 'Language Teaching', 'Test Prep',
+        'Curriculum Development', 'Lesson Planning', 'Student Mentoring',
+        'Online Teaching', 'Study Skills', 'Academic Coaching'
+    ],
+    'Leadership & Teamwork': [
+        'Team Leadership', 'Event Planning', 'Volunteer Coordination', 'Mentoring',
+        'Conflict Resolution', 'Networking', 'Collaboration', 'Time Management',
+        'Organization', 'Decision Making', 'Delegation', 'Community Building'
+    ]
+}
+
+class Skill(models.Model):
+    """Master list of available skills for college students"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, unique=True)
+    category = models.CharField(max_length=50)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['category', 'name']
+    
+    def __str__(self):
+        return f"{self.name} ({self.category})"
+
 class User(AbstractUser):
     # Override email to make it unique
     email = models.EmailField(_('email address'), unique=True)
@@ -146,16 +204,21 @@ class UserSkill(models.Model):
         EXPERT = 'expert', _('Expert')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='skills')
-    skill_name = models.CharField(max_length=50)
-    skill_category = models.CharField(max_length=50, blank=True)
-    proficiency_level = models.CharField(max_length=12, choices=ProficiencyLevel.choices)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_skills')
+    skill = models.ForeignKey(Skill, on_delete=models.CASCADE, related_name='user_skills', null=True, blank=True)
+    proficiency_level = models.CharField(max_length=12, choices=ProficiencyLevel.choices, default=ProficiencyLevel.BEGINNER)
     years_experience = models.IntegerField(null=True, blank=True)
     is_verified = models.BooleanField(default=False)
     endorsements_count = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('user', 'skill_name')
+        unique_together = ('user', 'skill')
+        ordering = ['-proficiency_level', 'skill__name']
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.skill.name} ({self.proficiency_level})"
 
 class UserAchievement(models.Model):
     class RarityLevel(models.TextChoices):
