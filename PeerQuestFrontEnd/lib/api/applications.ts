@@ -1,22 +1,3 @@
-// Remove (kick) an applicant
-export const removeApplication = async (applicationId: number, reason?: string): Promise<{ message: string; reason?: string }> => {
-  try {
-    console.log('🟠 API: Removing application', applicationId, reason);
-    const response = await fetch(`${API_BASE_URL}/applications/${applicationId}/remove/`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify(reason ? { reason } : {}),
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || error.detail || 'Failed to remove applicant.');
-    }
-    return response.json();
-  } catch (error) {
-    console.error('❌ API: Error removing application:', error);
-    throw error;
-  }
-};
 import { Application } from '@/lib/types'
 import { handleApiResponse, getAuthHeaders } from './utils'
 
@@ -124,6 +105,25 @@ export const rejectApplication = async (applicationId: number): Promise<Applicat
     return result
   } catch (error) {
     console.error('❌ API: Error rejecting application:', error)
+    throw error
+  }
+}
+
+// Kick a participant (update application status to 'kicked')
+export const kickParticipant = async (applicationId: number, reason?: string): Promise<Application> => {
+  try {
+    console.log('🦵 API: Kicking participant', applicationId, reason)
+    const response = await fetch(`${API_BASE_URL}/applications/${applicationId}/kick/`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(reason ? { reason } : {}),
+    })
+    
+    const result = await handleApiResponse<Application>(response)
+    console.log('✅ API: Participant kicked successfully', result)
+    return result
+  } catch (error) {
+    console.error('❌ API: Error kicking participant:', error)
     throw error
   }
 }

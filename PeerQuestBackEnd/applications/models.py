@@ -11,6 +11,7 @@ class Application(models.Model):
         ('pending', 'Pending'),
         ('approved', 'Approved'),
         ('rejected', 'Rejected'),
+        ('kicked', 'Kicked'),
     ]
 
     # Foreign key relationships
@@ -68,7 +69,7 @@ class Application(models.Model):
         return f"{self.applicant.username} -> {self.quest.title} ({self.get_status_display()})"
 
     def clean(self):
-        """Custom validation to prevent duplicate pending applications"""
+        """Custom validation to prevent duplicate pending applications and kicked user re-applications"""
         if self.status == 'pending':
             # Check for existing pending applications for same quest+applicant
             existing_pending = Application.objects.filter(
@@ -82,6 +83,19 @@ class Application(models.Model):
                 raise ValidationError(
                     'You already have a pending application for this quest. '
                     'Please wait for a response before applying again.'
+                )
+            
+            # Check if user was previously kicked from this quest
+            existing_kicked = Application.objects.filter(
+                quest=self.quest,
+                applicant=self.applicant,
+                status='kicked'
+            ).exclude(pk=self.pk)
+            
+            if existing_kicked.exists():
+                from django.core.exceptions import ValidationError
+                raise ValidationError(
+                    'You cannot re-apply to this quest because you were previously removed by the quest creator.'
                 )
 
     def save(self, *args, **kwargs):
@@ -153,6 +167,62 @@ class Application(models.Model):
         self.save()
         return True
 
+    def kick(self, reviewer):
+        """Kick the application (soft delete - just change status like reject)"""
+        try:
+            with transaction.atomic():
+                # Step 1: Update application status (soft delete - keep record like reject)
+                self.status = 'kicked'
+                self.reviewed_by = reviewer
+                self.reviewed_at = timezone.now()
+                self.save()
+                
+                logger.info(f"Application kicked: {self.applicant.username} -> Quest '{self.quest.title}' (ID: {self.quest.id})")
+                
+                # Step 2: Update QuestParticipant status instead of deleting (soft delete)
+                # Import QuestParticipant here to avoid circular imports
+                from quests.models import QuestParticipant
+                participants = QuestParticipant.objects.filter(quest=self.quest, user=self.applicant)
+                for participant in participants:
+                    # Set participant status to 'dropped' instead of deleting
+                    participant.status = 'dropped'
+                    participant.save()
+                    logger.info(f"Set participant status to 'dropped': {self.applicant.username} from Quest '{self.quest.title}'")
+                
+                # Step 3: Check if quest should revert to 'open' status
+                # Check both approved applications AND active quest participants
+                approved_applications = Application.objects.filter(
+                    quest=self.quest,
+                    status='approved'
+                )
+                
+                # Also check for active quest participants (not dropped)
+                from quests.models import QuestParticipant
+                active_participants = QuestParticipant.objects.filter(
+                    quest=self.quest,
+                    status__in=['joined', 'in_progress', 'completed']  # Any active status except 'dropped'
+                )
+                
+                # Revert quest status to 'open' if no approved applications AND no active participants remain
+                if (not approved_applications.exists() and 
+                    not active_participants.exists() and 
+                    self.quest.status in ['in-progress', 'assigned']):  # Fixed: use 'in-progress' with hyphen
+                    self.quest.status = 'open'
+                    self.quest.save()
+                    logger.info(f"Quest '{self.quest.title}' reverted to 'open' status - no active participants remain")
+                
+                logger.info(f"Application kick completed successfully: {self.applicant.username} -> Quest '{self.quest.title}'")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Application kick failed: {self.applicant.username} -> Quest '{self.quest.title}' (ID: {self.quest.id}): {str(e)}")
+            # Reset application status if it was changed
+            if self.status == 'kicked':
+                self.status = 'approved'  # Revert to previous state
+                self.save()
+                logger.info(f"Reverted application status due to kick failure")
+            raise Exception(f"Application kick failed: {str(e)}")
+
     @property
     def is_pending(self):
         return self.status == 'pending'
@@ -164,6 +234,10 @@ class Application(models.Model):
     @property
     def is_rejected(self):
         return self.status == 'rejected'
+
+    @property
+    def is_kicked(self):
+        return self.status == 'kicked'
 
     @property
     def can_be_reviewed(self):

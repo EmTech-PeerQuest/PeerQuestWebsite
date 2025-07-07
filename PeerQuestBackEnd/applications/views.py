@@ -29,6 +29,38 @@ from .serializers import (
 
 class ApplicationViewSet(ModelViewSet):
     @action(detail=True, methods=['post'])
+    def kick(self, request, pk=None):
+        """Kick a participant from a quest (quest owner only). This removes approved participants and reverts quest status if needed."""
+        application = get_object_or_404(Application, pk=pk)
+        
+        # Only quest creator can kick
+        if application.quest.creator != request.user:
+            return Response({'error': 'You can only kick participants from your own quests.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Only allow kicking approved participants (not pending/rejected/already kicked)
+        if application.status != 'approved':
+            return Response({'error': 'Only approved participants can be kicked.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        reason = request.data.get('reason', '')
+        
+        # Kick the participant
+        try:
+            result = application.kick(request.user)
+            if result:
+                logger.info(f"Participant {application.applicant.username} kicked from quest '{application.quest.title}' by {request.user.username}. Reason: {reason}")
+                serializer = self.get_serializer(application)
+                return Response({
+                    'message': 'Participant kicked successfully.',
+                    'reason': reason,
+                    'data': serializer.data
+                })
+            else:
+                return Response({'error': 'Failed to kick participant.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Error kicking participant: {str(e)}")
+            return Response({'error': f'Failed to kick participant: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'])
     def remove(self, request, pk=None):
         """Remove (kick) an applicant from a quest (quest owner only). Optionally provide a reason."""
         application = get_object_or_404(Application, pk=pk)

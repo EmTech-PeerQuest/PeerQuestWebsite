@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import QuestSubmitWorkModal from "./quest-submit-work-modal"
-import { X, CircleDollarSign, Star, Clock, Palette, Code, PenTool, Users, CheckCircle, Trash2 } from "lucide-react"
+import { X, CircleDollarSign, Star, Clock, Palette, Code, PenTool, Users, CheckCircle, Trash2, AlertCircle } from "lucide-react"
 import type { Quest, User, Application } from "@/lib/types"
 import { formatTimeRemaining, getDifficultyClass } from "@/lib/utils"
 import { QuestAPI } from "@/lib/api/quests"
@@ -56,6 +56,11 @@ export function QuestDetailsModal({
   // Check if user has a rejected application
   const hasRejectedApplication = quest ? userApplications.some(app => 
     app.quest.id === quest.id && app.status === 'rejected'
+  ) : false
+
+  // Check if user has been kicked
+  const hasBeenKicked = quest ? userApplications.some(app => 
+    app.quest.id === quest.id && app.status === 'kicked'
   ) : false
 
   // Check if quest is available for new applications
@@ -359,6 +364,18 @@ export function QuestDetailsModal({
               </div>
             )}
 
+            {!isQuestOwner && isAuthenticated && hasBeenKicked && !isAlreadyParticipant && !hasAlreadyApplied && (
+              <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertCircle size={20} className="text-orange-700" />
+                  <h4 className="text-lg font-bold text-orange-800">Kicked from Quest</h4>
+                </div>
+                <p className="text-orange-700">
+                  You have been removed from this quest by the quest giver. You cannot participate in this quest anymore.
+                </p>
+              </div>
+            )}
+
             {/* Applications Count (for quest owner) */}
             {isQuestOwner && (
               <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
@@ -417,11 +434,11 @@ export function QuestDetailsModal({
               <button
                 onClick={() => applyForQuest(quest.id)}
                 className={`px-6 py-2 rounded-lg font-medium shadow-md transition-colors ${
-                  !isAuthenticated || isAlreadyParticipant || hasAlreadyApplied || isLoadingApplications || questNotAvailable
+                  !isAuthenticated || isAlreadyParticipant || hasAlreadyApplied || isLoadingApplications || questNotAvailable || hasBeenKicked
                     ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
                     : 'bg-[#8B75AA] text-white hover:bg-[#7A6699]'
                 }`}
-                disabled={!isAuthenticated || isAlreadyParticipant || hasAlreadyApplied || isLoadingApplications || questNotAvailable}
+                disabled={!isAuthenticated || isAlreadyParticipant || hasAlreadyApplied || isLoadingApplications || questNotAvailable || hasBeenKicked}
               >
                 {!isAuthenticated
                   ? "Login to Apply"
@@ -433,6 +450,8 @@ export function QuestDetailsModal({
                     ? "Already Participating"
                     : hasAlreadyApplied
                       ? "Application Pending"
+                      : hasBeenKicked
+                        ? "Kicked from Quest"
                       : isLoadingApplications
                         ? "Loading..."
                         : hasRejectedApplication

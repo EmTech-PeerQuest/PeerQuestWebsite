@@ -203,7 +203,7 @@ export interface Application {
     level?: number
     xp?: number
   }
-  status: 'pending' | 'approved' | 'rejected'
+  status: 'pending' | 'approved' | 'rejected' | 'kicked'
   applied_at: string
   reviewed_at?: string
   reviewed_by?: {

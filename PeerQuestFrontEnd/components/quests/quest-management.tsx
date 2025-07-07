@@ -22,7 +22,7 @@ import {
 } from "lucide-react"
 import type { Quest, User as UserType, Application } from "@/lib/types"
 import { QuestAPI } from "@/lib/api/quests"
-import { getApplicationsToMyQuests, getMyApplications, approveApplication, rejectApplication, removeApplication } from "@/lib/api/applications"
+import { getApplicationsToMyQuests, getMyApplications, approveApplication, rejectApplication, kickParticipant } from "@/lib/api/applications"
 import { QuestDetailsModal } from "./quest-details-modal"
 import QuestSubmitWorkModal from "./quest-submit-work-modal"
 import QuestForm from "./quest-form"
@@ -68,21 +68,52 @@ export function QuestManagement({
   
   // Gold balance context for automatic updates
   const { refreshBalance } = useGoldBalance()
+  
+  /**
+   * Handle kicking a participant from a quest
+   * This function will:
+   * 1. Update the participant's application status to "kicked"
+   * 2. If the quest was "in-progress" and no approved participants remain, revert quest status to "open"
+   * 3. Refresh quest data to ensure the kicked participant loses access
+   * 4. Notify the quest maker of the status change
+   */
   const handleRemoveApplicant = async (applicationId: number, questId: number) => {
-    setProcessingApplications((prev) => new Set(prev).add(applicationId));
+    setProcessingApplications((prev: Set<number>) => new Set(prev).add(applicationId));
     try {
       let reason = removalReason;
       if (removalTarget !== applicationId) reason = "";
-      await removeApplication(applicationId, reason);
+      
+      // Find the quest to check its current status and get its slug
+      const quest = [...myQuests.created, ...myQuests.participating].find(q => q.id === questId);
+      if (!quest) {
+        throw new Error('Quest not found');
+      }
+      
+      // Store original status for comparison
+      const originalStatus = quest.status;
+      
+      // Kick the participant (backend will handle quest status reversion automatically)
+      await kickParticipant(applicationId, reason);
+      
+      // Clear cached applications for this quest to force reload
+      setQuestApplications(prev => {
+        const updated = { ...prev };
+        delete updated[questId];
+        return updated;
+      });
+      
+      // Reload quest applications to get updated data with force refresh
+      await loadQuestApplications(questId, true);
+      
       setRemovalReason("");
       setRemovalTarget(null);
-      await loadQuestApplications(questId);
-      await loadMyQuests();
-      showToast("Applicant removed successfully", "success");
+      await loadMyQuests(); // This will refresh all quest data including updated status
+      showToast("Participant kicked successfully", "success");
     } catch (err) {
-      showToast('Failed to remove applicant', 'error');
+      console.error('Failed to kick participant:', err);
+      showToast('Failed to kick participant', 'error');
     } finally {
-      setProcessingApplications((prev) => {
+      setProcessingApplications((prev: Set<number>) => {
         const newSet = new Set(prev);
         newSet.delete(applicationId);
         return newSet;
@@ -165,7 +196,7 @@ export function QuestManagement({
         const isInParticipants = quest.participants_detail && 
           quest.participants_detail.some((p: any) => String(p.user?.id) === String(currentUser?.id))
         
-        // Check if user has an approved application for this quest
+        // Check if user has an approved application for this quest (exclude kicked participants)
         const hasApprovedApplication = userApplications.some(app => 
           app.quest.id === quest.id && app.status === 'approved'
         )
@@ -208,21 +239,21 @@ export function QuestManagement({
   }
 
   // Load applications for a specific quest
-  const loadQuestApplications = async (questId: number) => {
-    if (loadingApplications[questId] || questApplications[questId]) {
+  const loadQuestApplications = async (questId: number, forceRefresh = false) => {
+    if (!forceRefresh && (loadingApplications[questId] || questApplications[questId])) {
       return // Already loading or loaded
     }
 
-    setLoadingApplications(prev => ({ ...prev, [questId]: true }))
+    setLoadingApplications((prev) => ({ ...prev, [questId]: true }))
     try {
       const allApplications = await getApplicationsToMyQuests()
       const questSpecificApplications = allApplications.filter(app => app.quest.id === questId)
-      setQuestApplications(prev => ({ ...prev, [questId]: questSpecificApplications }))
+      setQuestApplications((prev: { [questId: number]: Application[] }) => ({ ...prev, [questId]: questSpecificApplications }))
     } catch (error) {
       console.error('Failed to load applications for quest:', questId, error)
       showToast('Failed to load applications', 'error')
     } finally {
-      setLoadingApplications(prev => ({ ...prev, [questId]: false }))
+      setLoadingApplications((prev) => ({ ...prev, [questId]: false }))
     }
   }
 
@@ -239,18 +270,18 @@ export function QuestManagement({
 
   // Handle approving application
   const handleApproveApplication = async (applicationId: number, questId: number) => {
-    setProcessingApplications(prev => new Set(prev).add(applicationId))
+    setProcessingApplications((prev: Set<number>) => new Set(prev).add(applicationId))
     try {
       await approveApplication(applicationId)
       // Reload applications to get updated status (application stays in log)
-      await loadQuestApplications(questId)
+      await loadQuestApplications(questId, true)
       await loadMyQuests() // Refresh quest data
       showToast('Application approved successfully', 'success')
     } catch (error) {
       console.error('Failed to approve application:', error)
       showToast('Failed to approve application', 'error')
     } finally {
-      setProcessingApplications(prev => {
+      setProcessingApplications((prev: Set<number>) => {
         const newSet = new Set(prev)
         newSet.delete(applicationId)
         return newSet
@@ -260,18 +291,18 @@ export function QuestManagement({
 
   // Handle rejecting application
   const handleRejectApplication = async (applicationId: number, questId: number) => {
-    setProcessingApplications(prev => new Set(prev).add(applicationId))
+    setProcessingApplications((prev: Set<number>) => new Set(prev).add(applicationId))
     try {
       await rejectApplication(applicationId)
       // Reload applications to get updated status (application stays in log)
-      await loadQuestApplications(questId)
+      await loadQuestApplications(questId, true)
       await loadMyQuests() // Refresh quest data
       showToast('Application rejected successfully', 'success')
     } catch (error) {
       console.error('Failed to reject application:', error)
       showToast('Failed to reject application', 'error')
     } finally {
-      setProcessingApplications(prev => {
+      setProcessingApplications((prev: Set<number>) => {
         const newSet = new Set(prev)
         newSet.delete(applicationId)
         return newSet
@@ -288,6 +319,8 @@ export function QuestManagement({
         return "bg-green-100 text-green-800 border-green-200"
       case "rejected":
         return "bg-red-100 text-red-800 border-red-200"
+      case "kicked":
+        return "bg-orange-100 text-orange-800 border-orange-200"
       default:
         return "bg-gray-100 text-gray-800 border-gray-200"
     }
@@ -295,7 +328,7 @@ export function QuestManagement({
 
   // Get user's application for a specific quest
   const getUserApplicationForQuest = (questId: number): Application | undefined => {
-    return userApplications.find(app => app.quest.id === questId)
+    return userApplications.find((app: Application) => app.quest.id === questId)
   }
 
   // Get the appropriate quest list based on active tab
@@ -309,7 +342,7 @@ export function QuestManagement({
 
   // Filter quests based on search query
   const filteredQuests = getQuestList()
-    .filter((quest) => {
+    .filter((quest: Quest) => {
       if (!searchQuery) return true
       return (
         quest.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -722,21 +755,21 @@ export function QuestManagement({
                           <button
                             onClick={() => handleEditQuest(quest)}
                             disabled={
-                              // Disable if any application is approved or any participant exists
-                              (questApplications[quest.id] && questApplications[quest.id].some(app => app.status === 'approved')) ||
-                              (quest.participants_detail && quest.participants_detail.length > 0)
+                              // Disable if quest has any approved applications (not kicked) or is not in 'open' status
+                              quest.status !== 'open' ||
+                              (questApplications[quest.id] && questApplications[quest.id].some(app => app.status === 'approved'))
                             }
                             className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors ${
-                              ((questApplications[quest.id] && questApplications[quest.id].some(app => app.status === 'approved')) ||
-                                (quest.participants_detail && quest.participants_detail.length > 0))
+                              (quest.status !== 'open' ||
+                                (questApplications[quest.id] && questApplications[quest.id].some(app => app.status === 'approved')))
                                 ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
                                 : 'bg-[#8B75AA] text-white hover:bg-[#7A6699]'
                             }`}
                             title={
-                              (questApplications[quest.id] && questApplications[quest.id].some(app => app.status === 'approved'))
-                                ? 'Cannot edit a quest after accepting an applicant'
-                                : (quest.participants_detail && quest.participants_detail.length > 0)
-                                ? 'Cannot edit a quest with participants'
+                              quest.status !== 'open'
+                                ? `Cannot edit a quest that is ${quest.status}`
+                                : (questApplications[quest.id] && questApplications[quest.id].some(app => app.status === 'approved'))
+                                ? 'Cannot edit a quest with active participants (kick participants first)'
                                 : 'Edit this quest'
                             }
                           >
@@ -835,7 +868,7 @@ export function QuestManagement({
                                         Applied on {new Date(application.applied_at).toLocaleDateString()}
                                         {application.reviewed_at && (
                                           <span className="ml-2">
-                                            • {application.status === 'approved' ? 'Approved' : 'Rejected'} on {new Date(application.reviewed_at).toLocaleDateString()}
+                                            • {application.status === 'approved' ? 'Approved' : application.status === 'kicked' ? 'Kicked' : 'Rejected'} on {new Date(application.reviewed_at).toLocaleDateString()}
                                           </span>
                                         )}
                                       </p>
@@ -917,7 +950,7 @@ export function QuestManagement({
                                           disabled={processingApplications.has(application.id)}
                                           className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-semibold disabled:opacity-50"
                                         >
-                                          {processingApplications.has(application.id) ? 'Removing...' : 'Confirm'}
+                                          {processingApplications.has(application.id) ? 'Kicking...' : 'Confirm'}
                                         </button>
                                         <button
                                           onClick={() => { setRemovalTarget(null); setRemovalReason(""); }}
@@ -925,31 +958,57 @@ export function QuestManagement({
                                         >Cancel</button>
                                       </>
                                     ) : (
-                                      <button
-                                        onClick={() => { setRemovalTarget(application.id); setRemovalReason(""); }}
-                                        disabled={processingApplications.has(application.id)}
-                                        className="px-4 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 text-xs font-semibold disabled:opacity-50"
-                                      >
-                                        Kick/Remove
-                                      </button>
+                                      <div className="flex flex-col gap-2">
+                                        {quest.status === 'in-progress' && (
+                                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 mb-2">
+                                            <p className="text-yellow-800 text-xs font-medium">
+                                              ⚠️ Warning: Kicking this participant from an in-progress quest will revert the quest status back to "Open" if no other participants remain.
+                                            </p>
+                                          </div>
+                                        )}
+                                        <button
+                                          onClick={() => { setRemovalTarget(application.id); setRemovalReason(""); }}
+                                          disabled={processingApplications.has(application.id)}
+                                          className="px-4 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 text-xs font-semibold disabled:opacity-50"
+                                          title={
+                                            quest.status === 'in-progress' 
+                                              ? "Kick participant (will revert quest to 'Open' if no participants remain)"
+                                              : "Kick participant"
+                                          }
+                                        >
+                                          Kick Participant
+                                        </button>
+                                      </div>
                                     )}
                                   </div>
                                 )}
 
                                 {/* Show review information for processed applications */}
-                                {application.status !== 'pending' && application.reviewed_at && (
+                                {application.status !== 'pending' && (
                                   <div className="pt-4 border-t border-gray-100">
                                     <div className="flex items-center gap-2 text-sm text-gray-600">
                                       {application.status === 'approved' ? (
                                         <CheckCircle size={16} className="text-green-600" />
+                                      ) : application.status === 'kicked' ? (
+                                        <AlertCircle size={16} className="text-orange-600" />
                                       ) : (
                                         <XCircle size={16} className="text-red-600" />
                                       )}
                                       <span>
-                                        {application.status === 'approved' ? 'Accepted' : 'Rejected'} on{' '}
-                                        {new Date(application.reviewed_at).toLocaleDateString()}
-                                        {application.reviewed_by && (
-                                          <span> by {application.reviewed_by.username}</span>
+                                        {application.status === 'approved' 
+                                          ? 'Accepted' 
+                                          : application.status === 'kicked'
+                                            ? 'Kicked from quest'
+                                            : 'Rejected'
+                                        } {application.reviewed_at ? (
+                                          <>
+                                            on {new Date(application.reviewed_at).toLocaleDateString()}
+                                            {application.reviewed_by && (
+                                              <span> by {application.reviewed_by.username}</span>
+                                            )}
+                                          </>
+                                        ) : (
+                                          application.status === 'kicked' && 'by quest giver'
                                         )}
                                       </span>
                                     </div>

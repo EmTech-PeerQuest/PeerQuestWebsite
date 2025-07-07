@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { getApplicationsToMyQuests, approveApplication, rejectApplication, removeApplication } from "@/lib/api/applications";
-import { X, ScrollText, Users, CheckCircle, XCircle, Clock, Star, CircleDollarSign, Calendar, User } from "lucide-react";
+import { getApplicationsToMyQuests, approveApplication, rejectApplication, kickParticipant } from "@/lib/api/applications";
+import { X, ScrollText, Users, CheckCircle, XCircle, Clock, Star, CircleDollarSign, Calendar, User, AlertCircle } from "lucide-react";
 import type { Application, User as UserType } from "@/lib/types";
 import { getDifficultyClass } from "@/lib/utils";
 
@@ -37,13 +37,13 @@ export function QuestManagementApplicationsModal({
     try {
       let reason = removalReason;
       if (removalTarget !== applicationId) reason = "";
-      await removeApplication(applicationId, reason);
+      await kickParticipant(applicationId, reason);
       setRemovalReason("");
       setRemovalTarget(null);
       await loadApplications();
       if (onApplicationProcessed) await onApplicationProcessed();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove applicant');
+      setError(err instanceof Error ? err.message : 'Failed to kick participant');
     } finally {
       setProcessingApplications((prev) => {
         const newSet = new Set(prev);
@@ -153,6 +153,8 @@ export function QuestManagementApplicationsModal({
         return "bg-green-100 text-green-800 border-green-200"
       case "rejected":
         return "bg-red-100 text-red-800 border-red-200"
+      case "kicked":
+        return "bg-orange-100 text-orange-800 border-orange-200"
       default:
         return "bg-gray-100 text-gray-800 border-gray-200"
     }
@@ -166,6 +168,8 @@ export function QuestManagementApplicationsModal({
         return <CheckCircle size={16} />
       case "rejected":
         return <XCircle size={16} />
+      case "kicked":
+        return <AlertCircle size={16} />
       default:
         return <Clock size={16} />
     }
@@ -365,7 +369,7 @@ export function QuestManagementApplicationsModal({
                                   disabled={processingApplications.has(application.id)}
                                   className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-semibold disabled:opacity-50"
                                 >
-                                  {processingApplications.has(application.id) ? 'Removing...' : 'Confirm'}
+                                  {processingApplications.has(application.id) ? 'Kicking...' : 'Confirm'}
                                 </button>
                                 <button
                                   onClick={() => { setRemovalTarget(null); setRemovalReason(""); }}
@@ -378,7 +382,7 @@ export function QuestManagementApplicationsModal({
                                 disabled={processingApplications.has(application.id)}
                                 className="px-4 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 text-xs font-semibold disabled:opacity-50"
                               >
-                                Kick/Remove
+                                Kick Participant
                               </button>
                             )}
                           </div>

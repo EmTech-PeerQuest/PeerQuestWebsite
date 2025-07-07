@@ -127,6 +127,8 @@ export function ApplicationsModal({ isOpen, onClose, currentUser, questId, onApp
         return "bg-green-100 text-green-800 border-green-200"
       case "rejected":
         return "bg-red-100 text-red-800 border-red-200"
+      case "kicked":
+        return "bg-orange-100 text-orange-800 border-orange-200"
       default:
         return "bg-gray-100 text-gray-800 border-gray-200"
     }
