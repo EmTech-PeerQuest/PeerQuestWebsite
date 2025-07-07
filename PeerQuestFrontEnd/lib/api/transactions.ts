@@ -150,30 +150,35 @@ export const TransactionAPI = {
   async getMyTransactions(): Promise<Transaction[]> {
     try {
       console.log('🔍 Fetching user transactions...');
-      
       // Use the main transactions endpoint which already filters by user
       const response = await fetchWithAuth(`${API_BASE_URL}/transactions/transactions/`)
-      
-      console.log('🔄 Transactions API Response Status:', response.status, response.statusText);
-      
-      if (!response.ok) {
-        const text = await response.text();
-        handleApiError(response, text, 'view your transactions');
+
+      // Defensive: handle both fetch Response and direct data
+      if (response && typeof response.json === 'function') {
+        console.log('🔄 Transactions API Response Status:', response.status, response.statusText);
+        if (!response.ok) {
+          const text = await response.text();
+          handleApiError(response, text, 'view your transactions');
+        }
+        const data = await response.json();
+        console.log('✅ Transactions data:', data);
+        // Handle both paginated and non-paginated responses
+        const transactions = data.results || data || [];
+        console.log('✅ Processed transactions:', transactions.length, 'items');
+        return transactions;
+      } else if (response) {
+        // Already parsed JSON (not a Response object)
+        const data = response;
+        console.log('✅ Transactions data (direct):', data);
+        const transactions = data.results || data || [];
+        console.log('✅ Processed transactions:', transactions.length, 'items');
+        return transactions;
+      } else {
+        throw new Error('No response from transactions API');
       }
-      
-      const data = await response.json()
-      console.log('✅ Transactions data:', data);
-      
-      // Handle both paginated and non-paginated responses
-      const transactions = data.results || data || []
-      console.log('✅ Processed transactions:', transactions.length, 'items');
-      
-      return transactions
     } catch (error) {
       console.error('Transactions fetch error:', error);
-      
       // Re-throw the error so the frontend can handle it properly
-      // Don't return empty array, let the frontend decide how to handle the error
       throw error;
     }
   },

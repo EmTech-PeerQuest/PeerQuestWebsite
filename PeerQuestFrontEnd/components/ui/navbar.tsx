@@ -51,16 +51,14 @@ export function Navbar({
   const handleNavigation = (section: string) => {
     // Play navigation sound
     playSound('nav');
-    
-    // Use section-based navigation for profile and settings
-    if (section === "profile" || section === "settings") {
+
+    // Use section-based navigation for profile, settings, and quest-management
+    if (section === "profile" || section === "settings" || section === "quest-management") {
       setActiveSection(section);
     } else if (section === "messages") {
       router.push("/messages");
     } else if (section === "search") {
       setActiveSection("search");
-    } else if (section === "quest-management") {
-      router.push("/quests");
     } else if (section === "guild-management") {
       router.push("/guilds");
     } else if (section === "admin") {
@@ -69,7 +67,7 @@ export function Navbar({
       // For sections that are handled by the main page
       setActiveSection(section);
     }
-    
+
     setMobileMenuOpen(false);
     // Close any open dropdowns when navigating
     setUserDropdownOpen(false);

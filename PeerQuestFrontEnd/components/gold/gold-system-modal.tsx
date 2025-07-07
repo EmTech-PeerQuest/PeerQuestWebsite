@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { useAudioContext } from '@/context/audio-context';
+import { useClickSound } from '@/hooks/use-click-sound';
 import { X, Coins, TrendingUp, TrendingDown, ArrowUpDown, CreditCard, Smartphone, CheckCircle, Clock, ArrowLeft } from "lucide-react"
 import type { User } from "@/lib/types"
 import { KYCVerificationModal } from '@/components/auth/kyc-verification-modal'
@@ -44,9 +46,11 @@ const PAYMENT_CONFIG = {
   QR_CODE_MARGIN: 2,
 }
 
-export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, showToast }: GoldSystemModalProps) {
+export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, showToast, refreshUser }: GoldSystemModalProps) {
   const { soundEnabled, volume } = useAudioContext()
   const { playSound } = useClickSound({ enabled: soundEnabled, volume })
+  // Defensive fallback for refreshUser if not provided
+  const safeRefreshUser = typeof refreshUser === 'function' ? refreshUser : async () => {};
   
   const [activeTab, setActiveTab] = useState<"purchase" | "transactions" | "goldex">("transactions")
   const [transactionFilter, setTransactionFilter] = useState("all")
@@ -95,23 +99,20 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
 
     setLoading(true)
     setError(null)
-    
     try {
       // Use the existing TransactionAPI which handles authentication properly
       const transactionsData = await TransactionAPI.getMyTransactions()
       setTransactions(transactionsData || [])
       setError(null) // Clear any previous errors on success
-      
+
       // Refresh user balance to ensure it's in sync
-      if (refreshUser) {
-        await refreshUser()
-      }
+      await safeRefreshUser()
     } catch (error) {
       console.error('Error fetching transactions:', error)
-      
+
       let errorMessage = 'Failed to load transaction history'
       let toastMessage = 'Failed to load transaction history'
-      
+
       if (error instanceof Error) {
         // Use the improved error messages from the API
         if (error.message.includes('Authentication required') || 
@@ -132,7 +133,7 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
           toastMessage = error.message
         }
       }
-      
+
       setError(errorMessage)
       if (showToast) {
         showToast(toastMessage, 'error')
@@ -183,10 +184,10 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
   ).amount
 
   const goldPackages = [
-    { amount: 500, price: 70, usd: 1.25, rate: 0.14, popular: mostPopularAmount === 500, bonus: "" },
-    { amount: 2800, price: 350, usd: 6.25, rate: 0.125, popular: mostPopularAmount === 2800, bonus: "+300 bonus coins" },
-    { amount: 6500, price: 700, usd: 12.50, rate: 0.108, popular: mostPopularAmount === 6500, bonus: "+1000 bonus coins" },
-    { amount: 14500, price: 1500, usd: 26.79, rate: 0.103, popular: mostPopularAmount === 14500, bonus: "+2500 bonus coins" },
+    { amount: 500, price: 70, usd: 1.25, rate: 0.14, popular: mostPopularAmount === 500, bonus: "", label: "" },
+    { amount: 2800, price: 350, usd: 6.25, rate: 0.125, popular: mostPopularAmount === 2800, bonus: "+300 bonus coins", label: "Most Popular" },
+    { amount: 6500, price: 700, usd: 12.50, rate: 0.108, popular: mostPopularAmount === 6500, bonus: "+1000 bonus coins", label: "Best Value" },
+    { amount: 14500, price: 1500, usd: 26.79, rate: 0.103, popular: mostPopularAmount === 14500, bonus: "+2500 bonus coins", label: "Max" },
   ]
 
   const purchaseGold = (amount: number, price: number, bonus?: string) => {
