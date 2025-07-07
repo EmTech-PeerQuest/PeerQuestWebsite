@@ -47,6 +47,17 @@ export function Navbar({
   const [quickActionsOpen, setQuickActionsOpen] = useState(false)
   const [showQuestForm, setShowQuestForm] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
+  // Robust avatar getter
+  const getAvatar = (u: any) => {
+    let avatar = u?.avatar || u?.avatar_url;
+    if (!avatar && typeof u?.avatar_data === 'string' && u.avatar_data.startsWith('data:')) {
+      avatar = u.avatar_data;
+    }
+    if (typeof avatar !== 'string' || !(avatar.startsWith('http') || avatar.startsWith('data:'))) {
+      avatar = '/default-avatar.png';
+    }
+    return avatar;
+  };
 
   const handleNavigation = (section: string) => {
     // Play navigation sound
@@ -227,20 +238,24 @@ export function Navbar({
                     className="flex items-center focus:outline-none"
                   >
                     <div className="w-8 h-8 bg-[#8B75AA] rounded-full flex items-center justify-center text-white overflow-hidden">
-                      {currentUser.avatar && 
-                       (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('data:')) && 
-                       !avatarError ? (
-                        <img 
-                          src={currentUser.avatar} 
-                          alt="Profile" 
-                          className="w-full h-full object-cover"
-                          onError={() => setAvatarError(true)}
-                        />
-                      ) : (
-                        <span className="text-white select-none">
-                          {currentUser.username?.[0]?.toUpperCase() || "H"}
-                        </span>
-                      )}
+                      {(() => {
+                        const avatar = getAvatar(currentUser);
+                        if ((avatar.startsWith('http') || avatar.startsWith('data:')) && !avatarError) {
+                          return (
+                            <img
+                              src={avatar}
+                              alt="Profile"
+                              className="w-full h-full object-cover"
+                              onError={() => setAvatarError(true)}
+                            />
+                          );
+                        }
+                        return (
+                          <span className="text-white select-none">
+                            {currentUser.username?.[0]?.toUpperCase() || "👤"}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </button>
 

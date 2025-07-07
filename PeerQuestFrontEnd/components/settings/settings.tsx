@@ -27,9 +27,18 @@ export function Settings() {
   
   // Use the new API hook instead of the old useUserSettings
   const { fetchUserInfo, updateUserInfo, isLoading, error } = useUserInfo()
-  
   const [user, setUser] = useState<any>(null)
-  
+  // Helper to get a robust avatar URL for the user
+  const getAvatar = (u: any) => {
+    let avatar = u?.avatar || u?.avatar_url;
+    if (!avatar && typeof u?.avatar_data === 'string' && u.avatar_data.startsWith('data:')) {
+      avatar = u.avatar_data;
+    }
+    if (typeof avatar !== 'string' || !(avatar.startsWith('http') || avatar.startsWith('data:'))) {
+      avatar = '/default-avatar.png';
+    }
+    return avatar;
+  };
   // Create wrapper functions for compatibility
   const updateUser = async (data: any) => {
     try {
@@ -43,7 +52,6 @@ export function Settings() {
       return false
     }
   }
-  
   const deleteUser = async () => {
     try {
       // You might want to implement this in the useUserInfo hook
@@ -158,6 +166,7 @@ export function Settings() {
       linkedin: user?.socialLinks?.linkedin || "",
       website: user?.socialLinks?.website || "",
     },
+    avatar: getAvatar(user),
   })
 
   const [securityForm, setSecurityForm] = useState({

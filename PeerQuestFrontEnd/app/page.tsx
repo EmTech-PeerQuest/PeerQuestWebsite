@@ -48,12 +48,22 @@ export default function Home() {
 
   // Transform backend user data to match frontend User type
   const transformUserData = (backendUser: any): User => {
+    // Prefer avatar, then avatar_url, then avatar_data (base64), fallback to default
+    let avatar = backendUser.avatar || backendUser.avatar_url;
+    // If avatar_data is present and looks like base64 image, use it
+    if (!avatar && typeof backendUser.avatar_data === 'string' && backendUser.avatar_data.startsWith('data:')) {
+      avatar = backendUser.avatar_data;
+    }
+    // If avatar is not a valid image URL or data, fallback to default
+    if (typeof avatar !== 'string' || !(avatar.startsWith('http') || avatar.startsWith('data:'))) {
+      avatar = '/default-avatar.png'; // Make sure this file exists in your public/ folder
+    }
     return {
       id: backendUser.id,
       username: backendUser.username,
       displayName: backendUser.display_name || backendUser.username,
       email: backendUser.email,
-      avatar: backendUser.avatar_url || backendUser.avatar_data || "👤",
+      avatar,
       level: backendUser.level || 1,
       xp: backendUser.experience_points || 0,
       bio: backendUser.bio || "",
@@ -198,17 +208,8 @@ export default function Home() {
           )
         )}
 
-        {activeSection === "settings" && currentUser && (
-          <Settings
-            user={currentUser}
-            updateSettings={(updatedUser) => {
-              // Handle settings update - you might need to implement proper user update logic
-              console.log('Settings updated:', updatedUser);
-            }}
-            showToast={(message: string, type?: string) => {
-              toast({ title: message, variant: type === "error" ? "destructive" : "default" });
-            }}
-          />
+        {activeSection === "settings" && currentUser && !showAuthModal && !showGoldSystemModal && (
+          <Settings />
         )}
 
         {activeSection === "search" && (
@@ -307,9 +308,7 @@ export default function Home() {
           />
         )}
 
-        {activeSection === "settings" && currentUser && (
-          <Settings />
-        )}
+        {/* Remove duplicate Settings render */}
 
         {showAuthModal && (
           <AuthModal

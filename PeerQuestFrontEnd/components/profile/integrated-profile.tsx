@@ -76,8 +76,37 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
     userGuilds = guilds;
   }
 
+  // Robustly get avatar and join date from all possible backend fields
+  const getAvatar = (u: any) => {
+    let avatar = u?.avatar || u?.avatar_url;
+    if (!avatar && typeof u?.avatar_data === 'string' && u.avatar_data.startsWith('data:')) {
+      avatar = u.avatar_data;
+    }
+    if (typeof avatar !== 'string' || !(avatar.startsWith('http') || avatar.startsWith('data:'))) {
+      avatar = '/default-avatar.png';
+    }
+    return avatar;
+  };
+  const getJoinDate = (u: any) => {
+    let dateRaw = u.createdAt || u.dateJoined || u.date_joined;
+    if (dateRaw && dateRaw !== 'null' && dateRaw !== 'undefined') {
+      let dateStr = typeof dateRaw === 'string' ? dateRaw : String(dateRaw);
+      try {
+        const parsed = new Date(dateStr);
+        if (!isNaN(parsed.getTime())) {
+          return parsed.toLocaleDateString();
+        }
+        return formatJoinDate(dateStr, { capitalizeFirst: true });
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  };
+  const avatar = getAvatar(currentUser);
+  const joinDate = getJoinDate(currentUser);
   // Calculate XP progress
-  const xpForNextLevel = 1000 // Example value
+  const xpForNextLevel = 1000; // Example value
   const xpProgress = typeof currentUser.xp === 'number' && currentUser.xp > 0
     ? ((currentUser.xp % xpForNextLevel) / xpForNextLevel) * 100
     : 0;
@@ -97,18 +126,16 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
             {/* Avatar */}
             <div className="w-20 h-20 sm:w-24 sm:h-24 bg-[#CDAA7D] rounded-full flex items-center justify-center text-2xl sm:text-3xl font-bold flex-shrink-0 overflow-hidden relative">
-              {currentUser.avatar && 
-               (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('data:')) && 
-               !avatarError ? (
-                <img 
-                  src={currentUser.avatar} 
+              {avatar && (avatar.startsWith('http') || avatar.startsWith('data:')) && !avatarError ? (
+                <img
+                  src={avatar}
                   alt={`${currentUser.username}'s avatar`}
                   className="w-full h-full object-cover absolute inset-0"
                   onError={() => setAvatarError(true)}
                 />
               ) : (
                 <span className="text-[#2C1A1D] select-none text-center">
-                  {currentUser.username?.[0]?.toUpperCase() || "H"}
+                  {currentUser.username?.[0]?.toUpperCase() || "👤"}
                 </span>
               )}
             </div>
@@ -134,25 +161,7 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
             <div className="text-center sm:text-right">
               <div className="text-sm">Member since</div>
               <div>
-                {(() => {
-                  let dateRaw = currentUser.createdAt || currentUser.dateJoined;
-                  if (dateRaw && dateRaw !== 'null' && dateRaw !== 'undefined') {
-                    let dateStr = typeof dateRaw === 'string' ? dateRaw : String(dateRaw);
-                    try {
-                      // Try to parse as Date and format as locale date string if possible
-                      const parsed = new Date(dateStr);
-                      if (!isNaN(parsed.getTime())) {
-                        return parsed.toLocaleDateString();
-                      }
-                      // Fallback to formatJoinDate if available
-                      return formatJoinDate(dateStr, { capitalizeFirst: true });
-                    } catch (e) {
-                      console.warn('Could not format join date:', dateRaw, e);
-                      return <span className="text-gray-400">Invalid date</span>;
-                    }
-                  }
-                  return <span className="text-gray-400">Unknown</span>;
-                })()}
+                {joinDate ? joinDate : <span className="text-gray-400">Unknown</span>}
               </div>
             </div>
           </div>
