@@ -51,6 +51,19 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
   const [dateRange, setDateRange] = useState("all-time")
   const [cashoutAmount, setCashoutAmount] = useState("")
   const [cashoutMethod, setCashoutMethod] = useState("gcash")
+  
+  // Cashout payment details state
+  const [paymentDetails, setPaymentDetails] = useState({
+    gcash_number: "",
+    gcash_name: "",
+    paymaya_number: "",
+    paymaya_name: "",
+    bank_name: "",
+    account_number: "",
+    account_name: "",
+    bank_branch: ""
+  })
+  
   const [showKYCModal, setShowKYCModal] = useState(false)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(false)
@@ -383,7 +396,7 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
       return
     }
 
-    // Check if KYC is required for large amounts (₱1000+)
+    // Check if identity verification is required for large amounts (₱1000+)
     const cashoutValue = amount * 0.07
     if (cashoutValue >= 1000) {
       setShowKYCModal(true)
@@ -393,11 +406,71 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
     await processCashout(amount)
   }
 
+  // Helper function to validate required payment details for each method
+  const validatePaymentDetails = (): boolean => {
+    switch (cashoutMethod) {
+      case "gcash":
+        return !!(paymentDetails.gcash_number && 
+                 paymentDetails.gcash_name && 
+                 paymentDetails.gcash_number.length === 11 &&
+                 paymentDetails.gcash_number.startsWith('09'))
+      case "paymaya":
+        return !!(paymentDetails.paymaya_number && 
+                 paymentDetails.paymaya_name && 
+                 paymentDetails.paymaya_number.length === 11 &&
+                 paymentDetails.paymaya_number.startsWith('09'))
+      case "bank":
+        return !!(paymentDetails.bank_name && 
+                 paymentDetails.account_number && 
+                 paymentDetails.account_name &&
+                 paymentDetails.bank_name !== "" &&
+                 paymentDetails.account_number.length >= 10)
+      default:
+        return false
+    }
+  }
+
+  // Helper function to format payment details for backend
+  const formatPaymentDetails = (): string => {
+    switch (cashoutMethod) {
+      case "gcash":
+        return JSON.stringify({
+          method: "gcash",
+          mobile_number: paymentDetails.gcash_number,
+          account_name: paymentDetails.gcash_name
+        })
+      case "paymaya":
+        return JSON.stringify({
+          method: "paymaya",
+          mobile_number: paymentDetails.paymaya_number,
+          account_name: paymentDetails.paymaya_name
+        })
+      case "bank":
+        return JSON.stringify({
+          method: "bank",
+          bank_name: paymentDetails.bank_name,
+          account_number: paymentDetails.account_number,
+          account_name: paymentDetails.account_name,
+          bank_branch: paymentDetails.bank_branch || null
+        })
+      default:
+        return ""
+    }
+  }
+
   const processCashout = async (amount: number) => {
     try {
       setLoading(true)
       
-      const result = await TransactionAPI.requestCashout(amount, cashoutMethod)
+      // Validate payment details before processing
+      if (!validatePaymentDetails()) {
+        throw new Error("Please fill in all required payment details")
+      }
+
+      // Format payment details for backend
+      const formattedPaymentDetails = formatPaymentDetails()
+      
+      const result = await TransactionAPI.requestCashout(amount, cashoutMethod, formattedPaymentDetails)
       
       if (showToast) {
         showToast(result.message, "success")
@@ -419,7 +492,18 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
       // Refresh transactions list
       await fetchTransactions()
 
+      // Reset form
       setCashoutAmount("")
+      setPaymentDetails({
+        gcash_number: "",
+        gcash_name: "",
+        paymaya_number: "",
+        paymaya_name: "",
+        bank_name: "",
+        account_number: "",
+        account_name: "",
+        bank_branch: ""
+      })
     } catch (error) {
       console.error('Cashout error:', error)
       if (showToast) {
@@ -925,9 +1009,9 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
               </div>
 
               <div className="max-w-2xl mx-auto">
-                {/* Balance Overview */}
+                {/* Balance Overview with Cashout Information */}
                 <div className="bg-gradient-to-r from-[#CDAA7D]/20 to-[#8B75AA]/20 border border-[#CDAA7D] rounded-lg p-6 mb-6">
-                  <div className="grid md:grid-cols-2 gap-4 mb-4">
+                  <div className="grid md:grid-cols-3 gap-4 mb-4">
                     <div>
                       <div className="text-sm text-[#8B75AA] mb-1">Available Balance</div>
                       <div className="text-2xl font-bold text-[#2C1A1D]">
@@ -940,98 +1024,581 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                       <div className="text-xl font-bold text-[#2C1A1D]">₱0.07</div>
                       <div className="text-sm text-[#8B75AA]">per gold coin</div>
                     </div>
+                    <div>
+                      <div className="text-sm text-[#8B75AA] mb-1">Withdrawal Information</div>
+                      <div className="text-sm text-[#2C1A1D] space-y-1">
+                        <div>• Minimum: 5,000 gold (₱350)</div>
+                        <div>• Processing: 24-72 business hours</div>
+                        <div>• Methods: GCash, PayMaya, Bank</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Quick stats row */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-4 border-t border-[#CDAA7D]/30">
+                    <div className="text-center">
+                      <div className="text-xs text-[#8B75AA]">Maximum Withdrawal</div>
+                      <div className="font-bold text-[#2C1A1D]">₱{((currentUser?.gold || 0) * 0.07).toFixed(0)}</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-[#8B75AA]">Verification Required</div>
+                      <div className="font-bold text-[#2C1A1D]">≥₱1,000</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-[#8B75AA]">Fastest Processing</div>
+                      <div className="font-bold text-[#2C1A1D]">GCash</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs text-[#8B75AA]">Service Fees</div>
+                      <div className="font-bold text-green-600">FREE</div>
+                    </div>
                   </div>
                 </div>
 
                 {/* Cashout Form */}
                 <div className="bg-white border border-[#CDAA7D] rounded-lg p-6 mb-6">
-                  <h4 className="font-bold text-[#2C1A1D] mb-4">Cash Out Gold</h4>
+                  <h4 className="font-bold text-[#2C1A1D] mb-4">Gold Withdrawal Request</h4>
 
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-[#2C1A1D] mb-2">Amount to Cash Out (Gold)</label>
-                      <input
-                        type="number"
-                        value={cashoutAmount}
-                        onChange={(e) => setCashoutAmount(e.target.value)}
-                        placeholder="Enter amount (min. 5,000)"
-                        min="5000"
-                        max={currentUser?.gold || 0}
-                        className="w-full px-3 py-2 border border-[#CDAA7D] rounded focus:outline-none focus:border-[#8B75AA]"
-                      />
+                      <label className="block text-sm font-medium text-[#2C1A1D] mb-2">Withdrawal Amount (Gold Coins)</label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={cashoutAmount}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            setCashoutAmount(value)
+                            
+                            // Optional: Auto-suggest round amounts as user types
+                            if (value && Number(value) >= 5000) {
+                              const gold = Number(value)
+                              const php = gold * 0.07
+                              const roundedPhp = Math.round(php / 50) * 50 // Round to nearest ₱50
+                              const suggestedGold = Math.round(roundedPhp / 0.07)
+                              
+                              // Show suggestion if it's significantly different and results in a rounder PHP amount
+                              if (Math.abs(suggestedGold - gold) > 100 && roundedPhp !== php) {
+                                // Could show a suggestion tooltip here
+                              }
+                            }
+                          }}
+                          placeholder="Enter amount (min. 5,000)"
+                          min="5000"
+                          max={currentUser?.gold || 0}
+                          className="w-full px-3 py-2 border border-[#CDAA7D] rounded focus:outline-none focus:border-[#8B75AA]"
+                        />
+                        {/* "Max" button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const maxAmount = (currentUser?.gold || 0).toString()
+                            console.log(`Setting MAX cashout amount to: ${maxAmount}`)
+                            setCashoutAmount(maxAmount)
+                          }}
+                          className="absolute right-2 top-1/2 transform -translate-y-1/2 text-xs bg-[#8B75AA] text-white px-2 py-1 rounded hover:bg-[#7A6699] transition-colors"
+                        >
+                          MAX
+                        </button>
+                      </div>
                       {cashoutAmount && (
-                        <div className="mt-2 text-sm text-[#8B75AA]">
-                          You will receive: ₱{(Number.parseInt(cashoutAmount || "0") * 0.07).toFixed(2)}
+                        <div className="mt-2 space-y-1">
+                          <div className="text-sm text-[#8B75AA]">
+                            Withdrawal amount: <span className="font-semibold text-[#2C1A1D]">₱{(Number.parseInt(cashoutAmount || "0") * 0.07).toFixed(2)}</span>
+                          </div>
+                          {/* Show identity verification warning if amount >= ₱1000 */}
+                          {Number.parseInt(cashoutAmount || "0") * 0.07 >= 1000 && (
+                            <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                              ⚠️ Identity verification required for withdrawals ≥₱1,000
+                            </div>
+                          )}
+                          {/* Show processing fee info if you have any */}
+                          <div className="text-xs text-[#8B75AA]">
+                            Processing time: 24-72 business hours • No service fees
+                          </div>
                         </div>
                       )}
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-[#2C1A1D] mb-2">Cashout Method</label>
+                      <label className="block text-sm font-medium text-[#2C1A1D] mb-2">Payment Method</label>
                       <select
                         value={cashoutMethod}
-                        onChange={(e) => setCashoutMethod(e.target.value)}
+                        onChange={(e) => {
+                          setCashoutMethod(e.target.value)
+                          // Clear payment details when changing method to avoid confusion
+                          setPaymentDetails({
+                            gcash_number: "",
+                            gcash_name: "",
+                            paymaya_number: "",
+                            paymaya_name: "",
+                            bank_name: "",
+                            account_number: "",
+                            account_name: "",
+                            bank_branch: ""
+                          })
+                        }}
                         className="w-full px-3 py-2 border border-[#CDAA7D] rounded focus:outline-none focus:border-[#8B75AA]"
                       >
-                        <option value="gcash">GCash</option>
-                        <option value="paymaya">PayMaya</option>
-                        <option value="bank">Bank Transfer</option>
+                        <option value="gcash">GCash - Mobile Wallet (Most Popular)</option>
+                        <option value="paymaya">PayMaya - Mobile Wallet</option>
+                        <option value="bank">Bank Transfer - Direct to Bank Account</option>
                       </select>
+                      <div className="text-xs text-[#8B75AA] mt-1">
+                        {cashoutMethod === "gcash" && "✨ Fastest processing, usually within 24 hours"}
+                        {cashoutMethod === "paymaya" && "🚀 Fast processing, usually within 24-48 hours"}
+                        {cashoutMethod === "bank" && "🏦 May take 24-72 hours, depending on your bank"}
+                      </div>
+                    </div>
+
+                    {/* Dynamic Payment Details Section */}
+                    {cashoutMethod === "gcash" && (
+                      <div className="space-y-3">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Smartphone size={16} className="text-blue-600" />
+                            <span className="text-sm font-medium text-blue-800">GCash Account Information</span>
+                          </div>
+                          <div className="text-xs text-blue-700">
+                            Your GCash mobile number is your account identifier. Enter the same number you use to login to GCash.
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-[#2C1A1D] mb-1">
+                            GCash Mobile Number <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="tel"
+                            value={paymentDetails.gcash_number}
+                            onChange={(e) => setPaymentDetails(prev => ({
+                              ...prev,
+                              gcash_number: e.target.value.replace(/\D/g, '').slice(0, 11) // Only numbers, max 11 digits
+                            }))}
+                            placeholder="09123456789"
+                            className={`w-full px-3 py-2 border rounded focus:outline-none focus:border-[#8B75AA] ${
+                              paymentDetails.gcash_number && 
+                              (paymentDetails.gcash_number.length !== 11 || !paymentDetails.gcash_number.startsWith('09'))
+                                ? 'border-red-300 bg-red-50' 
+                                : paymentDetails.gcash_number.length === 11 
+                                  ? 'border-green-300 bg-green-50'
+                                  : 'border-[#CDAA7D]'
+                            }`}
+                            maxLength={11}
+                          />
+                          <div className="text-xs mt-1">
+                            {paymentDetails.gcash_number.length === 11 && paymentDetails.gcash_number.startsWith('09') ? (
+                              <span className="text-green-600">✓ Valid GCash number format</span>
+                            ) : paymentDetails.gcash_number.length > 0 ? (
+                              <span className="text-red-500">Enter your registered GCash mobile number (11 digits, starts with 09)</span>
+                            ) : (
+                              <span className="text-[#8B75AA]">This is your GCash account number - the same number you use to login</span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-[#2C1A1D] mb-1">
+                            Account Holder Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={paymentDetails.gcash_name}
+                            onChange={(e) => setPaymentDetails(prev => ({
+                              ...prev,
+                              gcash_name: e.target.value
+                            }))}
+                            placeholder="Full Name (as registered in GCash)"
+                            className={`w-full px-3 py-2 border rounded focus:outline-none focus:border-[#8B75AA] ${
+                              paymentDetails.gcash_name.trim().length >= 2 
+                                ? 'border-green-300 bg-green-50'
+                                : paymentDetails.gcash_name.length > 0
+                                  ? 'border-red-300 bg-red-50'
+                                  : 'border-[#CDAA7D]'
+                            }`}
+                          />
+                          <div className="text-xs mt-1">
+                            {paymentDetails.gcash_name.trim().length >= 2 ? (
+                              <span className="text-green-600">✓ Name entered</span>
+                            ) : paymentDetails.gcash_name.length > 0 ? (
+                              <span className="text-red-500">Must match exactly with your GCash account name</span>
+                            ) : (
+                              <span className="text-[#8B75AA]">For verification - must match the name on your GCash account</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {cashoutMethod === "paymaya" && (
+                      <div className="space-y-3">
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <CreditCard size={16} className="text-green-600" />
+                            <span className="text-sm font-medium text-green-800">PayMaya Account Information</span>
+                          </div>
+                          <div className="text-xs text-green-700">
+                            Your PayMaya mobile number is your account identifier. Enter the same number you use to login to PayMaya.
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-[#2C1A1D] mb-1">
+                            PayMaya Mobile Number <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="tel"
+                            value={paymentDetails.paymaya_number}
+                            onChange={(e) => setPaymentDetails(prev => ({
+                              ...prev,
+                              paymaya_number: e.target.value.replace(/\D/g, '').slice(0, 11)
+                            }))}
+                            placeholder="09123456789"
+                            className={`w-full px-3 py-2 border rounded focus:outline-none focus:border-[#8B75AA] ${
+                              paymentDetails.paymaya_number && 
+                              (paymentDetails.paymaya_number.length !== 11 || !paymentDetails.paymaya_number.startsWith('09'))
+                                ? 'border-red-300 bg-red-50' 
+                                : paymentDetails.paymaya_number.length === 11 
+                                  ? 'border-green-300 bg-green-50'
+                                  : 'border-[#CDAA7D]'
+                            }`}
+                            maxLength={11}
+                          />
+                          <div className="text-xs mt-1">
+                            {paymentDetails.paymaya_number.length === 11 && paymentDetails.paymaya_number.startsWith('09') ? (
+                              <span className="text-green-600">✓ Valid PayMaya number format</span>
+                            ) : paymentDetails.paymaya_number.length > 0 ? (
+                              <span className="text-red-500">Enter your registered PayMaya mobile number (11 digits, starts with 09)</span>
+                            ) : (
+                              <span className="text-[#8B75AA]">This is your PayMaya account number - the same number you use to login</span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-[#2C1A1D] mb-1">
+                            Account Holder Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={paymentDetails.paymaya_name}
+                            onChange={(e) => setPaymentDetails(prev => ({
+                              ...prev,
+                              paymaya_name: e.target.value
+                            }))}
+                            placeholder="Full Name (as registered in PayMaya)"
+                            className={`w-full px-3 py-2 border rounded focus:outline-none focus:border-[#8B75AA] ${
+                              paymentDetails.paymaya_name.trim().length >= 2 
+                                ? 'border-green-300 bg-green-50'
+                                : paymentDetails.paymaya_name.length > 0
+                                  ? 'border-red-300 bg-red-50'
+                                  : 'border-[#CDAA7D]'
+                            }`}
+                          />
+                          <div className="text-xs mt-1">
+                            {paymentDetails.paymaya_name.trim().length >= 2 ? (
+                              <span className="text-green-600">✓ Name entered</span>
+                            ) : paymentDetails.paymaya_name.length > 0 ? (
+                              <span className="text-red-500">Must match exactly with your PayMaya account name</span>
+                            ) : (
+                              <span className="text-[#8B75AA]">For verification - must match the name on your PayMaya account</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {cashoutMethod === "bank" && (
+                      <div className="space-y-3">
+                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <CreditCard size={16} className="text-purple-600" />
+                            <span className="text-sm font-medium text-purple-800">Bank Account Details</span>
+                          </div>
+                          <div className="text-xs text-purple-700">
+                            Enter your bank account details exactly as they appear in your bank records.
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-[#2C1A1D] mb-1">
+                            Bank Name <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            value={paymentDetails.bank_name}
+                            onChange={(e) => setPaymentDetails(prev => ({
+                              ...prev,
+                              bank_name: e.target.value
+                            }))}
+                            className={`w-full px-3 py-2 border rounded focus:outline-none focus:border-[#8B75AA] ${
+                              paymentDetails.bank_name && paymentDetails.bank_name !== "" 
+                                ? 'border-green-300 bg-green-50'
+                                : 'border-[#CDAA7D]'
+                            }`}
+                          >
+                            <option value="">Select Bank</option>
+                            <option value="BDO">BDO Unibank</option>
+                            <option value="BPI">Bank of the Philippine Islands</option>
+                            <option value="Metrobank">Metrobank</option>
+                            <option value="UnionBank">UnionBank</option>
+                            <option value="Landbank">Land Bank of the Philippines</option>
+                            <option value="PNB">Philippine National Bank</option>
+                            <option value="DBP">Development Bank of the Philippines</option>
+                            <option value="Security Bank">Security Bank</option>
+                            <option value="Eastwest">EastWest Bank</option>
+                            <option value="RCBC">Rizal Commercial Banking Corporation</option>
+                            <option value="PSBank">Philippine Savings Bank</option>
+                            <option value="Chinabank">China Banking Corporation</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-[#2C1A1D] mb-1">
+                            Account Number <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={paymentDetails.account_number}
+                            onChange={(e) => setPaymentDetails(prev => ({
+                              ...prev,
+                              account_number: e.target.value.replace(/\D/g, '') // Only numbers
+                            }))}
+                            placeholder="1234567890123456"
+                            className={`w-full px-3 py-2 border rounded focus:outline-none focus:border-[#8B75AA] ${
+                              paymentDetails.account_number.length >= 10 
+                                ? 'border-green-300 bg-green-50'
+                                : paymentDetails.account_number.length > 0
+                                  ? 'border-red-300 bg-red-50'
+                                  : 'border-[#CDAA7D]'
+                            }`}
+                          />
+                          <div className="text-xs mt-1">
+                            {paymentDetails.account_number.length >= 10 ? (
+                              <span className="text-green-600">✓ Account number entered</span>
+                            ) : paymentDetails.account_number.length > 0 ? (
+                              <span className="text-red-500">Enter your complete bank account number (numbers only)</span>
+                            ) : (
+                              <span className="text-[#8B75AA]">Enter your complete bank account number (numbers only)</span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-[#2C1A1D] mb-1">
+                            Account Holder Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={paymentDetails.account_name}
+                            onChange={(e) => setPaymentDetails(prev => ({
+                              ...prev,
+                              account_name: e.target.value.toUpperCase() // Auto-uppercase for bank format
+                            }))}
+                            placeholder="FULL NAME AS REGISTERED"
+                            className={`w-full px-3 py-2 border rounded focus:outline-none focus:border-[#8B75AA] ${
+                              paymentDetails.account_name.trim().length >= 2 
+                                ? 'border-green-300 bg-green-50'
+                                : paymentDetails.account_name.length > 0
+                                  ? 'border-red-300 bg-red-50'
+                                  : 'border-[#CDAA7D]'
+                            }`}
+                          />
+                          <div className="text-xs mt-1">
+                            {paymentDetails.account_name.trim().length >= 2 ? (
+                              <span className="text-green-600">✓ Account name entered</span>
+                            ) : paymentDetails.account_name.length > 0 ? (
+                              <span className="text-red-500">Must match exactly with your bank account name (in CAPS)</span>
+                            ) : (
+                              <span className="text-[#8B75AA]">Must match exactly with your bank account name (in CAPS)</span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-[#2C1A1D] mb-1">
+                            Branch (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={paymentDetails.bank_branch}
+                            onChange={(e) => setPaymentDetails(prev => ({
+                              ...prev,
+                              bank_branch: e.target.value
+                            }))}
+                            placeholder="Branch Name or Location"
+                            className="w-full px-3 py-2 border border-[#CDAA7D] rounded focus:outline-none focus:border-[#8B75AA]"
+                          />
+                          <div className="text-xs text-[#8B75AA] mt-1">
+                            Optional: Helps speed up processing
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Validation Status - Always visible for better UX */}
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                      <div className="text-sm font-medium text-[#2C1A1D] mb-2">Withdrawal Eligibility:</div>
+                      <div className="space-y-1 text-xs">
+                        <div className={`flex items-center gap-2 ${
+                          cashoutAmount && Number.parseInt(cashoutAmount) >= 5000 ? "text-green-600" : "text-gray-500"
+                        }`}>
+                          {cashoutAmount && Number.parseInt(cashoutAmount) >= 5000 ? "✓" : "○"} 
+                          Meets minimum withdrawal threshold 
+                          {!cashoutAmount && <span className="text-[#8B75AA] ml-1">- Please enter withdrawal amount</span>}
+                        </div>
+                        <div className={`flex items-center gap-2 ${
+                          cashoutAmount && Number.parseInt(cashoutAmount || "0") <= (currentUser?.gold || 0) && Number.parseInt(cashoutAmount || "0") > 0 
+                            ? "text-green-600" 
+                            : cashoutAmount && Number.parseInt(cashoutAmount || "0") > (currentUser?.gold || 0)
+                              ? "text-red-500"
+                              : "text-gray-500"
+                        }`}>
+                          {cashoutAmount && Number.parseInt(cashoutAmount || "0") <= (currentUser?.gold || 0) && Number.parseInt(cashoutAmount || "0") > 0 
+                            ? "✓" 
+                            : cashoutAmount && Number.parseInt(cashoutAmount || "0") > (currentUser?.gold || 0)
+                              ? "✗"
+                              : "○"} 
+                          Sufficient account balance ({(currentUser?.gold || 0).toLocaleString()} gold available)
+                          {cashoutAmount && Number.parseInt(cashoutAmount || "0") > (currentUser?.gold || 0) && (
+                            <span className="text-red-500 ml-1">- Insufficient funds: {(Number.parseInt(cashoutAmount || "0") - (currentUser?.gold || 0)).toLocaleString()} gold shortfall</span>
+                          )}
+                        </div>
+                        <div className={`flex items-center gap-2 ${
+                          validatePaymentDetails() ? "text-green-600" : "text-gray-500"
+                        }`}>
+                          {validatePaymentDetails() ? "✓" : "○"} 
+                          {cashoutMethod === "gcash" && "Payment credentials validated"}
+                          {cashoutMethod === "paymaya" && "Payment credentials validated"}
+                          {cashoutMethod === "bank" && "Banking information validated"}
+                          {!validatePaymentDetails() && (
+                            <span className="text-[#8B75AA] ml-1">- Please complete payment information</span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Show success state when all requirements are met */}
+                      {cashoutAmount && 
+                       Number.parseInt(cashoutAmount) >= 5000 && 
+                       Number.parseInt(cashoutAmount) <= (currentUser?.gold || 0) && 
+                       validatePaymentDetails() && (
+                        <div className="mt-3 pt-3 border-t border-gray-300">
+                          <div className="flex items-center gap-2 text-green-600 font-medium text-sm">
+                            ✓ All requirements satisfied - Ready for processing
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <button
                       onClick={handleCashOut}
                       disabled={
+                        loading ||
                         !cashoutAmount ||
                         Number.parseInt(cashoutAmount || "0") < 5000 ||
-                        Number.parseInt(cashoutAmount || "0") > (currentUser?.gold || 0)
+                        Number.parseInt(cashoutAmount || "0") > (currentUser?.gold || 0) ||
+                        !validatePaymentDetails()
                       }
                       className={`w-full py-3 rounded font-medium transition-colors ${
+                        !loading &&
                         cashoutAmount &&
                         Number.parseInt(cashoutAmount) >= 5000 &&
-                        Number.parseInt(cashoutAmount) <= (currentUser?.gold || 0)
+                        Number.parseInt(cashoutAmount) <= (currentUser?.gold || 0) &&
+                        validatePaymentDetails()
                           ? "bg-[#8B75AA] text-white hover:bg-[#7A6699]"
                           : "bg-gray-300 text-gray-500 cursor-not-allowed"
                       }`}
                     >
-                      Request Cashout
+                      {loading ? "Processing Request..." : "Submit Withdrawal Request"}
                     </button>
                   </div>
                 </div>
 
-                {/* Quick Cashout Options */}
+                {/* Quick Withdrawal Options */}
                 <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-4 mb-6">
-                  <h5 className="font-semibold text-[#2C1A1D] mb-3">Quick Cashout</h5>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[5000, 10000, 20000].map((amount) => (
+                  <div className="flex justify-between items-center mb-3">
+                    <h5 className="font-semibold text-[#2C1A1D]">Quick Withdrawal Amounts</h5>
+                    <div className="text-xs text-[#8B75AA]">
+                      Available: {(currentUser?.gold || 0).toLocaleString()} gold
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { gold: 5000, php: 350, popular: false },
+                      { gold: 7143, php: 500, popular: true },
+                      { gold: 14286, php: 1000, popular: false },
+                      { gold: 21429, php: 1500, popular: false },
+                    ].map((preset) => (
                       <button
-                        key={amount}
-                        onClick={() => setCashoutAmount(amount.toString())}
-                        disabled={(currentUser?.gold || 0) < amount}
-                        className={`p-2 text-sm rounded border transition-colors ${
-                          (currentUser?.gold || 0) >= amount
-                            ? "border-[#8B75AA] text-[#8B75AA] hover:bg-[#8B75AA] hover:text-white"
+                        key={preset.gold}
+                        onClick={() => {
+                          console.log(`Setting cashout amount to: ${preset.gold}`)
+                          setCashoutAmount(preset.gold.toString())
+                        }}
+                        disabled={(currentUser?.gold || 0) < preset.gold}
+                        className={`relative p-3 text-sm rounded border transition-colors ${
+                          (currentUser?.gold || 0) >= preset.gold
+                            ? preset.popular 
+                              ? "border-[#8B75AA] bg-[#8B75AA]/10 text-[#8B75AA] hover:bg-[#8B75AA] hover:text-white"
+                              : "border-[#8B75AA] text-[#8B75AA] hover:bg-[#8B75AA] hover:text-white"
                             : "border-gray-300 text-gray-400 cursor-not-allowed"
                         }`}
                       >
-                        {amount.toLocaleString()}
-                        <div className="text-xs">₱{(amount * 0.07).toFixed(0)}</div>
+                        {preset.popular && (
+                          <div className="absolute -top-2 -right-2 bg-green-500 text-white text-xs px-2 py-1 rounded-full">
+                            Popular
+                          </div>
+                        )}
+                        <div className="font-medium">{preset.gold.toLocaleString()} Gold</div>
+                        <div className="text-xs">₱{preset.php}</div>
+                        {preset.label !== "Min" && (
+                          <div className="text-xs opacity-75">{preset.label}</div>
+                        )}
                       </button>
                     ))}
                   </div>
+                  
+                  {/* Show "More Options" for users with higher balances */}
+                  {(currentUser?.gold || 0) >= 28571 && (
+                    <div className="mt-3 pt-3 border-t border-[#CDAA7D]">
+                      <div className="text-xs text-[#8B75AA] mb-2">Large Amount Options:</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { gold: 28571, php: 2000, label: "₱2K" },
+                          { gold: 42857, php: 3000, label: "₱3K" },
+                          { gold: 71429, php: 5000, label: "₱5K" },
+                        ].map((preset) => (
+                          <button
+                            key={preset.gold}
+                            onClick={() => {
+                              console.log(`Setting large cashout amount to: ${preset.gold}`)
+                              setCashoutAmount(preset.gold.toString())
+                            }}
+                            disabled={(currentUser?.gold || 0) < preset.gold}
+                            className={`p-2 text-xs rounded border transition-colors ${
+                              (currentUser?.gold || 0) >= preset.gold
+                                ? "border-[#CDAA7D] text-[#8B75AA] hover:bg-[#8B75AA] hover:text-white"
+                                : "border-gray-300 text-gray-400 cursor-not-allowed"
+                            }`}
+                          >
+                            <div>{preset.gold.toLocaleString()}</div>
+                            <div className="text-xs">{preset.label}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Important Notes */}
+                {/* Additional Tips */}
                 <div className="bg-[#8B75AA]/10 border border-[#8B75AA]/30 rounded-lg p-4">
-                  <h4 className="font-bold text-[#2C1A1D] mb-2">Important Notes:</h4>
-                  <ul className="text-sm text-[#8B75AA] space-y-1">
-                    <li>• Minimum cashout: 5,000 gold coins (₱350)</li>
-                    <li>• Exchange rate: 1 gold = ₱0.07 PHP</li>
-                    <li>• Processing time: 24-72 hours</li>
-                    <li>• KYC verification required for cashouts ≥₱1,000</li>
-                    <li>• Only earned gold from completed quests is eligible</li>
-                    <li>• Supported methods: GCash, PayMaya, Bank Transfer</li>
-                  </ul>
+                  <h4 className="font-bold text-[#2C1A1D] mb-2">💡 Pro Tips:</h4>
+                  <div className="text-sm text-[#8B75AA] space-y-2">
+                    <div>• <strong>Faster Processing:</strong> ₱500 and ₱1,000 amounts are processed quickest</div>
+                    <div>• <strong>Avoid Delays:</strong> Double-check your payment details match your account exactly</div>
+                    <div>• <strong>Large Withdrawals:</strong> Identity verification required for amounts ≥₱1,000</div>
+                    <div>• <strong>Processing Time:</strong> GCash (24hrs) → PayMaya (24-48hrs) → Bank (48-72hrs)</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1398,6 +1965,12 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
             setShowKYCModal(false)
           }}
           cashoutAmount={Number.parseInt(cashoutAmount || "0")}
+          paymentMethod={cashoutMethod}
+          paymentPhoneNumber={
+            cashoutMethod === "gcash" ? paymentDetails.gcash_number :
+            cashoutMethod === "paymaya" ? paymentDetails.paymaya_number :
+            undefined // For bank transfers, don't pre-populate
+          }
           showToast={showToast}
         />
       )}
