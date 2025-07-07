@@ -500,7 +500,7 @@ export const QuestAPI = {
   /**
    * Update quest status by quest ID
    */
-  async updateQuestStatus(questSlug: string, status: 'open' | 'in-progress' | 'completed'): Promise<Quest> {
+  async updateQuestStatus(questSlug: string, status: 'open' | 'in-progress' | 'completed' | 'failed'): Promise<Quest> {
     const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/${questSlug}/`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
@@ -523,6 +523,38 @@ export const QuestAPI = {
     );
     if (!response.ok) {
       return { submissions_used: 0, submission_limit: 5 }; // fallback
+    }
+    return response.json();
+  },
+
+  /**
+   * Approve a submission
+   */
+  async approveSubmission(submissionId: number, feedback?: string): Promise<any> {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/submissions/${submissionId}/approve/`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ feedback: feedback || '' }),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Failed to approve submission: ${error.detail || response.statusText}`);
+    }
+    return response.json();
+  },
+
+  /**
+   * Mark submission as needing revision
+   */
+  async markSubmissionNeedsRevision(submissionId: number, feedback?: string): Promise<any> {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/submissions/${submissionId}/needs_revision/`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ feedback: feedback || '' }),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Failed to mark submission as needing revision: ${error.detail || response.statusText}`);
     }
     return response.json();
   },

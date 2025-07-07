@@ -507,6 +507,34 @@ export function QuestManagement({
     }
   }
 
+  const handleApproveSubmission = async (submissionId: number, feedback?: string) => {
+    try {
+      await QuestAPI.approveSubmission(submissionId, feedback);
+      // Refresh submissions
+      if (submissionsQuest) {
+        const updatedSubmissions = await QuestAPI.getQuestSubmissions(submissionsQuest.slug);
+        // Update state if needed
+      }
+      showToast("✅ Submission approved! Participant has completed the quest and received rewards.", "success");
+    } catch (error) {
+      showToast("❌ Failed to approve submission", "error");
+    }
+  }
+
+  const handleMarkNeedsRevision = async (submissionId: number, feedback?: string) => {
+    try {
+      await QuestAPI.markSubmissionNeedsRevision(submissionId, feedback);
+      // Refresh submissions
+      if (submissionsQuest) {
+        const updatedSubmissions = await QuestAPI.getQuestSubmissions(submissionsQuest.slug);
+        // Update state if needed
+      }
+      showToast("📝 Submission marked as needing revision - participant can resubmit their work.", "success");
+    } catch (error) {
+      showToast("❌ Failed to mark submission as needing revision", "error");
+    }
+  }
+
   // Check if a quest can be deleted
   const canDeleteQuest = (quest: Quest) => {
     // Cannot delete if quest is in progress or completed
@@ -709,11 +737,13 @@ export function QuestManagement({
                         <h3 className="text-2xl font-bold text-[#2C1A1D] font-serif">{quest.title}</h3>
                         <span
                           className={`px-3 py-1 rounded-full text-sm font-bold border ${getStatusColor(quest.status)}`}
+
                         >
                           {quest.status.charAt(0).toUpperCase() + quest.status.slice(1)}
                         </span>
                         <span
                           className={`px-3 py-1 rounded-full text-sm font-bold border ${getDifficultyColor(quest.difficulty)}`}
+
                         >
                           {quest.difficulty.charAt(0).toUpperCase() + quest.difficulty.slice(1)}
                         </span>
@@ -885,6 +915,7 @@ export function QuestManagement({
                                   <div className="flex items-center gap-3">
                                     <span
                                       className={`px-3 py-1 rounded-full text-sm font-bold border ${getApplicationStatusColor(application.status)}`}
+
                                     >
                                       {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
                                     </span>
@@ -911,6 +942,7 @@ export function QuestManagement({
                                     >
                                       {processingApplications.has(application.id) ? (
                                         <>
+
                                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                           <span>Processing...</span>
                                         </>
@@ -928,6 +960,7 @@ export function QuestManagement({
                                     >
                                       {processingApplications.has(application.id) ? (
                                         <>
+
                                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                           <span>Processing...</span>
                                         </>
@@ -1010,6 +1043,7 @@ export function QuestManagement({
                                             : 'Rejected'
                                         } {application.reviewed_at ? (
                                           <>
+
                                             on {new Date(application.reviewed_at).toLocaleDateString()}
                                             {application.reviewed_by && (
                                               <span> by {application.reviewed_by.username}</span>
@@ -1316,12 +1350,14 @@ export function QuestManagement({
           quest={submissionsQuest}
           currentUser={currentUser}
           showToast={showToast}
-          // Add mark as completed handler and status
+          // Add mark as completed handler and submission review handlers
           onMarkComplete={async () => {
             await handleCompleteQuest(submissionsQuest.slug);
             setShowSubmissionsModal(false);
           }}
-          canMarkComplete={submissionsQuest.status === "in-progress" && activeTab === "created"}
+          onApproveSubmission={handleApproveSubmission}
+          onMarkNeedsRevision={handleMarkNeedsRevision}
+          canReviewSubmissions={submissionsQuest.status === "in-progress" && activeTab === "created"}
         />
       )}
     </section>

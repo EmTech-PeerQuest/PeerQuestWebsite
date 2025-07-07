@@ -19,7 +19,7 @@ from .views import (
     # Quest Submissions
     QuestSubmissionListCreateView,
     QuestSubmissionDetailView,
-    QuestSubmissionReviewView,
+    QuestSubmissionReviewViewSet,
     QuestSubmissionFileDownloadView,
     
     # Statistics and Dashboard
@@ -33,13 +33,20 @@ from .views import (
 
 app_name = 'quests'
 
-# Router for ViewSet
+# Router for ViewSets
 router = DefaultRouter()
 router.register('', QuestViewSet, basename='quest')
+
+# Separate router for submission reviews
+submission_router = DefaultRouter()
+submission_router.register('submissions', QuestSubmissionReviewViewSet, basename='submission-review')
 
 urlpatterns = [
     # ViewSet URLs (includes list, create, retrieve, update, delete)
     path('quests/', include(router.urls)),
+    
+    # Submission Review ViewSet URLs (approve, needs_revision actions)
+    path('', include(submission_router.urls)),
     
     # Quest Categories
     path('categories/', QuestCategoryListCreateView.as_view(), name='category-list-create'),
@@ -57,7 +64,6 @@ urlpatterns = [
     path('quests/<slug:quest_slug>/submissions/', QuestSubmissionListCreateView.as_view(), name='quest-submissions'),
     path('quests/<slug:quest_slug>/submission_count/', get_submission_count, name='submission-count'),
     path('submissions/<int:pk>/', QuestSubmissionDetailView.as_view(), name='submission-detail'),
-    path('submissions/<int:pk>/review/', QuestSubmissionReviewView.as_view(), name='submission-review'),
     path('submissions/<int:submission_id>/download/<int:file_index>/', QuestSubmissionFileDownloadView.as_view(), name='submission-file-download'),
     
     # Statistics and Dashboard

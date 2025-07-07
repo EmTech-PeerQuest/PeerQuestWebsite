@@ -668,7 +668,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
           </button>
         </div>
         <form
-          className="flex-1 overflow-y-auto px-6 py-6 bg-amber-50"
+          className="flex-1 overflow-y-auto px-6 py-6 bg-amber-50 space-y-6"
           onSubmit={handleSubmit}
         >
           {submissionLimitNotice}
@@ -791,50 +791,86 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
 
           {/* Difficulty Level */}
           <div>
-            <label className="block text-sm font-semibold text-amber-800 mb-2">
+            <label className="flex items-center text-sm font-semibold text-amber-800 mb-2">
+              <div className="w-6 h-6 bg-amber-600 rounded-full flex items-center justify-center mr-3">
+                <span className="text-white text-xs">⭐</span>
+              </div>
               DIFFICULTY LEVEL
+              {isEditing && quest && (
+                <span className="ml-2 px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                  🔒 Locked (Cannot Edit)
+                </span>
+              )}
             </label>
+            
+            {isEditing && quest && (
+              <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <div className="flex items-center text-sm text-amber-700">
+                  <span className="mr-2">ℹ️</span>
+                  <span>
+                    Quest difficulty is locked after creation to maintain consistency with XP rewards and gold requirements.
+                  </span>
+                </div>
+              </div>
+            )}
+            
             <div className="space-y-3">
-              <input
-                type="range"
-                min="0"
-                max="3"
-                value={['initiate', 'adventurer', 'champion', 'mythic'].indexOf(formData.difficulty)}
-                onChange={(e) => {
-                  const difficultyMap: DifficultyTier[] = ['initiate', 'adventurer', 'champion', 'mythic']
-                  const newDifficulty = difficultyMap[parseInt(e.target.value)]
-                  setFormData(prev => ({ ...prev, difficulty: newDifficulty }))
-                  setGoldBudget(getGoldBudgetRangeForDifficulty(newDifficulty).min)
-                }}
-                className="w-full h-2 rounded-lg appearance-none cursor-pointer slider"
-                style={{
-                  background: 'linear-gradient(to right, #22c55e, #3b82f6, #fbbf24, #a21caf)',
-                }}
-              />
-              <div className={`text-white px-4 py-3 rounded-lg ${
+              <div className="relative">
+                <input
+                  type="range"
+                  min="0"
+                  max="3"
+                  value={['initiate', 'adventurer', 'champion', 'mythic'].indexOf(formData.difficulty)}
+                  onChange={(e) => {
+                    // Prevent changes when editing
+                    if (isEditing && quest) return;
+                    
+                    const difficultyMap: DifficultyTier[] = ['initiate', 'adventurer', 'champion', 'mythic']
+                    const newDifficulty = difficultyMap[parseInt(e.target.value)]
+                    setFormData(prev => ({ ...prev, difficulty: newDifficulty }))
+                    setGoldBudget(getGoldBudgetRangeForDifficulty(newDifficulty).min)
+                  }}
+                  disabled={isEditing && !!quest}
+                  className={`w-full h-3 rounded-lg appearance-none ${
+                    isEditing && quest ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                  }`}
+                  style={{
+                    background: isEditing && quest 
+                      ? '#e5e7eb' 
+                      : 'linear-gradient(to right, #22c55e, #3b82f6, #fbbf24, #a21caf)',
+                  }}
+                />
+                {/* Difficulty level indicators */}
+                <div className="flex justify-between mt-2 px-1">
+                  <span className="text-xs text-gray-500">Initiate</span>
+                  <span className="text-xs text-gray-500">Adventurer</span>
+                  <span className="text-xs text-gray-500">Champion</span>
+                  <span className="text-xs text-gray-500">Mythic</span>
+                </div>
+              </div>
+              
+              <div className={`text-white px-4 py-3 rounded-lg shadow-md ${
                 formData.difficulty === 'initiate' ? 'bg-gradient-to-r from-green-500 to-green-600' :
                 formData.difficulty === 'adventurer' ? 'bg-gradient-to-r from-blue-400 to-blue-600' :
                 formData.difficulty === 'champion' ? 'bg-gradient-to-r from-yellow-400 to-orange-500' :
                 'bg-gradient-to-r from-purple-500 to-pink-500'
-              }`}>
+              } ${isEditing && quest ? 'opacity-75' : ''}`}>
                 <div className="flex items-center justify-between">
-                  <span className="font-bold uppercase">
-                    {formData.difficulty === 'initiate' && 'Initiate'}
-                    {formData.difficulty === 'adventurer' && 'Adventurer'}
-                    {formData.difficulty === 'champion' && 'Champion'}
-                    {formData.difficulty === 'mythic' && 'Mythic'}
+                  <span className="font-bold uppercase text-lg">
+                    {formData.difficulty === 'initiate' && '🌱 Initiate'}
+                    {formData.difficulty === 'adventurer' && '⚔️ Adventurer'}
+                    {formData.difficulty === 'champion' && '🏆 Champion'}
+                    {formData.difficulty === 'mythic' && '🐉 Mythic'}
                   </span>
-                  <span className="font-bold">
+                  <span className="font-bold text-lg">
                     {getXPReward(formData.difficulty)} XP
                   </span>
                 </div>
                 <p className="text-sm opacity-90 mt-1">
-                  {formData.difficulty === 'initiate' && 'Perfect for beginners'}
-                  {formData.difficulty === 'adventurer' && 'A true adventure'}
-                  {formData.difficulty === 'champion' && 'Expert level required'}
-                  {formData.difficulty === 'mythic' && 'Legendary challenge for the bravest!'}
-
-                  {' '}Reward
+                  {formData.difficulty === 'initiate' && 'Perfect for beginners - Learn the basics'}
+                  {formData.difficulty === 'adventurer' && 'A true adventure - Moderate challenge'}
+                  {formData.difficulty === 'champion' && 'Expert level required - High difficulty'}
+                  {formData.difficulty === 'mythic' && 'Legendary challenge for the bravest - Ultimate test!'}
                 </p>
               </div>
             </div>
@@ -879,15 +915,15 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
               )}
             </div>
 
-            <div className="">
-              <label htmlFor="budget" className="flex items-center text-sm font-semibold text-gray-700 mb-2">
-                <div className="w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center mr-3">
+            <div>
+              <label htmlFor="budget" className="flex items-center text-sm font-semibold text-amber-800 mb-2">
+                <div className="w-6 h-6 bg-amber-600 rounded-full flex items-center justify-center mr-3">
                   <span className="text-white text-xs">🪙</span>
                 </div>
-                GOLD BUDGET
+                GOLD BUDGET *
                 {isEditing && quest && quest.status === 'in-progress' && (
                   <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                    Locked (In Progress)
+                    🔒 Locked (In Progress)
                   </span>
                 )}
               </label>
@@ -1013,7 +1049,10 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
 
           {/* Post As Section */}
           <div>
-            <label className="block text-sm font-semibold text-amber-800 mb-2">
+            <label className="flex items-center text-sm font-semibold text-amber-800 mb-2">
+              <div className="w-6 h-6 bg-amber-600 rounded-full flex items-center justify-center mr-3">
+                <span className="text-white text-xs">👤</span>
+              </div>
               POST AS
             </label>
             <div className="space-y-3">
@@ -1069,8 +1108,11 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
 
           {/* Requirements */}
           <div>
-            <label htmlFor="requirements" className="block text-sm font-semibold text-amber-800 mb-2">
-              Requirements (optional)
+            <label htmlFor="requirements" className="flex items-center text-sm font-semibold text-amber-800 mb-2">
+              <div className="w-6 h-6 bg-amber-600 rounded-full flex items-center justify-center mr-3">
+                <span className="text-white text-xs">📋</span>
+              </div>
+              REQUIREMENTS (Optional)
             </label>
             <textarea
               id="requirements"
@@ -1078,16 +1120,27 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
               value={formData.requirements}
               onChange={handleChange}
               rows={3}
+              maxLength={500}
               className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 resize-none"
-              placeholder="What skills or prerequisites are needed?"
+              placeholder="What skills, tools, or prerequisites are needed for this quest?"
             />
-            {errors.requirements && <p className="mt-2 text-sm text-red-600">{errors.requirements}</p>}
+            <div className="flex justify-between items-center mt-1">
+              <div>
+                {errors.requirements && <span className="text-sm text-red-600">{errors.requirements}</span>}
+              </div>
+              <span className="text-xs text-gray-500">
+                {(formData.requirements || '').length}/500 characters
+              </span>
+            </div>
           </div>
 
           {/* Resources */}
           <div>
-            <label htmlFor="resources" className="block text-sm font-semibold text-amber-800 mb-2">
-              Resources (optional)
+            <label htmlFor="resources" className="flex items-center text-sm font-semibold text-amber-800 mb-2">
+              <div className="w-6 h-6 bg-amber-600 rounded-full flex items-center justify-center mr-3">
+                <span className="text-white text-xs">🔗</span>
+              </div>
+              RESOURCES (Optional)
             </label>
             <textarea
               id="resources"
@@ -1095,10 +1148,18 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
               value={formData.resources}
               onChange={handleChange}
               rows={3}
+              maxLength={1000}
               className="w-full px-4 py-3 border-2 border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-gray-900 placeholder-gray-400 resize-none"
-              placeholder="Links, files, or other resources that will help participants"
+              placeholder="Links, files, documentation, or other helpful resources for participants"
             />
-            {errors.resources && <p className="mt-2 text-sm text-red-600">{errors.resources}</p>}
+            <div className="flex justify-between items-center mt-1">
+              <div>
+                {errors.resources && <span className="text-sm text-red-600">{errors.resources}</span>}
+              </div>
+              <span className="text-xs text-gray-500">
+                {(formData.resources || '').length}/1000 characters
+              </span>
+            </div>
           </div>
 
           {/* Action Buttons */}

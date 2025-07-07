@@ -41,6 +41,9 @@ export function QuestDetailsModal({
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showSubmitWorkModal, setShowSubmitWorkModal] = useState(false)
+  const [latestSubmissionStatus, setLatestSubmissionStatus] = useState<string | null>(null)
+  const [submissionFeedback, setSubmissionFeedback] = useState<string | null>(null)
+  const [isLoadingSubmissionStatus, setIsLoadingSubmissionStatus] = useState(false)
   
   // Add gold balance refresh capability
   const { refreshBalance } = useGoldBalance()
@@ -68,12 +71,20 @@ export function QuestDetailsModal({
   // Check if quest is available for new applications
   const questNotAvailable = quest ? (quest.status === 'in-progress' || quest.status === 'completed') : false
 
+  // Find the participant record for the current user (need this early for useEffect dependencies)
+  const myParticipant = quest?.participants_detail?.find(
+    (p) => p.user.id === currentUser?.id
+  );
+
   // Check if user is already a participant (either through participants_detail or approved application)
   // BUT exclude kicked users - they should no longer be considered participants
   const isAlreadyParticipant = !hasBeenKicked && (
     (quest?.participants_detail?.some((p) => p.user.id === currentUser?.id) || false) || 
     hasApprovedApplication
   )
+
+  // Only allow submit if user is still a participant and the quest is not open AND user hasn't been kicked
+  const canSubmitWork = !!myParticipant && quest?.status !== "open" && !hasBeenKicked;
 
   // Load user applications when modal opens and user is authenticated
   useEffect(() => {
@@ -82,6 +93,25 @@ export function QuestDetailsModal({
       loadAttemptInfo()
     }
   }, [isOpen, isAuthenticated, currentUser, quest?.id])
+
+  // Clear submission status when quest changes to prevent stale data
+  useEffect(() => {
+    setLatestSubmissionStatus(null)
+    setSubmissionFeedback(null)
+    setIsLoadingSubmissionStatus(false)
+  }, [quest?.id])
+
+  // Load submission status when participant info is available
+  useEffect(() => {
+    if (isOpen && isAuthenticated && currentUser && myParticipant && quest && isAlreadyParticipant && !isLoadingSubmissionStatus) {
+      loadLatestSubmissionStatus()
+    } else if (!isAlreadyParticipant) {
+      // Clear status if user is not a participant
+      setLatestSubmissionStatus(null)
+      setSubmissionFeedback(null)
+      setIsLoadingSubmissionStatus(false)
+    }
+  }, [isOpen, isAuthenticated, currentUser, myParticipant, quest?.id, isAlreadyParticipant])
 
   const loadUserApplications = async () => {
     try {
@@ -113,15 +143,38 @@ export function QuestDetailsModal({
     }
   }
 
+  const loadLatestSubmissionStatus = async () => {
+    if (!quest || !isAuthenticated || !myParticipant || isLoadingSubmissionStatus) return
+    
+    setIsLoadingSubmissionStatus(true)
+    try {
+      const submissions = await QuestAPI.getQuestSubmissions(quest.slug)
+      // Filter to only submissions from the current user for this specific quest
+      const mySubmissions = submissions.filter(sub => 
+        sub.participant_username === currentUser?.username
+      )
+      
+      if (mySubmissions.length > 0) {
+        // Get the latest submission (should be first since they're sorted by most recent)
+        const latest = mySubmissions[0]
+        setLatestSubmissionStatus(latest.status)
+        setSubmissionFeedback(latest.feedback)
+      } else {
+        // Clear status if no submissions found for this user in this quest
+        setLatestSubmissionStatus(null)
+        setSubmissionFeedback(null)
+      }
+    } catch (error) {
+      console.error('Failed to load submission status:', error)
+      // Clear status on error
+      setLatestSubmissionStatus(null)
+      setSubmissionFeedback(null)
+    } finally {
+      setIsLoadingSubmissionStatus(false)
+    }
+  }
+
   if (!isOpen || !quest) return null
-
-  // Find the participant record for the current user
-  const myParticipant = quest?.participants_detail?.find(
-    (p) => p.user.id === currentUser?.id
-  );
-
-  // Only allow submit if user is still a participant and the quest is not open AND user hasn't been kicked
-  const canSubmitWork = !!myParticipant && quest.status !== "open" && !hasBeenKicked;
 
   // Debug logging for quest details
   console.log('👁️ Quest Details Modal - Quest data:', {
@@ -418,13 +471,71 @@ export function QuestDetailsModal({
                     : "You are currently participating in this quest."
                   }
                 </p>
+                
+                {/* Submission Status Display */}
+                {(latestSubmissionStatus || isLoadingSubmissionStatus) && (
+                  <div className="mt-3">
+                    {isLoadingSubmissionStatus ? (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                          <span className="font-semibold text-gray-700">Updating Status...</span>
+                        </div>
+                        <p className="text-gray-600 text-sm">Refreshing your submission status...</p>
+                      </div>
+                    ) : (
+                      <>
+                        {latestSubmissionStatus === 'pending' && (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Clock size={16} className="text-blue-600" />
+                              <span className="font-semibold text-blue-800">Submission Status</span>
+                            </div>
+                            <p className="text-blue-700 text-sm">Your work is under review by the quest creator.</p>
+                          </div>
+                        )}
+                        
+                        {latestSubmissionStatus === 'needs_revision' && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <AlertCircle size={16} className="text-amber-600" />
+                              <span className="font-semibold text-amber-800">Revision Required</span>
+                            </div>
+                            <p className="text-amber-700 text-sm">Your submission needs revision. Please submit updated work.</p>
+                            {submissionFeedback && (
+                              <div className="mt-2 p-2 bg-amber-100 rounded text-xs text-amber-800">
+                                <strong>Feedback:</strong> {submissionFeedback}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        {latestSubmissionStatus === 'approved' && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <CheckCircle size={16} className="text-amber-600" />
+                              <span className="font-semibold text-amber-800">Work Approved</span>
+                            </div>
+                            <p className="text-amber-700 text-sm">Congratulations! Your work has been approved.</p>
+                            {submissionFeedback && (
+                              <div className="mt-2 p-2 bg-amber-100 rounded text-xs text-amber-800">
+                                <strong>Feedback:</strong> {submissionFeedback}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+                
                 {/* Submit Completed Work Button */}
-                {canSubmitWork && (
+                {canSubmitWork && (latestSubmissionStatus !== 'approved') && (
                   <button
                     className="mt-4 px-5 py-2 bg-gradient-to-r from-purple-500 to-amber-500 text-white rounded-lg font-semibold shadow hover:from-purple-600 hover:to-amber-600 transition-colors"
                     onClick={() => setShowSubmitWorkModal(true)}
                   >
-                    Submit Completed Work
+                    {latestSubmissionStatus === 'needs_revision' ? 'Submit Revised Work' : 'Submit Completed Work'}
                   </button>
                 )}
               </div>
@@ -594,7 +705,8 @@ export function QuestDetailsModal({
           onSuccess={() => {
             setShowSubmitWorkModal(false);
             showToast("Work submitted successfully!", "success");
-            if (onQuestUpdate) onQuestUpdate();
+            // Just refresh submission status - don't call onQuestUpdate to avoid double refresh
+            loadLatestSubmissionStatus();
           }}
           questParticipantId={myParticipant.id}
           questTitle={quest.title}

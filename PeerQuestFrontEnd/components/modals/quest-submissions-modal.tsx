@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import type { Quest } from "@/lib/types";
 import { QuestAPI, QuestSubmission } from "@/lib/api/quests";
-import { X, UserCircle2, FileText, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { X, UserCircle2, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 import { API_BASE_URL } from "@/lib/api/quests";
 
 interface QuestSubmissionsModalProps {
@@ -11,17 +11,27 @@ interface QuestSubmissionsModalProps {
   currentUser?: any;
   showToast?: (msg: string, type?: string) => void;
   onMarkComplete?: () => void;
-  canMarkComplete?: boolean;
+  onApproveSubmission?: (submissionId: number, feedback?: string) => void;
+  onMarkNeedsRevision?: (submissionId: number, feedback?: string) => void;
+  canReviewSubmissions?: boolean;
 }
 
 const statusColors: Record<string, string> = {
   approved: "bg-green-100 text-green-800 border-green-200",
-  rejected: "bg-red-100 text-red-800 border-red-200",
   needs_revision: "bg-amber-100 text-amber-800 border-amber-200",
-  pending: "bg-gray-100 text-gray-800 border-gray-200",
+  pending: "bg-blue-100 text-blue-800 border-blue-200",
 };
 
-const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({ isOpen, onClose, quest, showToast, onMarkComplete, canMarkComplete }) => {
+const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  quest, 
+  showToast, 
+  onMarkComplete,
+  onApproveSubmission,
+  onMarkNeedsRevision,
+  canReviewSubmissions
+}) => {
   const [submissions, setSubmissions] = useState<QuestSubmission[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +42,14 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({ isOpen, o
     setError(null);
     QuestAPI.getQuestSubmissions(quest.slug)
       .then((data) => {
-        setSubmissions(Array.isArray(data) ? data : []);
+        const submissionsArray = Array.isArray(data) ? data : [];
+        
+        // Sort submissions by most recent first
+        const sortedSubmissions = submissionsArray.sort((a, b) => 
+          new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime()
+        );
+        
+        setSubmissions(sortedSubmissions);
       })
       .catch(() => {
         setError("Failed to load submissions.");
@@ -73,8 +90,8 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({ isOpen, o
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl relative max-h-[90vh] flex flex-col">
-        {/* Sticky Header with color */}
-        <div className="sticky top-0 z-10 bg-gradient-to-r from-[#8B75AA] to-[#FBBF24] rounded-t-2xl border-b border-gray-100 flex items-center justify-between px-6 py-4">
+        {/* Fixed Header with color */}
+        <div className="bg-gradient-to-r from-[#8B75AA] to-[#FBBF24] rounded-t-2xl border-b border-gray-100 flex items-center justify-between px-6 py-4 flex-shrink-0">
           <h2 className="text-2xl font-bold text-white font-serif flex items-center gap-2 drop-shadow">
             <FileText className="w-7 h-7 text-white" />
             Submitted Work for: <span className="ml-1 text-white/90">{quest.title}</span>
@@ -87,37 +104,49 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({ isOpen, o
             <X size={24} />
           </button>
         </div>
-        {/* Submission limit notice below header, above mark as completed */}
-        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-3 mb-2 flex items-center gap-2 mx-6 mt-4">
-          <AlertCircle className="w-5 h-5 text-yellow-500" />
-          <span>Participants may submit up to 5 times per quest. Further submissions will be blocked.</span>
-        </div>
-        {/* Mark as Completed button (if allowed) */}
-        {canMarkComplete && (
-          <div className="flex justify-end px-6 pt-4">
-            <button
-              onClick={onMarkComplete}
-              className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-semibold"
-            >
-              <CheckCircle2 size={18} />
-              <span>Mark as Completed</span>
-            </button>
+        
+        {/* Scrollable Content Area - This entire section scrolls */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {/* Compact submission review notice */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-3 text-xs text-blue-700">
+            <div className="flex items-center gap-1 mb-1">
+              <AlertCircle className="w-3 h-3 text-blue-500 flex-shrink-0" />
+              <span className="font-semibold text-blue-800">Review Guidelines:</span>
+            </div>
+            <div className="text-blue-600 leading-tight">
+              All pending submissions are actionable • <strong>Approve</strong> = complete quest & award rewards • <strong>Needs Revision</strong> = allow participant to resubmit
+            </div>
           </div>
-        )}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-16">
-              <div className="w-8 h-8 border-4 border-[#8B75AA] border-t-transparent rounded-full animate-spin mb-4"></div>
-              <span className="text-[#8B75AA] font-medium">Loading submissions...</span>
+          
+          {/* Quest completion button (if allowed) */}
+          {onMarkComplete && (
+            <div className="flex justify-end gap-3 mb-6">
+              <button
+                onClick={onMarkComplete}
+                className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-semibold"
+              >
+                <CheckCircle2 size={18} />
+                <span>Complete Quest</span>
+              </button>
             </div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center py-16">
-              <AlertCircle className="w-10 h-10 text-red-400 mb-2" />
-              <span className="text-red-500 font-medium">{error}</span>
-            </div>
-          ) : submissions.length > 0 ? (
+          )}
+          
+          {/* Submissions Content */}
+          <div>
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <div className="w-8 h-8 border-4 border-[#8B75AA] border-t-transparent rounded-full animate-spin mb-4"></div>
+                <span className="text-[#8B75AA] font-medium">Loading submissions...</span>
+              </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <AlertCircle className="w-10 h-10 text-red-400 mb-2" />
+                <span className="text-red-500 font-medium">{error}</span>
+              </div>
+            ) : submissions.length > 0 ? (
             <ul className="space-y-6">
-              {submissions.map((submission) => (
+              {submissions.map((submission, index) => {
+                return (
                 <li key={submission.id} className="bg-gray-50 rounded-xl p-5 border border-gray-200 flex flex-col sm:flex-row gap-4 shadow-sm hover:shadow-md transition-shadow">
                   {/* Avatar and user info */}
                   <div className="flex flex-col items-center justify-center min-w-[110px] py-2 px-1 bg-gradient-to-b from-[#f3e8ff] to-[#fef3c7] rounded-xl shadow-inner border border-[#e9d5ff]/60">
@@ -229,16 +258,37 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({ isOpen, o
                         {submission.feedback}
                       </div>
                     )}
+                    {/* Submission action buttons for quest creators - on all pending submissions */}
+                    {canReviewSubmissions && submission.status === 'pending' && (
+                      <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-200">
+                        <button
+                          onClick={() => onApproveSubmission?.(submission.id)}
+                          className="flex items-center gap-2 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold text-sm"
+                        >
+                          <CheckCircle2 size={16} />
+                          <span>Approve</span>
+                        </button>
+                        <button
+                          onClick={() => onMarkNeedsRevision?.(submission.id)}
+                          className="flex items-center gap-2 px-3 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-semibold text-sm"
+                        >
+                          <AlertCircle size={16} />
+                          <span>Needs Revision</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </li>
-              ))}
+              );
+              })}
             </ul>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-16">
-              <UserCircle2 className="w-10 h-10 text-gray-300 mb-2" />
-              <span className="text-gray-500">No submissions yet.</span>
-            </div>
-          )}
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16">
+                <UserCircle2 className="w-10 h-10 text-gray-300 mb-2" />
+                <span className="text-gray-500">No submissions yet.</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

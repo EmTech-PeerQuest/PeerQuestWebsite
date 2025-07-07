@@ -532,6 +532,15 @@ class QuestSubmissionCreateSerializer(serializers.ModelSerializer):
             validated_data['quest_participant'] = participant
         else:
             participant = validated_data['quest_participant']
+        
+        # Update any existing pending submissions from this participant to 'superseded'
+        # This ensures only the latest submission is actionable for review
+        from .models import QuestSubmission
+        QuestSubmission.objects.filter(
+            quest_participant=participant,
+            status='pending'
+        ).update(status='superseded')
+        
         files = validated_data.pop('files', [])
         submission = super().create(validated_data)
         # Save uploaded files and store their URLs/paths in submission_files
@@ -576,7 +585,7 @@ class QuestSubmissionReviewSerializer(serializers.ModelSerializer):
         return obj.quest_participant.quest.gold_reward
 
     def validate_status(self, value):
-        if value not in ['approved', 'rejected', 'needs_revision']:
+        if value not in ['approved', 'needs_revision']:
             raise serializers.ValidationError("Invalid status for review.")
         return value
         

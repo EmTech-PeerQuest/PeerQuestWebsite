@@ -413,9 +413,8 @@ class QuestParticipant(models.Model):
 
 class QuestSubmission(models.Model):
     STATUS_CHOICES = [
-        ('pending', 'Pending Review'),
+        ('pending', 'Pending'),
         ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
         ('needs_revision', 'Needs Revision'),
     ]
 

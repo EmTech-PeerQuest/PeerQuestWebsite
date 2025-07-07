@@ -397,9 +397,9 @@ class QuestSubmissionDetailView(generics.RetrieveUpdateDestroyAPIView):
         )
 
 
-class QuestSubmissionReviewView(generics.UpdateAPIView):
+class QuestSubmissionReviewViewSet(viewsets.ModelViewSet):
     """
-    Allow quest creators to review submissions.
+    ViewSet for quest creators to review submissions with different actions.
     """
     serializer_class = QuestSubmissionReviewSerializer
     permission_classes = [IsAuthenticated, IsQuestCreatorForReview]
@@ -409,25 +409,85 @@ class QuestSubmissionReviewView(generics.UpdateAPIView):
             quest_participant__quest__creator=self.request.user
         )
 
-    def perform_update(self, serializer):
-        serializer.save(reviewed_at=timezone.now())
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        """Mark submission as approved and complete the participant"""
+        submission = self.get_object()
+        feedback = request.data.get('feedback', '')
         
-        # If approved, mark participant as completed
-        if serializer.validated_data['status'] == 'approved':
-            submission = serializer.instance
-            participant = submission.quest_participant
-            quest = participant.quest
-            
-            # Mark participant as completed
-            participant.status = 'completed'
-            participant.completed_at = timezone.now()
-            participant.save()  # This triggers the XP and gold reward signals
-            
-            # Include information about rewards in the response
-            serializer.context['rewards'] = {
+        submission.status = 'approved'
+        submission.feedback = feedback
+        submission.reviewed_at = timezone.now()
+        submission.reviewed_by = request.user
+        submission.save()
+        
+        # Mark participant as completed
+        participant = submission.quest_participant
+        quest = participant.quest
+        participant.status = 'completed'
+        participant.completed_at = timezone.now()
+        participant.save()  # This triggers the XP and gold reward signals
+        
+        # Update the corresponding Application status to 'approved'
+        from applications.models import Application
+        try:
+            application = Application.objects.get(
+                quest=quest,
+                applicant=participant.user,
+                status='approved'  # Should already be approved when they became a participant
+            )
+            # Application is already approved, no need to change
+        except Application.DoesNotExist:
+            # If no application found, create or update one to show completion
+            application, created = Application.objects.get_or_create(
+                quest=quest,
+                applicant=participant.user,
+                defaults={
+                    'status': 'approved',
+                    'applied_at': participant.joined_at,
+                    'reviewed_by': quest.creator,
+                    'reviewed_at': timezone.now(),
+                    'review_notes': f'Quest completed - submission approved: {feedback}'
+                }
+            )
+            if not created:
+                application.status = 'approved'
+                application.reviewed_by = quest.creator
+                application.reviewed_at = timezone.now()
+                application.review_notes = f'Quest completed - submission approved: {feedback}'
+                application.save()
+        
+        return Response({
+            'status': 'approved',
+            'message': 'Submission approved and participant completed',
+            'rewards': {
                 'xp_awarded': quest.xp_reward,
                 'gold_awarded': quest.gold_reward
             }
+        })
+
+    @action(detail=True, methods=['post'])
+    def needs_revision(self, request, pk=None):
+        """Mark submission as needing revision - participant can resubmit"""
+        submission = self.get_object()
+        feedback = request.data.get('feedback', '')
+        
+        submission.status = 'needs_revision'
+        submission.feedback = feedback
+        submission.reviewed_at = timezone.now()
+        submission.reviewed_by = request.user
+        submission.save()
+        
+        # Keep participant status as 'in_progress' so they can continue working
+        participant = submission.quest_participant
+        if participant.status != 'in_progress':
+            participant.status = 'in_progress'
+            participant.save()
+        
+        return Response({
+            'status': 'needs_revision',
+            'message': 'Submission marked as needing revision - participant can resubmit'
+        })
 
 
 # Statistics and Dashboard Views
