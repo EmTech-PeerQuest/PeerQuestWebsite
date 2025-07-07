@@ -9,7 +9,7 @@ class CustomUserAdmin(UserAdmin):
     model = User
     list_display = [
         'id', 'email', 'username', 'first_name', 'last_name', 'is_staff', 
-        'is_active', 'level', 'experience_points', 'gold_balance', 
+        'is_active', 'level', 'experience_points', 
         'date_joined', 'last_login'
     ]
     list_filter = [
@@ -24,7 +24,7 @@ class CustomUserAdmin(UserAdmin):
     ]
     list_per_page = 50
     date_hierarchy = 'date_joined'
-
+    
     fieldsets = (
         (None, {'fields': ('email', 'username', 'password')}),
         ('Personal info', {'fields': ('first_name', 'last_name')}),
@@ -32,7 +32,7 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('is_staff', 'is_active', 'is_superuser', 'groups', 'user_permissions')
         }),
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
-        ('Gamification', {'fields': ('experience_points', 'level', 'gold_balance', 'avatar_url')}),
+        ('Gamification', {'fields': ('experience_points', 'level', 'avatar_url')}),
         ('Quest Statistics', {
             'fields': ('quest_statistics',),
             'classes': ('collapse',)

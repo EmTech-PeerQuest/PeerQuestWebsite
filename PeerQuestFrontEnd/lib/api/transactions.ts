@@ -23,6 +23,25 @@ export interface Transaction {
   created_at: string
 }
 
+export interface CashoutRequest {
+  id: number
+  user: number
+  username: string
+  amount_gold: number
+  amount_php: number
+  exchange_rate: number
+  method: string
+  method_display: string
+  payment_details?: string
+  status: string
+  status_display: string
+  notes?: string
+  transaction?: number
+  created_at: string
+  processed_at?: string
+  can_be_cancelled: boolean
+}
+
 export const TransactionAPI = {
   /**
    * Get the current user's balance with enhanced debugging
@@ -230,6 +249,95 @@ export const TransactionAPI = {
       return { gold_balance: 0, success: false };
     }
   },
+
+  /**
+   * Cashout API endpoints
+   */
+  
+  /**
+   * Get user's cashout requests
+   */
+  async getMyCashouts(): Promise<CashoutRequest[]> {
+    try {
+      console.log('🔍 Fetching user cashout requests...');
+      
+      const response = await fetchWithAuth(`${API_BASE_URL}/transactions/cashouts/my_cashouts/`)
+      
+      if (!response.ok) {
+        const text = await response.text();
+        handleApiError(response, text, 'view your cashout requests');
+      }
+      
+      const data = await response.json()
+      console.log('✅ Cashout requests data:', data);
+      
+      // Handle both paginated and non-paginated responses
+      return data.results || data || []
+    } catch (error) {
+      console.error('Cashout requests fetch error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Request a cashout
+   */
+  async requestCashout(amount_gold: number, method: string, payment_details: string = ''): Promise<{message: string, cashout_request: CashoutRequest}> {
+    try {
+      console.log('🔍 Requesting cashout:', { amount_gold, method, payment_details });
+      
+      const response = await fetchWithAuth(`${API_BASE_URL}/transactions/cashouts/request_cashout/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount_gold,
+          method,
+          payment_details
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        const errorMessage = data.error || data.detail || 'Failed to request cashout';
+        throw new Error(errorMessage);
+      }
+      
+      console.log('✅ Cashout request successful:', data);
+      return data;
+    } catch (error) {
+      console.error('Cashout request error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Cancel a cashout request
+   */
+  async cancelCashout(cashoutId: number): Promise<{message: string, cashout_request: CashoutRequest}> {
+    try {
+      console.log('🔍 Cancelling cashout:', cashoutId);
+      
+      const response = await fetchWithAuth(`${API_BASE_URL}/transactions/cashouts/${cashoutId}/cancel_cashout/`, {
+        method: 'POST'
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        const errorMessage = data.error || data.detail || 'Failed to cancel cashout';
+        throw new Error(errorMessage);
+      }
+      
+      console.log('✅ Cashout cancellation successful:', data);
+      return data;
+    } catch (error) {
+      console.error('Cashout cancellation error:', error);
+      throw error;
+    }
+  }
 }
 
 /**

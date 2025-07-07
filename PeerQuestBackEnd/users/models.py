@@ -9,7 +9,6 @@ class User(AbstractUser):
     bio = models.TextField(blank=True)
     level = models.IntegerField(default=1)
     experience_points = models.IntegerField(default=0)
-    gold_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     is_admin = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
     verification_documents = models.JSONField(default=dict, blank=True)
@@ -38,6 +37,7 @@ class User(AbstractUser):
         # Implement your level calculation logic
         return min(100, max(1, self.experience_points // 1000))
 
+
 class UserSkill(models.Model):
     class ProficiencyLevel(models.TextChoices):
         BEGINNER = 'beginner', _('Beginner')
@@ -56,6 +56,7 @@ class UserSkill(models.Model):
 
     class Meta:
         unique_together = ('user', 'skill_name')
+
 
 class UserAchievement(models.Model):
     class RarityLevel(models.TextChoices):

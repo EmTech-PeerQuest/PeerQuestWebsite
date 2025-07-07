@@ -29,8 +29,7 @@ def test_quest_deletion_refund():
     balance, _ = UserBalance.objects.get_or_create(user=user)
     balance.gold_balance = Decimal('200')
     balance.save()
-    user.gold_balance = balance.gold_balance
-    user.save(update_fields=['gold_balance'])
+    # UserBalance is now the single source of truth for gold balance
 
     # Create quest with commission_fee=5, gold_reward=95
     quest = Quest.objects.create(

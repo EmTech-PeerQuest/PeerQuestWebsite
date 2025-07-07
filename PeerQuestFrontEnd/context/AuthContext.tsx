@@ -46,7 +46,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Map gold_balance to gold for frontend consistency
       const userData = {
         ...res.data,
-        gold: res.data.gold_balance || res.data.gold || 0
+        gold: res.data.gold_balance ?? 0  // Use nullish coalescing since backend now returns proper numbers
       };
       
       console.log('🔍 Setting user in auth context:', userData);

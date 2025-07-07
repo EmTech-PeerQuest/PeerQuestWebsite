@@ -363,7 +363,7 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
     setPurchaseStep("upload")
   }
 
-  const handleCashOut = () => {
+  const handleCashOut = async () => {
     if (!currentUser || !cashoutAmount) return
 
     const amount = Number.parseInt(cashoutAmount)
@@ -390,27 +390,44 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
       return
     }
 
-    processCashout(amount)
+    await processCashout(amount)
   }
 
-  const processCashout = (amount: number) => {
-    const cashoutValue = (amount * 0.07).toFixed(2)
+  const processCashout = async (amount: number) => {
+    try {
+      setLoading(true)
+      
+      const result = await TransactionAPI.requestCashout(amount, cashoutMethod)
+      
+      if (showToast) {
+        showToast(result.message, "success")
+      }
 
-    if (setCurrentUser) {
-      setCurrentUser((prev) => ({
-        ...prev,
-        gold: (prev.gold || 0) - amount,
-      }))
+      // Update current user's gold balance
+      if (setCurrentUser) {
+        setCurrentUser((prev) => ({
+          ...prev,
+          gold: (prev.gold || 0) - amount,
+        }))
+      }
+
+      // Refresh balance and transactions
+      if (refreshUser) {
+        await refreshUser()
+      }
+      
+      // Refresh transactions list
+      await fetchTransactions()
+
+      setCashoutAmount("")
+    } catch (error) {
+      console.error('Cashout error:', error)
+      if (showToast) {
+        showToast(error instanceof Error ? error.message : 'Failed to process cashout request', "error")
+      }
+    } finally {
+      setLoading(false)
     }
-
-    if (showToast) {
-      showToast(
-        `Successfully requested cashout of ${amount.toLocaleString()} coins (₱${cashoutValue}) via ${cashoutMethod.toUpperCase()}. Processing time: 24-72 hours.`,
-        "success",
-      )
-    }
-
-    setCashoutAmount("")
   }
 
   // Helper functions to map backend transaction types to UI categories

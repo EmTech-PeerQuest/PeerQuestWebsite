@@ -85,9 +85,7 @@ def award_gold(user, amount, description=None, quest=None, transaction_type=Tran
         balance.gold_balance += amount
         balance.save()
         
-        # Also update the user model gold_balance field to keep both in sync
-        user.gold_balance = balance.gold_balance
-        user.save(update_fields=['gold_balance'])
+        # UserBalance is now the single source of truth for gold balance
         
         return {
             "success": True,
@@ -114,6 +112,10 @@ def deduct_gold_for_quest_creation(quest, amount):
     
     user = quest.creator
     
+    # Calculate commission fee (5%)
+    quest_reward = Decimal(str(quest.gold_reward))
+    commission_fee = Decimal(str(quest.commission_fee))
+    
     with db_transaction.atomic():
         # Create or get user balance
         balance, created = UserBalance.objects.get_or_create(user=user)
@@ -128,9 +130,10 @@ def deduct_gold_for_quest_creation(quest, amount):
         # Create the transaction record (negative amount for deduction)
         transaction = Transaction.objects.create(
             user=user,
-            type=TransactionType.REWARD,  # Changed from PURCHASE to REWARD (quest-related transaction)
-            amount=-amount,  # Negative for deduction
-            description=f"Quest creation: {quest.title} (Reward: {quest.gold_reward} + Commission)",
+            type=TransactionType.REWARD,  # Quest-related transaction
+            amount=-amount,  # Negative for total deduction (reward + commission)
+            commission_fee=commission_fee,  # The commission fee amount
+            description=f"Quest creation: {quest.title} (Reward: {quest_reward} + Commission: {commission_fee})",
             quest=quest
         )
         
@@ -139,16 +142,15 @@ def deduct_gold_for_quest_creation(quest, amount):
         balance.gold_balance -= amount
         balance.save()
         
-        # Also update the user model gold_balance field to keep both in sync
-        user.gold_balance = balance.gold_balance
-        user.save(update_fields=['gold_balance'])
+        # UserBalance is now the single source of truth for gold balance
         
         return {
             "success": True,
             "transaction_id": transaction.transaction_id,
             "previous_balance": previous_balance,
             "new_balance": balance.gold_balance,
-            "amount_deducted": amount
+            "amount_deducted": amount,
+            "commission_fee": commission_fee
         }
 
 
@@ -181,8 +183,7 @@ def refund_gold_for_quest_deletion(quest):
             balance.gold_balance += refund_amount
             balance.save()
 
-            user.gold_balance = balance.gold_balance
-            user.save(update_fields=['gold_balance'])
+            # UserBalance is now the single source of truth for gold balance
 
             return {
                 "success": True,

@@ -3,7 +3,7 @@ from .models import Transaction, UserBalance
 
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
-    list_display = ('transaction_id', 'user', 'type', 'amount', 'description', 'quest', 'created_at')
+    list_display = ('transaction_id', 'user', 'type', 'amount', 'commission_fee', 'description', 'quest', 'created_at')
     list_filter = ('type', 'created_at')
     search_fields = ('user__username', 'description')
     autocomplete_fields = ['user', 'quest']
@@ -11,6 +11,10 @@ class TransactionAdmin(admin.ModelAdmin):
     fieldsets = (
         ('Transaction Information', {
             'fields': ('transaction_id', 'user', 'type', 'amount')
+        }),
+        ('Commission Details', {
+            'fields': ('commission_fee',),
+            'description': 'Commission tracking for quest-related transactions'
         }),
         ('Details', {
             'fields': ('description', 'quest')

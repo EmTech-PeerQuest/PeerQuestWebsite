@@ -275,7 +275,7 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
             gold_reward_decimal = Decimal(str(gold_reward))
             total_gold_needed = gold_reward_decimal + (gold_reward_decimal * COMMISSION_RATE).quantize(Decimal('1'), rounding='ROUND_UP')
             
-            print(f"� Deducting gold immediately: {total_gold_needed}")
+            print(f"💰 Deducting gold immediately: {total_gold_needed}")
             # Deduct the total amount (reward + commission) immediately
             result = deduct_gold_for_quest_creation(quest, total_gold_needed)
             if not result["success"]:
