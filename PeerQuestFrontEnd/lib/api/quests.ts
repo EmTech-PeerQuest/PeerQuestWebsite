@@ -527,3 +527,13 @@ export const QuestAPI = {
     return response.json();
   },
 }
+
+// Participant management
+export async function kickParticipant(participantId: number) {
+  const res = await fetch(`/api/quests/participants/${participantId}/kick/`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('Failed to remove participant');
+  return res.json();
+}

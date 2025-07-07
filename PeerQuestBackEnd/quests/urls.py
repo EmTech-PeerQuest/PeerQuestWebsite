@@ -14,6 +14,7 @@ from .views import (
     # Quest Participants
     QuestParticipantListView,
     QuestParticipantDetailView,
+    KickParticipantView,
     
     # Quest Submissions
     QuestSubmissionListCreateView,
@@ -50,6 +51,7 @@ urlpatterns = [
     # Quest Participants
     path('quests/<slug:quest_slug>/participants/', QuestParticipantListView.as_view(), name='quest-participants'),
     path('participants/<int:pk>/', QuestParticipantDetailView.as_view(), name='participant-detail'),
+    path('participants/<int:pk>/kick/', KickParticipantView.as_view(), name='kick-participant'),
     
     # Quest Submissions
     path('quests/<slug:quest_slug>/submissions/', QuestSubmissionListCreateView.as_view(), name='quest-submissions'),

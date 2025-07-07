@@ -16,11 +16,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'quests.apps.QuestsConfig',  
     'drf_yasg',
 
     # Your apps
     'users',
-    'quests',
     'applications',
     'xp',
     'guilds',

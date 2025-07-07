@@ -86,9 +86,12 @@ export function QuestDetailsModal({
   if (!isOpen || !quest) return null
 
   // Find the participant record for the current user
-  const myParticipant = quest.participants_detail?.find(
+  const myParticipant = quest?.participants_detail?.find(
     (p) => p.user.id === currentUser?.id
-  )
+  );
+
+  // Only allow submit if user is still a participant and the quest is not open
+  const canSubmitWork = !!myParticipant && quest.status !== "open";
 
   // Debug logging for quest details
   console.log('👁️ Quest Details Modal - Quest data:', {
@@ -321,7 +324,7 @@ export function QuestDetailsModal({
                   }
                 </p>
                 {/* Submit Completed Work Button */}
-                {myParticipant && (
+                {canSubmitWork && (
                   <button
                     className="mt-4 px-5 py-2 bg-gradient-to-r from-purple-500 to-amber-500 text-white rounded-lg font-semibold shadow hover:from-purple-600 hover:to-amber-600 transition-colors"
                     onClick={() => setShowSubmitWorkModal(true)}
@@ -367,15 +370,6 @@ export function QuestDetailsModal({
                   {quest.applications_count} {quest.applications_count === 1 ? "person has" : "people have"} applied for
                   this quest.
                 </p>
-                <button
-                  className="mt-4 px-5 py-2 bg-gradient-to-r from-amber-500 to-purple-500 text-white rounded-lg font-semibold shadow hover:from-amber-600 hover:to-purple-600 transition-colors"
-                  onClick={() => {
-                    // TODO: Implement view submissions modal or navigation
-                    showToast("View submissions feature coming soon!", "info");
-                  }}
-                >
-                  View Submitted Work
-                </button>
               </div>
             )}
           </div>
@@ -451,7 +445,7 @@ export function QuestDetailsModal({
       </div>
 
       {/* Quest Submit Work Modal */}
-      {showSubmitWorkModal && myParticipant && (
+      {showSubmitWorkModal && canSubmitWork && (
         <QuestSubmitWorkModal
           isOpen={showSubmitWorkModal}
           onClose={() => setShowSubmitWorkModal(false)}

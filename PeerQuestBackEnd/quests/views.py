@@ -17,7 +17,6 @@ import os
 import mimetypes
 import urllib.parse
 
-
 # Custom Permissions
 class IsQuestCreatorOrReadOnly(BasePermission):
     """
@@ -575,7 +574,7 @@ class QuestSubmissionFileDownloadView(generics.GenericAPIView):
         except (IndexError, AttributeError, KeyError, TypeError):
             raise Http404('File not found in submission.')
         # Restrict allowed file types
-        allowed_exts = {'.jpg', '.jpeg', '.png', '.pdf', '.doc', '.docx', '.txt'}
+        allowed_exts = {'.jpg', '.jpeg', '.png', '.pdf', '.doc', '.txt'}
         _, ext = os.path.splitext(orig_name.lower())
         if ext not in allowed_exts:
             return Response({'error': f'File type {ext} is not allowed.'}, status=403)
@@ -597,8 +596,6 @@ class QuestSubmissionFileDownloadView(generics.GenericAPIView):
         # Always set Content-Type to application/pdf for PDFs
         if ext == '.pdf':
             content_type = 'application/pdf'
-        elif ext == '.doc' or ext == '.docx':
-            content_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' if ext == '.docx' else 'application/msword'
         response = FileResponse(open(abs_path, 'rb'), as_attachment=True, filename=orig_name)
         if content_type:
             response['Content-Type'] = content_type
@@ -615,3 +612,16 @@ def get_submission_count(request, quest_slug):
     # Use the new model for counting attempts
     attempt_count = QuestSubmissionAttempt.objects.filter(participant=participant, quest__slug=quest_slug, user=user).count()
     return Response({'submissions_used': attempt_count, 'submission_limit': 5})
+
+
+class KickParticipantView(generics.DestroyAPIView):
+    queryset = QuestParticipant.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, pk, *args, **kwargs):
+        participant = self.get_object()
+        # Only quest owner can kick
+        if participant.quest.creator != request.user:
+            return Response({'detail': 'Only the quest owner can remove participants.'}, status=status.HTTP_403_FORBIDDEN)
+        participant.delete()
+        return Response({'detail': 'Participant removed.'}, status=status.HTTP_204_NO_CONTENT)

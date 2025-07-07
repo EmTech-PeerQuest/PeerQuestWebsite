@@ -194,7 +194,11 @@ export function QuestManagement({
       setMyQuests({
         created: createdQuests,
         participating: participatingQuests
-      })
+      });
+      // If setQuests expects a flat array, pass all quests
+      if (typeof setQuests === 'function') {
+        setQuests([...createdQuests, ...participatingQuests]);
+      }
     } catch (error) {
       console.error('Failed to load user quests:', error)
       showToast('Failed to load your quests', 'error')
@@ -896,7 +900,6 @@ export function QuestManagement({
                                   </div>
                                 )}
 
-                                {/* Kick/Remove button for approved or pending applicants */}
                                 {(application.status === 'approved' || application.status === 'pending') && (
                                   <div className="flex gap-2 items-center mt-2">
                                     {removalTarget === application.id ? (

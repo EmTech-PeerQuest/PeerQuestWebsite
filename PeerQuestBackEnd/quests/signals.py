@@ -106,11 +106,22 @@ def handle_assignment_on_participant_change(sender, instance, created, **kwargs)
 def handle_assignment_on_participant_delete(sender, instance, **kwargs):
     """
     Handle quest assignment when participant is deleted.
+    Also, if no participants remain, set quest status to 'open'.
     """
     quest = instance.quest
-    
     # If the assigned user was deleted, clear the assignment
     if quest.assigned_to == instance.user:
         quest.assigned_to = None
         quest.save()
         print(f"Cleared assignment for quest {quest.title} - participant {instance.user.username} was removed")
+
+    # Check if there are any active participants left
+    from .models import QuestParticipant  # avoid circular import
+    active_participants = QuestParticipant.objects.filter(
+        quest=quest,
+        status__in=['joined', 'in_progress']
+    )
+    if active_participants.count() == 0:
+        quest.status = 'open'
+        quest.save()
+        print(f"Quest '{quest.title}' set to 'open' as no participants remain.")
