@@ -24,7 +24,6 @@ INSTALLED_APPS = [
     'quests.apps.QuestsConfig',
     'drf_yasg',
     'users',
-    'quests',
     'guilds',
     'notifications',
     'messaging',
@@ -36,6 +35,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django_filters',
+    'transactions',
 ]
 
 # Middleware
@@ -123,12 +123,13 @@ AUTH_PASSWORD_VALIDATORS = [
             'exempt_superadmin': True,
         }
     },
-    {
-        'NAME': 'users.password_validators.CommonPasswordValidatorEnhanced',
-        'OPTIONS': {
-            'exempt_superadmin': True,
-        }
-    },
+    # {
+    #     'NAME': 'users.password_validators.CommonPasswordValidatorEnhanced',
+    #     'OPTIONS': {
+    #         'exempt_superadmin': True,
+    #         'password_list_path': str(BASE_DIR / 'users' / 'common-passwords.txt.gz'),
+    #     }
+    # },
     # Keep the original Django validators as fallback
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',

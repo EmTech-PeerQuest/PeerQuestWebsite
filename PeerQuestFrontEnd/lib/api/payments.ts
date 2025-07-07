@@ -1,4 +1,4 @@
-import { fetchWithAuth } from '@/lib/auth'
+import { fetchWithAuth } from '@/lib/api/auth'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 

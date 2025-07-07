@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { X, Eye, EyeOff, AlertCircle } from "lucide-react"
 import LoadingModal from "@/components/ui/loading-modal"
-import GoogleAuthButton from "@/components/auth/GoogleAuthButton"
+import GoogleAuthButton from "./GoogleAuthButton"
 import ProfileCompletionModal from "@/components/auth/ProfileCompletionModal"
 import { ResendVerification } from "@/components/auth/resend-verification"
 import { forgotPassword } from "@/lib/api/auth"
@@ -19,7 +19,7 @@ interface AuthModalProps {
   mode: "login" | "register" | "forgot"
   setMode: (mode: "login" | "register" | "forgot") => void
   onClose: () => void
-  onLogin: (credentials: { email: string; password: string }) => void
+  onLogin: (credentials: { username: string; password: string }) => void
   onRegister: (userData: { username: string; email: string; password: string; confirmPassword: string }) => void
   onForgotPassword?: (email: string) => void
 }
@@ -110,8 +110,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
 
     if (!loginForm.username) {
       errors.username = "Username is required"
-    } else if (loginForm.username.length < 3) {
-      errors.username = "Username must be at least 3 characters"
     }
 
     if (!loginForm.password) {
@@ -257,7 +255,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   const handleLogin = () => {
     if (validateLoginForm()) {
       onLogin({
-        email: loginForm.email,
+        username: loginForm.username,
         password: loginForm.password,
       })
     }
@@ -384,17 +382,17 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           {mode === "login" && (
             <>
               <div>
-                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">EMAIL</label>
+                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">USERNAME</label>
                 <input
-                  type="email"
+                  type="text"
                   className={`w-full px-3 py-2 border ${
-                    formErrors.email ? "border-red-500" : "border-[#CDAA7D]"
+                    formErrors.username ? "border-red-500" : "border-[#CDAA7D]"
                   } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                  placeholder="ENTER YOUR EMAIL"
-                  value={loginForm.email}
-                  onChange={(e) => setLoginForm((prev) => ({ ...prev, email: e.target.value }))}
+                  placeholder="ENTER YOUR USERNAME"
+                  value={loginForm.username}
+                  onChange={(e) => setLoginForm((prev) => ({ ...prev, username: e.target.value }))}
                 />
-                {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
+                {formErrors.username && <p className="text-red-500 text-xs mt-1">{formErrors.username}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-[#2C1A1D] mb-2">PASSWORD</label>
@@ -448,10 +446,9 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                 </button>
               </div>
               <div className="text-center text-[#8B75AA] text-sm">OR LOGIN WITH</div>
-              <button className="w-full border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors flex items-center justify-center gap-2">
-                <span className="text-lg">G</span>
-                CONTINUE WITH GOOGLE
-              </button>
+              <div className="flex w-full justify-center items-center mt-2">
+                <GoogleAuthButton />
+              </div>
             </>
           )}
 
@@ -643,7 +640,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
               <div className="text-center text-[#8B75AA] text-sm">OR REGISTER WITH</div>
               <button className="w-full border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors flex items-center justify-center gap-2">
                 <span className="text-lg">G</span>
-                CONTINUE WITH GOOGLE
+                <GoogleAuthButton/>
               </button>
             </>
           )}

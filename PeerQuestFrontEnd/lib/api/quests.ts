@@ -1,5 +1,5 @@
 import { Quest } from '@/lib/types'
-import { fetchWithAuth } from '@/lib/auth'
+import { fetchWithAuth } from '@/lib/api/auth'
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
@@ -178,7 +178,6 @@ export const QuestAPI = {
   // Quest CRUD operations
   async getQuests(filters: QuestFilters = {}): Promise<QuestListResponse> {
     const searchParams = new URLSearchParams()
-    
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
         searchParams.append(key, value.toString())
@@ -192,11 +191,26 @@ export const QuestAPI = {
       }
     )
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch quests: ${response.statusText}`)
+    // If fetchWithAuth returns null (not logged in), treat as empty result
+    if (!response) {
+      return { results: [], count: 0, next: null, previous: null };
     }
 
-    return response.json()
+    // Defensive: if response.ok is undefined, treat as already-parsed data
+    if (typeof response.ok === 'undefined') {
+      // Already JSON
+      return response;
+    }
+
+    if (!response.ok) {
+      let errorText = '';
+      try {
+        errorText = await response.text();
+      } catch {}
+      throw new Error(`Failed to fetch quests: ${response.statusText || errorText || 'Unknown error'}`);
+    }
+
+    return response.json();
   },
 
   async getQuest(slug: string): Promise<Quest> {

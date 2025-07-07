@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
@@ -5,6 +6,7 @@ import { GoldBalanceProvider } from '@/context/GoldBalanceContext';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { AudioProvider } from '@/context/audio-context';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { UserProfileModalProvider } from './UserProfileModalProvider';
 
 export const metadata: Metadata = {
   title: 'PeerQuest',
@@ -23,9 +25,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <LanguageProvider>
             <AudioProvider>
               <AuthProvider>
-              <GoldBalanceProvider>
-              {children}
-              </GoldBalanceProvider>
+                <GoldBalanceProvider>
+                  <UserProfileModalProvider>
+                    {children}
+                  </UserProfileModalProvider>
+                </GoldBalanceProvider>
               </AuthProvider>
             </AudioProvider>
           </LanguageProvider>

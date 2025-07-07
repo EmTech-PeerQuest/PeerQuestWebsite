@@ -1,4 +1,4 @@
-import { fetchWithAuth } from '@/lib/auth'
+import { fetchWithAuth } from '@/lib/api/auth'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 console.log('🔧 Transactions API_BASE_URL:', API_BASE_URL); // Debug log
@@ -82,47 +82,40 @@ export const TransactionAPI = {
           }
         }
       );
-      
-      console.log('🔄 Balance API Response Status:', response.status, response.statusText);
-      console.log('🔄 Balance API Response Headers:', Object.fromEntries(response.headers.entries()));
-      
-      if (!response.ok) {
-        console.error(`Failed to get balance: ${response.status} ${response.statusText}`);
-        
-        // Handle authentication errors specifically
-        if (response.status === 401 || response.status === 403) {
-          console.error('❌ Authentication error when fetching balance - clearing tokens');
-          // Remove tokens to prevent further failed requests
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('refresh_token');
-          }
-          
-          // Throw an authentication error
-          throw new Error('Authentication required. Please log in again.');
-        }
-        
-        const text = await response.text();
-        console.error('🔄 Error response body:', text);
-        try {
-          // Try to parse as JSON first
-          const errorJson = JSON.parse(text);
-          throw new Error(`Failed to get balance: ${JSON.stringify(errorJson)}`);
-        } catch (parseError) {
-          // If not valid JSON, throw with text preview
-          throw new Error(`Failed to get balance: ${text.substring(0, 100)}...`);
-        }
+
+      // If fetchWithAuth returns null (no token), return default balance
+      if (!response) {
+        console.warn('⚠️ fetchWithAuth returned null (likely not logged in), returning default balance');
+        return {
+          user: 0,
+          username: '',
+          gold_balance: 0,
+          last_updated: new Date().toISOString()
+        };
       }
-      
-      // Parse response safely
+
+      // If response is a Response object, parse as before
       try {
+        // Defensive: if response.json is not a function, treat as data
+        if (typeof response.json !== 'function') {
+          // Already parsed JSON
+          const data = response;
+          let goldBalance = 0;
+          if (typeof data.gold_balance === 'number') {
+            goldBalance = data.gold_balance;
+          } else if (typeof data.gold_balance === 'string') {
+            goldBalance = parseFloat(data.gold_balance);
+          } else {
+            goldBalance = Number(data.gold_balance || 0);
+          }
+          return {
+            ...data,
+            gold_balance: goldBalance
+          };
+        }
+
+        // If response is a Response object, parse as before
         const data = await response.json();
-        console.log('✅ Raw Balance API Response:', JSON.stringify(data, null, 2));
-        console.log('✅ Raw gold_balance from API:', data.gold_balance, typeof data.gold_balance);
-        console.log('✅ Raw user from API:', data.user, typeof data.user);
-        console.log('✅ Raw username from API:', data.username);
-        
-        // Ensure gold_balance is a number
         let goldBalance = 0;
         if (typeof data.gold_balance === 'number') {
           goldBalance = data.gold_balance;
@@ -131,17 +124,10 @@ export const TransactionAPI = {
         } else {
           goldBalance = Number(data.gold_balance || 0);
         }
-        
-        console.log('✅ Processed gold balance:', goldBalance, typeof goldBalance);
-        
-        const result = {
+        return {
           ...data,
           gold_balance: goldBalance
         };
-        
-        console.log('✅ Final balance result:', JSON.stringify(result, null, 2));
-          
-        return result;
       } catch (parseError) {
         console.error('❌ Failed to parse balance response:', parseError);
         throw new Error('Invalid response format from balance API');

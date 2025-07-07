@@ -6,7 +6,6 @@ import type { User } from "@/lib/types"
 import { KYCVerificationModal } from '@/components/auth/kyc-verification-modal'
 import { TransactionAPI, Transaction } from '@/lib/api/transactions'
 import { PaymentAPI } from '@/lib/api/payments'
-import QRCode from 'qrcode'
 import { generateGCashQRData, getGCashConfig, validateGCashQR } from '@/lib/payment/gcash-qr'
 
 interface GoldSystemModalProps {

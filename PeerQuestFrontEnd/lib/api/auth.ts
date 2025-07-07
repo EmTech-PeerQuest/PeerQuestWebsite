@@ -1,3 +1,33 @@
+// --- fetchWithAuth utility for authenticated fetch requests ---
+export async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<any> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const headers = {
+    ...(options.headers || {}),
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+  };
+  const response = await fetch(url, { ...options, headers });
+  if (!response.ok) {
+    // Try to parse error details
+    let errorDetail = '';
+    try {
+      const data = await response.json();
+      errorDetail = data?.detail || '';
+    } catch {}
+    if (response.status === 401 || errorDetail.includes('token')) {
+      // Remove invalid tokens and redirect to login ONLY if a token was present
+      if (token && typeof window !== 'undefined') {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        window.location.href = '/';
+        throw new TokenInvalidError(errorDetail || 'Token not valid');
+      }
+      // If no token, just return null (no explicit error)
+      return null;
+    }
+    throw new Error(errorDetail || 'Request failed');
+  }
+  return response.json();
+}
 import axios from "axios";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";

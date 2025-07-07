@@ -129,4 +129,4 @@ Query Parameters Examples:
 - ?creator=1 - Filter by creator
 - ?search=python - Search in title/description
 - ?available_only=true - Only quests with available spots
-
+"""

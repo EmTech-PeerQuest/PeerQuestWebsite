@@ -21,7 +21,6 @@ interface NavbarProps {
   openPostQuestModal?: () => void
   openCreateGuildModal: () => void
   onQuestCreated?: () => void
-  activeSection?: string // Add this to receive the current active section
 }
 
 export function Navbar({
@@ -33,7 +32,6 @@ export function Navbar({
   openPostQuestModal,
   openCreateGuildModal,
   onQuestCreated,
-  activeSection = "",
 }: Omit<NavbarProps, 'currentUser'>) {
   const { user: currentUser } = useAuth(); // Use context directly
   const { t } = useTranslation();
@@ -77,21 +75,6 @@ export function Navbar({
     setUserDropdownOpen(false);
     setNotificationsOpen(false);
     setQuickActionsOpen(false);
-  }
-
-  const handleOpenQuestForm = () => {
-    setShowQuestForm(true)
-    setQuickActionsOpen(false)
-    setMobileMenuOpen(false)
-  }
-
-  const handleQuestFormSuccess = (quest: any) => {
-    setShowQuestForm(false)
-    // Call the callback to refresh quest board data silently
-    if (onQuestCreated) {
-      onQuestCreated()
-    }
-    // Don't navigate automatically - let user stay on current page
   }
 
   const handleOpenQuestForm = () => {
@@ -283,8 +266,8 @@ export function Navbar({
                       </div>
                       <button
                         onClick={() => {
-                          handleNavigation("profile")
-                          setUserDropdownOpen(false)
+                          router.push('/profile');
+                          setUserDropdownOpen(false);
                         }}
                         className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                       >
