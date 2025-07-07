@@ -1,0 +1,94 @@
+{% extends "admin/index.html" %}
+{% load i18n static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+.admin-stats {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+}
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+.stat-item {
+    background: white;
+    padding: 15px;
+    border-radius: 6px;
+    border-left: 4px solid #79aec8;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.stat-number {
+    font-size: 24px;
+    font-weight: bold;
+    color: #2c3e50;
+}
+.stat-label {
+    color: #7f8c8d;
+    font-size: 14px;
+    margin-top: 5px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% if custom_stats %}
+<div class="admin-stats">
+    <h2>PeerQuest Statistics</h2>
+    <div class="stat-grid">
+        <div class="stat-item">
+            <div class="stat-number">{{ custom_stats.total_users }}</div>
+            <div class="stat-label">Total Users</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">{{ custom_stats.active_users }}</div>
+            <div class="stat-label">Active Users</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">{{ custom_stats.staff_users }}</div>
+            <div class="stat-label">Staff Users</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">{{ custom_stats.total_quests }}</div>
+            <div class="stat-label">Total Quests</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">{{ custom_stats.open_quests }}</div>
+            <div class="stat-label">Open Quests</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">{{ custom_stats.completed_quests }}</div>
+            <div class="stat-label">Completed Quests</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">{{ custom_stats.total_applications }}</div>
+            <div class="stat-label">Total Applications</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">{{ custom_stats.pending_applications }}</div>
+            <div class="stat-label">Pending Applications</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">{{ custom_stats.total_participants }}</div>
+            <div class="stat-label">Total Participants</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">{{ custom_stats.active_participants }}</div>
+            <div class="stat-label">Active Participants</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">{{ custom_stats.total_categories }}</div>
+            <div class="stat-label">Quest Categories</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{{ block.super }}
+{% endblock %}

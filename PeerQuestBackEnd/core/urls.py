@@ -8,9 +8,9 @@ from django.conf.urls.static import static
 from django.views.generic import TemplateView
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.http import JsonResponse
+
 from django.utils import timezone
 from users.views import GoogleLoginCallbackView, EmailVerifiedTokenObtainPairView
-
 from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
@@ -25,6 +25,7 @@ schema_view = get_schema_view(
     permission_classes=(permissions.AllowAny,),
 )
 
+
 def csrf(request):
     return JsonResponse({'csrfToken': request.META.get('CSRF_COOKIE', '')})
 
@@ -36,16 +37,22 @@ urlpatterns = [
     path('api/token/', EmailVerifiedTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
+
     # Users app
     path('api/users/', include('users.urls')),
     # PeerQuest frontend user list endpoint (direct, not nested)
     path('api/users/', __import__('users.views').views.UserListForFrontendView.as_view(), name='frontend-user-list'),
-    
     # Direct Google login callback for /api/google-login-callback/
     path('api/google-login-callback/', GoogleLoginCallbackView.as_view(), name='google-login-callback'),
     # Quests and Guilds APIs
     path('api/quests/', include('quests.urls')),
     path('api/guilds/', include('guilds.urls')),
+    # Applications API
+    path('api/', include('applications.urls')),
+    # Transactions API
+    path('api/transactions/', include('transactions.urls')),
+    # Payments API
+    path('api/payments/', include('payments.urls')),
 
     # API Docs (Swagger + Redoc)
     path('docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),

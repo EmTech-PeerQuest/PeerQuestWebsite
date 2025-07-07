@@ -22,7 +22,7 @@ export function GoldPurchaseModal({ isOpen, onClose, currentUser, setCurrentUser
 
     setCurrentUser((prev) => ({
       ...prev,
-      gold: prev.gold + amount,
+      gold: (prev.gold || 0) + amount,
     }))
 
     onClose()

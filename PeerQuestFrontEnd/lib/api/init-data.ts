@@ -14,6 +14,8 @@ export async function fetchInitialData() {
         quests: [],
         guilds: [],
         guildApplications: []
+        guilds: [],
+        guildApplications: []
       }
     }
 
@@ -39,6 +41,13 @@ export async function fetchInitialData() {
       guildApplications: [] // update if you have this endpoint
     }
   } catch (error: any) {
+    const detail = error?.response?.data?.detail || "";
+    if (
+      error?.response?.status === 401 &&
+      (detail.includes("token not valid") || detail.includes("token has expired") || detail.includes("credentials were not provided"))
+    ) {
+      throw new TokenInvalidError(detail || "Token not valid");
+    }
     const detail = error?.response?.data?.detail || "";
     if (
       error?.response?.status === 401 &&

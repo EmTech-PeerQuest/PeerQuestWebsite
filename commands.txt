@@ -27,14 +27,16 @@ npm install <package-name>
 # Create and activate virtual environment
 py -m venv venv
 .\venv\Scripts\activate
-# Upgrade pip and install all dependencies from requirements.txt
-python.exe -m pip install --upgrade pip
 pip install -r requirements.txt
-# To add new dependencies, use:
-# pip install <package-name>
-# Then update requirements.txt:
-# pip freeze > requirements.txt
-# Run the Django server
+python.exe -m pip install --upgrade pip
+pip install django
+pip install djangorestframework
+pip install django-cors-headers
+pip install drf-yasg
+pip install django-oauth-toolkit
+pip install drf-social-oauth2
+pip install google-auth
+pip install Pillow
 py manage.py runserver
 
 

@@ -1,3 +1,4 @@
+
 from pathlib import Path
 import os
 from dotenv import load_dotenv
@@ -10,7 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'your-secret-key'
 DEBUG = True
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
 
 # Installed Apps
 INSTALLED_APPS = [
@@ -20,9 +21,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'quests.apps.QuestsConfig',
     'drf_yasg',
-
-    # Your apps
     'users',
     'quests',
     'guilds',
@@ -30,13 +30,11 @@ INSTALLED_APPS = [
     'messaging',
     'applications',
     'xp',
-
-    # DRF and tools
+    'payments',
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
-
     'django_filters',
 ]
 
@@ -45,14 +43,14 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.locale.LocaleMiddleware',  # Add locale middleware for i18n
+    'django.middleware.locale.LocaleMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'users.token_middleware.TokenBlacklistMiddleware',  # Token blacklist check
-    'users.middleware.JWTAuthMiddleware',  # <-- moved above AuthenticationMiddleware
+    'users.token_middleware.TokenBlacklistMiddleware',
+    'users.middleware.JWTAuthMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'users.email_verification_middleware.EmailVerificationMiddleware',  # Email verification check
+    'users.email_verification_middleware.EmailVerificationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -196,7 +194,7 @@ AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',              # Default Django
 )
 
-# DRF Settings
+# DRF Settings - Session Authentication only
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -205,6 +203,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.AllowAny",
     ),
+    'EXCEPTION_HANDLER': 'core.exception_handler.custom_exception_handler',
 }
 
 AUTH_USER_MODEL = "users.user"
@@ -226,9 +225,18 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://localhost:3002",
+    "http://127.0.0.1:3002",
+    "http://localhost:3003",
+    "http://127.0.0.1:3003",
 ]
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'X-Requested-With',
+    'Authorization',
+    'Cache-Control',
+    'Pragma',
 ]
 CORS_ALLOW_METHODS = [
     "DELETE",

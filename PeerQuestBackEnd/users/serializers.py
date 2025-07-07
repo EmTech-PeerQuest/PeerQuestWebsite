@@ -42,6 +42,20 @@ class UserInfoUpdateSerializer(serializers.ModelSerializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source='get_role_display_name', read_only=True)
     role_level = serializers.IntegerField(read_only=True)
+    gold_balance = serializers.SerializerMethodField()
+    
+    def get_gold_balance(self, obj):
+        """Get gold balance from UserBalance model (source of truth)"""
+        try:
+            from transactions.models import UserBalance
+            user_balance = UserBalance.objects.get(user=obj)
+            return float(user_balance.gold_balance)
+        except UserBalance.DoesNotExist:
+            # Create UserBalance if it doesn't exist
+            from transactions.models import UserBalance
+            from decimal import Decimal
+            UserBalance.objects.create(user=obj, gold_balance=Decimal('0.00'))
+            return 0.0
     
     class Meta:
         model = User

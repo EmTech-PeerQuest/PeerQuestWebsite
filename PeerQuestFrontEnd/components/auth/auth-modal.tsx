@@ -19,27 +19,15 @@ interface AuthModalProps {
   mode: "login" | "register" | "forgot"
   setMode: (mode: "login" | "register" | "forgot") => void
   onClose: () => void
-  onLogin: (credentials: { username: string; password: string; rememberMe?: boolean }) => void
-  onRegister: (userData: { 
-    username: string; 
-    email: string; 
-    password: string; 
-    confirmPassword: string;
-    birthday?: string | null;
-    gender?: string | null;
-  }) => void
+  onLogin: (credentials: { email: string; password: string }) => void
+  onRegister: (userData: { username: string; email: string; password: string; confirmPassword: string }) => void
   onForgotPassword?: (email: string) => void
 }
 
 export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister, onForgotPassword }: AuthModalProps) {
-  const [showLoginPassword, setShowLoginPassword] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
-  const [authLoading, setAuthLoading] = useState(false)
-  const [showProfileCompletion, setShowProfileCompletion] = useState(false)
-  const [isProcessingLogin, setIsProcessingLogin] = useState(false) // Track if we're in the middle of login
-  const [userIsInteracting, setUserIsInteracting] = useState(false) // Track if user is actively interacting
-  const [showResendVerification, setShowResendVerification] = useState(false) // Track if we need to show resend verification
 
   const [loginForm, setLoginForm] = useState({
     username: "",
@@ -266,154 +254,29 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
     return Object.keys(errors).length === 0
   }
 
-  const handleLogin = async (e?: React.FormEvent) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
+  const handleLogin = () => {
     if (validateLoginForm()) {
-      setIsProcessingLogin(true)
-      setAuthLoading(true)
-      setFormErrors({})
-      
-      let timeoutId: NodeJS.Timeout | null = null;
-      
-      try {
-        // Set a timeout to prevent hanging
-        timeoutId = setTimeout(() => {
-          setAuthLoading(false);
-          setFormErrors({ auth: "Login request timed out. Please try again." });
-        }, 15000); // 15 second timeout
-        
-        await onLogin({
-          username: loginForm.username,
-          password: loginForm.password,
-          rememberMe: loginForm.rememberMe,
-        })
-        
-        // Clear timeout if successful
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
-        }
-        
-      } catch (err: any) {
-        // Clear timeout if error occurred
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-          timeoutId = null;
-        }
-        
-        // Prevent any default actions that might cause a refresh
-        if (e) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-        
-        // Check if it's an email verification error
-        if (err?.response?.data?.verification_required || 
-            err?.message?.toLowerCase().includes('verify') ||
-            err?.message?.toLowerCase().includes('verification')) {
-          setFormErrors({ 
-            auth: "Please verify your email address before logging in. Check your inbox for the verification email, or enter your email below to resend it."
-          });
-          setShowResendVerification(true);
-        } else {
-          // Extract error message from different possible error structures
-          let errorMessage = "Login failed. Please try again.";
-          
-          if (err?.message) {
-            errorMessage = err.message;
-          } else if (err?.response?.data?.detail) {
-            errorMessage = err.response.data.detail;
-          } else if (err?.response?.data?.message) {
-            errorMessage = err.response.data.message;
-          }
-          
-          setFormErrors({ auth: errorMessage });
-          setShowResendVerification(false);
-        }
-        
-        // Explicitly prevent any page refresh or redirect
-        return false;
-      } finally {
-        // Always clear timeout and reset loading state
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
-        setIsProcessingLogin(false)
-        setAuthLoading(false)
-      }
+      onLogin({
+        email: loginForm.email,
+        password: loginForm.password,
+      })
     }
   }
 
-  const handleRegister = async (e?: React.FormEvent) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
+  const handleRegister = () => {
     if (validateRegisterForm()) {
-      setAuthLoading(true)
-      setFormErrors({})
-      try {
-        // Format birthday as YYYY-MM-DD for backend
-        let formattedBirthday = null;
-        if (registerForm.birthday.year && registerForm.birthday.month && registerForm.birthday.day) {
-          formattedBirthday = `${registerForm.birthday.year}-${registerForm.birthday.month.padStart(2, '0')}-${registerForm.birthday.day.padStart(2, '0')}`;
-        }
-        
-        await onRegister({
-          username: registerForm.username,
-          email: registerForm.email,
-          password: registerForm.password,
-          confirmPassword: registerForm.confirmPassword,
-          birthday: formattedBirthday,
-          gender: registerForm.gender || null,
-        })
-        
-      } catch (err: any) {
-        // The API layer already handles error parsing and provides clean messages
-        const errorMessage = err?.message || "Registration failed. Please try again.";
-        
-        // Check if this is a password-related error
-        if (errorMessage.includes('Password error:') || errorMessage.includes('password')) {
-          setFormErrors({ password: errorMessage.replace('Password error: ', '') });
-        } else if (errorMessage.includes('Username error:') || errorMessage.includes('username')) {
-          setFormErrors({ username: errorMessage.replace('Username error: ', '') });
-        } else if (errorMessage.includes('Email error:') || errorMessage.includes('email')) {
-          setFormErrors({ email: errorMessage.replace('Email error: ', '') });
-        } else {
-          setFormErrors({ auth: errorMessage });
-        }
-      } finally {
-        setAuthLoading(false)
-      }
+      onRegister({
+        username: registerForm.username,
+        email: registerForm.email,
+        password: registerForm.password,
+        confirmPassword: registerForm.confirmPassword,
+      })
     }
   }
 
-  const handleForgotPassword = async () => {
-    if (validateForgotForm()) {
-      setAuthLoading(true);
-      setFormErrors({});
-      
-      try {
-        await forgotPassword(forgotForm.email);
-        
-        // Show success message
-        setFormErrors({ 
-          auth: `Password reset email sent to ${forgotForm.email}. Please check your inbox and follow the instructions to reset your password.`
-        });
-        
-        // Clear the form
-        setForgotForm({ email: "" });
-        
-      } catch (err: any) {
-        // The API layer already handles error parsing and provides clean messages
-        const errorMessage = err?.message || "Failed to send password reset email. Please try again.";
-        setFormErrors({ auth: errorMessage });
-      } finally {
-        setAuthLoading(false);
-      }
+  const handleForgotPassword = () => {
+    if (validateForgotForm() && onForgotPassword) {
+      onForgotPassword(forgotForm.email)
     }
   }
 
@@ -467,595 +330,367 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   }
 
   return (
-    <>
-      {/* Aesthetic loading overlay on top of modal */}
-      {authLoading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="relative flex flex-col items-center justify-center px-8 py-8 rounded-2xl shadow-2xl bg-gradient-to-br from-[#F4F0E6]/80 to-[#CDAA7D]/80 border border-[#8B75AA]/30">
-            <div className="relative mb-4">
-              <div className="w-16 h-16 rounded-full border-4 border-[#8B75AA] border-t-transparent animate-spin-slow bg-gradient-to-tr from-[#CDAA7D] to-[#8B75AA] opacity-80 shadow-lg"></div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-3xl font-extrabold text-[#8B75AA] drop-shadow-lg">🍺</span>
-              </div>
-            </div>
-            <div className="text-xl font-bold text-[#2C1A1D] mb-1 tracking-wide drop-shadow">PeerQuest Tavern</div>
-            <div className="text-[#8B75AA] text-base font-medium animate-pulse">
-              {mode === "login" ? "Logging in..." : mode === "register" ? "Registering..." : "Processing..."}
-            </div>
-          </div>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-[#F4F0E6] rounded-lg w-full max-w-md relative max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="bg-[#CDAA7D] px-6 py-4 rounded-t-lg flex justify-between items-center sticky top-0 z-10">
+          <h2 className="text-xl font-bold text-[#2C1A1D]">
+            {mode === "login" ? "Enter the Tavern" : mode === "register" ? "Join the Tavern" : "Recover Your Password"}
+          </h2>
+          <button onClick={onClose} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
+            <X size={20} />
+          </button>
         </div>
-      )}
-      {/* Modal content (z-40 so loading overlay is above) */}
-      <div 
-        className="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-30 backdrop-blur-sm"
-        onClick={(e) => {
-          // Only close if the click is directly on the backdrop, not during text selection, and user is not actively interacting
-          if (e.target === e.currentTarget && !window.getSelection()?.toString() && !userIsInteracting) {
-            onClose();
-          }
-        }}
-        onMouseDown={(e) => {
-          // Prevent modal from closing during text selection
-          if (e.target !== e.currentTarget) {
-            e.stopPropagation();
-          }
-        }}
-      >
-        <div 
-          className="bg-[#F4F0E6] rounded-lg w-full max-w-md relative max-h-[90vh] overflow-y-auto"
-          onClick={(e) => {
-            e.stopPropagation();
-          }}
-          onMouseDown={(e) => {
-            // Prevent any mouse events from bubbling up to the backdrop
-            e.stopPropagation();
-          }}
-          onMouseUp={(e) => {
-            // Prevent any mouse events from bubbling up to the backdrop
-            e.stopPropagation();
-          }}
-        >
-          {/* Header */}
-          <div className="bg-[#CDAA7D] px-6 py-4 rounded-t-lg flex justify-between items-center sticky top-0 z-10">
-            <h2 className="text-xl font-bold text-[#2C1A1D]">
-              {mode === "login" ? "Enter the Tavern" : mode === "register" ? "Join the Tavern" : "Recover Your Password"}
-            </h2>
-            <button onClick={onClose} type="button" className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
-              <X size={20} />
+
+        {/* Tabs for Login/Register */}
+        {mode !== "forgot" && (
+          <div className="flex border-b border-[#CDAA7D]">
+            <button
+              onClick={() => {
+                setMode("login")
+                setFormErrors({})
+              }}
+              className={`flex-1 py-3 text-center font-medium transition-colors ${
+                mode === "login" ? "text-[#2C1A1D] border-b-2 border-[#2C1A1D]" : "text-[#8B75AA] hover:text-[#2C1A1D]"
+              }`}
+            >
+              LOGIN
+            </button>
+            <button
+              onClick={() => {
+                setMode("register")
+                setFormErrors({})
+              }}
+              className={`flex-1 py-3 text-center font-medium transition-colors ${
+                mode === "register"
+                  ? "text-[#2C1A1D] border-b-2 border-[#2C1A1D]"
+                  : "text-[#8B75AA] hover:text-[#2C1A1D]"
+              }`}
+            >
+              REGISTER
             </button>
           </div>
+        )}
 
-          {/* Tabs for Login/Register */}
-          {mode !== "forgot" && (
-            <div className="flex border-b border-[#CDAA7D]">
-              <button
-                type="button"
-                onClick={() => {
-                  setMode("login")
-                  setFormErrors({})
-                  setShowResendVerification(false)
-                }}
-                className={`flex-1 py-3 text-center font-medium transition-colors ${
-                  mode === "login" ? "text-[#2C1A1D] border-b-2 border-[#2C1A1D]" : "text-[#8B75AA] hover:text-[#2C1A1D]"
-                }`}
-              >
-                LOGIN
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMode("register")
-                  setFormErrors({})
-                  setShowResendVerification(false)
-                }}
-                className={`flex-1 py-3 text-center font-medium transition-colors ${
-                  mode === "register"
-                    ? "text-[#2C1A1D] border-b-2 border-[#2C1A1D]"
-                    : "text-[#8B75AA] hover:text-[#2C1A1D]"
-                }`}
-              >
-                REGISTER
-              </button>
+        {/* Form Content */}
+        <div className="p-6 space-y-4">
+          {formErrors.auth && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded flex items-center">
+              <AlertCircle size={16} className="mr-2" />
+              <span>{formErrors.auth}</span>
             </div>
           )}
 
-          {/* Form Content */}
-          <div 
-            className="p-6 space-y-5"
-            onMouseEnter={() => setUserIsInteracting(true)}
-            onMouseLeave={() => setUserIsInteracting(false)}
-            onFocus={() => setUserIsInteracting(true)}
-            onBlur={(e) => {
-              // Only set to false if focus is leaving the entire form area
-              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                setUserIsInteracting(false);
-              }
-            }}
-          >
-            {formErrors.auth && (
-              <div className={`px-4 py-3 rounded flex items-center ${
-                formErrors.auth.includes('sent') || formErrors.auth.includes('check your inbox')
-                  ? 'bg-green-100 border border-green-400 text-green-700'
-                  : 'bg-red-100 border border-red-400 text-red-700'
-              }`}>
-                <AlertCircle size={16} className="mr-2" />
-                {formErrors.auth.includes('\n') ? (
-                  <ul className="list-disc pl-4">
-                    {formErrors.auth.split('\n').map((line, idx) => (
-                      <li key={idx}>{line}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <span>{formErrors.auth}</span>
+          {mode === "login" && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">EMAIL</label>
+                <input
+                  type="email"
+                  className={`w-full px-3 py-2 border ${
+                    formErrors.email ? "border-red-500" : "border-[#CDAA7D]"
+                  } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
+                  placeholder="ENTER YOUR EMAIL"
+                  value={loginForm.email}
+                  onChange={(e) => setLoginForm((prev) => ({ ...prev, email: e.target.value }))}
+                />
+                {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">PASSWORD</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    className={`w-full px-3 py-2 border ${
+                      formErrors.password ? "border-red-500" : "border-[#CDAA7D]"
+                    } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
+                    placeholder="••••••••"
+                    value={loginForm.password}
+                    onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#8B75AA]"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {formErrors.password && <p className="text-red-500 text-xs mt-1">{formErrors.password}</p>}
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="remember-me"
+                  checked={loginForm.rememberMe}
+                  onChange={(e) => setLoginForm((prev) => ({ ...prev, rememberMe: e.target.checked }))}
+                  className="w-4 h-4 text-[#8B75AA] border-[#CDAA7D] rounded focus:ring-[#8B75AA]"
+                />
+                <label htmlFor="remember-me" className="ml-2 text-sm text-[#2C1A1D]">
+                  REMEMBER ME
+                </label>
+              </div>
+              <button
+                onClick={handleLogin}
+                className="w-full bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
+              >
+                LOGIN
+              </button>
+              <div className="text-center">
+                <button
+                  onClick={() => {
+                    setMode("forgot")
+                    setFormErrors({})
+                  }}
+                  className="text-[#8B75AA] hover:underline text-sm"
+                >
+                  FORGOT PASSWORD?
+                </button>
+              </div>
+              <div className="text-center text-[#8B75AA] text-sm">OR LOGIN WITH</div>
+              <button className="w-full border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors flex items-center justify-center gap-2">
+                <span className="text-lg">G</span>
+                CONTINUE WITH GOOGLE
+              </button>
+            </>
+          )}
+
+          {mode === "register" && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">USERNAME</label>
+                <input
+                  type="text"
+                  className={`w-full px-3 py-2 border ${
+                    formErrors.username ? "border-red-500" : "border-[#CDAA7D]"
+                  } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
+                  placeholder="CHOOSE A USERNAME"
+                  value={registerForm.username}
+                  onChange={(e) => setRegisterForm((prev) => ({ ...prev, username: e.target.value }))}
+                />
+                {formErrors.username && <p className="text-red-500 text-xs mt-1">{formErrors.username}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">EMAIL</label>
+                <input
+                  type="email"
+                  className={`w-full px-3 py-2 border ${
+                    formErrors.email ? "border-red-500" : "border-[#CDAA7D]"
+                  } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
+                  placeholder="ENTER YOUR EMAIL"
+                  value={registerForm.email}
+                  onChange={(e) => setRegisterForm((prev) => ({ ...prev, email: e.target.value }))}
+                />
+                {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">PASSWORD</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    className={`w-full px-3 py-2 border ${
+                      formErrors.password ? "border-red-500" : "border-[#CDAA7D]"
+                    } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
+                    placeholder="CREATE A PASSWORD"
+                    value={registerForm.password}
+                    onChange={(e) => setRegisterForm((prev) => ({ ...prev, password: e.target.value }))}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#8B75AA]"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {formErrors.password && <p className="text-red-500 text-xs mt-1">{formErrors.password}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">CONFIRM PASSWORD</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    className={`w-full px-3 py-2 border ${
+                      formErrors.confirmPassword ? "border-red-500" : "border-[#CDAA7D]"
+                    } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
+                    placeholder="CONFIRM YOUR PASSWORD"
+                    value={registerForm.confirmPassword}
+                    onChange={(e) => setRegisterForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#8B75AA]"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {formErrors.confirmPassword && (
+                  <p className="text-red-500 text-xs mt-1">{formErrors.confirmPassword}</p>
                 )}
               </div>
-            )}
 
-            {mode === "login" && (
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                return false;
-              }}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-[#2C1A1D] mb-2">USERNAME</label>
-                    <input
-                      type="text"
-                      className={`w-full px-3 py-2 border ${
-                        formErrors.username ? "border-red-500" : "border-[#CDAA7D]"
-                      } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                      placeholder="ENTER YOUR USERNAME"
-                      value={loginForm.username}
-                      onChange={(e) => setLoginForm((prev) => ({ ...prev, username: e.target.value }))}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleLogin(e);
-                          return false;
-                        }
-                      }}
-                    />
-                    {formErrors.username && <p className="text-red-500 text-xs mt-1">{formErrors.username}</p>}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-[#2C1A1D] mb-2">PASSWORD</label>
-                    <div className="relative">
-                      <input
-                        type={showLoginPassword ? "text" : "password"}
-                        className={`w-full px-3 py-2 border ${
-                          formErrors.password ? "border-red-500" : "border-[#CDAA7D]"
-                        } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                        placeholder="••••••••"
-                        value={loginForm.password}
-                        onChange={(e) => setLoginForm((prev) => ({ ...prev, password: e.target.value }))}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleLogin(e);
-                            return false;
-                          }
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#8B75AA]"
-                        onClick={() => setShowLoginPassword(!showLoginPassword)}
-                      >
-                        {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
-                    {formErrors.password && <p className="text-red-500 text-xs mt-1">{formErrors.password}</p>}
-                  </div>
-
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="remember-me"
-                      checked={loginForm.rememberMe}
-                      onChange={(e) => setLoginForm((prev) => ({ ...prev, rememberMe: e.target.checked }))}
-                      className="w-4 h-4 text-[#8B75AA] border-[#CDAA7D] rounded focus:ring-[#8B75AA]"
-                    />
-                    <label htmlFor="remember-me" className="ml-2 text-sm text-[#2C1A1D]">
-                      REMEMBER ME
-                    </label>
-                  </div>
-                </div>
-
-                <div className="mt-6 space-y-4">
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleLogin(e);
-                      return false;
-                    }}
-                    type="button"
-                    className="w-full bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
+              <div>
+                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">BIRTHDAY</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <select
+                    className={`px-3 py-2 border ${
+                      formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"
+                    } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
+                    value={registerForm.birthday.month}
+                    onChange={(e) =>
+                      setRegisterForm((prev) => ({
+                        ...prev,
+                        birthday: { ...prev.birthday, month: e.target.value },
+                      }))
+                    }
                   >
-                    LOGIN
+                    <option value="">Month</option>
+                    {generateMonthOptions()}
+                  </select>
+
+                  <select
+                    className={`px-3 py-2 border ${
+                      formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"
+                    } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
+                    value={registerForm.birthday.day}
+                    onChange={(e) =>
+                      setRegisterForm((prev) => ({
+                        ...prev,
+                        birthday: { ...prev.birthday, day: e.target.value },
+                      }))
+                    }
+                  >
+                    <option value="">Day</option>
+                    {generateDayOptions()}
+                  </select>
+
+                  <select
+                    className={`px-3 py-2 border ${
+                      formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"
+                    } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
+                    value={registerForm.birthday.year}
+                    onChange={(e) =>
+                      setRegisterForm((prev) => ({
+                        ...prev,
+                        birthday: { ...prev.birthday, year: e.target.value },
+                      }))
+                    }
+                  >
+                    <option value="">Year</option>
+                    {generateYearOptions()}
+                  </select>
+                </div>
+                {formErrors.birthday && <p className="text-red-500 text-xs mt-1">{formErrors.birthday}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">GENDER (OPTIONAL)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    className={`py-2 border ${
+                      registerForm.gender === "male" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#2C1A1D]"
+                    } rounded font-medium transition-colors flex items-center justify-center`}
+                    onClick={() => setRegisterForm((prev) => ({ ...prev, gender: "male" }))}
+                  >
+                    <span className="mr-2">♂</span>
+                    MALE
                   </button>
 
-                  <div className="text-center">
-                    <button
-                      onClick={() => {
-                        setMode("forgot")
-                        setFormErrors({})
-                        setShowResendVerification(false)
-                      }}
-                      type="button"
-                      className="text-[#8B75AA] hover:underline text-sm"
-                    >
-                      FORGOT PASSWORD?
-                    </button>
-                  </div>
-
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-[#CDAA7D]"></div>
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                      <span className="px-2 bg-[#F4F0E6] text-[#8B75AA]">OR LOGIN WITH</span>
-                    </div>
-                  </div>
-
-                  <div className="w-full flex items-center justify-center">
-                    <GoogleAuthButton
-                      onLoginSuccess={async (data: any) => {
-                        try {
-                          // Store tokens and user info from backend response
-                          if (data?.access) localStorage.setItem('access_token', data.access);
-                          if (data?.refresh) localStorage.setItem('refresh_token', data.refresh);
-                          // If backend returned a user object, update context and redirect
-                          if (data?.user) {
-                            // Google login always acts like "remember me" - store refresh token in localStorage
-                            onClose();
-                            // For Google auth, always refresh the page to ensure proper state sync
-                            window.location.reload();
-                          } else if (data?.access && typeof window !== 'undefined') {
-                            // Instead of forcing a reload, close modal and refresh for Google auth
-                            onClose();
-                            window.location.reload();
-                          } else {
-                            setFormErrors({ auth: "Google login failed. Please try again." });
-                          }
-                        } catch (err: any) {
-                          setFormErrors({ auth: "Google login failed. Please try again." });
-                        }
-                      }}
-                      onShowProfileCompletion={() => {
-                        onClose();
-                        setShowProfileCompletion(true);
-                      }}
-                    />
-                  </div>
-
-                  {/* Show resend verification component if needed */}
-                  {showResendVerification && (
-                    <div className="mt-4">
-                      <ResendVerification 
-                        email={loginForm.username.includes('@') ? loginForm.username : ''}
-                        onSuccess={() => {
-                          setShowResendVerification(false);
-                          setFormErrors({ auth: "Verification email sent! Please check your inbox and click the verification link, then try logging in again." });
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-              </form>
-            )}
-
-            {mode === "register" && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">USERNAME</label>
-                  <input
-                    type="text"
-                    className={`w-full px-3 py-2 border ${
-                      formErrors.username ? "border-red-500" : "border-[#CDAA7D]"
-                    } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                    placeholder="CHOOSE A USERNAME"
-                    value={registerForm.username}
-                    onChange={(e) => {
-                      setRegisterForm((prev) => ({ ...prev, username: e.target.value }))
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleRegister(e);
-                      }
-                    }}
-                  />
-                  {formErrors.username && <p className="text-red-500 text-xs mt-1">{formErrors.username}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">EMAIL</label>
-                  <input
-                    type="email"
-                    className={`w-full px-3 py-2 border ${
-                      formErrors.email ? "border-red-500" : 
-                      registerForm.email && !validateEmail(registerForm.email) ? "border-orange-500" :
-                      registerForm.email && validateEmail(registerForm.email) ? "border-green-500" :
-                      "border-[#CDAA7D]"
-                    } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                    placeholder="ENTER YOUR EMAIL"
-                    value={registerForm.email}
-                    onChange={(e) => {
-                      const emailValue = e.target.value;
-                      setRegisterForm((prev) => ({ ...prev, email: emailValue }));
-                      
-                      // Clear email error when user starts typing a valid email
-                      if (formErrors.email && emailValue && validateEmail(emailValue)) {
-                        setFormErrors((prev) => {
-                          const newErrors = { ...prev };
-                          delete newErrors.email;
-                          return newErrors;
-                        });
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleRegister(e);
-                      }
-                    }}
-                  />
-                  {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
-                  {!formErrors.email && registerForm.email && !validateEmail(registerForm.email) && (
-                    <p className="text-orange-500 text-xs mt-1">Please enter a valid email address</p>
-                  )}
-                  {!formErrors.email && registerForm.email && validateEmail(registerForm.email) && (
-                    <p className="text-green-500 text-xs mt-1">✓ Valid email format</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">PASSWORD</label>
-                  <PasswordInputWithStrength
-                    password={registerForm.password}
-                    onPasswordChange={(password) => setRegisterForm((prev) => ({ ...prev, password }))}
-                    username={registerForm.username}
-                    email={registerForm.email}
-                    placeholder="CREATE A PASSWORD"
-                    className={`${
-                      formErrors.password ? "border-red-500" : "border-[#CDAA7D]"
-                    } bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                  />
-                  {formErrors.password && <p className="text-red-500 text-xs mt-1">{formErrors.password}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">CONFIRM PASSWORD</label>
-                  <div className="relative">
-                    <input
-                      type={showConfirmPassword ? "text" : "password"}
-                      className={`w-full px-3 py-2 border ${
-                        formErrors.confirmPassword ? "border-red-500" : "border-[#CDAA7D]"
-                      } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                      placeholder="CONFIRM YOUR PASSWORD"
-                      value={registerForm.confirmPassword}
-                      onChange={(e) => setRegisterForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleRegister(e);
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#8B75AA]"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    >
-                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  {formErrors.confirmPassword && (
-                    <p className="text-red-500 text-xs mt-1">{formErrors.confirmPassword}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">BIRTHDAY</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <select
-                      className={`px-3 py-2 border ${
-                        formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"
-                      } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
-                      value={registerForm.birthday.month}
-                      onChange={(e) => {
-                        setRegisterForm((prev) => ({
-                          ...prev,
-                          birthday: { ...prev.birthday, month: e.target.value },
-                        }));
-                      }}
-                    >
-                      <option value="">Month</option>
-                      {generateMonthOptions()}
-                    </select>
-
-                    <select
-                      className={`px-3 py-2 border ${
-                        formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"
-                      } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
-                      value={registerForm.birthday.day}
-                      onChange={(e) => {
-                        setRegisterForm((prev) => ({
-                          ...prev,
-                          birthday: { ...prev.birthday, day: e.target.value },
-                        }));
-                      }}
-                    >
-                      <option value="">Day</option>
-                      {generateDayOptions()}
-                    </select>
-
-                    <select
-                      className={`px-3 py-2 border ${
-                        formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"
-                      } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
-                      value={registerForm.birthday.year}
-                      onChange={(e) => {
-                        setRegisterForm((prev) => ({
-                          ...prev,
-                          birthday: { ...prev.birthday, year: e.target.value },
-                        }));
-                      }}
-                    >
-                      <option value="">Year</option>
-                      {generateYearOptions()}
-                    </select>
-                  </div>
-                  {formErrors.birthday && <p className="text-red-500 text-xs mt-1">{formErrors.birthday}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">GENDER (OPTIONAL)</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      className={`py-2 border ${
-                        registerForm.gender === "male" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#2C1A1D]"
-                      } rounded font-medium transition-colors flex items-center justify-center`}
-                      onClick={() => setRegisterForm((prev) => ({ ...prev, gender: "male" }))}
-                    >
-                      <span className="mr-2">♂</span>
-                      MALE
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`py-2 border ${
-                        registerForm.gender === "female" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#2C1A1D]"
-                      } rounded font-medium transition-colors flex items-center justify-center`}
-                      onClick={() => setRegisterForm((prev) => ({ ...prev, gender: "female" }))}
-                    >
-                      <span className="mr-2">♀</span>
-                      FEMALE
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`py-2 border ${
-                        registerForm.gender === "prefer-not-to-say" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#2C1A1D]"
-                      } rounded font-medium transition-colors flex items-center justify-center text-xs`}
-                      onClick={() => setRegisterForm((prev) => ({ ...prev, gender: "prefer-not-to-say" }))}
-                    >
-                      <span className="mr-1">🤐</span>
-                      PREFER NOT TO SAY
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-start">
-                  <div className="flex items-center h-5 mt-1">
-                    <input
-                      id="terms"
-                      type="checkbox"
-                      className={`w-4 h-4 text-[#8B75AA] border ${
-                        formErrors.agreeToTerms ? "border-red-500" : "border-[#CDAA7D]"
-                      } rounded focus:ring-[#8B75AA]`}
-                      checked={registerForm.agreeToTerms}
-                      onChange={(e) => {
-                        setRegisterForm((prev) => ({ ...prev, agreeToTerms: e.target.checked }))
-                      }}
-                    />
-                  </div>
-                  <label htmlFor="terms" className="ml-2 text-sm text-[#8B75AA] leading-relaxed">
-                    BY CLICKING SIGN UP, YOU ARE AGREEING TO THE <span className="underline">TERMS OF USE</span> AND{" "}
-                    <span className="underline">PRIVACY POLICY</span>.
-                  </label>
-                </div>
-                {formErrors.agreeToTerms && <p className="text-red-500 text-xs">{formErrors.agreeToTerms}</p>}
-
-                <div className="pt-2">
                   <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleRegister(e);
-                    }}
-                    className="w-full bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
                     type="button"
+                    className={`py-2 border ${
+                      registerForm.gender === "female" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#2C1A1D]"
+                    } rounded font-medium transition-colors flex items-center justify-center`}
+                    onClick={() => setRegisterForm((prev) => ({ ...prev, gender: "female" }))}
                   >
-                    REGISTER
+                    <span className="mr-2">♀</span>
+                    FEMALE
                   </button>
                 </div>
               </div>
-            )}
 
-            {mode === "forgot" && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">EMAIL ADDRESS</label>
+              <div className="flex items-start">
+                <div className="flex items-center h-5">
                   <input
-                    type="email"
-                    className={`w-full px-3 py-2 border ${
-                      formErrors.email ? "border-red-500" : "border-[#CDAA7D]"
-                    } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                    placeholder="ENTER YOUR REGISTERED EMAIL"
-                    value={forgotForm.email}
-                    onChange={(e) => setForgotForm((prev) => ({ ...prev, email: e.target.value }))}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleForgotPassword();
-                      }
-                    }}
+                    id="terms"
+                    type="checkbox"
+                    className={`w-4 h-4 text-[#8B75AA] border ${
+                      formErrors.agreeToTerms ? "border-red-500" : "border-[#CDAA7D]"
+                    } rounded focus:ring-[#8B75AA]`}
+                    checked={registerForm.agreeToTerms}
+                    onChange={(e) => setRegisterForm((prev) => ({ ...prev, agreeToTerms: e.target.checked }))}
                   />
-                  {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
                 </div>
-
-                <div className="bg-[#8B75AA]/10 border border-[#8B75AA]/20 rounded-lg p-4">
-                  <p className="text-sm text-[#8B75AA] leading-relaxed">
-                    ENTER YOUR EMAIL ADDRESS AND WE'LL SEND YOU A LINK TO RESET YOUR PASSWORD.
-                  </p>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode("login")
-                      setFormErrors({})
-                      setShowResendVerification(false)
-                    }}
-                    className="flex-1 border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors"
-                  >
-                    CANCEL
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleForgotPassword}
-                    disabled={authLoading}
-                    className="flex-1 bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {authLoading ? "SENDING..." : "SEND RESET LINK"}
-                  </button>
-                </div>
+                <label htmlFor="terms" className="ml-2 text-sm text-[#8B75AA]">
+                  BY CLICKING SIGN UP, YOU ARE AGREEING TO THE <span className="underline">TERMS OF USE</span> AND{" "}
+                  <span className="underline">PRIVACY POLICY</span>.
+                </label>
               </div>
-            )}
-          </div>
+              {formErrors.agreeToTerms && <p className="text-red-500 text-xs">{formErrors.agreeToTerms}</p>}
+
+              <button
+                onClick={handleRegister}
+                className="w-full bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
+              >
+                REGISTER
+              </button>
+
+              <div className="text-center text-[#8B75AA] text-sm">OR REGISTER WITH</div>
+              <button className="w-full border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors flex items-center justify-center gap-2">
+                <span className="text-lg">G</span>
+                CONTINUE WITH GOOGLE
+              </button>
+            </>
+          )}
+
+          {mode === "forgot" && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-[#2C1A1D] mb-2">EMAIL ADDRESS</label>
+                <input
+                  type="email"
+                  className={`w-full px-3 py-2 border ${
+                    formErrors.email ? "border-red-500" : "border-[#CDAA7D]"
+                  } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
+                  placeholder="ENTER YOUR REGISTERED EMAIL"
+                  value={forgotForm.email}
+                  onChange={(e) => setForgotForm((prev) => ({ ...prev, email: e.target.value }))}
+                />
+                {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
+              </div>
+              <p className="text-sm text-[#8B75AA]">
+                ENTER YOUR EMAIL ADDRESS AND WE'LL SEND YOU A LINK TO RESET YOUR PASSWORD.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setMode("login")
+                    setFormErrors({})
+                  }}
+                  className="flex-1 border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={handleForgotPassword}
+                  className="flex-1 bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
+                >
+                  SEND RESET LINK
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
-      
-      <ProfileCompletionModal
-        isOpen={showProfileCompletion}
-        onClose={() => setShowProfileCompletion(false)}
-        onComplete={() => {
-          setShowProfileCompletion(false);
-          window.location.reload();
-        }}
-      />
-    </>
+    </div>
   )
 }
+
+// Add custom slow spin animation
+// In your global CSS (e.g., globals.css or tailwind.config), add:
+// .animate-spin-slow { animation: spin 1.5s linear infinite; }

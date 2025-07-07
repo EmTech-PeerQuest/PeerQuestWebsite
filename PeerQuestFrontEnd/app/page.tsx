@@ -4,21 +4,24 @@ import { useState, useEffect } from "react"
 import { Navbar } from '@/components/ui/navbar'
 import { Hero } from '@/components/ui/hero'
 import { QuestBoard } from '@/components/quests/quest-board'
+import { QuestManagement } from '@/components/quests/quest-management'
 import { GuildHall } from '@/components/guilds/guild-hall'
 import { About } from "@/components/about"
 import { Footer } from '@/components/ui/footer'
 import { ToastProvider } from '@/components/ui/toast'
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/context/AuthContext";
+import { useGoldBalance } from "@/context/GoldBalanceContext";
 import { AIChatbot } from '@/components/ai/ai-chatbot';
 import { AuthModal } from '@/components/auth/auth-modal';
-import { useRouter } from 'next/navigation';
-import { IntegratedProfile } from '@/components/profile/integrated-profile';
 import { Settings } from '@/components/settings/settings';
-import { UserSearch } from '@/components/search/user-search';
+import { GoldSystemModal } from '@/components/gold/gold-system-modal';
+import { useRouter } from 'next/navigation';
+import Profile from './profile/page';
 import Spinner from '@/components/ui/spinner';
 import LoadingModal from '@/components/ui/loading-modal';
-
+import { IntegratedProfile } from '@/components/profile/integrated-profile';
+import { UserSearch } from '@/components/search/user-search';
 import type { User, Quest, Guild, GuildApplication } from "@/lib/types"
 import { fetchInitialData } from '@/lib/api/init-data'
 
@@ -26,12 +29,14 @@ export default function Home() {
   const [activeSection, setActiveSection] = useState<string>("home");
   const [quests, setQuests] = useState<Quest[]>([]);
   const [guilds, setGuilds] = useState<Guild[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [guildApplications, setGuildApplications] = useState<GuildApplication[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user: currentUser, login, register, logout } = useAuth();
+  const [refreshQuestBoard, setRefreshQuestBoard] = useState(0); // Trigger refresh without remounting
+  const { user: currentUser, login, register, logout, refreshUser } = useAuth();
+  const { refreshBalance } = useGoldBalance(); // Add gold balance refresh capability
   const { toast } = useToast();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showGoldSystemModal, setShowGoldSystemModal] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login');
   const router = useRouter();
 
@@ -69,25 +74,19 @@ export default function Home() {
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
-    
     fetchInitialData()
       .then((data) => {
         if (!isMounted) return;
         setQuests(data?.quests || []);
         setGuilds(data?.guilds || []);
-        
-        // Transform user data from backend format
-        const transformedUsers = data?.users ? data.users.map(transformUserData) : [];
-        setUsers(transformedUsers);
-        
         setGuildApplications(data?.guildApplications || []);
       })
       .catch((err) => {
         if (!isMounted) return;
         setQuests([]);
         setGuilds([]);
-        setUsers([]); // No fallback to mock data
         setGuildApplications([]);
+        console.error("Initialization failed", err);
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -109,6 +108,22 @@ export default function Home() {
     setActiveSection(section);
   };
 
+  // Handle quest creation from navbar - trigger refresh without remounting
+  const handleQuestCreated = () => {
+    // Refresh quest board
+    setRefreshQuestBoard(prev => prev + 1);
+    
+    // Refresh gold balance to show updated amount after quest creation
+    refreshBalance();
+    
+    // Show success toast
+    toast({
+      title: "Quest created successfully!",
+      description: "Your quest is now visible on the Quest Board.",
+      variant: "default",
+    });
+  };
+
   // Memoize data loaded state for each section
   const questsLoaded = quests.length > 0 || !loading;
   const guildsLoaded = guilds.length > 0 || !loading;
@@ -116,27 +131,30 @@ export default function Home() {
   // Only show loading modal for initial data load (not after login/register)
   const showInitialLoading = loading && !currentUser;
 
-  // Simple toast implementation
-  const showToast = (message: string, type: string = 'info') => {
-    toast({ 
-      title: message, 
-      variant: type === 'error' ? 'destructive' : 'default',
-      duration: 3000 
-    });
-  };
-
   return (
     <ToastProvider>
       {showInitialLoading && <LoadingModal message="Loading your adventure..." />}
       <main className="min-h-screen bg-[#F4F0E6]">
         <Navbar
-          activeSection={activeSection}
+          currentUser={currentUser}
           setActiveSection={handleSectionChange}
           handleLogout={logout}
           openAuthModal={() => setShowAuthModal(true)}
-          openGoldPurchaseModal={() => {}}
+          openGoldPurchaseModal={() => {
+            if (!currentUser) {
+              toast({ 
+                title: "Please log in to access the Gold Treasury", 
+                variant: "destructive" 
+              });
+              setShowAuthModal(true);
+            } else {
+              setShowGoldSystemModal(true);
+            }
+          }}
           openPostQuestModal={() => {}}
           openCreateGuildModal={() => {}}
+          onQuestCreated={handleQuestCreated}
+          activeSection={activeSection}
         />
 
         {activeSection === "home" && (
@@ -156,12 +174,8 @@ export default function Home() {
             </div>
           ) : (
             <QuestBoard
-              quests={quests}
               currentUser={currentUser}
-              openQuestDetails={() => {}}
-              openPostQuestModal={() => {}}
-              openApplications={() => {}}
-              openEditQuestModal={() => {}}
+              refreshTrigger={refreshQuestBoard}
             />
           )
         )}
@@ -178,9 +192,24 @@ export default function Home() {
               currentUser={currentUser}
               openCreateGuildModal={() => {}}
               handleApplyForGuild={() => {}}
-              showToast={() => {}}
+              showToast={(message: string, type?: string) => {
+                toast({ title: message, variant: type === "error" ? "destructive" : "default" });
+              }}
             />
           )
+        )}
+
+        {activeSection === "settings" && currentUser && (
+          <Settings
+            user={currentUser}
+            updateSettings={(updatedUser) => {
+              // Handle settings update - you might need to implement proper user update logic
+              console.log('Settings updated:', updatedUser);
+            }}
+            showToast={(message: string, type?: string) => {
+              toast({ title: message, variant: type === "error" ? "destructive" : "default" });
+            }}
+          />
         )}
 
         {activeSection === "search" && (
@@ -193,36 +222,85 @@ export default function Home() {
         )}
 
         {activeSection === "messages" && currentUser && (
-          <div className="flex flex-col items-center justify-center py-16">
-            <div className="text-[#8B75AA] text-lg font-medium">Messaging feature coming soon...</div>
+          <div className="p-8 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Messages</h2>
+            <p className="text-gray-600">Messaging system is being developed...</p>
           </div>
         )}
 
         {activeSection === "quest-management" && currentUser && (
-          <div className="flex flex-col items-center justify-center py-16">
-            <div className="text-[#8B75AA] text-lg font-medium">Quest management feature coming soon...</div>
-          </div>
+          !questsLoaded ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <Spinner />
+              <div className="mt-4 text-[#8B75AA] text-lg font-medium">Loading your quests...</div>
+            </div>
+          ) : (
+            <QuestManagement
+              currentUser={currentUser}
+              setQuests={setQuests}
+              onQuestStatusChange={(questId, newStatus) => {
+                setQuests(prev => prev.map(q => 
+                  q.id === questId ? { ...q, status: newStatus as Quest['status'] } : q
+                ));
+              }}
+              showToast={(message: string, type?: string) => {
+                toast({ title: message, variant: type === "error" ? "destructive" : "default" });
+              }}
+            />
+          )
         )}
 
         {activeSection === "guild-management" && currentUser && (
-          <div className="flex flex-col items-center justify-center py-16">
-            <div className="text-[#8B75AA] text-lg font-medium">Guild management feature coming soon...</div>
+          <div className="p-8 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Guild Management</h2>
+            <p className="text-gray-600">Guild management is being developed...</p>
           </div>
         )}
 
-        {activeSection === "admin" && currentUser?.roles?.includes("admin") && (
-          <div className="flex flex-col items-center justify-center py-16">
-            <div className="text-[#8B75AA] text-lg font-medium">Admin panel feature coming soon...</div>
+        {activeSection === "admin" && currentUser && (
+          <div className="p-8 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Admin Panel</h2>
+            <p className="text-gray-600">Admin panel is being developed...</p>
           </div>
         )}
 
         {activeSection === "about" && <About />}
 
         {activeSection === "profile" && currentUser && (
-          <IntegratedProfile
+          <div className="p-8 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Profile</h2>
+            <p className="text-gray-600">Profile page is being developed...</p>
+          </div>
+        )}
+
+        {showAuthModal && (
+          <AuthModal
+            isOpen={showAuthModal}
+            mode={authMode}
+            setMode={setAuthMode}
+            onClose={() => setShowAuthModal(false)}
+            onLogin={async (credentials) => {
+              await login(credentials);
+              setShowAuthModal(false);
+              // No redirect, stay on homepage
+            }}
+            onRegister={async (data) => {
+              await register(data);
+              setShowAuthModal(false);
+              // No redirect, stay on homepage
+            }}
+          />
+        )}
+
+        {showGoldSystemModal && (
+          <GoldSystemModal
+            isOpen={showGoldSystemModal}
+            onClose={() => setShowGoldSystemModal(false)}
             currentUser={currentUser}
-            quests={quests}
-            guilds={guilds}
+            refreshUser={refreshUser}
+            showToast={(message: string, type?: string) => {
+              toast({ title: message, variant: type === "error" ? "destructive" : "default" });
+            }}
           />
         )}
 
