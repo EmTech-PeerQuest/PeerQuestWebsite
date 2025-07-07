@@ -20,6 +20,7 @@ const statusColors: Record<string, string> = {
   approved: "bg-green-100 text-green-800 border-green-200",
   needs_revision: "bg-amber-100 text-amber-800 border-amber-200",
   pending: "bg-blue-100 text-blue-800 border-blue-200",
+  superseded: "bg-gray-100 text-gray-800 border-gray-200",
 };
 
 const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({ 
@@ -111,14 +112,14 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-3 text-xs text-blue-700">
             <div className="flex items-center gap-1 mb-1">
               <AlertCircle className="w-3 h-3 text-blue-500 flex-shrink-0" />
-              <span className="font-semibold text-blue-800">Review Guidelines:</span>
+              <span className="font-semibold text-blue-800">Review Guidelines (Quest Creators Only):</span>
             </div>
             <div className="text-blue-600 leading-tight">
               All pending submissions are actionable • <strong>Approve</strong> = complete quest & award rewards • <strong>Needs Revision</strong> = allow participant to resubmit
             </div>
           </div>
           
-          {/* Quest completion button (if allowed) */}
+          {/* Quest completion button (only visible to quest creators) */}
           {onMarkComplete && (
             <div className="flex justify-end gap-3 mb-6">
               <button

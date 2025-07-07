@@ -1351,11 +1351,11 @@ export function QuestManagement({
           quest={submissionsQuest}
           currentUser={currentUser}
           showToast={showToast}
-          // Add mark as completed handler and submission review handlers
-          onMarkComplete={async () => {
+          // Only pass onMarkComplete if user is the quest creator (viewing created quests tab)
+          onMarkComplete={activeTab === "created" ? async () => {
             await handleCompleteQuest(submissionsQuest.slug);
             setShowSubmissionsModal(false);
-          }}
+          } : undefined}
           onApproveSubmission={handleApproveSubmission}
           onMarkNeedsRevision={handleMarkNeedsRevision}
           canReviewSubmissions={submissionsQuest.status === "in-progress" && activeTab === "created"}
