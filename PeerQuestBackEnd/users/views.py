@@ -12,12 +12,12 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import serializers, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .serializers import UserProfileSerializer, RegisterSerializer, UserInfoUpdateSerializer, UserSearchSerializer
+from .serializers import UserProfileSerializer, RegisterSerializer, UserInfoUpdateSerializer, UserSearchSerializer, UserSkillSerializer, SkillsManagementSerializer
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.shortcuts import redirect
-from .models import User, UserSession, BlacklistedToken
+from .models import User, UserSession, BlacklistedToken, COLLEGE_SKILLS, Skill, UserSkill, Skill, UserSkill
 from .services import google_get_access_token, google_get_user_info, create_user_and_token, TokenManager
 from .email_utils import send_verification_email, generate_verification_token
 from google.oauth2 import id_token
@@ -955,3 +955,158 @@ class UserSearchView(APIView):
                 'success': False,
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
+
+class SkillsListView(APIView):
+    """List all available skills organized by category"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            # Get skills from database
+            skills = Skill.objects.filter(is_active=True).order_by('category', 'name')
+            
+            # Organize by category
+            skills_by_category = {}
+            for skill in skills:
+                if skill.category not in skills_by_category:
+                    skills_by_category[skill.category] = []
+                skills_by_category[skill.category].append({
+                    'id': skill.id,
+                    'name': skill.name,
+                    'description': skill.description
+                })
+            
+            # If no skills in database, return predefined skills
+            if not skills_by_category:
+                skills_by_category = COLLEGE_SKILLS
+            
+            return Response({
+                'success': True,
+                'skills_by_category': skills_by_category
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+class UserSkillsView(APIView):
+    """Manage user skills"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get user's current skills"""
+        try:
+            user_skills = UserSkill.objects.filter(user=request.user).select_related('skill')
+            serializer = UserSkillSerializer(user_skills, many=True)
+            
+            return Response({
+                'success': True,
+                'skills': serializer.data
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def post(self, request):
+        """Add or update user skills"""
+        try:
+            print("[DEBUG] Incoming data:", request.data)
+            serializer = SkillsManagementSerializer(data=request.data, context={'request': request})
+            if serializer.is_valid():
+                serializer.save()
+                print("[DEBUG] Skills updated successfully.")
+                return Response({
+                    'success': True,
+                    'message': 'Skills updated successfully'
+                }, status=status.HTTP_200_OK)
+            else:
+                print("[DEBUG] Serializer errors:", serializer.errors)
+                return Response({
+                    'success': False,
+                    'errors': serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            print("[DEBUG] Exception in UserSkillsView.post:", str(e))
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+# --- API endpoint: List all users for frontend user search ---
+from rest_framework.permissions import AllowAny
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from .models import User, UserSkill, Skill
+from django.db.models import Prefetch
+
+class UserListForFrontendView(APIView):
+    """
+    API endpoint to list all users in a format compatible with the frontend user search.
+    Returns: id, username, displayName, avatar, level, completedQuests, guilds, skills, bio, roleDisplay, badges, etc.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            # Optionally: add filters here (e.g., search, pagination)
+            users = User.objects.all()[:100]  # Limit to 100 users for performance
+            user_ids = [user.id for user in users]
+            # Get all user skills in one query
+            user_skills = UserSkill.objects.filter(user_id__in=user_ids).select_related('skill')
+            skills_by_user = {}
+            for us in user_skills:
+                if us.user_id not in skills_by_user:
+                    skills_by_user[us.user_id] = []
+                if us.skill:
+                    skills_by_user[us.user_id].append({
+                        'id': us.skill.id,
+                        'name': us.skill.name,
+                        'description': us.skill.description
+                    })
+            user_list = []
+            for user in users:
+                # Serialize guilds as list of objects with id and name, ensure unique ids
+                guilds = []
+                if hasattr(user, 'guilds') and hasattr(user.guilds, 'all'):
+                    seen_guild_ids = set()
+                    for g in user.guilds.all():
+                        if g.id not in seen_guild_ids:
+                            guilds.append({'id': str(g.id), 'name': g.name})
+                            seen_guild_ids.add(g.id)
+                # Serialize badges as list of objects with id and name, ensure unique ids
+                badges = []
+                if hasattr(user, 'badges') and hasattr(user.badges, 'all'):
+                    seen_badge_ids = set()
+                    for b in user.badges.all():
+                        if b.id not in seen_badge_ids:
+                            badges.append({'id': str(b.id), 'name': b.name})
+                            seen_badge_ids.add(b.id)
+                # Serialize skills as list of objects with id and name, ensure unique ids
+                skills = []
+                seen_skill_ids = set()
+                for s in skills_by_user.get(user.id, []):
+                    if s['id'] not in seen_skill_ids:
+                        skills.append({'id': str(s['id']), 'name': s['name'], 'description': s.get('description', '')})
+                        seen_skill_ids.add(s['id'])
+                user_list.append({
+                    'id': str(user.id),
+                    'username': user.username,
+                    'displayName': getattr(user, 'display_name', user.username),
+                    'avatar': getattr(user, 'avatar_url', None),
+                    'level': getattr(user, 'level', 1),
+                    'completedQuests': getattr(user, 'completed_quests', 0),
+                    'guilds': guilds,
+                    'skills': skills,
+                    'bio': getattr(user, 'bio', ''),
+                    'roleDisplay': getattr(user, 'role_display', ''),
+                    'badges': badges,
+                })
+            return Response(user_list, status=200)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)

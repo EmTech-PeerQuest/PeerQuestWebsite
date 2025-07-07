@@ -475,70 +475,64 @@ export default function AccountTab({
             className="flex justify-center"
           />
         </div>
-        
-        {/* Username */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium mb-1">{t('accountTab.username')}</label>
-          <div className="flex items-center">
-            <input
-              type="text"
-              className={`flex-1 px-4 py-3 bg-[#3D2A2F] border rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm ${
-                accountForm.username && !validateUsernameClient(accountForm.username) 
-                  ? 'border-red-500' 
-                  : 'border-[#CDAA7D]'
-              }`}
-              value={accountForm.username || ""}
-              placeholder={t('accountTab.usernamePlaceholder')}
-              onChange={e => {
-                const value = e.target.value;
-                // Always update the form, but show visual feedback for invalid usernames
-                setAccountForm((prev: any) => ({ ...prev, username: value }));
-              }}
-            />
-          </div>
-          <div className="text-xs mt-1">
-            {accountForm.username && !validateUsernameClient(accountForm.username) ? (
-              <span className="text-red-400">
-                Username must be 3-20 characters, contain only letters/numbers/underscores, and cannot contain inappropriate content or leet speak substitutions (like 'q' for 'g').
-              </span>
-            ) : (
-              <span className="text-[#8B75AA]">
-                Username can only contain letters, numbers, and underscores. No inappropriate content or leet speak allowed.
-              </span>
-            )}
-          </div>
-        </div>
-        {/* Email */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium mb-1">{t('accountTab.email')}</label>
-          <div className="flex items-center">
-            <input
-              type="email"
-              className="flex-1 px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-              value={accountForm.email || ""}
-              placeholder={t('accountTab.emailPlaceholder')}
-              onChange={e => setAccountForm((prev: any) => ({ ...prev, email: e.target.value }))}
-            />
-          </div>
-          <div className="flex items-center mt-1">
-            <span className="text-xs bg-green-800 text-green-200 px-3 py-1 rounded-full">{t('accountTab.verified')}</span>
-          </div>
-        </div>
-        
-        {/* Bio */}
-        <div className="space-y-2">
-          <label className="block text-sm font-medium mb-1">{t('accountTab.bio')}</label>
-          <textarea
-            className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] h-28 md:h-32 resize-none text-sm"
-            value={accountForm.bio || ""}
-            placeholder={t('accountTab.bioPlaceholder')}
-            onChange={e => setAccountForm((prev: any) => ({ ...prev, bio: e.target.value }))}
-          />
-        </div>
         {/* Personal Section */}
         <div className="bg-[#3D2A2F]/30 p-4 rounded-lg border border-[#CDAA7D]/20">
           <h4 className="text-lg font-bold mb-3">{t('accountTab.personal')}</h4>
           <div className="space-y-4">
+            {/* Username */}
+            <div>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.username')}</label>
+              <input
+                type="text"
+                className={`w-full px-4 py-3 bg-[#3D2A2F] border rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm ${
+                  accountForm.username && !validateUsernameClient(accountForm.username)
+                    ? 'border-red-500'
+                    : 'border-[#CDAA7D]'
+                }`}
+                value={accountForm.username || ""}
+                placeholder={t('accountTab.usernamePlaceholder')}
+                onChange={e => {
+                  const value = e.target.value;
+                  setAccountForm((prev: any) => ({ ...prev, username: value }));
+                }}
+              />
+              <div className="text-xs mt-1">
+                {accountForm.username && !validateUsernameClient(accountForm.username) ? (
+                  <span className="text-red-400">
+                    Username must be 3-20 characters, contain only letters/numbers/underscores, and cannot contain inappropriate content or leet speak substitutions (like 'q' for 'g').
+                  </span>
+                ) : (
+                  <span className="text-[#8B75AA]">
+                    Username can only contain letters, numbers, and underscores. No inappropriate content or leet speak allowed.
+                  </span>
+                )}
+              </div>
+            </div>
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.email')}</label>
+              <input
+                type="email"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                value={accountForm.email || ""}
+                placeholder={t('accountTab.emailPlaceholder')}
+                onChange={e => setAccountForm((prev: any) => ({ ...prev, email: e.target.value }))}
+              />
+              <div className="flex items-center mt-1">
+                <span className="text-xs bg-green-800 text-green-200 px-3 py-1 rounded-full">{t('accountTab.verified')}</span>
+              </div>
+            </div>
+            {/* Bio */}
+            <div>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.bio')}</label>
+              <textarea
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] h-28 md:h-32 resize-none text-sm"
+                value={accountForm.bio || ""}
+                placeholder={t('accountTab.bioPlaceholder')}
+                onChange={e => setAccountForm((prev: any) => ({ ...prev, bio: e.target.value }))}
+              />
+            </div>
+            {/* Birthday */}
             <div>
               <label className="block text-sm font-medium mb-2">{t('accountTab.birthday')}</label>
               <input
@@ -546,35 +540,27 @@ export default function AccountTab({
                 className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(() => {
                   const val = accountForm.birthday;
-                  
                   if (!val || val === null || val === undefined) {
                     return "";
                   }
-                  
                   if (typeof val === "string") {
-                    // If already in YYYY-MM-DD format, return as is
                     if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
                       return val;
                     }
-                    // If it's an ISO string, extract date part
                     if (val.includes('T')) {
                       const dateOnly = val.split('T')[0];
                       return dateOnly;
                     }
-                    // Try to parse other date formats
                     const date = new Date(val);
                     if (!isNaN(date.getTime())) {
                       const isoDate = date.toISOString().split('T')[0];
                       return isoDate;
                     }
                   }
-                  
-                  // Handle Date objects
                   if (val instanceof Date && !isNaN(val.getTime())) {
                     const isoDate = val.toISOString().split('T')[0];
                     return isoDate;
                   }
-                  
                   return "";
                 })()}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, birthday: e.target.value }))}
@@ -583,6 +569,7 @@ export default function AccountTab({
                 <span className="text-xs bg-blue-800 text-blue-200 px-3 py-1 rounded-full">{t('accountTab.verified')}</span>
               </div>
             </div>
+            {/* Gender */}
             <div>
               <label className="block text-sm font-medium mb-1">{t('accountTab.gender')}</label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -618,6 +605,7 @@ export default function AccountTab({
                 </DebouncedButton>
               </div>
             </div>
+            {/* Location */}
             <div>
               <label className="block text-sm font-medium mb-1">{t('accountTab.location')}</label>
               <select
@@ -670,6 +658,7 @@ export default function AccountTab({
                 <option value="Other">Other</option>
               </select>
             </div>
+            {/* Language */}
             <div>
               <label className="block text-sm font-medium mb-1">{t('accountTab.language')}</label>
               <select

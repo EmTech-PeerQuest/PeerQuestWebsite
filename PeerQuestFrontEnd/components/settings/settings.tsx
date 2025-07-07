@@ -14,6 +14,7 @@ import PaymentTab from "./tabs/PaymentTab"
 import SubscriptionsTab from "./tabs/SubscriptionsTab"
 import AppPermissionsTab from "./tabs/AppPermissionsTab"
 import { AudioSettings } from "@/components/ui/audio-settings"
+import SkillsModal from "../skills/skills-modal"
 import { usePathname, useRouter } from "next/navigation"
 import { toast } from "@/hooks/use-toast"
 import { useClickSound } from "@/hooks/use-click-sound"
@@ -53,9 +54,10 @@ export function Settings() {
     }
   }
   const [activeTab, setActiveTab] = useState<
-    "account" | "security" | "privacy" | "notifications" | "payment" | "subscriptions" | "app" | "spending" | "audio"
+    "account" | "skills" | "security" | "privacy" | "notifications" | "payment" | "subscriptions" | "app" | "spending" | "audio"
   >("account")
   const [showMobileMenu, setShowMobileMenu] = useState(false)
+  const [isSkillsModalOpen, setIsSkillsModalOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -189,6 +191,7 @@ export function Settings() {
 
   const tabs = [
     { id: "account", label: "Account Info" },
+    { id: "skills", label: "Skills & Expertise" },
     { id: "security", label: "Security" },
     { id: "privacy", label: "Privacy" },
     { id: "notifications", label: "Notifications" },
@@ -413,7 +416,7 @@ export function Settings() {
                     setActiveTab(tab.id as any)
                   }}
                   variant="ghost"
-                  className={`w-full text-left px-4 py-2 rounded transition-colors text-sm ${
+                  className={`w-full justify-start text-left px-4 py-2 rounded transition-colors text-sm ${
                     activeTab === tab.id ? "bg-[#CDAA7D] text-[#2C1A1D]" : "hover:bg-[#CDAA7D]/20"
                   }`}
                   soundType="tab"
@@ -433,6 +436,34 @@ export function Settings() {
                 saveAccountSettings={saveAccountSettings}
                 handleDeleteAccount={handleDeleteAccount}
               />
+            )}
+            {activeTab === "skills" && (
+              <div className="p-6">
+                <h2 className="text-xl font-bold mb-4">Skills & Expertise</h2>
+                <p className="text-[#CDAA7D] mb-6">
+                  Manage your skills to help others find you for collaborations and quests.
+                </p>
+                <div className="space-y-4">
+                  <button
+                    onClick={() => {
+                      playSound()
+                      setIsSkillsModalOpen(true)
+                    }}
+                    className="w-full bg-[#8B75AA] hover:bg-[#7A6699] text-white px-6 py-3 rounded-lg transition-colors"
+                  >
+                    🎯 Manage My Skills
+                  </button>
+                  <div className="text-sm text-[#CDAA7D] bg-[#CDAA7D]/10 p-4 rounded-lg">
+                    <h3 className="font-semibold mb-2">💡 Why add skills?</h3>
+                    <ul className="space-y-1">
+                      <li>• Get discovered by quest creators looking for your expertise</li>
+                      <li>• Receive personalized quest recommendations</li>
+                      <li>• Showcase your abilities to potential collaborators</li>
+                      <li>• Track your professional development</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
             )}
             {activeTab === "security" && (
               <SecurityTab
@@ -492,6 +523,16 @@ export function Settings() {
           </div>
         </div>
       </div>
+      
+      {/* Skills Modal */}
+      <SkillsModal
+        isOpen={isSkillsModalOpen}
+        onClose={() => setIsSkillsModalOpen(false)}
+        onSkillsUpdated={() => {
+          // Optionally refresh user data if needed
+          // fetchUserInfo()
+        }}
+      />
     </section>
   );
 }

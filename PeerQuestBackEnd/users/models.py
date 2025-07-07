@@ -5,6 +5,20 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.hashers import make_password, check_password
 import uuid
 
+# User Role Hierarchy
+class UserRole(models.TextChoices):
+    QUEST_MAKER = 'quest_maker', _('Quest Maker')
+    ADVENTURER = 'adventurer', _('Adventurer')
+    MODERATOR = 'moderator', _('Moderator')
+    ADMIN = 'admin', _('Admin')
+
+ROLE_HIERARCHY = {
+    UserRole.QUEST_MAKER: 1,
+    UserRole.ADVENTURER: 2,
+    UserRole.MODERATOR: 3,
+    UserRole.ADMIN: 4,
+}
+
 # College student skills categories
 COLLEGE_SKILLS = {
     'Programming & Tech': [
@@ -66,6 +80,14 @@ class Skill(models.Model):
 class User(AbstractUser):
     # Override email to make it unique
     email = models.EmailField(_('email address'), unique=True)
+    
+    # User Role
+    role = models.CharField(
+        max_length=20,
+        choices=UserRole.choices,
+        default=UserRole.QUEST_MAKER,
+        help_text=_('User role determining permissions and access level')
+    )
     
     display_name = models.CharField(max_length=150, blank=True)
     birthday = models.DateField(null=True, blank=True)
@@ -145,6 +167,43 @@ class User(AbstractUser):
     def calculate_level(self):
         # Implement your level calculation logic
         return min(100, max(1, self.experience_points // 1000))
+
+    # Role hierarchy methods
+    def role_level(self):
+        """Get the numeric level of the user's role."""
+        return ROLE_HIERARCHY.get(self.role, 0)
+
+    def is_at_least(self, required_role):
+        """Check if user has required role or higher."""
+        return self.role_level() >= ROLE_HIERARCHY.get(required_role, 0)
+
+    def is_admin_role(self):
+        """Check if user has admin role."""
+        return self.role == UserRole.ADMIN
+
+    def is_moderator_role(self):
+        """Check if user has moderator role."""
+        return self.role == UserRole.MODERATOR
+
+    def is_adventurer_role(self):
+        """Check if user has adventurer role."""
+        return self.role == UserRole.ADVENTURER
+
+    def is_quest_maker_role(self):
+        """Check if user has quest maker role."""
+        return self.role == UserRole.QUEST_MAKER
+
+    def get_role_display_name(self):
+        """Get the display name for the user's role."""
+        return dict(UserRole.choices).get(self.role, 'Unknown')
+
+    def can_moderate(self):
+        """Check if user can perform moderation actions."""
+        return self.is_at_least(UserRole.MODERATOR)
+
+    def can_admin(self):
+        """Check if user can perform admin actions."""
+        return self.is_at_least(UserRole.ADMIN)
 
 class BlacklistedToken(models.Model):
     """Model to track blacklisted/revoked tokens"""

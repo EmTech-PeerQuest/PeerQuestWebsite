@@ -2,7 +2,7 @@ from .validators import PROFANITY_LIST, LEET_MAP, levenshtein, normalize_usernam
 from itertools import product
 import unicodedata
 from rest_framework import serializers
-from .models import User
+from .models import User, UserRole, COLLEGE_SKILLS, Skill, UserSkill
 from django.contrib.auth.password_validation import validate_password
 
 class UserInfoUpdateSerializer(serializers.ModelSerializer):
@@ -10,11 +10,12 @@ class UserInfoUpdateSerializer(serializers.ModelSerializer):
     social_links = serializers.JSONField(required=False)
     settings = serializers.JSONField(required=False)
     spending_limits = serializers.JSONField(required=False)
+    role = serializers.ChoiceField(choices=UserRole.choices, required=False)
 
     class Meta:
         model = User
         fields = [
-            "username", "email", "bio", "birthday", "gender", "location",
+            "username", "email", "bio", "birthday", "gender", "location", "role",
             "social_links", "settings", "avatar_url", "avatar_data", "preferred_language", "timezone",
             "notification_preferences", "privacy_settings", "two_factor_enabled", "two_factor_method",
             "backup_codes_generated", "spending_limits"
@@ -39,11 +40,14 @@ class UserInfoUpdateSerializer(serializers.ModelSerializer):
         return value
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    role_display = serializers.CharField(source='get_role_display_name', read_only=True)
+    role_level = serializers.IntegerField(read_only=True)
+    
     class Meta:
         model = User
         fields = [
             "id", "username", "email", "email_verified", "avatar_url", "avatar_data", "bio", "birthday", "gender",
-            "level", "experience_points", "gold_balance",
+            "level", "experience_points", "gold_balance", "role", "role_display", "role_level",
             "preferred_language", "timezone", "notification_preferences", "privacy_settings",
             "two_factor_enabled", "two_factor_method", "backup_codes_generated", "spending_limits",
             "last_password_change", "date_joined"
@@ -189,3 +193,54 @@ class UserSearchSerializer(serializers.ModelSerializer):
             }
             for skill in skills
         ]
+
+class SkillSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Skill
+        fields = ['id', 'name', 'category', 'description', 'is_active']
+
+class UserSkillSerializer(serializers.ModelSerializer):
+    skill_name = serializers.CharField(source='skill.name', read_only=True)
+    skill_category = serializers.CharField(source='skill.category', read_only=True)
+    skill_id = serializers.UUIDField(write_only=True)
+    
+    class Meta:
+        model = UserSkill
+        fields = [
+            'id', 'skill_id', 'skill_name', 'skill_category', 
+            'proficiency_level', 'years_experience', 'is_verified',
+            'endorsements_count', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'skill_name', 'skill_category', 'is_verified', 'endorsements_count', 'created_at', 'updated_at']
+
+class SkillsManagementSerializer(serializers.Serializer):
+    """Serializer for managing user skills"""
+    skills = UserSkillSerializer(many=True)
+    
+    def create(self, validated_data):
+        skills_data = validated_data.get('skills', [])
+        user = self.context['request'].user
+        
+        # Clear existing skills
+        UserSkill.objects.filter(user=user).delete()
+        
+        # Add new skills
+        for skill_data in skills_data:
+            skill_id = skill_data.pop('skill_id')
+            skill = Skill.objects.get(id=skill_id)
+            UserSkill.objects.create(
+                user=user,
+                skill=skill,
+                **skill_data
+            )
+        
+        return user
+
+class SkillRecommendationSerializer(serializers.Serializer):
+    """Serializer for skill recommendations"""
+    recommended_skills = serializers.ListField(
+        child=serializers.CharField(),
+        read_only=True
+    )
+    recommendation_reason = serializers.CharField(read_only=True)
+    category = serializers.CharField(read_only=True)

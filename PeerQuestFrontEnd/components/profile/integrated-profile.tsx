@@ -1,22 +1,51 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type { User, Quest, Guild } from "@/lib/types"
 import { ChevronDown } from "lucide-react"
 import { formatJoinDate } from "@/lib/date-utils"
 
-interface IntegratedProfileProps {
-  currentUser: User
-  quests: Quest[]
-  guilds: Guild[]
-  navigateToSection?: (section: string) => void
-  defaultTab?: "overview" | "quests" | "guilds" | "achievements"
-}
+// Type for props
+type IntegratedProfileProps = {
+  currentUser: User;
+  quests: Quest[];
+  guilds: Guild[];
+  navigateToSection?: (section: string) => void;
+  defaultTab?: "overview" | "quests" | "guilds" | "achievements";
+};
+
+// Import API for fetching user skills
+import { skillsApi } from "@/lib/api"
 
 export function IntegratedProfile({ currentUser, quests, guilds, navigateToSection, defaultTab = "overview" }: IntegratedProfileProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "quests" | "guilds" | "achievements">(defaultTab)
-  const [showMobileMenu, setShowMobileMenu] = useState(false)
-  const [avatarError, setAvatarError] = useState(false)
+  const [activeTab, setActiveTab] = useState<"overview" | "quests" | "guilds" | "achievements">(defaultTab);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+  const [userSkills, setUserSkills] = useState<any[]>([]);
+  const [skillsLoading, setSkillsLoading] = useState(false);
+  const [skillsError, setSkillsError] = useState<string | null>(null);
+
+  // Fetch user skills on mount
+  useEffect(() => {
+    const fetchSkills = async () => {
+      setSkillsLoading(true);
+      setSkillsError(null);
+      try {
+        const res = await skillsApi.getUserSkills();
+        if (res && res.success && Array.isArray(res.skills)) {
+          setUserSkills(res.skills);
+        } else {
+          setUserSkills([]);
+        }
+      } catch (err) {
+        setSkillsError("Could not load skills.");
+        setUserSkills([]);
+      } finally {
+        setSkillsLoading(false);
+      }
+    };
+    fetchSkills();
+  }, [currentUser?.id]);
 
   // Filter quests by status
   const activeQuests = quests.filter((q) => q.status === "in_progress" && q.applicants?.some(app => app.userId === currentUser.id && app.status === "accepted"))
@@ -181,7 +210,25 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
             {/* Skills */}
             <div className="bg-white rounded-lg p-4 sm:p-6 border border-[#CDAA7D]">
               <h3 className="font-medium mb-4">Skills</h3>
-              <p className="text-gray-500 text-sm">No skills listed yet.</p>
+              {skillsLoading ? (
+                <p className="text-gray-500 text-sm">Loading skills...</p>
+              ) : skillsError ? (
+                <p className="text-red-500 text-sm">{skillsError}</p>
+              ) : userSkills.length === 0 ? (
+                <p className="text-gray-500 text-sm">No skills listed yet.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {userSkills.map((skill: any) => (
+                    <span
+                      key={skill.skill_id || skill.id}
+                      className="px-2 py-1 bg-[#8B75AA] text-white rounded text-sm"
+                      title={skill.proficiency_level ? `Proficiency: ${skill.proficiency_level}, Years: ${skill.years_experience}` : undefined}
+                    >
+                      {skill.name || skill.skill_name || skill.skill?.name || skill.skill_id}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Recent Activity */}

@@ -1,5 +1,5 @@
 export interface User {
-  id: string | number;
+  id: string;
   email: string;
   email_verified?: boolean;
   username?: string;
@@ -7,6 +7,9 @@ export interface User {
   isBanned?: boolean;
   banReason?: string;
   roles?: string[];
+  role?: string; // User role (quest_maker, adventurer, moderator, admin)
+  roleDisplay?: string; // Human-readable role display
+  roleLevel?: number; // Role hierarchy level
   createdAt?: string;
   dateJoined?: string;
   // Backend field names (snake_case)
@@ -30,9 +33,9 @@ export interface User {
   gender?: string;
   location?: string;
   // Additional properties for search functionality
-  skills?: string[];
+  skills?: { id: string; name: string; description?: string }[];
   guilds?: Guild[];
-  badges?: Badge[];
+  badges?: { id: string; name: string; icon?: string; description?: string; rarity?: 'common' | 'rare' | 'epic' | 'legendary'; earnedAt?: string }[];
   socialLinks?: {
     facebook?: string;
     twitter?: string;
@@ -126,9 +129,9 @@ export interface GuildApplication {
 }
 
 export interface Badge {
-  id: string | number;
+  id: string;
   name: string;
-  icon: string;
+  icon?: string;
   description?: string;
   rarity?: 'common' | 'rare' | 'epic' | 'legendary';
   earnedAt?: string;

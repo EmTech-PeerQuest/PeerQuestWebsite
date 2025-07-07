@@ -54,8 +54,18 @@ export function MessagingModal({ isOpen, onClose, recipient, currentUser, showTo
         {/* Header */}
         <div className="bg-[#CDAA7D] p-4 rounded-t-lg flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#8B75AA] rounded-full flex items-center justify-center text-white">
-              {recipient.avatar || recipient.username?.[0]?.toUpperCase()}
+            <div className="w-10 h-10 bg-[#8B75AA] rounded-full flex items-center justify-center text-white overflow-hidden">
+              {typeof recipient.avatar === 'string' && recipient.avatar.startsWith('http') ? (
+                <img
+                  src={recipient.avatar}
+                  alt={recipient.displayName || recipient.username}
+                  className="w-full h-full object-cover rounded-full"
+                />
+              ) : (
+                <span>
+                  {(recipient.displayName || recipient.username || "?").slice(0, 2).toUpperCase()}
+                </span>
+              )}
             </div>
             <div>
               <h3 className="font-semibold text-[#2C1A1D]">

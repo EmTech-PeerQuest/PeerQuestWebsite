@@ -42,7 +42,10 @@ export default function SearchPage() {
       badges: [], // This would need to be fetched from achievements
       location: backendUser.location || "",
       birthday: backendUser.birthday || "",
-      socialLinks: backendUser.social_links || {}
+      socialLinks: backendUser.social_links || {},
+      role: backendUser.role || 'quest_maker',
+      roleDisplay: backendUser.role_display || 'Quest Maker',
+      roleLevel: backendUser.role_level || 1
     }
   }
 

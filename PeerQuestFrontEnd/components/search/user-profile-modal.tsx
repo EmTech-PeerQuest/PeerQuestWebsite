@@ -24,6 +24,24 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
   // Get user's guilds
   const userGuilds = user.guilds?.slice(0, 3) || [] // Show only first 3
 
+  // Helper to get avatar initials (matches user grid logic)
+  function getAvatarInitials(user: User) {
+    if (user.displayName) {
+      // Use first word (first name) or first two initials
+      const words = user.displayName.trim().split(" ");
+      if (words.length > 1) {
+        return (words[0][0] + words[1][0]).toUpperCase();
+      }
+      return words[0].slice(0, 5).toUpperCase();
+    }
+    if (user.username) {
+      // Use up to first 5 non-numeric chars
+      const match = user.username.match(/[a-zA-Z]+/);
+      return match ? match[0].slice(0, 5).toUpperCase() : user.username.slice(0, 2).toUpperCase();
+    }
+    return "?";
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -35,10 +53,18 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
           >
             <X size={24} />
           </button>
-          
           <div className="flex items-center gap-4">
-            <div className="w-20 h-20 bg-[#8B75AA] rounded-full flex items-center justify-center text-3xl text-white">
-              {user.avatar || user.username?.[0]?.toUpperCase()}
+            <div className="w-20 h-20 bg-[#8B75AA] rounded-full flex items-center justify-center text-3xl text-white overflow-hidden">
+              {typeof user.avatar === 'string' && user.avatar.match(/^https?:\/\//) ? (
+                <img
+                  src={user.avatar}
+                  alt={user.displayName || user.username}
+                  className="w-full h-full object-cover rounded-full"
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+              ) : (
+                <span>{getAvatarInitials(user)}</span>
+              )}
             </div>
             <div>
               <h2 className="text-2xl font-bold text-[#2C1A1D]">
@@ -118,10 +144,10 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
               <div className="flex flex-wrap gap-2">
                 {user.skills.map((skill, index) => (
                   <span
-                    key={index}
+                    key={skill.id || index}
                     className="px-3 py-1 bg-[#8B75AA]/10 text-[#8B75AA] rounded-full text-sm"
                   >
-                    {skill}
+                    {typeof skill === 'object' && 'name' in skill ? skill.name : String(skill)}
                   </span>
                 ))}
               </div>
@@ -190,8 +216,17 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
                     key={index}
                     className="p-3 bg-[#F4F0E6] rounded-lg flex items-center gap-3"
                   >
-                    <div className="w-10 h-10 bg-[#8B75AA] rounded-lg flex items-center justify-center text-white">
-                      {guild.emblem || guild.name[0]}
+                    <div className="w-10 h-10 bg-[#8B75AA] rounded-lg flex items-center justify-center text-white overflow-hidden">
+                      {typeof guild.emblem === 'string' && guild.emblem.match(/^https?:\/\//) ? (
+                        <img
+                          src={guild.emblem}
+                          alt={guild.name}
+                          className="w-full h-full object-cover rounded-lg"
+                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      ) : (
+                        <span>{guild.name[0]}</span>
+                      )}
                     </div>
                     <div>
                       <div className="font-medium text-[#2C1A1D]">{guild.name}</div>

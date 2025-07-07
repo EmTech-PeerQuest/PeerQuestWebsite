@@ -4,7 +4,8 @@ from .views import (
     UserInfoSettingsView, PasswordChangeView, EmailVerificationView, 
     ResendVerificationView, PasswordResetView, PasswordResetConfirmView,
     LogoutView, LogoutAllView, UserSessionsView, RevokeSessionView,
-    PasswordStrengthCheckView, UserSearchView
+    PasswordStrengthCheckView, UserSearchView, SkillsListView,
+    UserSkillsView, UserListForFrontendView
 )
 
 urlpatterns = [
@@ -20,9 +21,17 @@ urlpatterns = [
     path("password-strength-check/", PasswordStrengthCheckView.as_view(), name="password-strength-check"),
     path("search/", UserSearchView.as_view(), name="user-search"),
     
+    # Skills management
+    path("skills/", SkillsListView.as_view(), name="skills-list"),
+    path("skills/my-skills/", UserSkillsView.as_view(), name="user-skills"),
+    # path("skills/recommendations/", SkillRecommendationsView.as_view(), name="skill-recommendations"),
+    
     # Token/Session management
     path("logout/", LogoutView.as_view(), name="logout"),
     path("logout-all/", LogoutAllView.as_view(), name="logout-all"),
     path("sessions/", UserSessionsView.as_view(), name="user-sessions"),
     path("revoke-session/", RevokeSessionView.as_view(), name="revoke-session"),
+
+    # PeerQuest frontend user list endpoint
+    path("api/users/", UserListForFrontendView.as_view(), name="frontend-user-list"),
 ]
