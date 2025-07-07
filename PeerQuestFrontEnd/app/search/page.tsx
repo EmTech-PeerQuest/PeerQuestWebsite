@@ -32,7 +32,7 @@ export default function SearchPage() {
       username: backendUser.username,
       displayName: backendUser.display_name || backendUser.username,
       email: backendUser.email,
-      avatar: backendUser.avatar_url ? backendUser.avatar_url : "👤",
+      avatar: backendUser.avatar_url || backendUser.avatar_data || "👤",
       level: backendUser.level || 1,
       xp: backendUser.experience_points || 0,
       bio: backendUser.bio || "",
@@ -113,7 +113,6 @@ export default function SearchPage() {
   return (
     <div className="min-h-screen bg-[#F4F0E6]">
       <UserSearch
-        users={users}
         quests={quests}
         guilds={guilds}
         currentUser={currentUser}

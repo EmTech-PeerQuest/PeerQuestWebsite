@@ -49,7 +49,7 @@ export default function Home() {
       username: backendUser.username,
       displayName: backendUser.display_name || backendUser.username,
       email: backendUser.email,
-      avatar: backendUser.avatar_url || "👤",
+      avatar: backendUser.avatar_url || backendUser.avatar_data || "👤",
       level: backendUser.level || 1,
       xp: backendUser.experience_points || 0,
       bio: backendUser.bio || "",
@@ -185,7 +185,6 @@ export default function Home() {
 
         {activeSection === "search" && (
           <UserSearch
-            users={users}
             quests={quests}
             guilds={guilds}
             currentUser={currentUser}
