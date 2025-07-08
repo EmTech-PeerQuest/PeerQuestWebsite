@@ -78,17 +78,37 @@ export const userSearchApi = {
   },
 
   getAllUsers: async () => {
+    // Try /users/search/ with a real query, but if 400, fallback to /users/
     try {
-      const response = await api.get("/users/search/");
+      const response = await api.get("/users/search/", { params: { q: "adminpanel-list" } });
       return response.data;
     } catch (error: any) {
+      // If 400 (bad request), try /users/ endpoint (admin only)
+      if (error.response && error.response.status === 400) {
+        try {
+          const fallback = await api.get("/users/");
+          return fallback.data;
+        } catch (fallbackError: any) {
+          if (fallbackError.response && fallbackError.response.status === 401) {
+            console.warn("Not authorized to fetch all users. Returning empty list.");
+            return [];
+          }
+          if (fallbackError.response && fallbackError.response.data) {
+            console.error("Backend error fetching all users (fallback):", fallbackError.response.data);
+          }
+          console.error("Error fetching all users (fallback):", fallbackError);
+          return [];
+        }
+      }
       if (error.response && error.response.status === 401) {
-        // Handle unauthorized error gracefully
         console.warn("Not authorized to fetch all users. Returning empty list.");
         return [];
       }
+      if (error.response && error.response.data) {
+        console.error("Backend error fetching all users:", error.response.data);
+      }
       console.error("Error fetching all users:", error);
-      throw error;
+      return [];
     }
   },
 };
