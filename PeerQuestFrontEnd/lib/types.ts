@@ -1,3 +1,12 @@
+
+export interface ActionLogEntry {
+  id: number;
+  action: string;
+  admin: string | null;
+  target_user: string | null;
+  details: string;
+  created_at: string;
+}
 export interface User {
   id: string | number;
   email: string;
@@ -6,6 +15,7 @@ export interface User {
   avatar?: string;
   isBanned?: boolean;
   banReason?: string;
+  banExpiration?: Date | string | null;
   roles?: string[];
   createdAt?: string;
   dateJoined?: string;
@@ -29,6 +39,9 @@ export interface User {
   birthday?: string;
   gender?: string;
   location?: string;
+  is_staff?: boolean;
+  isSuperuser?: boolean;
+  is_superuser?: boolean;
   socialLinks?: {
     facebook?: string;
     twitter?: string;
@@ -89,6 +102,7 @@ export interface Quest {
   guildId?: number
   guildReward?: number
   completedAt?: string
+  requirements?: string[]
 }
 
 

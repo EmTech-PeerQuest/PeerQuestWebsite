@@ -22,6 +22,8 @@ class UserInfoUpdateSerializer(serializers.ModelSerializer):
         extra_kwargs = {field: {"required": False, "allow_null": True} for field in fields}
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    is_staff = serializers.BooleanField(read_only=True)
+    is_superuser = serializers.BooleanField(read_only=True)
     class Meta:
         model = User
         fields = [
@@ -29,9 +31,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "level", "experience_points", "gold_balance",
             "preferred_language", "timezone", "notification_preferences", "privacy_settings",
             "two_factor_enabled", "two_factor_method", "backup_codes_generated", "spending_limits",
-            "last_password_change", "date_joined"
+            "last_password_change", "date_joined",
+            "is_staff", "is_superuser"
         ]
-        read_only_fields = ["id", "email", "email_verified", "level", "experience_points", "gold_balance", "last_password_change", "date_joined"]
+        read_only_fields = ["id", "email", "email_verified", "level", "experience_points", "gold_balance", "last_password_change", "date_joined", "is_staff", "is_superuser"]
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)

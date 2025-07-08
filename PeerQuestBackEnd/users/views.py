@@ -1,3 +1,40 @@
+from django.utils import timezone
+from django.shortcuts import get_object_or_404
+from .models import BanAppeal, ActionLog
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+# --- Ban Appeal Review View for Admins ---
+class BanAppealReviewView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, appeal_id):
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        appeal = get_object_or_404(BanAppeal, id=appeal_id)
+        decision = request.data.get('decision')
+        if decision not in ['dismissed', 'lifted']:
+            return Response({'detail': 'Invalid decision'}, status=status.HTTP_400_BAD_REQUEST)
+        # Mark as reviewed
+        appeal.reviewed = True
+        appeal.reviewed_by = request.user
+        appeal.reviewed_at = timezone.now()
+        appeal.review_decision = decision
+        appeal.save()
+        # If lifting ban, unban the user
+        if decision == 'lifted':
+            user = appeal.user
+            user.is_banned = False
+            user.ban_reason = ''
+            user.ban_expires_at = None
+            user.save()
+        # Log the action
+        ActionLog.objects.create(
+            action=f"ban_{'lifted' if decision == 'lifted' else 'dismissed'}",
+            admin=request.user,
+            target_user=appeal.user,
+            details=f'Ban appeal {decision} for user {appeal.user.email} (appeal id {appeal.id})',
+        )
+        return Response({'detail': f'Appeal {decision}.'}, status=status.HTTP_200_OK)
 import traceback
 import unicodedata
 from itertools import product
@@ -12,6 +49,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import serializers, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from django.core.exceptions import ValidationError
 from .serializers import UserProfileSerializer, RegisterSerializer, UserInfoUpdateSerializer
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -191,12 +229,12 @@ class GoogleLoginCallbackView(APIView):
         # Check if Google OAuth2 settings are configured
         if not settings.GOOGLE_OAUTH2_CLIENT_ID:
             return Response({'error': 'Google OAuth2 not configured on server'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
         # Accept Google ID token from frontend
         credential = request.data.get('credential')
         if not credential:
             return Response({'error': 'Missing Google credential.'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
             # Verify the token with Google - add clock tolerance for small time differences
             idinfo = id_token.verify_oauth2_token(
@@ -205,7 +243,7 @@ class GoogleLoginCallbackView(APIView):
                 settings.GOOGLE_OAUTH2_CLIENT_ID,
                 clock_skew_in_seconds=60  # Allow up to 60 seconds clock difference
             )
-            
+
             # idinfo contains user's Google profile info
             user_data = {
                 'email': idinfo.get('email'),
@@ -214,10 +252,24 @@ class GoogleLoginCallbackView(APIView):
                 'first_name': idinfo.get('given_name', ''),
                 'last_name': idinfo.get('family_name', ''),
             }
-            
-            token_data = create_user_and_token(user_data, request)
+
+            try:
+                token_data = create_user_and_token(user_data, request)
+            except ValidationError as ve:
+                # Always return a consistent error structure for banned users
+                msg = getattr(ve, 'message', None) or getattr(ve, 'message_dict', None) or str(ve)
+                if isinstance(msg, dict) and msg.get('banned'):
+                    # Ensure all ban info fields are present
+                    ban_response = {
+                        'banned': True,
+                        'detail': msg.get('detail', 'Your account is banned.'),
+                        'ban_reason': msg.get('ban_reason'),
+                        'ban_expires_at': msg.get('ban_expires_at'),
+                    }
+                    return Response(ban_response, status=status.HTTP_403_FORBIDDEN)
+                return Response({'error': str(ve)}, status=status.HTTP_400_BAD_REQUEST)
             return Response(token_data)
-            
+
         except ValueError as e:
             return Response({'error': f'Invalid Google token: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -554,6 +606,31 @@ class EmailVerifiedTokenObtainPairView(TokenObtainPairView):
                 'detail': 'Invalid username or password.'
             }, status=status.HTTP_401_UNAUTHORIZED)
         
+        # Check if user is banned (permanent or temporary)
+        if user.is_banned:
+            # If ban is temporary, check expiration
+            if user.ban_expires_at:
+                if timezone.now() < user.ban_expires_at:
+                    return Response({
+                        'detail': f'Your account is temporarily banned until {user.ban_expires_at}. Reason: {user.ban_reason}',
+                        'banned': True,
+                        'ban_expires_at': user.ban_expires_at,
+                        'ban_reason': user.ban_reason,
+                    }, status=status.HTTP_403_FORBIDDEN)
+                else:
+                    # Ban expired, auto-unban
+                    user.is_banned = False
+                    user.ban_reason = None
+                    user.ban_expires_at = None
+                    user.save()
+            else:
+                # Permanent ban
+                return Response({
+                    'detail': f'Your account is permanently banned. Reason: {user.ban_reason}',
+                    'banned': True,
+                    'ban_reason': user.ban_reason,
+                }, status=status.HTTP_403_FORBIDDEN)
+
         # Check if user's email is verified (skip for superusers)
         # Superusers are exempt from email verification requirements
         if not user.email_verified and not user.is_superuser:
@@ -561,8 +638,8 @@ class EmailVerifiedTokenObtainPairView(TokenObtainPairView):
                 'detail': 'Please verify your email address before logging in. Check your inbox for the verification email.',
                 'verification_required': True
             }, status=status.HTTP_403_FORBIDDEN)
-        
-        # If user is verified, proceed with normal token generation
+
+        # If user is verified and not banned, proceed with normal token generation
         return super().post(request, *args, **kwargs)
 
 class PasswordResetView(APIView):

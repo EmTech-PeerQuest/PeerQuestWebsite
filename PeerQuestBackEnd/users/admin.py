@@ -1,12 +1,29 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import User
+from .models import User, BanAppeal, BanAppealFile
+# BanAppeal admin registration
+@admin.register(BanAppeal)
+class BanAppealAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'created_at', 'reviewed', 'review_decision', 'reviewed_by', 'reviewed_at')
+    list_filter = ('reviewed', 'review_decision', 'created_at')
+    search_fields = ('user__username', 'user__email', 'message')
+    date_hierarchy = 'created_at'
+    readonly_fields = ('created_at',)
+
+# BanAppealFile admin registration (optional, for file management)
+@admin.register(BanAppealFile)
+class BanAppealFileAdmin(admin.ModelAdmin):
+    list_display = ('id', 'appeal', 'file', 'uploaded_at')
+    list_filter = ('uploaded_at',)
+    search_fields = ('appeal__user__username', 'file')
+    date_hierarchy = 'uploaded_at'
+    readonly_fields = ('uploaded_at',)
 from django.contrib import messages
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
     model = User
-    list_display = ('email', 'username', 'is_staff', 'is_active', 'level')
+    list_display = ('email', 'username', 'is_staff', 'is_active', 'is_banned', 'ban_reason', 'ban_expires_at', 'level')
     list_filter = ('is_staff', 'is_active', 'level')
     search_fields = ('email', 'username')
     ordering = ('email',)
@@ -16,6 +33,7 @@ class CustomUserAdmin(UserAdmin):
         ('Permissions', {'fields': ('is_staff', 'is_active', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
         ('Gamification', {'fields': ('xp', 'level', 'avatar')}),
+        ('Ban Info', {'fields': ('is_banned', 'ban_reason', 'ban_expires_at')}),
     )
 
     add_fieldsets = (

@@ -1,3 +1,45 @@
+
+
+# Ban Appeal model for user ban appeals
+
+from django.db import models
+class ActionLog(models.Model):
+    ACTION_CHOICES = [
+        ("ban_lifted", "Ban Lifted"),
+        ("ban_dismissed", "Ban Appeal Dismissed"),
+        ("ban_resolved", "Ban Appeal Resolved"),
+        ("user_banned", "User Banned"),
+        ("user_unbanned", "User Unbanned"),
+        ("user_deleted", "User Deleted"),
+    ]
+    action = models.CharField(max_length=32, choices=ACTION_CHOICES)
+    admin = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, related_name='admin_actions')
+    target_user = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, related_name='targeted_actions')
+    details = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.action} by {self.admin.username if self.admin else 'Unknown'} on {self.target_user.username if self.target_user else 'Unknown'} at {self.created_at}" 
+
+# Ban Appeal model for user ban appeals
+class BanAppeal(models.Model):
+    user = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='ban_appeals')
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    reviewed = models.BooleanField(default=False)
+    reviewed_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_appeals')
+    review_decision = models.CharField(max_length=20, blank=True, null=True, choices=[('dismissed', 'Dismissed'), ('lifted', 'Ban Lifted')])
+    review_comment = models.TextField(blank=True, null=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"BanAppeal by {self.user.username} at {self.created_at}"
+
+# New: Support multiple files per appeal
+class BanAppealFile(models.Model):
+    appeal = models.ForeignKey(BanAppeal, on_delete=models.CASCADE, related_name='files')
+    file = models.FileField(upload_to='ban_appeals/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -35,6 +77,11 @@ class User(AbstractUser):
     email_verified = models.BooleanField(default=False)
     email_verification_token = models.CharField(max_length=255, blank=True, null=True)
     email_verification_sent_at = models.DateTimeField(null=True, blank=True)
+
+    # Admin ban system
+    is_banned = models.BooleanField(default=False)
+    ban_reason = models.CharField(max_length=255, blank=True, null=True)
+    ban_expires_at = models.DateTimeField(null=True, blank=True)
     
     # Security settings
     two_factor_enabled = models.BooleanField(default=False)
@@ -60,11 +107,19 @@ class User(AbstractUser):
         if not self.pk and self.last_password_change is None:
             from django.utils import timezone
             self.last_password_change = timezone.now()
-        
+
         # Automatically verify superusers
         if self.is_superuser and not self.email_verified:
             self.email_verified = True
-        
+
+        # If ban has expired, unban the user automatically
+        from django.utils import timezone
+        if self.is_banned and self.ban_expires_at:
+            if timezone.now() > self.ban_expires_at:
+                self.is_banned = False
+                self.ban_reason = None
+                self.ban_expires_at = None
+
         self.level = self.calculate_level()
         super().save(*args, **kwargs)
 

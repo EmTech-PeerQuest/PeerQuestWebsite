@@ -39,6 +39,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (res.ok && data.access) {
         localStorage.setItem("access_token", data.access);
         await loadUser(data.access, true);
+        // After loading user, check if banned and enforce ban UX
+        const storedUser = localStorage.getItem('user');
+        let parsedUser = null;
+        if (storedUser) {
+          try {
+            parsedUser = JSON.parse(storedUser);
+          } catch (e) {
+            parsedUser = null;
+          }
+        }
+        if (parsedUser && parsedUser.isBanned) {
+          // Remove tokens and user state, redirect to /banned
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
+          setUser(null);
+          toast({
+            title: 'Account Banned',
+            description: parsedUser.banReason || 'You are banned from PeerQuest.',
+            variant: 'destructive',
+          });
+          window.location.href = '/banned';
+          return;
+        }
       } else {
         throw new Error(data?.error || data?.detail || "Google login failed");
       }
@@ -77,25 +101,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const loadUser = async (token: string, isFromLogin: boolean = false) => {
     try {
       const res = await fetchUserApi(token);
-      
-      console.log('[AuthContext] Raw backend user data:', res.data);
-      
-      // Transform backend user data to frontend User type
+      // ...existing code...
       const avatarUrl = res.data.avatar_url || res.data.avatar_data;
       let finalAvatar = undefined;
-      
-      // Only set avatar if it's a valid URL or data URL
       if (avatarUrl && (avatarUrl.startsWith('http') || avatarUrl.startsWith('data:'))) {
-        // For base64 images, validate they are reasonable size (under 10MB when decoded)
         if (avatarUrl.startsWith('data:')) {
-          // Base64 images can be quite long, so we'll be more lenient
-          if (avatarUrl.length < 15000000) { // ~10MB limit for base64
+          if (avatarUrl.length < 15000000) {
             finalAvatar = avatarUrl;
           } else {
             console.warn('[AuthContext] Avatar data too large, skipping');
           }
         } else {
-          // For URLs, keep a reasonable length limit
           if (avatarUrl.length < 2000) {
             finalAvatar = avatarUrl;
           } else {
@@ -103,28 +119,64 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }
         }
       }
-      
       const transformedUser = {
         ...res.data,
         avatar: finalAvatar,
-        // Map backend snake_case fields to frontend camelCase
         dateJoined: res.data.date_joined || res.data.dateJoined,
         createdAt: res.data.created_at || res.data.createdAt || res.data.date_joined,
         displayName: res.data.display_name || res.data.displayName,
         lastPasswordChange: res.data.last_password_change || res.data.lastPasswordChange,
-        birthday: res.data.birthday, // Ensure birthday is included
-        gender: res.data.gender, // Ensure gender is included
+        birthday: res.data.birthday,
+        gender: res.data.gender,
         xp: res.data.experience_points || res.data.xp || 0,
         gold: res.data.gold_balance || res.data.gold || 0,
+        is_staff: res.data.is_staff,
+        is_superuser: res.data.is_superuser,
+        isSuperuser: res.data.is_superuser,
+        // Ban fields
+        isBanned: res.data.is_banned,
+        banReason: res.data.ban_reason,
+        banExpiration: res.data.ban_expires_at,
       };
-      
-      console.log('[AuthContext] Transformed user data:', transformedUser);
-      
+      transformedUser.is_staff = !!(res.data.is_staff);
+      transformedUser.isSuperuser = !!(res.data.is_superuser || res.data.isSuperuser);
+      // If banned, clear state and redirect before setting user
+      if (transformedUser.isBanned) {
+        toast({
+          title: 'Account Banned',
+          description: transformedUser.banReason || 'You are banned from PeerQuest.',
+          variant: 'destructive',
+        });
+        window.location.href = '/banned';
+        // Do NOT clear tokens or user state, so banned users can submit appeals
+        // Optionally, you may want to setUser(transformedUser) here to keep user info in context
+        setUser(transformedUser);
+        localStorage.setItem('user', JSON.stringify(transformedUser));
+        return;
+      }
       setUser(transformedUser);
       localStorage.setItem('user', JSON.stringify(transformedUser));
-    } catch (err) {
+    } catch (err: any) {
+      // Handle ban enforcement (403 Forbidden)
+      if (err?.response?.status === 403 && err?.response?.data?.ban_reason) {
+        // Store ban info in localStorage for ban screen
+        const banInfo = {
+          reason: err.response.data.ban_reason,
+          expiresAt: err.response.data.ban_expires_at || null,
+        };
+        localStorage.setItem('ban_info', JSON.stringify(banInfo));
+        // Do NOT remove access_token here, so banned users can submit appeals
+        setUser(null);
+        localStorage.removeItem('user');
+        toast({
+          title: 'Account Banned',
+          description: err.response.data.ban_reason,
+          variant: 'destructive',
+        });
+        router.push('/banned');
+        return;
+      }
       if (err instanceof TokenInvalidError) {
-        // Token invalid/expired: auto-logout and notify
         localStorage.removeItem('access_token');
         localStorage.removeItem('user');
         setUser(null);
@@ -134,23 +186,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           variant: 'destructive',
         });
         router.push('/');
-        
-        // If this is from a login attempt, throw the error
         if (isFromLogin) {
           throw new Error('Session expired. Please log in again.');
         }
       } else {
         setUser(null);
         localStorage.removeItem('user');
-        
-        // If this is from a login attempt, throw the error
         if (isFromLogin) {
           throw new Error('Failed to load user profile. Please try again.');
         }
       }
     } finally {
-      // Only set loading to false if this is from login
-      // For initialization, loading is managed by the useEffect
       if (isFromLogin) {
         // Don't set loading state for login - let parent handle it
       }
@@ -246,23 +292,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = () => {
     console.log('🔍 Logging out and clearing all stored data...');
-    
     // Clear all authentication data
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
     localStorage.removeItem('jwt');
-    
-    // Clear any other cached data
     sessionStorage.clear();
-    
-    // Reset user state
+    // Clear cookies
+    document.cookie.split(';').forEach((c) => {
+      const eqPos = c.indexOf('=');
+      const name = eqPos > -1 ? c.substr(0, eqPos) : c;
+      document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+      document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=localhost';
+    });
     setUser(null);
-    
-    console.log('✅ All stored data cleared');
-    
-    // Redirect to home page
-    router.push('/');
+    // Force reload to ensure all state is cleared and redirect to home
+    window.location.href = '/';
   };
 
   // Utility function to clear all auth-related cache data
