@@ -34,6 +34,19 @@ export function Navbar({
   onQuestCreated,
 }: Omit<NavbarProps, 'currentUser'>) {
   const { user: currentUser } = useAuth(); // Use context directly
+  
+  // Debug: Log user admin fields whenever user changes
+  useEffect(() => {
+    if (currentUser) {
+      console.log('[Navbar] Current user admin fields:', JSON.stringify({
+        is_staff: currentUser.is_staff,
+        is_superuser: currentUser.is_superuser,
+        isSuperuser: currentUser.isSuperuser,
+        showAdminButton: !!(currentUser.is_staff || currentUser.isSuperuser || currentUser.is_superuser),
+        userKeys: Object.keys(currentUser)
+      }, null, 2));
+    }
+  }, [currentUser]);
   const { t } = useTranslation();
   const router = useRouter();
   const { soundEnabled, volume } = useAudioContext();
@@ -305,7 +318,8 @@ export function Navbar({
                         <Settings size={16} className="mr-2" />
                         {t('navbar.settings')}
                       </button>
-                      {(currentUser as any).roles && (currentUser as any).roles.includes("admin") && (
+                      {/* Debug box removed */}
+                      {currentUser && (currentUser.is_staff || currentUser.isSuperuser || currentUser.is_superuser) && (
                         <button
                           onClick={() => {
                             handleNavigation("admin")
@@ -347,11 +361,21 @@ export function Navbar({
           {/* Mobile menu button */}
           <div className="md:hidden flex items-center space-x-2">
             <LanguageSwitcher />
-            {currentUser && (
-              <div className="flex items-center mr-4">
+          {/* Hide gold button for banned users (user should never be set if banned, but double check) */}
+          {currentUser && !currentUser.isBanned && (
+            <div className="flex items-center mr-4">
+              <div className="bg-[#CDAA7D]/10 px-2 py-1 rounded-full flex items-center">
+                <span className="text-[#CDAA7D] text-sm font-medium">{(currentUser as any).gold || 0}</span>
                 <GoldBalance openGoldPurchaseModal={openGoldPurchaseModal} />
+                <button
+                  onClick={openGoldPurchaseModal}
+                  className="ml-1 text-xs bg-[#CDAA7D] text-white px-1.5 py-0.5 rounded hover:bg-[#B89A6D] transition-colors"
+                >
+                  +
+                </button>
               </div>
-            )}
+            </div>
+          )}
             <button
               onClick={() => {
                 setMobileMenuOpen(!mobileMenuOpen)
@@ -480,7 +504,7 @@ export function Navbar({
                     <Settings size={16} className="mr-2" />
                     {t('navbar.settings')}
                   </button>
-                  {(currentUser as any).roles && (currentUser as any).roles.includes("admin") && (
+                  {currentUser && (currentUser.is_staff || currentUser.isSuperuser || currentUser.is_superuser) && (
                     <button
                       onClick={() => handleNavigation("admin")}
                       className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"

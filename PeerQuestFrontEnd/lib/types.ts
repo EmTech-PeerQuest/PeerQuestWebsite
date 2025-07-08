@@ -1,3 +1,12 @@
+c
+export interface ActionLogEntry {
+  id: number;
+  action: string;
+  admin: string | null;
+  target_user: string | null;
+  details: string;
+  created_at: string;
+}
 export interface User {
   id: string;
   email: string;
@@ -7,6 +16,7 @@ export interface User {
   isBanned?: boolean;
   banned?: boolean; // Alternative naming
   banReason?: string;
+  banExpiration?: Date | string | null;
   roles?: string[];
   role?: string; // User role (quest_maker, adventurer, moderator, admin)
   roleDisplay?: string; // Human-readable role display
@@ -37,6 +47,9 @@ export interface User {
   skills?: { id: string; name: string; description?: string }[];
   guilds?: Guild[];
   badges?: { id: string; name: string; icon?: string; description?: string; rarity?: 'common' | 'rare' | 'epic' | 'legendary'; earnedAt?: string }[];
+  is_staff?: boolean;
+  isSuperuser?: boolean;
+  is_superuser?: boolean;
   socialLinks?: {
     facebook?: string;
     twitter?: string;
@@ -142,7 +155,6 @@ export interface Quest {
   completed_at?: string
   completedAt?: string // Alternative naming
   createdAt?: string // Alternative naming
-  requirements?: string
   resources?: string
   slug: string
   participant_count: number
@@ -173,6 +185,7 @@ export interface Quest {
   guildId?: number
   guildReward?: number
   assignedTo?: number // Missing property found in components
+  requirements?: string[]
 }
 
 

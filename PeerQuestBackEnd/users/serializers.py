@@ -43,6 +43,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source='get_role_display_name', read_only=True)
     role_level = serializers.IntegerField(read_only=True)
     gold_balance = serializers.SerializerMethodField()
+    is_staff = serializers.BooleanField(read_only=True)
+    is_superuser = serializers.BooleanField(read_only=True)
     
     def get_gold_balance(self, obj):
         """Get gold balance from UserBalance model (source of truth)"""
@@ -64,9 +66,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "level", "experience_points", "gold_balance", "role", "role_display", "role_level",
             "preferred_language", "timezone", "notification_preferences", "privacy_settings",
             "two_factor_enabled", "two_factor_method", "backup_codes_generated", "spending_limits",
-            "last_password_change", "date_joined"
+            "last_password_change", "date_joined",
+            "is_staff", "is_superuser"
         ]
-        read_only_fields = ["id", "email", "email_verified", "level", "experience_points", "gold_balance", "last_password_change", "date_joined"]
+        read_only_fields = ["id", "email", "email_verified", "level", "experience_points", "gold_balance", "last_password_change", "date_joined", "is_staff", "is_superuser"]
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)

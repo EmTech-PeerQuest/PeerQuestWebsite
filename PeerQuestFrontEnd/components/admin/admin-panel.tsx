@@ -1,9 +1,58 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import type { User, Quest, Guild } from "@/lib/types"
-import { Users, FileText, Flag, Home, X } from "lucide-react"
-import { ReportDetailsModal } from "@/components/modals/report-details-modal"
+import { useState, useMemo, useEffect } from "react";
+import { Users, FileText, Flag, Home, X, Search, Trash2, AlertTriangle, Clock } from "lucide-react";
+import type { ActionLogEntry } from "@/lib/types";
+import { ReportDetailsModal } from "@/components/modals/report-details-modal";
+import type { User, Quest, Guild } from "@/lib/types";
+
+// --- Helper: fetchWithAuth ---
+// Handles token refresh for all API calls
+const fetchWithAuth = async (url: string, options: any = {}, autoLogout = true) => {
+  const API_BASE = "http://localhost:8000";
+  let token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
+  const refresh = typeof window !== 'undefined' ? localStorage.getItem("refresh_token") : null;
+  if (!token) throw new Error("No access token found");
+  let res = await fetch(url, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (res.status === 401 && refresh) {
+    // Try to refresh token
+    const refreshRes = await fetch(`${API_BASE}/api/token/refresh/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh })
+    });
+    if (refreshRes.ok) {
+      const data = await refreshRes.json();
+      if (data.access) {
+        localStorage.setItem("access_token", data.access);
+        token = data.access;
+        // Retry original request
+        res = await fetch(url, {
+          ...options,
+          headers: {
+            ...(options.headers || {}),
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      }
+    } else if (autoLogout) {
+      // Refresh failed, force logout
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      if (typeof window !== 'undefined' && window.alert) {
+        window.alert("Session expired. Please log in again.");
+      }
+      throw new Error("Session expired");
+    }
+  }
+  return res;
+};
 
 interface AdminPanelProps {
   currentUser: User | null
@@ -16,7 +65,7 @@ interface AdminPanelProps {
   showToast: (message: string, type?: string) => void
 }
 
-export function AdminPanel({
+function AdminPanel({
   currentUser,
   users,
   quests,
@@ -26,10 +75,48 @@ export function AdminPanel({
   setGuilds,
   showToast,
 }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "users" | "quests" | "guilds" | "reports">("overview")
-  const [showBanConfirm, setShowBanConfirm] = useState<number | null>(null)
+  const [activeTab, setActiveTab] = useState<"overview" | "users" | "quests" | "guilds" | "reports" | "appeals" | "actionlog">("overview")
+  // Action Log State
+  const [actionLogs, setActionLogs] = useState<ActionLogEntry[]>([]);
+  const [actionLogsLoading, setActionLogsLoading] = useState(false);
+  const [actionLogsError, setActionLogsError] = useState("");
+
+  // Appeals search
+  const [appealSearch, setAppealSearch] = useState("");
+  // Fetch action logs from backend
+  const fetchActionLogs = async () => {
+    setActionLogsLoading(true);
+    setActionLogsError("");
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/users/action-log/`);
+      if (!res.ok) {
+        const err = await res.text();
+        setActionLogsError(err);
+        setActionLogs([]);
+        setActionLogsLoading(false);
+        return;
+      }
+      const data = await res.json();
+      setActionLogs(data);
+    } catch (err: any) {
+      setActionLogsError("Error fetching action logs: " + (err?.message || err));
+      setActionLogs([]);
+    }
+    setActionLogsLoading(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === "actionlog") fetchActionLogs();
+  }, [activeTab]);
+  const [searchTerm, setSearchTerm] = useState("")
+  // Accept only UUID string for user IDs
+  const [showBanConfirm, setShowBanConfirm] = useState<string | null>(null)
+  const [showDeleteUserConfirm, setShowDeleteUserConfirm] = useState<string | null>(null)
   const [banReason, setBanReason] = useState("")
   const [customBanReason, setCustomBanReason] = useState("")
+  const [banType, setBanType] = useState<"permanent" | "temporary">("permanent")
+  const [banDuration, setBanDuration] = useState({ amount: 1, unit: "days" })
   const [showDeleteQuestConfirm, setShowDeleteQuestConfirm] = useState<number | null>(null)
   const [deleteQuestReason, setDeleteQuestReason] = useState("")
   const [customDeleteQuestReason, setCustomDeleteQuestReason] = useState("")
@@ -42,6 +129,97 @@ export function AdminPanel({
   const [selectedReport, setSelectedReport] = useState<any>(null)
   const [resolvedReports, setResolvedReports] = useState<number[]>([])
 
+  // Inappropriate content detection
+  const inappropriateWords = [
+    "hate", "racist", "nazi", "slur", "offensive", "inappropriate", "spam", "scam", "fraud"
+  ]
+
+  const isInappropriateUsername = (username: string) => {
+    return inappropriateWords.some(word => 
+      username.toLowerCase().includes(word.toLowerCase())
+    )
+  }
+
+
+  // Fetch users from backend on mount (with auth header and token refresh)
+  useEffect(() => {
+    const API_BASE = "http://localhost:8000";
+    async function fetchUsersWithRefresh() {
+      let token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
+      const refresh = typeof window !== 'undefined' ? localStorage.getItem("refresh_token") : null;
+      if (!token) {
+        console.error("[AdminPanel] No access token found in localStorage");
+        return;
+      }
+      let res = await fetch(`${API_BASE}/api/users/admin/users/`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.status === 401 && refresh) {
+        // Try to refresh token
+        const refreshRes = await fetch(`${API_BASE}/api/token/refresh/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh })
+        });
+        if (refreshRes.ok) {
+          const data = await refreshRes.json();
+          if (data.access) {
+            localStorage.setItem("access_token", data.access);
+            token = data.access;
+            // Retry original request
+            res = await fetch(`${API_BASE}/api/users/admin/users/`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+          }
+        } else {
+          // Refresh failed, force logout
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          setUsers([]);
+          showToast("Session expired. Please log in again.", "error");
+          return;
+        }
+      }
+      if (!res.ok) {
+        const err = await res.text();
+        console.error(`[AdminPanel] Failed to fetch users: ${res.status} ${res.statusText}`, err);
+        setUsers([]);
+        return;
+      }
+      const data = await res.json();
+      if (!Array.isArray(data)) {
+        console.error("[AdminPanel] Users API did not return an array:", data);
+        setUsers([]);
+        return;
+      }
+      setUsers(
+        data.map((u: any) => ({
+          ...u,
+          isBanned: u.is_banned,
+          banReason: u.ban_reason,
+          banExpiration: u.ban_expires_at,
+          isSuperuser: u.is_superuser,
+          createdAt: u.date_joined,
+        }))
+      );
+    }
+    fetchUsersWithRefresh();
+    // eslint-disable-next-line
+  }, []);
+
+  // Filtered and searched users
+  const filteredUsers = useMemo(() => {
+    return users.filter(user => {
+      // Accept string or non-string username/email for robustness
+      const username = typeof user.username === 'string' ? user.username : String(user.username ?? '');
+      const email = typeof user.email === 'string' ? user.email : String(user.email ?? '');
+      const matchesSearch = searchTerm === "" || 
+        username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        email.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesSearch;
+    });
+  }, [users, searchTerm]);
+
   // Count active and banned users
   const activeUsers = users.filter((user) => !user.isBanned).length
   const bannedUsers = users.filter((user) => user.isBanned).length
@@ -50,45 +228,233 @@ export function AdminPanel({
   const openQuests = quests.filter((quest) => quest.status === "open").length
   const completedQuests = quests.filter((quest) => quest.status === "completed").length
 
-  // Mock reports data
-  const reports = [
-    {
-      id: 1,
-      type: "user",
-      reportedId: users[2]?.id || 3,
-      reason: "Inappropriate behavior",
-      status: "pending",
-      reportedBy: users[0]?.id || 1,
-      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-      description: "User was posting inappropriate content in guild chat and harassing other members.",
-      evidence: ["Screenshot of chat messages", "Multiple user reports"],
-    },
-    {
-      id: 2,
-      type: "quest",
-      reportedId: quests[0]?.id || 1,
-      reason: "Misleading information",
-      status: "pending",
-      reportedBy: users[1]?.id || 2,
-      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-      description: "Quest description doesn't match the actual requirements and seems to be a scam.",
-      evidence: ["Quest posting details", "User complaint"],
-    },
-  ]
 
-  const handleBanUser = (userId: number) => {
-    const finalReason = banReason === "custom" ? customBanReason : banReason
-    setUsers(users.map((user) => (user.id === userId ? { ...user, banned: true, banReason: finalReason } : user)))
-    showToast(`User has been banned. Reason: ${finalReason}`, "success")
-    setShowBanConfirm(null)
-    setBanReason("")
-    setCustomBanReason("")
+  // Ban Appeals State
+  const [appeals, setAppeals] = useState<any[]>([]);
+  const [appealsLoading, setAppealsLoading] = useState(false);
+  const [appealsError, setAppealsError] = useState("");
+  const [appealActionLoading, setAppealActionLoading] = useState<string | null>(null); // appeal id
+  const [appealActionError, setAppealActionError] = useState("");
+
+  // Fetch appeals from backend (with token refresh)
+  const fetchAppeals = async () => {
+    setAppealsLoading(true);
+    const API_BASE = "http://localhost:8000";
+    try {
+      const res = await fetchWithAuth(`${API_BASE}/api/users/ban-appeal/list/`);
+      if (!res.ok) {
+        const err = await res.text();
+        console.error("[AdminPanel] Ban appeals API error:", err);
+        setAppealsError(err);
+        setAppeals([]);
+        setAppealsLoading(false);
+        return;
+      }
+      const data = await res.json();
+      console.log("[AdminPanel] Ban appeals API response:", data);
+      if (!Array.isArray(data)) {
+        setAppealsError("Ban appeals API did not return an array");
+        setAppeals([]);
+      } else {
+        setAppeals(data);
+      }
+    } catch (err: any) {
+      console.error("[AdminPanel] Error fetching ban appeals:", err);
+      setAppealsError("Error fetching ban appeals: " + (err?.message || err));
+      setAppeals([]);
+    }
+    setAppealsLoading(false);
+  };
+
+  useEffect(() => {
+    fetchAppeals();
+  }, []);
+
+  // For now, treat each appeal as a report (if you have a separate reports API, fetch it similarly)
+  // Only show unresolved appeals as reports (for dashboard count)
+  const reports = appeals.filter(a => !a.reviewed);
+
+  // Filtered appeals for search
+  const filteredAppeals = useMemo(() => {
+    if (!appealSearch) return appeals;
+    const q = appealSearch.toLowerCase();
+    return appeals.filter(a =>
+      (a.user_email && a.user_email.toLowerCase().includes(q)) ||
+      (a.message && a.message.toLowerCase().includes(q))
+    );
+  }, [appeals, appealSearch]);
+
+  // Appeal Actions
+  // Patch: All appeal actions POST to /api/users/ban-appeal/<appeal_id>/review/ with { decision }
+  const handleAppealAction = async (
+    appealId: string | number,
+    action: "dismiss" | "lift_ban" | "resolve"
+  ) => {
+    setAppealActionLoading(String(appealId));
+    setAppealActionError("");
+    const API_BASE = "http://localhost:8000";
+    const endpoint = `/api/users/ban-appeal/${appealId}/review/`;
+    let decision = "";
+    if (action === "dismiss") {
+      decision = "dismissed";
+    } else if (action === "lift_ban") {
+      decision = "lifted";
+    } else if (action === "resolve") {
+      // If backend supports a separate 'resolved' state, use it; otherwise, fallback to 'dismissed'
+      decision = "dismissed";
+    }
+    try {
+      const res = await fetchWithAuth(`${API_BASE}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision }),
+      });
+      if (!res.ok) {
+        let err, rawErr;
+        try {
+          rawErr = await res.text();
+          err = JSON.parse(rawErr);
+        } catch {
+          err = rawErr;
+        }
+        setAppealActionError((err && err.detail) || err || "Failed to process appeal action");
+        setAppealActionLoading(null);
+        showToast((err && err.detail) || err || "Failed to process appeal action", "error");
+        return;
+      }
+      showToast(`Appeal action '${action}' successful.`, "success");
+      // Remove the appeal from the list immediately for better UX
+      setAppeals((prevAppeals) => prevAppeals.filter((a) => String(a.id) !== String(appealId)));
+      // Optionally, refetch action logs if on actionlog tab
+      if (activeTab === "actionlog") fetchActionLogs();
+    } catch (e) {
+      setAppealActionError("Failed to process appeal action");
+      showToast("Failed to process appeal action", "error");
+    }
+    setAppealActionLoading(null);
+  };
+
+  const handleBanUser = async (userId: string | null) => {
+    if (!userId) return;
+    const finalReason = banReason === "custom" ? customBanReason : banReason;
+    let expires_at = null;
+    if (banType === "temporary") {
+      const now = new Date();
+      let ms = banDuration.amount * (
+        banDuration.unit === "hours" ? 60 * 60 * 1000 :
+        banDuration.unit === "days" ? 24 * 60 * 60 * 1000 :
+        7 * 24 * 60 * 60 * 1000 // weeks
+      );
+      expires_at = new Date(now.getTime() + ms).toISOString();
+    }
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
+      const API_BASE = "http://localhost:8000";
+      if (!token) {
+        showToast("No access token found. Please log in again.", "error");
+        return;
+      }
+      // Always use UUID string for userId
+      const userUuid = String(userId);
+      const res = await fetch(`${API_BASE}/api/users/admin/users/${userUuid}/ban/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ reason: finalReason, expires_at }),
+      });
+      if (!res.ok) {
+        let err, rawErr;
+        try { rawErr = await res.text(); err = JSON.parse(rawErr); } catch { err = rawErr; }
+        console.error('[AdminPanel] Ban user error:', err, rawErr, res.status, res.statusText);
+        showToast((err && err.detail) || err || "Failed to ban user", "error");
+        return;
+      }
+      setUsers(users.map((user) =>
+        user.id === userUuid ? {
+          ...user,
+          isBanned: true,
+          banReason: finalReason,
+          banExpiration: expires_at,
+        } : user
+      ));
+      const banTypeText = banType === "permanent" ? "permanently" : `temporarily (expires ${expires_at ? new Date(expires_at).toLocaleString() : ""})`;
+      showToast(`User has been banned ${banTypeText}. Reason: ${finalReason}`, "success");
+    } catch (e) {
+      showToast("Failed to ban user", "error");
+    }
+    setShowBanConfirm(null);
+    setBanReason("");
+    setCustomBanReason("");
+    setBanType("permanent");
+    setBanDuration({ amount: 1, unit: "days" });
+  };
+
+  const handleDeleteUser = async (userId: string | null) => {
+    if (!userId) return;
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
+      const API_BASE = "http://localhost:8000";
+      if (!token) {
+        showToast("No access token found. Please log in again.", "error");
+        return;
+      }
+      // Always use UUID string for userId
+      const userUuid = String(userId);
+      const res = await fetch(`${API_BASE}/api/users/admin/users/${userUuid}/delete/`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+      });
+      if (!res.ok) {
+        let err, rawErr;
+        try { rawErr = await res.text(); err = JSON.parse(rawErr); } catch { err = rawErr; }
+        console.error('[AdminPanel] Delete user error:', err, rawErr, res.status, res.statusText);
+        showToast((err && err.detail) || err || "Failed to delete user", "error");
+        return;
+      }
+      setUsers(users.filter((user) => user.id !== userUuid));
+      showToast(`User account has been permanently deleted.`, "success");
+      setShowDeleteUserConfirm(null);
+    } catch (e) {
+      showToast("Failed to delete user", "error");
+    }
   }
 
-  const handleUnbanUser = (userId: number) => {
-    setUsers(users.map((user) => (user.id === userId ? { ...user, banned: false } : user)))
-    showToast(`User has been unbanned.`, "success")
-  }
+  const handleUnbanUser = async (userId: string | null) => {
+    if (!userId) return;
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
+      const API_BASE = "http://localhost:8000";
+      if (!token) {
+        showToast("No access token found. Please log in again.", "error");
+        return;
+      }
+      // Always use UUID string for userId
+      const userUuid = String(userId);
+      const res = await fetch(`${API_BASE}/api/users/admin/users/${userUuid}/unban/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+      });
+      if (!res.ok) {
+        let err, rawErr;
+        try { rawErr = await res.text(); err = JSON.parse(rawErr); } catch { err = rawErr; }
+        console.error('[AdminPanel] Unban user error:', err, rawErr, res.status, res.statusText);
+        showToast((err && err.detail) || err || "Failed to unban user", "error");
+        return;
+      }
+      setUsers(users.map((user) => (user.id === userUuid ? { ...user, isBanned: false, banReason: undefined, banExpiration: undefined } : user)));
+      showToast(`User has been unbanned.`, "success");
+    } catch (e) {
+      showToast("Failed to unban user", "error");
+    }
+  };
 
   const handleDeleteQuest = (questId: number) => {
     const finalReason = deleteQuestReason === "custom" ? customDeleteQuestReason : deleteQuestReason
@@ -117,7 +483,7 @@ export function AdminPanel({
     setSelectedReport(report)
   }
 
-  if (!currentUser || !currentUser.roles || !currentUser.roles.includes("admin")) {
+  if (!currentUser || !(currentUser.is_staff || currentUser.isSuperuser || currentUser.is_superuser)) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-16 text-center">
         <h2 className="text-2xl font-bold text-[#2C1A1D] mb-4">Access Denied</h2>
@@ -137,6 +503,17 @@ export function AdminPanel({
         {/* Tab Navigation */}
         <div className="bg-white border-b border-gray-200 overflow-x-auto">
           <div className="flex min-w-max">
+            <button
+              onClick={() => setActiveTab("actionlog")}
+              className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
+                activeTab === "actionlog"
+                  ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
+                  : "text-gray-500 hover:text-[#8B75AA]"
+              }`}
+            >
+              <FileText size={18} className="mr-2" />
+              Action Log
+            </button>
             <button
               onClick={() => setActiveTab("overview")}
               className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
@@ -191,13 +568,204 @@ export function AdminPanel({
             >
               <Flag size={18} className="mr-2" />
               Reports
-              <span className="ml-2 bg-red-500 text-white text-xs px-1.5 rounded-full">2</span>
+              {appealsLoading ? (
+                <span className="ml-2 bg-gray-400 text-white text-xs px-1.5 rounded-full">...</span>
+              ) : appeals.length > 0 ? (
+                <span className="ml-2 bg-red-500 text-white text-xs px-1.5 rounded-full">{appeals.length}</span>
+              ) : null}
             </button>
+            {/* Appeals Tab - only for staff/superusers */}
+            {(currentUser.is_staff || currentUser.isSuperuser || currentUser.is_superuser) && (
+              <button
+                onClick={() => setActiveTab("appeals")}
+                className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
+                  activeTab === "appeals"
+                    ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
+                    : "text-gray-500 hover:text-[#8B75AA]"
+                }`}
+              >
+                <Flag size={18} className="mr-2" />
+                Appeals
+                {appealsLoading ? (
+                  <span className="ml-2 bg-gray-400 text-white text-xs px-1.5 rounded-full">...</span>
+                ) : appeals.length > 0 ? (
+                  <span className="ml-2 bg-red-500 text-white text-xs px-1.5 rounded-full">{appeals.length}</span>
+                ) : null}
+              </button>
+            )}
           </div>
         </div>
 
+        {/* Tab Content Area */}
+        {activeTab === "appeals" && (
+          <div className="py-8">
+            <h3 className="text-xl font-bold text-[#2C1A1D] mb-8 text-center">Ban Appeals</h3>
+            <div className="flex justify-end mb-4">
+              <input
+                type="text"
+                placeholder="Search appeals by email or message..."
+                value={appealSearch}
+                onChange={e => setAppealSearch(e.target.value)}
+                className="border border-gray-300 rounded px-3 py-2 w-full max-w-xs focus:ring-2 focus:ring-[#8B75AA] focus:border-transparent"
+              />
+            </div>
+            {appealsLoading ? (
+              <div className="flex justify-center items-center min-h-[200px]">
+                <span className="text-[#8B75AA] text-lg animate-pulse">Loading appeals...</span>
+              </div>
+            ) : appealsError ? (
+              <div className="flex justify-center items-center min-h-[200px]">
+                <span className="text-red-500 text-lg">{appealsError}</span>
+              </div>
+            ) : appeals.length === 0 ? (
+              <div className="flex flex-col items-center justify-center min-h-[200px]">
+                <svg width="48" height="48" fill="none" viewBox="0 0 24 24" className="mb-2 text-gray-300"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Zm-1-7h2v2h-2v-2Zm0-8h2v6h-2V7Z" fill="currentColor"/></svg>
+                <span className="text-gray-500 text-base">No ban appeals found.</span>
+                <span className="text-xs text-gray-400 mt-1">All clear! No users have submitted appeals.</span>
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow border border-gray-200 p-0 sm:p-4">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full bg-white rounded-lg">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">User</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Ban Details</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Appeal Message</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Evidence</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAppeals.map((appeal) => (
+                        <tr key={appeal.id} className="hover:bg-gray-50">
+                          <td className="py-3 px-4 border-b align-top min-w-[140px]">
+                            <div className="flex flex-col gap-1">
+                              <span className="font-medium text-gray-900">{appeal.user_email || "Unknown"}</span>
+                              <span className="text-xs text-gray-500">Email</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 border-b align-top min-w-[160px]">
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs text-gray-700">Reason: <span className="font-medium">{appeal.ban_reason || "-"}</span></span>
+                              <span className="text-xs text-gray-700">{appeal.ban_expires_at ? `Until ${new Date(appeal.ban_expires_at).toLocaleString()}` : "Permanent"}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 border-b align-top max-w-xs min-w-[180px]">
+                            <div className="text-sm text-gray-900 whitespace-pre-line break-words">{appeal.message}</div>
+                          </td>
+                          <td className="py-3 px-4 border-b align-top min-w-[120px]">
+                            {appeal.files && appeal.files.length > 0 ? (
+                              <div className="flex flex-col gap-1">
+                                {appeal.files.map((file: any, idx: number) => (
+                                  <a
+                                    key={file.id || file.url || idx}
+                                    href={file.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:underline text-xs truncate max-w-[120px]"
+                                  >
+                                    {file.name || `Evidence ${idx + 1}`}
+                                  </a>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400">No files</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 border-b align-top min-w-[140px]">
+                            <div className="flex flex-col gap-2">
+                              <button
+                                onClick={() => handleAppealAction(appeal.id, "dismiss")}
+                                disabled={appealActionLoading === String(appeal.id)}
+                                className="px-3 py-1 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 text-xs font-medium disabled:opacity-60"
+                              >
+                                Dismiss Appeal
+                              </button>
+                              <button
+                                onClick={() => handleAppealAction(appeal.id, "lift_ban")}
+                                disabled={appealActionLoading === String(appeal.id)}
+                                className="px-3 py-1 bg-green-200 text-green-800 rounded hover:bg-green-300 text-xs font-medium disabled:opacity-60"
+                              >
+                                Lift Ban
+                              </button>
+                              <button
+                                onClick={() => handleAppealAction(appeal.id, "resolve")}
+                                disabled={appealActionLoading === String(appeal.id)}
+                                className="px-3 py-1 bg-blue-200 text-blue-800 rounded hover:bg-blue-300 text-xs font-medium disabled:opacity-60"
+                              >
+                                Mark as Resolved
+                              </button>
+                              {appealActionLoading === String(appeal.id) && (
+                                <span className="text-xs text-gray-400 mt-1">Processing...</span>
+                              )}
+                              {appealActionError && appealActionLoading === String(appeal.id) && (
+                                <span className="text-xs text-red-500 mt-1">{appealActionError}</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+
+        {/* Action Log Tab */}
+        {activeTab === "actionlog" && (
+          <div className="py-8">
+            <h3 className="text-xl font-bold text-[#2C1A1D] mb-8 text-center">Admin Action Log</h3>
+            {actionLogsLoading ? (
+              <div className="flex justify-center items-center min-h-[200px]">
+                <span className="text-[#8B75AA] text-lg animate-pulse">Loading action logs...</span>
+              </div>
+            ) : actionLogsError ? (
+              <div className="flex justify-center items-center min-h-[200px]">
+                <span className="text-red-500 text-lg">{actionLogsError}</span>
+              </div>
+            ) : actionLogs.length === 0 ? (
+              <div className="flex flex-col items-center justify-center min-h-[200px]">
+                <span className="text-gray-500 text-base">No admin actions found.</span>
+                <span className="text-xs text-gray-400 mt-1">No actions have been logged yet.</span>
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow border border-gray-200 p-0 sm:p-4">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full bg-white rounded-lg">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Time</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Admin</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Action</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Target User</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {actionLogs.map((log) => (
+                        <tr key={log.id} className="hover:bg-gray-50">
+                          <td className="py-3 px-4 border-b align-top min-w-[120px]">{new Date(log.created_at).toLocaleString()}</td>
+                          <td className="py-3 px-4 border-b align-top min-w-[120px]">{log.admin || "Unknown"}</td>
+                          <td className="py-3 px-4 border-b align-top min-w-[120px]">{log.action.replace(/_/g, " ")}</td>
+                          <td className="py-3 px-4 border-b align-top min-w-[120px]">{log.target_user || "Unknown"}</td>
+                          <td className="py-3 px-4 border-b align-top min-w-[200px]">{log.details}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+
         {/* Content Area */}
-        <div className="bg-white rounded-b-lg p-6">
+        <div className={`rounded-b-lg p-6${activeTab === "appeals" ? '' : ' bg-white'}`}> 
           {activeTab === "overview" && (
             <div>
               {/* Stats Cards */}
@@ -325,72 +893,108 @@ export function AdminPanel({
           {/* Users Tab */}
           {activeTab === "users" && (
             <div>
-              <h3 className="text-xl font-bold text-[#2C1A1D] mb-4">Manage Users</h3>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+                <h3 className="text-xl font-bold text-[#2C1A1D] mb-4 sm:mb-0">Manage Users</h3>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <input
+                    type="text"
+                    placeholder="Search users by name or email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B75AA] focus:border-transparent w-full sm:w-80"
+                  />
+                </div>
+              </div>
+              
               <div className="overflow-x-auto -mx-4 sm:mx-0">
                 <div className="min-w-full inline-block align-middle">
-                  <table className="min-w-full bg-white border border-gray-200">
+                  <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
                     <thead>
-                      <tr className="bg-gray-100">
-                        <th className="py-2 px-4 border-b text-left">User</th>
-                        <th className="py-2 px-4 border-b text-left">Email</th>
-                        <th className="py-2 px-4 border-b text-left">Role</th>
-                        <th className="py-2 px-4 border-b text-left">Status</th>
-                        <th className="py-2 px-4 border-b text-left">Joined</th>
-                        <th className="py-2 px-4 border-b text-left">Actions</th>
+                      <tr className="bg-gray-50">
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">User</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Email</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Role</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Status</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Joined</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {users.map((user) => (
-                        <tr key={user.id} className="hover:bg-gray-50">
-                          <td className="py-2 px-4 border-b">
+                      {filteredUsers.map((user) => (
+                        <tr key={user.id} className={`hover:bg-gray-50 ${isInappropriateUsername(user.username || '') ? 'bg-red-50 border-l-4 border-red-400' : ''}`}>
+                          <td className="py-3 px-4 border-b">
                             <div className="flex items-center">
                               <div className="w-8 h-8 rounded-full bg-[#8B75AA] flex items-center justify-center text-white font-medium">
                                 {user.avatar || user.username?.charAt(0).toUpperCase() || "U"}
                               </div>
-                              <span className="ml-2 font-medium">{user.username}</span>
+                              <div className="ml-3">
+                                <div className="flex items-center">
+                                  <span className="font-medium text-gray-900">{user.username}</span>
+                                  {isInappropriateUsername(user.username || '') && (
+                                    <AlertTriangle className="ml-2 text-red-500" size={16} />
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           </td>
-                          <td className="py-2 px-4 border-b">{user.email}</td>
-                          <td className="py-2 px-4 border-b">
-                            {user.roles?.includes("admin") ? (
-                              <span className="bg-[#8B75AA] text-white text-xs px-2 py-1 rounded">Admin</span>
+                          <td className="py-3 px-4 border-b text-gray-900">{user.email}</td>
+                          <td className="py-3 px-4 border-b">
+                            {user.isSuperuser || user.is_superuser ? (
+                              <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full font-medium">Super Admin</span>
+                            ) : user.is_staff ? (
+                              <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">Staff</span>
                             ) : (
-                              <span className="bg-gray-200 text-gray-700 text-xs px-2 py-1 rounded">User</span>
+                              <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full font-medium">User</span>
                             )}
                           </td>
-                          <td className="py-2 px-4 border-b">
+                          <td className="py-3 px-4 border-b">
                             {user.isBanned ? (
-                              <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded">Banned</span>
+                              <div className="flex flex-col">
+                                <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-medium mb-1">Banned</span>
+                                {user.banReason && (
+                                  <span className="text-xs text-gray-700">Reason: <span className="font-medium">{user.banReason}</span></span>
+                                )}
+                                {user.banExpiration && (
+                                  <span className="text-xs text-gray-700">{user.banExpiration ? `Until ${new Date(user.banExpiration).toLocaleString()}` : "Permanent"}</span>
+                                )}
+                              </div>
                             ) : (
-                              <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">Active</span>
+                              <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">Active</span>
                             )}
                           </td>
-                          <td className="py-2 px-4 border-b">
+                          <td className="py-3 px-4 border-b text-gray-900">
                             {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A"}
                           </td>
-                          <td className="py-2 px-4 border-b">
+                          <td className="py-3 px-4 border-b">
                             <div className="flex space-x-2">
                               <button
                                 onClick={() => setSelectedUserDetails(user)}
-                                className="text-blue-600 hover:text-blue-800 text-sm"
+                                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                               >
                                 View
                               </button>
                               {user.isBanned ? (
                                 <button
-                                  onClick={() => handleUnbanUser(Number(user.id))}
-                                  className="text-green-600 hover:text-green-800 text-sm"
+                                  onClick={() => handleUnbanUser(String(user.id))}
+                                  className="text-green-600 hover:text-green-800 text-sm font-medium"
                                 >
                                   Unban
                                 </button>
                               ) : (
                                 <button
-                                  onClick={() => setShowBanConfirm(Number(user.id))}
-                                  className="text-red-600 hover:text-red-800 text-sm"
+                                  onClick={() => setShowBanConfirm(String(user.id))}
+                                  className="text-orange-600 hover:text-orange-800 text-sm font-medium"
                                 >
                                   Ban
                                 </button>
                               )}
+                              <button
+                                onClick={() => setShowDeleteUserConfirm(String(user.id))}
+                                className="text-red-600 hover:text-red-800 text-sm font-medium"
+                              >
+                                Delete
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -404,74 +1008,25 @@ export function AdminPanel({
 
           {/* Quests Tab */}
           {activeTab === "quests" && (
-            <div>
-              <h3 className="text-xl font-bold text-[#2C1A1D] mb-4">Manage Quests</h3>
-              <div className="overflow-x-auto -mx-4 sm:mx-0">
-                <div className="min-w-full inline-block align-middle">
-                  <table className="min-w-full bg-white border border-gray-200">
-                    <thead>
-                      <tr className="bg-gray-100">
-                        <th className="py-2 px-4 border-b text-left">Title</th>
-                        <th className="py-2 px-4 border-b text-left">Posted By</th>
-                        <th className="py-2 px-4 border-b text-left">Category</th>
-                        <th className="py-2 px-4 border-b text-left">Status</th>
-                        <th className="py-2 px-4 border-b text-left">Created</th>
-                        <th className="py-2 px-4 border-b text-left">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {quests.map((quest) => (
-                        <tr key={quest.id} className="hover:bg-gray-50">
-                          <td className="py-2 px-4 border-b font-medium">{quest.title}</td>
-                          <td className="py-2 px-4 border-b">
-                            <div className="flex items-center">
-                              <div className="w-6 h-6 rounded-full bg-[#8B75AA] flex items-center justify-center text-white text-xs">
-                                {quest.poster?.avatar}
-                              </div>
-                              <span className="ml-2">{quest.poster?.username}</span>
-                            </div>
-                          </td>
-                          <td className="py-2 px-4 border-b">
-                            <span className="bg-gray-200 text-gray-700 text-xs px-2 py-1 rounded">
-                              {quest.category}
-                            </span>
-                          </td>
-                          <td className="py-2 px-4 border-b">
-                            {quest.status === "open" && (
-                              <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">Open</span>
-                            )}
-                            {quest.status === "in-progress" && (
-                              <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">
-                                In Progress
-                              </span>
-                            )}
-                            {quest.status === "completed" && (
-                              <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">Completed</span>
-                            )}
-                          </td>
-                          <td className="py-2 px-4 border-b">
-                            {quest.createdAt ? new Date(quest.createdAt).toLocaleDateString() : "N/A"}
-                          </td>
-                          <td className="py-2 px-4 border-b">
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={() => setSelectedQuestDetails(quest)}
-                                className="text-blue-600 hover:text-blue-800 text-sm"
-                              >
-                                View
-                              </button>
-                              <button
-                                onClick={() => setShowDeleteQuestConfirm(Number(quest.id))}
-                                className="text-red-600 hover:text-red-800 text-sm"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+            <div className="text-center py-16">
+              <div className="max-w-md mx-auto">
+                <div className="bg-white rounded-lg shadow-lg p-8 border border-gray-200">
+                  <div className="text-6xl mb-4">🗡️</div>
+                  <h3 className="text-2xl font-bold text-[#2C1A1D] mb-4">Quest Management</h3>
+                  <p className="text-gray-600 mb-4">
+                    Quest moderation and management tools are coming soon!
+                  </p>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <p className="text-sm text-gray-500">
+                      Features in development:
+                    </p>
+                    <ul className="text-sm text-gray-600 mt-2 space-y-1">
+                      <li>• Quest approval system</li>
+                      <li>• Content moderation</li>
+                      <li>• Quest analytics</li>
+                      <li>• Automated flagging</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
@@ -479,67 +1034,25 @@ export function AdminPanel({
 
           {/* Guilds Tab */}
           {activeTab === "guilds" && (
-            <div>
-              <h3 className="text-xl font-bold text-[#2C1A1D] mb-4">Manage Guilds</h3>
-              <div className="overflow-x-auto -mx-4 sm:mx-0">
-                <div className="min-w-full inline-block align-middle">
-                  <table className="min-w-full bg-white border border-gray-200">
-                    <thead>
-                      <tr className="bg-gray-100">
-                        <th className="py-2 px-4 border-b text-left">Guild</th>
-                        <th className="py-2 px-4 border-b text-left">Owner</th>
-                        <th className="py-2 px-4 border-b text-left">Members</th>
-                        <th className="py-2 px-4 border-b text-left">Specialization</th>
-                        <th className="py-2 px-4 border-b text-left">Created</th>
-                        <th className="py-2 px-4 border-b text-left">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {guilds.map((guild) => (
-                        <tr key={guild.id} className="hover:bg-gray-50">
-                          <td className="py-2 px-4 border-b">
-                            <div className="flex items-center">
-                              <span className="text-xl mr-2">{guild.emblem}</span>
-                              <span className="font-medium">{guild.poster?.username}</span>
-                            </div>
-                          </td>
-                          <td className="py-2 px-4 border-b">
-                            <div className="flex items-center">
-                              <div className="w-6 h-6 rounded-full bg-[#8B75AA] flex items-center justify-center text-white text-xs">
-                                {guild.poster?.avatar}
-                              </div>
-                              <span className="ml-2">{guild.poster?.username}</span>
-                            </div>
-                          </td>
-                          <td className="py-2 px-4 border-b">{guild.members}</td>
-                          <td className="py-2 px-4 border-b">
-                            <span className="bg-gray-200 text-gray-700 text-xs px-2 py-1 rounded">
-                              {guild.specialization}
-                            </span>
-                          </td>
-                          <td className="py-2 px-4 border-b">
-                            {guild.createdAt ? new Date(guild.createdAt).toLocaleDateString() : "N/A"}
-                          </td>
-                          <td className="py-2 px-4 border-b">
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={() => setSelectedGuildDetails(guild)}
-                                className="text-blue-600 hover:text-blue-800 text-sm"
-                              >
-                                View
-                              </button>
-                              <button
-                                onClick={() => setShowDeleteGuildConfirm(Number(guild.id))}
-                                className="text-red-600 hover:text-red-800 text-sm"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+            <div className="text-center py-16">
+              <div className="max-w-md mx-auto">
+                <div className="bg-white rounded-lg shadow-lg p-8 border border-gray-200">
+                  <div className="text-6xl mb-4">🏰</div>
+                  <h3 className="text-2xl font-bold text-[#2C1A1D] mb-4">Guild Management</h3>
+                  <p className="text-gray-600 mb-4">
+                    Guild moderation and management tools are coming soon!
+                  </p>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <p className="text-sm text-gray-500">
+                      Features in development:
+                    </p>
+                    <ul className="text-sm text-gray-600 mt-2 space-y-1">
+                      <li>• Guild oversight</li>
+                      <li>• Member management</li>
+                      <li>• Guild analytics</li>
+                      <li>• Dispute resolution</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
@@ -547,78 +1060,25 @@ export function AdminPanel({
 
           {/* Reports Tab */}
           {activeTab === "reports" && (
-            <div>
-              <h3 className="text-xl font-bold text-[#2C1A1D] mb-4">Manage Reports</h3>
-              <div className="overflow-x-auto -mx-4 sm:mx-0">
-                <div className="min-w-full inline-block align-middle">
-                  <table className="min-w-full bg-white border border-gray-200">
-                    <thead>
-                      <tr className="bg-gray-100">
-                        <th className="py-2 px-4 border-b text-left">Type</th>
-                        <th className="py-2 px-4 border-b text-left">Reported By</th>
-                        <th className="py-2 px-4 border-b text-left">Reason</th>
-                        <th className="py-2 px-4 border-b text-left">Status</th>
-                        <th className="py-2 px-4 border-b text-left">Date</th>
-                        <th className="py-2 px-4 border-b text-left">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {reports.map((report) => (
-                        <tr key={report.id} className="hover:bg-gray-50">
-                          <td className="py-2 px-4 border-b">
-                            <span
-                              className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                                report.type === "user" ? "bg-red-100 text-red-800" : "bg-orange-100 text-orange-800"
-                              }`}
-                            >
-                              {report.type === "user" ? "User Report" : "Quest Report"}
-                            </span>
-                          </td>
-                          <td className="py-2 px-4 border-b">
-                            <div className="flex items-center">
-                              <div className="w-6 h-6 rounded-full bg-[#8B75AA] flex items-center justify-center text-white text-xs">
-                                {users.find((u) => u.id === report.reportedBy)?.avatar || "U"}
-                              </div>
-                              <span className="ml-2">
-                                {users.find((u) => u.id === report.reportedBy)?.username || "Unknown"}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="py-2 px-4 border-b">{report.reason}</td>
-                          <td className="py-2 px-4 border-b">
-                            {resolvedReports.includes(Number(report.id)) ? (
-                              <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">Completed</span>
-                            ) : (
-                              <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">Pending</span>
-                            )}
-                          </td>
-                          <td className="py-2 px-4 border-b">
-                            {report.createdAt ? report.createdAt.toLocaleDateString() : "N/A"}
-                          </td>
-                          <td className="py-2 px-4 border-b">
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={() => handleViewReport(report)}
-                                className="text-blue-600 hover:text-blue-800 text-sm"
-                              >
-                                View
-                              </button>
-                              {!resolvedReports.includes(Number(report.id)) && (
-                                <button
-                                  onClick={() =>
-                                    handleResolveReport(report.id, "quick_resolve", "Resolved via quick action")
-                                  }
-                                  className="text-green-600 hover:text-green-800 text-sm"
-                                >
-                                  Resolve
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+            <div className="text-center py-16">
+              <div className="max-w-md mx-auto">
+                <div className="bg-white rounded-lg shadow-lg p-8 border border-gray-200">
+                  <div className="text-6xl mb-4">📊</div>
+                  <h3 className="text-2xl font-bold text-[#2C1A1D] mb-4">Reports & Analytics</h3>
+                  <p className="text-gray-600 mb-4">
+                    Advanced reporting and analytics tools are coming soon!
+                  </p>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <p className="text-sm text-gray-500">
+                      Features in development:
+                    </p>
+                    <ul className="text-sm text-gray-600 mt-2 space-y-1">
+                      <li>• User reports system</li>
+                      <li>• Platform analytics</li>
+                      <li>• Automated moderation</li>
+                      <li>• Activity monitoring</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
@@ -635,6 +1095,54 @@ export function AdminPanel({
             <p className="text-[#2C1A1D] mb-4">Are you sure you want to ban this user?</p>
 
             <div className="mb-4">
+              <label className="block text-sm font-medium text-[#2C1A1D] mb-2">Ban Type:</label>
+              <div className="flex gap-4 mb-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    value="permanent"
+                    checked={banType === "permanent"}
+                    onChange={(e) => setBanType(e.target.value as "permanent" | "temporary")}
+                    className="mr-2"
+                  />
+                  Permanent
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    value="temporary"
+                    checked={banType === "temporary"}
+                    onChange={(e) => setBanType(e.target.value as "permanent" | "temporary")}
+                    className="mr-2"
+                  />
+                  Temporary
+                </label>
+              </div>
+
+              {banType === "temporary" && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">Duration:</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      value={banDuration.amount}
+                      onChange={(e) => setBanDuration({...banDuration, amount: parseInt(e.target.value)})}
+                      className="w-20 border border-[#CDAA7D] rounded px-2 py-1 text-[#2C1A1D]"
+                    />
+                    <select
+                      value={banDuration.unit}
+                      onChange={(e) => setBanDuration({...banDuration, unit: e.target.value})}
+                      className="border border-[#CDAA7D] rounded px-2 py-1 text-[#2C1A1D]"
+                    >
+                      <option value="hours">Hours</option>
+                      <option value="days">Days</option>
+                      <option value="weeks">Weeks</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
               <label className="block text-sm font-medium text-[#2C1A1D] mb-2">Reason for ban:</label>
               <select
                 value={banReason}
@@ -646,6 +1154,7 @@ export function AdminPanel({
                 <option value="Spam or harassment">Spam or harassment</option>
                 <option value="Violation of terms">Violation of terms</option>
                 <option value="Fraudulent activity">Fraudulent activity</option>
+                <option value="Inappropriate username">Inappropriate username</option>
                 <option value="custom">Custom reason</option>
               </select>
 
@@ -665,10 +1174,12 @@ export function AdminPanel({
                   setShowBanConfirm(null)
                   setBanReason("")
                   setCustomBanReason("")
+                  setBanType("permanent")
+                  setBanDuration({ amount: 1, unit: "days" })
                 }}
                 className="px-4 py-2 border border-[#CDAA7D] rounded text-[#2C1A1D] hover:bg-[#CDAA7D] hover:text-white transition-colors"
               >
-                No
+                Cancel
               </button>
               <button
                 onClick={() => handleBanUser(showBanConfirm)}
@@ -679,7 +1190,49 @@ export function AdminPanel({
                     : "bg-gray-300 text-gray-500 cursor-not-allowed"
                 }`}
               >
-                Yes, Ban User
+                {banType === "permanent" ? "Ban Permanently" : "Ban Temporarily"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete User Confirmation Modal */}
+      {showDeleteUserConfirm !== null && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md p-6">
+            <div className="flex items-center mb-4">
+              <AlertTriangle className="text-red-500 mr-3" size={24} />
+              <h3 className="text-xl font-bold text-[#2C1A1D]">Delete User Account</h3>
+            </div>
+            <p className="text-[#2C1A1D] mb-4">
+              Are you sure you want to permanently delete this user account? This action cannot be undone.
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+              <p className="text-red-800 text-sm">
+                ⚠️ This will permanently remove:
+              </p>
+              <ul className="text-red-800 text-sm mt-2 list-disc list-inside">
+                <li>User profile and data</li>
+                <li>All posted quests</li>
+                <li>Guild memberships</li>
+                <li>Messages and comments</li>
+              </ul>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteUserConfirm(null)}
+                className="px-4 py-2 border border-[#CDAA7D] rounded text-[#2C1A1D] hover:bg-[#CDAA7D] hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteUser(showDeleteUserConfirm as any)}
+                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors flex items-center"
+              >
+                <Trash2 size={16} className="mr-2" />
+                Delete Permanently
               </button>
             </div>
           </div>
@@ -698,80 +1251,93 @@ export function AdminPanel({
         />
       )}
 
-      {/* User Details Modal */}
+      {/* User Details Modal - Profile Card Revamp */}
       {selectedUserDetails && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-2xl p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-[#2C1A1D]">User Details</h3>
-              <button onClick={() => setSelectedUserDetails(null)} className="text-gray-400 hover:text-gray-600">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-16 h-16 bg-[#8B75AA] rounded-full flex items-center justify-center text-white text-xl font-bold">
-                    {selectedUserDetails.avatar}
-                  </div>
-                  <div>
-                    <h4 className="text-lg font-bold text-[#2C1A1D]">{selectedUserDetails.username}</h4>
-                    <p className="text-[#8B75AA]">{selectedUserDetails.email}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Level</label>
-                    <p className="text-[#2C1A1D]">{selectedUserDetails.level}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">XP</label>
-                    <p className="text-[#2C1A1D]">{selectedUserDetails.xp}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Gold</label>
-                    <p className="text-[#2C1A1D]">{selectedUserDetails.gold}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Joined</label>
-                    <p className="text-[#2C1A1D]">
-                      {selectedUserDetails.createdAt
-                        ? new Date(selectedUserDetails.createdAt).toLocaleDateString()
-                        : "N/A"}
-                    </p>
-                  </div>
+          <div className="bg-white rounded-2xl w-full max-w-2xl p-0 shadow-2xl relative">
+            <div className="relative h-40 bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] rounded-t-2xl flex items-end justify-center">
+              <div className="absolute top-4 right-4">
+                <button onClick={() => setSelectedUserDetails(null)} className="text-white bg-black bg-opacity-30 hover:bg-opacity-60 rounded-full p-2 transition-colors">
+                  <X size={22} />
+                </button>
+              </div>
+              <div className="absolute left-1/2 -bottom-12 transform -translate-x-1/2">
+                <div className="w-28 h-28 rounded-full border-4 border-white shadow-lg bg-[#8B75AA] flex items-center justify-center text-white text-4xl font-bold overflow-hidden">
+                  {selectedUserDetails.avatar || selectedUserDetails.username?.charAt(0).toUpperCase() || "U"}
                 </div>
               </div>
-
-              <div>
-                <h5 className="font-medium text-[#2C1A1D] mb-3">Activity Stats</h5>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Completed Quests</label>
-                    <p className="text-[#2C1A1D]">{selectedUserDetails.completedQuests}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Created Quests</label>
-                    <p className="text-[#2C1A1D]">{selectedUserDetails.createdQuests}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Joined Guilds</label>
-                    <p className="text-[#2C1A1D]">{selectedUserDetails.joinedGuilds}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Created Guilds</label>
-                    <p className="text-[#2C1A1D]">{selectedUserDetails.createdGuilds}</p>
-                  </div>
+            </div>
+            <div className="pt-20 pb-8 px-8">
+              <div className="flex flex-col items-center text-center mb-6">
+                <h3 className="text-2xl font-extrabold text-[#2C1A1D] flex items-center gap-2">
+                  {selectedUserDetails.username}
+                  {selectedUserDetails.isSuperuser || selectedUserDetails.is_superuser ? (
+                    <span className="ml-2 bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full font-medium">Super Admin</span>
+                  ) : selectedUserDetails.is_staff ? (
+                    <span className="ml-2 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">Staff</span>
+                  ) : null}
+                </h3>
+                <p className="text-[#8B75AA] text-sm mt-1">{selectedUserDetails.email}</p>
+                <div className="flex flex-wrap gap-2 mt-2 justify-center">
+                  {selectedUserDetails.isBanned ? (
+                    <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-medium">Banned{selectedUserDetails.banExpiration ? ` until ${new Date(selectedUserDetails.banExpiration).toLocaleDateString()}` : ''}</span>
+                  ) : (
+                    <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">Active</span>
+                  )}
+                  {selectedUserDetails.banReason && (
+                    <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-medium">Ban Reason: {selectedUserDetails.banReason}</span>
+                  )}
                 </div>
-
-                {selectedUserDetails.bio && (
-                  <div className="mt-4">
-                    <label className="text-sm font-medium text-gray-600">Bio</label>
-                    <p className="text-[#2C1A1D] text-sm">{selectedUserDetails.bio}</p>
-                  </div>
-                )}
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-white rounded-lg shadow p-3 flex flex-col items-center">
+                  <span className="text-xs text-gray-500">Level</span>
+                  <span className="text-lg font-bold text-[#8B75AA]">{selectedUserDetails.level ?? "-"}</span>
+                </div>
+                <div className="bg-white rounded-lg shadow p-3 flex flex-col items-center">
+                  <span className="text-xs text-gray-500">XP</span>
+                  <span className="text-lg font-bold text-[#8B75AA]">{selectedUserDetails.xp ?? "-"}</span>
+                </div>
+                <div className="bg-white rounded-lg shadow p-3 flex flex-col items-center">
+                  <span className="text-xs text-gray-500">Gold</span>
+                  <span className="text-lg font-bold text-[#8B75AA]">{selectedUserDetails.gold ?? "-"}</span>
+                </div>
+                <div className="bg-white rounded-lg shadow p-3 flex flex-col items-center">
+                  <span className="text-xs text-gray-500">Joined</span>
+                  <span className="text-lg font-bold text-[#8B75AA]">{selectedUserDetails.createdAt ? new Date(selectedUserDetails.createdAt).toLocaleDateString() : "-"}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-[#F4F0E6] rounded-lg p-3 flex flex-col items-center">
+                  <span className="text-xs text-gray-500">Completed Quests</span>
+                  <span className="text-lg font-bold text-[#8B75AA]">{selectedUserDetails.completedQuests ?? 0}</span>
+                </div>
+                <div className="bg-[#F4F0E6] rounded-lg p-3 flex flex-col items-center">
+                  <span className="text-xs text-gray-500">Created Quests</span>
+                  <span className="text-lg font-bold text-[#8B75AA]">{selectedUserDetails.createdQuests ?? 0}</span>
+                </div>
+                <div className="bg-[#F4F0E6] rounded-lg p-3 flex flex-col items-center">
+                  <span className="text-xs text-gray-500">Joined Guilds</span>
+                  <span className="text-lg font-bold text-[#8B75AA]">{selectedUserDetails.joinedGuilds ?? 0}</span>
+                </div>
+                <div className="bg-[#F4F0E6] rounded-lg p-3 flex flex-col items-center">
+                  <span className="text-xs text-gray-500">Created Guilds</span>
+                  <span className="text-lg font-bold text-[#8B75AA]">{selectedUserDetails.createdGuilds ?? 0}</span>
+                </div>
+              </div>
+              {selectedUserDetails.bio && (
+                <div className="bg-white rounded-lg shadow p-4 mb-4">
+                  <label className="text-sm font-medium text-gray-600 mb-1 block">Bio</label>
+                  <p className="text-[#2C1A1D] text-sm whitespace-pre-line">{selectedUserDetails.bio}</p>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2 mt-2 justify-center">
+                {selectedUserDetails.isSuperuser || selectedUserDetails.is_superuser ? (
+                  <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full font-medium">Superuser</span>
+                ) : null}
+                {selectedUserDetails.is_staff ? (
+                  <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">Staff</span>
+                ) : null}
               </div>
             </div>
           </div>
@@ -1042,6 +1608,9 @@ export function AdminPanel({
           </div>
         </div>
       )}
+
     </div>
-  )
+  );
 }
+
+export default AdminPanel;

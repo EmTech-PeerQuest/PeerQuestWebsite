@@ -195,6 +195,7 @@ AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',              # Default Django
 )
 
+
 # DRF Settings - Session Authentication only
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -202,7 +203,7 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": (
-        "rest_framework.permissions.AllowAny",
+        "common.not_banned_permission.NotBannedPermission",
     ),
     'EXCEPTION_HANDLER': 'core.exception_handler.custom_exception_handler',
 }

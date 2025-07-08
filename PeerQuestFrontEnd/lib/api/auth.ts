@@ -329,12 +329,31 @@ export const refreshToken = async () => {
   }
 };
 
-// Axios interceptor for automatic token refresh
+// Axios interceptor for automatic token refresh and ban enforcement
 axios.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    
+    // Ban enforcement: if 403 and ban info, redirect to /banned
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.ban_reason
+    ) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('ban_info', JSON.stringify({
+          reason: error.response.data.ban_reason,
+          expiresAt: error.response.data.ban_expires_at || null,
+        }));
+        // Remove user and tokens
+        localStorage.removeItem('user');
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        sessionStorage.removeItem('refresh_token');
+        // Redirect to ban page
+        window.location.href = '/banned';
+      }
+      return Promise.reject(error);
+    }
     // Don't handle 401 errors from login endpoints - let them bubble up
     if (error.response?.status === 401 && 
         (originalRequest.url?.includes('/api/token/') || 
@@ -342,30 +361,20 @@ axios.interceptors.response.use(
          originalRequest.url?.includes('/auth/google'))) {
       return Promise.reject(error);
     }
-    
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      
       try {
         const refreshData = await refreshToken();
-        
-        // Update the access token
         localStorage.setItem('access_token', refreshData.access);
-        
-        // Update the authorization header for the failed request
         originalRequest.headers.Authorization = `Bearer ${refreshData.access}`;
-        
-        // Retry the original request
         return axios(originalRequest);
       } catch (refreshError) {
-        // Token refresh failed, redirect to login only if not already on login page
         if (typeof window !== 'undefined' && !window.location.pathname.includes('login')) {
           window.location.href = '/';
         }
         return Promise.reject(refreshError);
       }
     }
-    
     return Promise.reject(error);
   }
 );
