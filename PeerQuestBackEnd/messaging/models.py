@@ -66,15 +66,13 @@ class Message(models.Model):
     Represents a single message in a conversation.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    
-    # FIXED: Always link to conversation
+
     conversation = models.ForeignKey(
         'Conversation',
         on_delete=models.CASCADE,
         related_name='messages'
     )
-    
-    # Keep sender/recipient for backward compatibility and direct queries
+
     sender = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -85,17 +83,22 @@ class Message(models.Model):
         on_delete=models.CASCADE,
         related_name="received_messages"
     )
-    
-    # Message content and metadata
+
     content = models.TextField()
     subject = models.CharField(max_length=200, blank=True, null=True)
-    
-    # Message status
+
+    # ✅ Added status field
+    STATUS_CHOICES = [
+        ('sent', 'Sent'),
+        ('delivered', 'Delivered'),
+        ('read', 'Read'),
+    ]
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='sent')
+
     is_read = models.BooleanField(default=False)
     timestamp = models.DateTimeField(auto_now_add=True)
     read_at = models.DateTimeField(null=True, blank=True)
-    
-    # Message type (for future features)
+
     MESSAGE_TYPES = [
         ('text', 'Text Message'),
         ('image', 'Image'),
@@ -104,8 +107,7 @@ class Message(models.Model):
         ('link', 'Link'),
     ]
     message_type = models.CharField(max_length=10, choices=MESSAGE_TYPES, default='text')
-    
-    # Optional: Message priority
+
     PRIORITY_CHOICES = [
         ('low', 'Low'),
         ('normal', 'Normal'),
@@ -113,8 +115,7 @@ class Message(models.Model):
         ('urgent', 'Urgent'),
     ]
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='normal')
-    
-    # Optional: Reply to another message (for threading)
+
     reply_to = models.ForeignKey(
         'self',
         on_delete=models.CASCADE,
@@ -135,30 +136,23 @@ class Message(models.Model):
         return f"Message {self.id}: {self.sender.username} → {self.recipient.username}"
 
     def save(self, *args, **kwargs):
-        """Override save to update conversation timestamp"""
-        # If no conversation is set, create/get one
         if not self.conversation:
             self.conversation = Conversation.get_or_create_conversation(
                 self.sender, self.recipient
             )
-        
         super().save(*args, **kwargs)
-        
-        # Update conversation timestamp when message is saved
         self.conversation.update_timestamp()
 
     def mark_as_read(self):
-        """Mark message as read and set read timestamp"""
         if not self.is_read:
             self.is_read = True
+            self.status = 'read'
             self.read_at = timezone.now()
-            self.save(update_fields=['is_read', 'read_at'])
+            self.save(update_fields=['is_read', 'status', 'read_at'])
 
     def get_preview(self, max_length=50):
-        """Get a preview of the message content"""
-        if len(self.content) <= max_length:
-            return self.content
-        return self.content[:max_length] + "..."
+        return self.content if len(self.content) <= max_length else self.content[:max_length] + "..."
+
 
 
 class MessageAttachment(models.Model):

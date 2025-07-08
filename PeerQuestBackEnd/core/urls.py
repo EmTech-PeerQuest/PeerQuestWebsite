@@ -49,6 +49,7 @@ urlpatterns = [
     path('schema/', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     # CSRF protection
     path('api/csrf/', ensure_csrf_cookie(csrf)),
+    path("api/conversations/", include("messaging.urls")),
 ]
 
 if settings.DEBUG:

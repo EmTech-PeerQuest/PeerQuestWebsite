@@ -1,9 +1,22 @@
 "use client"
 
-import React from 'react'
-import { Message, User, Attachment, MessageStatus } from '@/lib/types'
-import { Check, CheckCheck, AlertCircle, File, FileText, Image as ImageIcon } from 'lucide-react'
-import Image from 'next/image'
+import React from "react"
+import Image from "next/image"
+import { motion } from "framer-motion"
+import {
+  Message,
+  User,
+  Attachment,
+  MessageStatus,
+} from "@/lib/types"
+import {
+  Check,
+  CheckCheck,
+  AlertCircle,
+  File,
+  FileText,
+  Image as ImageIcon,
+} from "lucide-react"
 
 export interface MessageBubbleProps {
   message: Message
@@ -12,35 +25,41 @@ export interface MessageBubbleProps {
   status?: MessageStatus
   onAttachmentClick?: (attachment: Attachment) => void
   renderAvatar?: (user: User, size?: "sm" | "md" | "lg") => JSX.Element
-  onlineUsers?: Map<string, "online" | "idle" | "offline"> // declared but unused here
+  onlineUsers?: Map<string, "online" | "idle" | "offline">
 }
 
-// Function to get the appropriate status icon
 const getStatusIcon = (status: MessageStatus) => {
-  switch (status) {
-    case "sent":
-      return <Check className="w-4 h-4 text-gray-400" />
-    case "delivered":
-      return <CheckCheck className="w-4 h-4 text-gray-400" />
-    case "read":
-      return <CheckCheck className="w-4 h-4 text-blue-500" />
-    case "failed":
-      return <AlertCircle className="w-4 h-4 text-red-500" />
-    default:
-      return null
+  const icons: Record<MessageStatus, JSX.Element> = {
+    sending: <Check className="w-4 h-4 text-gray-300" />,
+    sent: <Check className="w-4 h-4 text-gray-400" />,
+    delivered: <CheckCheck className="w-4 h-4 text-gray-400" />,
+    read: <CheckCheck className="w-4 h-4 text-blue-500" />,
+    failed: <AlertCircle className="w-4 h-4 text-red-500" />,
   }
+  return icons[status] ?? null
 }
 
-// Function to get file icon based on type
-const getFileIcon = (attachment: Attachment) => {
-  if (attachment.is_image) {
-    return <ImageIcon className="w-5 h-5 text-gray-500" />
-  }
-  if (attachment.content_type.includes('pdf')) {
-    return <FileText className="w-5 h-5 text-red-500" />
-  }
-  return <File className="w-5 h-5 text-gray-500" />
-}
+const getFileIcon = (a: Attachment) =>
+  a.is_image ? (
+    <ImageIcon className="w-5 h-5 text-gray-500" />
+  ) : a.content_type.includes("pdf") ? (
+    <FileText className="w-5 h-5 text-red-500" />
+  ) : (
+    <File className="w-5 h-5 text-gray-500" />
+  )
+
+const defaultAvatar = (user: User, size: string = "md") => (
+  <Image
+    src={user.avatar || "/placeholder-user.jpg"}
+    alt={user.username || "User"}
+    className={`rounded-full object-cover ${
+      size === "sm" ? "w-6 h-6" : size === "lg" ? "w-10 h-10" : "w-8 h-8"
+    }`}
+    width={32}
+    height={32}
+    loading="lazy"
+  />
+)
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
@@ -50,92 +69,110 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   onAttachmentClick,
   renderAvatar,
 }) => {
-  // Filter safe attachments
-  const safeAttachments = message.attachments?.filter(
-    (attachment): attachment is Attachment =>
-      attachment && typeof attachment.content_type === 'string' && typeof attachment.url === 'string'
-  ) || []
+  const safeAttachments =
+    message.attachments?.filter(
+      (a): a is Attachment =>
+        a &&
+        typeof a.content_type === "string" &&
+        typeof a.file_url === "string"
+    ) || []
 
-  const imageAttachments = safeAttachments.filter((a) => a.is_image === true)
+  const imageAttachments = safeAttachments.filter((a) => a.is_image)
   const otherAttachments = safeAttachments.filter((a) => !a.is_image)
+  const Avatar = renderAvatar ?? defaultAvatar
 
-  // Fallback avatar renderer
-  const AvatarComponent = renderAvatar ?? ((user: User, size: string = "md") => (
-    <Image
-      src={user.avatar || '/placeholder-user.jpg'}
-      alt={user.username || 'User avatar'}
-      className={`rounded-full object-cover ${
-        size === "sm" ? "w-6 h-6" : size === "lg" ? "w-10 h-10" : "w-8 h-8"
-      }`}
-      width={32}
-      height={32}
-      loading="lazy"
-    />
-  ))
+  const time = message.timestamp
+    ? new Date(message.timestamp).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : ""
+
+  const shouldShowBorder = !!message.content || imageAttachments.length > 0
 
   return (
-    <div className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'} mb-4`}>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+      className={`flex ${isOwnMessage ? "justify-end" : "justify-start"} mb-4`}
+    >
       {!isOwnMessage && showAvatar && (
-        <div className="mr-2">
-          {message.sender ? AvatarComponent(message.sender, "md") : (
-            <Image
-              src={'/placeholder-user.jpg'}
-              alt="Unknown User"
-              className="w-8 h-8 rounded-full object-cover"
-              width={32}
-              height={32}
-              loading="lazy"
-            />
-          )}
+        <div className="mr-2 flex-shrink-0">
+          {message.sender
+            ? Avatar(message.sender, "md")
+            : defaultAvatar({ id: "unknown", username: "Unknown" })}
         </div>
       )}
 
       <div
-        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+        className={`relative max-w-xs lg:max-w-md px-4 py-2 rounded-2xl shadow-md transition-colors ${
           isOwnMessage
-            ? 'bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] text-white'
-            : 'bg-gray-200 text-gray-800'
+            ? "bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] text-white"
+            : "bg-gray-100 text-gray-800"
         }`}
       >
-        {message.content && message.message_type === 'text' && (
-          <p className="break-words">{message.content}</p>
+        {/* Text content */}
+        {message.content && message.message_type === "text" && (
+          <p className="break-words whitespace-pre-wrap text-sm">{message.content}</p>
         )}
 
+        {/* Image attachments */}
         {imageAttachments.length > 0 && (
           <div
             className={`mt-2 space-y-2 ${
-              message.content ? 'pt-2 border-t border-solid border-white/[0.15]' : ''
+              message.content ? "pt-2 border-t border-white/20" : ""
             }`}
           >
-            {imageAttachments.map((a) => (
-              <Image
-                key={a.id}
-                src={a.url}
-                alt={a.filename || 'Attachment image'}
-                className="max-w-full rounded cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() => onAttachmentClick?.(a)}
-                width={300}
-                height={200}
-                style={{ objectFit: "contain" }}
-                loading="lazy"
-              />
-            ))}
+            {imageAttachments.map((a) => {
+              const getAbsoluteUrl = (url?: string) => {
+                if (!url) return ""
+                return url.startsWith("http")
+                  ? url
+                  : `http://localhost:8000${url.startsWith("/") ? "" : "/"}${url}`
+              }
+
+              const src = getAbsoluteUrl(a.thumbnail_url || a.file_url)
+              if (!src) return null
+
+              return (
+                <motion.div
+                  key={a.id}
+                  className="overflow-hidden rounded-lg"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Image
+                    src={src}
+                    alt={a.filename || "image"}
+                    width={200}
+                    height={200}
+                    className="rounded-lg max-w-xs max-h-64 object-cover"
+                  />
+                </motion.div>
+              )
+            })}
           </div>
         )}
 
+        {/* File attachments */}
         {otherAttachments.length > 0 && (
           <div
             className={`mt-2 space-y-1 ${
-              message.content || imageAttachments.length > 0 ? 'pt-2 border-t border-solid border-white/[0.15]' : ''
+              shouldShowBorder ? "pt-2 border-t border-white/20" : ""
             }`}
           >
             {otherAttachments.map((a) => (
-              <div
+              <motion.div
                 key={a.id}
-                className={`flex items-center space-x-2 cursor-pointer p-2 rounded transition-colors ${
-                  isOwnMessage ? 'hover:bg-blue-600' : 'hover:bg-gray-300'
-                }`}
                 onClick={() => onAttachmentClick?.(a)}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.97 }}
+                className={`
+                  flex items-center space-x-2 cursor-pointer p-2 rounded-lg
+                  ${isOwnMessage ? "hover:bg-[#9c85af]/90" : "hover:bg-gray-200"}
+                  transition-all
+                `}
               >
                 {getFileIcon(a)}
                 <div className="flex-1 min-w-0">
@@ -144,43 +181,32 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                     <p className="text-xs opacity-75">{a.file_size_human}</p>
                   )}
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         )}
 
-        <div
-          className={`flex items-center ${
-            isOwnMessage ? 'justify-end' : 'justify-start'
-          } mt-1`}
-        >
-          <span className="text-xs opacity-75">
-            {new Date(message.timestamp).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </span>
-          {isOwnMessage && status && (
-            <div className="flex justify-end ml-2">{getStatusIcon(status)}</div>
-          )}
-        </div>
+        {/* Time + status */}
+        {time && (
+          <div
+            className={`flex items-center gap-2 text-xs mt-2 opacity-75 ${
+              isOwnMessage ? "justify-end" : "justify-start"
+            }`}
+          >
+            <span>{time}</span>
+            {isOwnMessage && status && <span>{getStatusIcon(status)}</span>}
+          </div>
+        )}
       </div>
 
       {isOwnMessage && showAvatar && (
-        <div className="ml-2">
-          {message.sender ? AvatarComponent(message.sender, "md") : (
-            <Image
-              src={'/placeholder-user.jpg'}
-              alt="Unknown User"
-              className="w-8 h-8 rounded-full object-cover"
-              width={32}
-              height={32}
-              loading="lazy"
-            />
-          )}
+        <div className="ml-2 flex-shrink-0">
+          {message.sender
+            ? Avatar(message.sender, "md")
+            : defaultAvatar({ id: "unknown", username: "Unknown" })}
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }
 

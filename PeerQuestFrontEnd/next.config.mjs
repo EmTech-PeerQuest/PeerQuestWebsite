@@ -8,13 +8,20 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '8000',
+        pathname: '/media/**',
+      },
+    ],
   },
   async rewrites() {
     return [
-      // Exclude /api/chat/* from proxying to Django
       {
         source: '/api/chat/:path*',
-        destination: '/api/chat/:path*', // Let Next.js handle this route
+        destination: '/api/chat/:path*',
       },
       {
         source: '/api/:path*',

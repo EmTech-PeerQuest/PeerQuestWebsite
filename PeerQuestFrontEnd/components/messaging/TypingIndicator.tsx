@@ -1,38 +1,29 @@
 "use client"
 import React, { useMemo } from "react"
-
-type TypingUser = {
-  user_id: string
-  username: string
-}
+import type { TypingUser } from "@/lib/types"
 
 interface TypingIndicatorProps {
   typingUsers: TypingUser[]
   currentUserId: string
 }
 
-export default function TypingIndicator({
-  typingUsers,
-  currentUserId,
-}: TypingIndicatorProps) {
-  // Memoize filtered unique typing users excluding the current user
-  const activeTypingUsers = useMemo(() => {
-    const uniqueTypingUsers = typingUsers.filter(
-      (user, index, self) => self.findIndex((t) => t.user_id === user.user_id) === index
-    )
-    return uniqueTypingUsers.filter((user) => user.user_id !== currentUserId)
+export default function TypingIndicator({ typingUsers, currentUserId }: TypingIndicatorProps) {
+  const names = useMemo(() => {
+    const unique = new Map<string, string>()
+    typingUsers.forEach(({ user_id, username }) => {
+      if (user_id !== currentUserId) unique.set(user_id, username)
+    })
+    return [...unique.values()]
   }, [typingUsers, currentUserId])
 
-  if (activeTypingUsers.length === 0) return null
-
-  const names = activeTypingUsers.map((u) => u.username)
+  if (names.length === 0) return null
 
   const message =
     names.length === 1
       ? `${names[0]} is typing...`
       : names.length === 2
       ? `${names[0]} and ${names[1]} are typing...`
-      : `${names[0]}, ${names[1]}, and ${names.length - 2} other${names.length - 2 > 1 ? "s" : ""} are typing...`
+      : `${names[0]}, ${names[1]}, and ${names.length - 2} other${names.length > 3 ? "s" : ""} are typing...`
 
   return (
     <div

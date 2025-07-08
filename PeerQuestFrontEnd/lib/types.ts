@@ -1,3 +1,4 @@
+// 1. Updated lib/types.ts - Fix UserStatus type
 export interface User {
   id: string;
   email?: string;
@@ -29,9 +30,9 @@ export interface Quest {
   xp: number;
   status: 'open' | 'in_progress' | 'completed';
   poster: User;
-  createdAt: string; // or `Date` if you're consistent
-  deadline: string;  // same here
-  applicants: any[]; // Consider defining a more specific type for applicants if possible
+  createdAt: string;
+  deadline: string;
+  applicants: any[];
   isGuildQuest?: boolean;
   guildId?: number;
   guildReward?: number;
@@ -69,16 +70,15 @@ export interface Conversation {
   id: string;
   is_group: boolean;
   name?: string;
-  description?: string; // Add this if you want description to be part of the conversation
+  description?: string;
   participants: User[];
-  last_message?: string;
+  last_message?: Message;
   updated_at: string;
   unread_count?: number;
   last_message_date?: string; 
   created_at?: string;
-  guildId?: string; // If relevant for your guild-specific conversations
+  guildId?: string;
 }
-
 
 export interface Message {
   id: string;
@@ -88,8 +88,7 @@ export interface Message {
     username: string;
     avatar?: string;
   };
-  // Make receiver and recipient_id optional to correctly handle group chats
-  receiver?: { // <-- Made optional
+  receiver?: {
     id: string;
     username: string;
     avatar?: string;
@@ -97,8 +96,8 @@ export interface Message {
   content: string;
   created_at: string;
   read: boolean;
-  recipient_id?: string; // <-- Made optional
-  message_type: "text" | "file" | string; // Broaden if other types exist, or make a specific union
+  recipient_id?: string;
+  message_type: "text" | "file" | string;
   status: "sending" | "sent" | "delivered" | "read" | "failed";
   timestamp: string;
   attachments?: Attachment[];
@@ -122,8 +121,7 @@ export interface Attachment {
   is_image?: boolean;
 }
 
-// Add MessageStatus type to include "failed" for your components:
 export type MessageStatus = "sending" | "sent" | "delivered" | "read" | "failed";
 
-// Update UserStatus to match the "online" | "idle" | "offline" from MessagingSystem
-export type UserStatus = "online" | "idle" | "offline" | "away" | "busy"; // Added idle and offline
+// Fix: Update UserStatus to match expected types
+export type UserStatus = "online" | "idle" | "offline";

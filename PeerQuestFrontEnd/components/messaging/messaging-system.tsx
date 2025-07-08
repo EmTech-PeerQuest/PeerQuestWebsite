@@ -1,439 +1,327 @@
-"use client";
+"use client"
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
-import ConversationList from "./ConversationList";
-import ChatWindow from "./ChatWindow";
-import ConversationInfoPanel from "./ConversationInfoPanel";
-import type { Conversation, Message, User, TypingUser } from "@/lib/types";
-
-// Define the WebSocketMessage interface
-interface WebSocketMessage {
-  type: string;
-  sender_id?: string;
-  [key: string]: any;
-}
+import React, { useEffect, useState, useRef, useCallback } from "react"
+import ConversationList from "./ConversationList"
+import ChatWindow from "./ChatWindow"
+import ConversationInfoPanel from "./ConversationInfoPanel"
+import type { Conversation, Message, User, TypingUser, UserStatus } from "@/lib/types"
+import { motion, AnimatePresence } from "framer-motion"
+import axios from "axios"
+import { toast } from "@/components/ui/use-toast"
 
 interface MessagingSystemProps {
-  token: string;
-  currentUser: User;
-  showToast?: (message: string, type?: string) => void;
-  onlineUsers?: Map<string, "online" | "idle" | "offline">;
+  token: string
+  currentUser: User
+  showToast?: (message: string, type?: string) => void
+  onlineUsers?: Map<string, UserStatus>
 }
 
 export default function MessagingSystem({ token, currentUser }: MessagingSystemProps) {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
-  const [onlineUsers, setOnlineUsers] = useState<Map<string, "online" | "idle" | "offline">>(new Map());
-  const [showInfoPanel, setShowInfoPanel] = useState(false);
-  const [newMessage, setNewMessage] = useState("");
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [isSending, setIsSending] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [messages, setMessages] = useState<Message[]>([])
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
+  const [onlineMap, setOnlineMap] = useState<Map<string, UserStatus>>(new Map())
+  const [infoOpen, setInfoOpen] = useState(false)
+  const [newMessage, setNewMessage] = useState("")
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [isSending, setIsSending] = useState(false)
+  const [wsStatus, setWsStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
 
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchQuery, setSearchQuery] = useState("")
+  const [userSearchQuery, setUserSearchQuery] = useState("")
+  const [userSearchResults, setUserSearchResults] = useState<User[]>([])
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false)
+  const [showUserSearch, setShowUserSearch] = useState(false)
 
-  // WebSocket state and refs
-  const [wsConnectionStatus, setWsConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected');
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const wsRef = useRef<WebSocket | null>(null)
+  const reconnectRef = useRef<NodeJS.Timeout | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Helper function to get user by ID
-  const getUserById = useCallback((userId: string): User | null => {
-    for (const conversation of conversations) {
-      const user = conversation.participants.find(p => p.id === userId);
-      if (user) return user;
-    }
-    return null;
-  }, [conversations]);
+  const renderAvatar = useCallback((user: User, size: "sm" | "md" | "lg" = "md") => (
+    <img
+      src={user.avatar || "/placeholder-user.jpg"}
+      alt={user.username}
+      className={`rounded-full object-cover ${size === "sm" ? "w-8 h-8" : size === "lg" ? "w-12 h-12" : "w-10 h-10"}`}
+    />
+  ), [])
 
   const getOtherParticipant = useCallback(
-    (conversation: Conversation): User | null => {
-      if (conversation.is_group) return null;
-      return conversation.participants.find((u) => u.id !== currentUser.id) || null;
-    },
+    (conv: Conversation) => conv.is_group ? null : conv.participants.find(u => u.id !== currentUser.id) || null,
     [currentUser.id]
-  );
+  )
 
-  // Define handleSelectConversation here
-  const handleSelectConversation = useCallback((conversation: Conversation) => {
-    setActiveConversationId(conversation.id.toString())  // Set active conversation ID
-    setShowInfoPanel(false)  // Close the info panel when conversation is selected
+  const getUserById = useCallback(
+    (id: string) => conversations.flatMap(c => c.participants).find(u => u.id === id) || null,
+    [conversations]
+  )
+
+  const handleSelectConversation = useCallback((conv: Conversation) => {
+    setActiveId(conv.id)
+    setInfoOpen(false)
   }, [])
 
-  // WebSocket message handler
-  const handleWsMessage = useCallback((data: any) => {
-    console.log('Received WebSocket message:', data);
-    
-    switch (data.type) {
-      case 'connection_status':
-        console.log('Connection status:', data.message);
-        break;
-        
-      case 'initial_messages':
-        console.log('Received initial messages:', data.messages);
-        setMessages(data.messages || []);
-        break;
-        
-      case 'new_message':
-        console.log('📨 New message received:', data.message);
-        setMessages(prev => [...prev, data.message]);
-        break;
-        
-      case 'message_sent':
-        console.log('✅ Message sent confirmation:', data);
-        break;
-        
-      case 'typing':
-        console.log('👤 User typing:', data);
-        if (data.user_id && data.user_id !== currentUser.id) {
-          const typingUser = getUserById(data.user_id);
-          if (typingUser) {
-            setTypingUsers(prev => {
-              const existing = prev.find(t => t.user_id === data.user_id);
-              if (!existing) {
-                return [...prev, { 
-                  user_id: data.user_id, 
-                  username: typingUser.username,
-                  timestamp: Date.now() 
-                }];
-              }
-              return prev.map(t => 
-                t.user_id === data.user_id 
-                  ? { ...t, timestamp: Date.now() }
-                  : t
-              );
-            });
-            
-            // Clear typing indicator after 3 seconds
-            setTimeout(() => {
-              setTypingUsers(prev => prev.filter(t => t.user_id !== data.user_id));
-            }, 3000);
-          }
-        }
-        break;
-        
-      case 'user_online_status':
-        console.log('👥 User online status:', data);
-        if (data.user_id && data.status) {
-          setOnlineUsers(prev => {
-            const newMap = new Map(prev);
-            newMap.set(data.user_id, data.status);
-            return newMap;
-          });
-        }
-        break;
-        
-      case 'error':
-        console.error('❌ WebSocket error:', data.message);
-        break;
-        
-      default:
-        console.warn('⚠️ Unhandled WS message type:', data.type, data);
-    }
-  }, [currentUser.id, getUserById]);
+  const handleWsMessage = useCallback(({ type, user_id, message, status, messages: initialMessages, ...rest }: any) => {
+    if (type === "new_message") return setMessages(prev => [...prev, message]);
+    if (type === "initial_messages") return setMessages(initialMessages || []);
+    if (type === "user_online_status" && user_id && status)
+      return setOnlineMap(prev => new Map(prev).set(user_id, status));
 
-  // WebSocket connection function
+    if (type === "typing" && user_id !== currentUser.id) {
+      const user = getUserById(user_id);
+      if (!user) return;
+
+      setTypingUsers(prev => {
+        const exists = prev.some(t => t.user_id === user_id);
+        return exists
+          ? prev.map(t => t.user_id === user_id ? { ...t, timestamp: Date.now() } : t)
+          : [...prev, { user_id, username: user.username, timestamp: Date.now() }];
+      });
+
+      setTimeout(() => {
+        setTypingUsers(prev => prev.filter(t => t.user_id !== user_id));
+      }, 3000);
+    }
+
+    if (type === "conversation_update") {
+      const { conversation_id, last_message } = rest;
+      setConversations(prev => {
+        const updated = prev.map(conv =>
+          conv.id === conversation_id ? { ...conv, updated_at: last_message.timestamp, last_message } : conv
+        );
+        return updated.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+      });
+    }
+  }, [currentUser.id, getUserById])
+
   const connectWebSocket = useCallback(() => {
-    if (!activeConversationId || !token) {
-      console.log('Cannot connect WebSocket: missing activeConversationId or token');
-      return;
-    }
+    if (!activeId || wsStatus !== "disconnected") return
 
-    if (wsConnectionStatus === 'connecting' || wsConnectionStatus === 'connected') {
-      console.log('WebSocket already connecting or connected, skipping');
-      return;
-    }
+    const ws = new WebSocket(`ws://localhost:8000/ws/chat/${activeId}/?token=${token}`)
+    setWsStatus("connecting")
 
-    console.log('Attempting to connect to WebSocket');
-    setWsConnectionStatus('connecting');
-
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-
-    const wsUrl = `ws://localhost:8000/ws/chat/${activeConversationId}/?token=${token}`;
-    console.log('WebSocket URL:', wsUrl);
-
-    const ws = new WebSocket(wsUrl);
-    
     ws.onopen = () => {
-      console.log('WebSocket connected successfully');
-      wsRef.current = ws;
-      setWsConnectionStatus('connected');
-      
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
-    };
+      wsRef.current = ws
+      setWsStatus("connected")
+      if (reconnectRef.current) clearTimeout(reconnectRef.current)
+    }
 
-    ws.onmessage = (event) => {
+    ws.onmessage = e => {
       try {
-        const data = JSON.parse(event.data);
-        handleWsMessage(data);
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
+        handleWsMessage(JSON.parse(e.data))
+      } catch (err) {
+        console.error("WebSocket parse error", err)
       }
-    };
+    }
 
-    ws.onclose = (event) => {
-      console.log('WebSocket connection closed', event.code, event.reason);
-      wsRef.current = null;
-      setWsConnectionStatus('disconnected');
-      
-      if (event.code !== 1000 && activeConversationId && token) {
-        console.log('Scheduling reconnect attempt...');
-        reconnectTimeoutRef.current = setTimeout(() => {
-          connectWebSocket();
-        }, 3000);
-      }
-    };
+    ws.onclose = () => {
+      setWsStatus("disconnected")
+      reconnectRef.current = setTimeout(connectWebSocket, 3000)
+    }
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setWsConnectionStatus('disconnected');
-    };
-  }, [activeConversationId, token, wsConnectionStatus, handleWsMessage]);
+    ws.onerror = () => setWsStatus("disconnected")
+  }, [activeId, token, handleWsMessage])
 
-  // Cleanup function
   const disconnectWebSocket = useCallback(() => {
-    console.log('Cleaning up WebSocket connection');
-    
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-    
-    if (wsRef.current) {
-      wsRef.current.close(1000, 'Component unmounting');
-      wsRef.current = null;
-    }
-    
-    setWsConnectionStatus('disconnected');
-  }, []);
+    if (reconnectRef.current) clearTimeout(reconnectRef.current)
+    wsRef.current?.close(1000)
+    wsRef.current = null
+    setWsStatus("disconnected")
+  }, [])
 
-  // Main useEffect for WebSocket connection
   useEffect(() => {
-    console.log('useEffect triggered for WebSocket connection', {
-      activeConversationId: activeConversationId || 'null',
-      token: token ? 'present' : 'missing',
-      currentStatus: wsConnectionStatus
-    });
+    if (!activeId || !token) return
+    disconnectWebSocket()
+    connectWebSocket()
+    return () => disconnectWebSocket()
+  }, [activeId, token])
 
-    // Check if both activeConversationId and token are present before connecting
-    if (!activeConversationId || !token) {
-      console.log('Cannot connect WebSocket: missing activeConversationId or token');
-      disconnectWebSocket();
-      return;
-    }
+  const sendMessage = useCallback((payload: any) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) wsRef.current.send(JSON.stringify(payload))
+  }, [])
 
-    // Proceed with WebSocket connection only if disconnected
-    if (wsConnectionStatus === 'disconnected') {
-      connectWebSocket();
-    }
+  const onTyping = () => {
+    if (wsStatus === "connected") sendMessage({ type: "typing" })
+  }
 
-    return () => {
-      disconnectWebSocket();
-    };
-  }, [activeConversationId, token, wsConnectionStatus]);  // Add `activeConversationId` to the dependency list
+  const onSendMessage = useCallback(async (content: string, files?: File[]) => {
+    if (!activeId) return;
+    setIsSending(true);
 
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      disconnectWebSocket();
-    };
-  }, [disconnectWebSocket]);
-
-  // Function to handle sending a message
-  const sendMessage = useCallback((message: any) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      console.log('Sending message:', message);
-      wsRef.current.send(JSON.stringify(message));
-    } else {
-      console.warn('WebSocket not connected, cannot send message');
-    }
-  }, []);
-
-  // Function to handle typing event
-  const sendTypingEvent = useCallback(() => {
-    if (wsConnectionStatus === 'connected') {
-      sendMessage({ type: "typing" });
-    }
-  }, [wsConnectionStatus, sendMessage]);
-
-  const onSendMessage = useCallback(
-    async (content: string, files?: File[]) => {
-      if (!activeConversationId) return;
-
-      setIsSending(true);
-      try {
-        let fileRefs: string[] = [];
-        if (files && files.length > 0) {
-          const formData = new FormData();
-          files.forEach((file) => formData.append("files", file));
-          const uploadRes = await fetch(`http://localhost:8000/api/conversations/${activeConversationId}/upload/`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            body: formData,
-          });
-          if (!uploadRes.ok) throw new Error("File upload failed");
-          const uploadData = await uploadRes.json();
-          fileRefs = uploadData.file_ids;
-        }
-
-        const payload: any = { type: "send_message", content };
-        if (fileRefs.length > 0) {
-          payload.files = fileRefs;
-        }
-        sendMessage(payload);
-
-        setNewMessage("");
-        setSelectedFiles([]);        
-      } catch (error) {
-        console.error("Failed to send message:", error);
-      } finally {
-        setIsSending(false);
+    try {
+      const formData = new FormData();
+      formData.append("content", content);
+      formData.append("conversation_id", activeId);
+      if (files && files.length > 0) {
+        files.forEach((file) => formData.append("files", file));
       }
-    },
-    [activeConversationId, sendMessage, token]
-  );
 
-  const onTyping = useCallback(() => {
-    sendTypingEvent();
-  }, [sendTypingEvent]);
+      const response = await axios.post("http://localhost:8000/api/messages/send/", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const savedMessage = response.data;
+      setMessages((prev) => [...prev, savedMessage]);
+      sendMessage({ type: "new_message", message: savedMessage });
+      setNewMessage("");
+      setSelectedFiles([]);
+    } catch (err) {
+      toast({
+        title: "Upload failed",
+        description: "Attachment upload failed.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSending(false);
+    }
+  }, [activeId, token, sendMessage])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
-    const filesArray = Array.from(e.target.files);
-    setSelectedFiles((prev) => [...prev, ...filesArray]);
-    e.target.value = "";
-  };
+    const files = e.target.files
+    if (files && files.length > 0) {
+      setSelectedFiles(prev => [...prev, ...Array.from(files)])
+      e.target.value = ""
+    }
+  }
 
-  const removeFile = (index: number) => {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
-  };
+  const removeFile = (index: number) => setSelectedFiles(prev => prev.filter((_, i) => i !== index))
 
-  const activeConversation = conversations.find((c) => c.id.toString() === activeConversationId) || null;
-  const otherParticipant = activeConversation ? getOtherParticipant(activeConversation) : null;
+  const activeConv = conversations.find(c => c.id === activeId) || null
 
-  const formatTime = (isoDate: string) => {
-    const d = new Date(isoDate);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  };
+  useEffect(() => {
+    if (!showUserSearch || !userSearchQuery) return
+    setIsSearchingUsers(true)
+    fetch(`http://localhost:8000/api/users/search/?q=${userSearchQuery}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(data => setUserSearchResults(data))
+      .catch(console.error)
+      .finally(() => setIsSearchingUsers(false))
+  }, [userSearchQuery, showUserSearch, token])
 
-  const toggleInfoPanel = () => setShowInfoPanel((v) => !v);
+  useEffect(() => {
+    const fetchConversations = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/api/conversations/", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!res.ok) return;
+        const data = await res.json();
+        setConversations(data);
+      } catch (err) {
+        console.error("Error fetching conversations:", err);
+      }
+    };
+
+    fetchConversations();
+  }, [token])
 
   return (
-    <div className="flex h-[95vh] overflow-hidden bg-gray-100">
+    <motion.div className="flex h-[95vh] overflow-hidden bg-gray-100" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <ConversationList
         conversations={conversations}
         currentUserId={currentUser.id}
-        selectedConversationId={activeConversationId}
+        selectedConversationId={activeId}
         onSelectConversation={handleSelectConversation}
-        userMap={new Map(conversations.flatMap((c) => c.participants.map((p) => [p.id, p])))}
-        onlineUsers={onlineUsers}
-        showUserSearch={false}
-        startConversation={async (participants) => {
-          try {
-            const res = await fetch("http://localhost:8000/api/conversations/start/", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({ participants }),
-            });
-            if (!res.ok) throw new Error("Failed to start conversation");
-            const newConversation: Conversation = await res.json();
-            setConversations((prev) => [newConversation, ...prev]);
-            setActiveConversationId(newConversation.id.toString());
-          } catch (err) {
-            console.error("Start conversation failed:", err);
-          }
+        userMap={new Map<string, User>([
+          [currentUser.id, currentUser],
+          ...conversations.flatMap(c => c.participants.map(p => [p.id, p] as [string, User]))
+        ])}
+        onlineStatusMap={onlineMap}
+        startConversation={async (user) => {
+          const res = await fetch("http://localhost:8000/api/conversations/start/", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ participant_id: user.id }),
+          });
+
+          if (!res.ok) return;
+          const newConv: Conversation = await res.json();
+          setConversations(prev => (prev.find(conv => conv.id === newConv.id) ? prev : [newConv, ...prev]));
+          setActiveId(newConv.id);
         }}
         getOtherParticipant={getOtherParticipant}
-        renderAvatar={(user, size = "md") => (
-          <img
-            src={user.avatar || "/placeholder-user.jpg"}
-            alt={user.username}
-            className={`rounded-full object-cover ${
-              size === "sm" ? "w-8 h-8" : size === "lg" ? "w-12 h-12" : "w-10 h-10"
-            }`}
-          />
-        )}
-        onlineStatusMap={onlineUsers}
+        renderAvatar={renderAvatar}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        showUserSearch={showUserSearch}
+        setShowUserSearch={setShowUserSearch}
+        userSearchQuery={userSearchQuery}
+        setUserSearchQuery={setUserSearchQuery}
+        userSearchResults={userSearchResults}
+        isSearchingUsers={isSearchingUsers}
       />
 
-      <div className="flex-1 flex flex-col border-l border-gray-300">
-        {activeConversation ? (
+      <div className="flex-1 flex flex-col min-h-0">
+        {activeConv ? (
           <>
             <ChatWindow
               messages={messages}
-              currentUserId={currentUser.id}
               currentUser={currentUser}
-              otherParticipant={otherParticipant}
-              conversationName={activeConversation.name}
-              isGroupChat={activeConversation.is_group}
               onSendMessage={onSendMessage}
               onTyping={onTyping}
-              typingUserIds={typingUsers.map((t) => t.user_id)}
-              wsConnected={wsConnectionStatus === 'connected'}
-              wsError={wsConnectionStatus === 'disconnected' ? 'Disconnected' : undefined}
-              messagesContainerRef={messagesContainerRef}
+              typingUsers={typingUsers}
+              wsConnected={wsStatus === "connected"}
+              wsError={wsStatus === "disconnected" ? "Disconnected" : undefined}
               newMessage={newMessage}
               setNewMessage={setNewMessage}
-              renderAvatar={(user, size = "md") => (
-                <img
-                  src={user.avatar || "/placeholder-user.jpg"}
-                  alt={user.username}
-                  className={`rounded-full object-cover ${
-                    size === "sm" ? "w-8 h-8" : size === "lg" ? "w-12 h-12" : "w-10 h-10"
-                  }`}
-                />
-              )}
-              formatTime={formatTime}
+              renderAvatar={renderAvatar}
               handleFileSelect={handleFileSelect}
               removeFile={removeFile}
               selectedFiles={selectedFiles}
-              onToggleInfo={toggleInfoPanel}
-              onlineUsers={onlineUsers}
+              onToggleInfo={() => setInfoOpen(v => !v)}
+              onlineUsers={onlineMap}
               isSending={isSending}
               fileInputRef={fileInputRef}
-              activeConversation={activeConversationId}
+              activeConversation={activeConv}
               conversations={conversations}
               getOtherParticipant={getOtherParticipant}
             />
-            {showInfoPanel && activeConversation && (
-              <ConversationInfoPanel
-                conversation={activeConversation}
-                participants={activeConversation.participants}
-                onlineUsers={onlineUsers}
-                renderAvatar={(user, size = "md") => (
-                  <img
-                    src={user.avatar || "/placeholder-user.jpg"}
-                    alt={user.username}
-                    className={`rounded-full object-cover ${
-                      size === "sm" ? "w-8 h-8" : size === "lg" ? "w-12 h-12" : "w-10 h-10"
-                    }`}
-                  />
-                )}
-                onClose={toggleInfoPanel}
-                currentUser={currentUser}
-              />
-            )}
+            <AnimatePresence>
+              {infoOpen && (
+                <motion.div className="fixed inset-0 z-[9999] flex justify-end" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <div className="absolute inset-0 bg-black/20" onClick={() => setInfoOpen(false)} />
+                  <motion.div
+                    className="relative w-[384px] h-full bg-white shadow-lg border-l border-gray-300 z-50"
+                    initial={{ x: 384 }}
+                    animate={{ x: 0 }}
+                    exit={{ x: 384 }}
+                    transition={{ type: "tween", duration: 0.3 }}
+                  >
+                    <ConversationInfoPanel
+                      conversation={activeConv}
+                      participants={activeConv.participants}
+                      onlineUsers={onlineMap}
+                      renderAvatar={renderAvatar}
+                      onClose={() => setInfoOpen(false)}
+                      currentUser={currentUser}
+                    />
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </>
         ) : (
-          <div className="flex items-center justify-center h-full text-gray-500">
+          <motion.div
+            className="flex items-center justify-center h-full text-gray-500"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
             Select a conversation to start chatting.
-          </div>
+          </motion.div>
         )}
       </div>
-    </div>
-  );
+    </motion.div>
+  )
 }

@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from channels.db import database_sync_to_async
 import logging
 import uuid
+from messaging.serializers import MessageSerializer
 
 # Import your models. Adjust these imports if your models are in a different path.
 from messaging.models import Message, Conversation, UserPresence 
@@ -476,31 +477,28 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 logger.warning(f"Could not get avatar URL for user {sender.id}.")
                 sender_avatar_url = None
 
-        message_data_for_broadcast = {
-            'type': 'chat_message',
-            'message': {
-                'id': str(message.id),
-                'conversation_id': str(self.conversation_id),
-                'sender': {
-                    'id': str(sender.id),
-                    'username': sender.username,
-                    'avatar': sender_avatar_url,
-                },
-                'recipient_id': str(recipient_id) if recipient_id else None,
-                'content': content,
-                'message_type': 'text',
-                'timestamp': message.timestamp.isoformat(),
-                'status': message.status, 
-                'is_read': message.is_read, 
+        # Serialize the message
+        message_serialized = MessageSerializer(message).data
+
+        # Broadcast the message using the full serializer
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                'type': 'chat_message',
+                'message': message_serialized
             }
-        }
+        )
 
         # Broadcast the new message to all connected clients in this conversation's room
         logger.debug(f"[HANDLE_CHAT_MESSAGE] Broadcasting message {message.id} to room {self.room_group_name}.")
         await self.channel_layer.group_send(
             self.room_group_name,
-            message_data_for_broadcast
+            {
+                'type': 'chat_message',
+                'message': message_serialized
+            }
         )
+
 
         # Send conversation update to all participants
         participants_ids = await get_conversation_participants(self.conversation_id)
@@ -510,9 +508,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 {
                     'type': 'conversation_update',
                     'conversation_id': str(self.conversation_id),
-                    'last_message': content,
-                    'timestamp': message.timestamp.isoformat(),
-                    'last_sender_id': str(sender.id)
+                    'last_message': message_serialized,
                 }
             )
 

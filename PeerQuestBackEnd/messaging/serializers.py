@@ -19,12 +19,11 @@ class UserSerializer(serializers.ModelSerializer):
             return False
     
     def get_avatar(self, obj):
-        if hasattr(obj, 'avatar') and obj.avatar:
-            try:
-                return obj.avatar.url
-            except ValueError:
-                return None
-        return None
+        try:
+            return obj.avatar.url if obj.avatar else None
+        except Exception:
+            return None
+
 
 class MessageAttachmentSerializer(serializers.ModelSerializer):
     file_url = serializers.SerializerMethodField()
@@ -44,12 +43,29 @@ class MessageSerializer(serializers.ModelSerializer):
     sender = UserSerializer(read_only=True)
     receiver = UserSerializer(source='recipient', read_only=True)
     created_at = serializers.DateTimeField(source='timestamp', read_only=True)
+    timestamp = serializers.DateTimeField(read_only=True)  # ⬅ Add this explicitly
     read = serializers.BooleanField(source='is_read', read_only=True)
+    status = serializers.CharField(read_only=True)  # ⬅ Add this for the chat bubble + message list
     attachments = MessageAttachmentSerializer(many=True, read_only=True)
+    conversation_id = serializers.UUIDField(source='conversation.id', read_only=True)  # ⬅ Needed for grouping
 
     class Meta:
         model = Message
-        fields = ['id', 'sender', 'receiver', 'content', 'message_type', 'attachments', 'created_at', 'read']
+        fields = [
+            'id',
+            'conversation_id',  # ⬅ important
+            'sender',
+            'receiver',
+            'content',
+            'message_type',
+            'attachments',
+            'created_at',
+            'timestamp',         # ⬅ ensure both are passed for compatibility
+            'read',
+            'status',            # ⬅ needed for MessageBubble ticks
+        ]
+
+
 
 class ConversationSerializer(serializers.ModelSerializer):
     participants = UserSerializer(many=True, read_only=True)
@@ -61,8 +77,12 @@ class ConversationSerializer(serializers.ModelSerializer):
         fields = ['id', 'participants', 'last_message', 'unread_count', 'is_group', 'name', 'updated_at']
     
     def get_last_message(self, obj):
+        
         last_msg = obj.get_last_message()
-        return last_msg.content if last_msg else ''
+        if last_msg:
+            return MessageSerializer(last_msg, context=self.context).data
+        return None
+
     
     def get_unread_count(self, obj):
         request = self.context.get('request')

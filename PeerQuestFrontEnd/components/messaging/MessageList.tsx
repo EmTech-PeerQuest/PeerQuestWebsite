@@ -1,32 +1,36 @@
 "use client"
+
 import React, { useEffect, useRef } from "react"
-import type { Message, User } from "@/lib/types"
+import { motion, AnimatePresence } from "framer-motion"
+import type { Message, User, UserStatus } from "@/lib/types"
 import MessageBubble from "./MessageBubble"
 
-type Props = {
+type MessageListProps = {
   messages: Message[]
   currentUserId: string
   renderAvatar: (user: User, size?: "sm" | "md" | "lg") => JSX.Element
-  // Corrected type to include all possible statuses
-  onlineUsers: Map<string, "online" | "idle" | "offline">
+  onlineUsers: Map<string, UserStatus>
 }
 
-const MessageList: React.FC<Props> = ({ messages, currentUserId, renderAvatar, onlineUsers }) => {
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+const MessageList: React.FC<MessageListProps> = ({
+  messages,
+  currentUserId,
+  renderAvatar,
+  onlineUsers,
+}) => {
   const containerRef = useRef<HTMLDivElement>(null)
+  const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const scrollContainer = containerRef.current
-    if (!scrollContainer) return
+    const container = containerRef.current
+    if (!container) return
 
-    // Heuristic to check if user is scrolled up to see older messages
-    const isScrolledUp =
-      scrollContainer.scrollHeight - scrollContainer.clientHeight > scrollContainer.scrollTop + 200 // 200px threshold
+    const atBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight < 200
 
-    // If the user hasn't scrolled up, or the new message is from the current user, scroll to bottom
-    const lastMessage = messages[messages.length - 1]
-    if (!isScrolledUp || lastMessage?.sender.id === currentUserId) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    const lastMsg = messages.at(-1)
+    if (atBottom || lastMsg?.sender.id === currentUserId) {
+      endRef.current?.scrollIntoView({ behavior: "smooth" })
     }
   }, [messages, currentUserId])
 
@@ -38,28 +42,42 @@ const MessageList: React.FC<Props> = ({ messages, currentUserId, renderAvatar, o
       role="log"
     >
       {messages.length === 0 ? (
-        <div className="text-center text-gray-400 text-sm mt-6">No messages yet. Say hello!</div>
+        <motion.p
+          className="text-center text-gray-400 text-sm mt-6"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          No messages yet. Say hello!
+        </motion.p>
       ) : (
-        messages.map((msg, index) => {
-          const isOwnMessage = msg.sender.id === currentUserId
-          const prevMsg = messages[index - 1]
-          // Group consecutive messages by the same sender
-          const showAvatar = !isOwnMessage && (!prevMsg || prevMsg.sender.id !== msg.sender.id)
+        <AnimatePresence initial={false}>
+          {messages.map((msg, i) => {
+            const isOwn = msg.sender.id === currentUserId
+            const showAvatar =
+              !isOwn && (i === 0 || messages[i - 1].sender.id !== msg.sender.id)
 
-          return (
-            <MessageBubble
-              key={msg.id ?? `${msg.sender.id}-${index}`}
-              message={msg}
-              isOwnMessage={isOwnMessage}
-              showAvatar={showAvatar}
-              renderAvatar={renderAvatar}
-              onlineUsers={onlineUsers}
-            />
-          )
-        })
+            return (
+              <motion.div
+                key={msg.id ?? `${msg.sender.id}-${i}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                transition={{ duration: 0.2, delay: i * 0.01 }}
+              >
+                <MessageBubble
+                  message={msg}
+                  isOwnMessage={isOwn}
+                  showAvatar={showAvatar}
+                  renderAvatar={renderAvatar}
+                  onlineUsers={onlineUsers}
+                />
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
       )}
-      {/* Anchor for scrolling to the bottom */}
-      <div ref={messagesEndRef} />
+      <div ref={endRef} />
     </div>
   )
 }

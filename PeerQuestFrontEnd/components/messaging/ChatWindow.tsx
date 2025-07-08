@@ -1,18 +1,25 @@
 "use client"
 
 import React, { useCallback, RefObject } from "react"
-import MessageList from "./MessageList" // Import the corrected MessageList
+import { motion, AnimatePresence } from "framer-motion"
+import MessageList from "./MessageList"
 import TypingIndicator from "./TypingIndicator"
 import MessageInput from "./MessageInput"
 import ConversationHeader from "./ConversationHeader"
-import type { User, Message, TypingUser, Attachment, Conversation } from "@/lib/types"
+import type {
+  User,
+  Message,
+  TypingUser,
+  Attachment,
+  Conversation,
+  UserStatus,
+} from "@/lib/types"
 
 interface ChatWindowProps {
   messages: Message[]
   currentUser: User
   onSendMessage: (content: string, files?: File[]) => Promise<void>
   onTyping: () => void
-  // Pass the full TypingUser object, not just the ID
   typingUsers: TypingUser[]
   wsError?: string
   wsConnected: boolean
@@ -23,11 +30,12 @@ interface ChatWindowProps {
   removeFile: (index: number) => void
   selectedFiles: File[]
   onToggleInfo: () => void
-  onlineUsers: Map<string, "online" | "idle" | "offline">
+  onlineUsers: Map<string, UserStatus>
   isSending: boolean
   fileInputRef: RefObject<HTMLInputElement>
-  activeConversation: Conversation | null // Pass the whole conversation object
+  activeConversation: Conversation | null
   getOtherParticipant: (conversation: Conversation) => User | null
+  conversations: Conversation[]
 }
 
 export default function ChatWindow({
@@ -35,7 +43,7 @@ export default function ChatWindow({
   currentUser,
   onSendMessage,
   onTyping,
-  typingUsers, // Use the simplified prop
+  typingUsers,
   wsError,
   wsConnected,
   newMessage,
@@ -50,47 +58,85 @@ export default function ChatWindow({
   fileInputRef,
   activeConversation,
   getOtherParticipant,
+  conversations,
 }: ChatWindowProps) {
   const handleAttachmentClick = useCallback((attachment: Attachment) => {
-    // Logic to handle opening/downloading attachments
     window.open(attachment.url, "_blank", "noopener,noreferrer")
   }, [])
 
+  const getValidUserStatus = (status: UserStatus): "online" | "idle" | "offline" => {
+    if (status === "online" || status === "idle" || status === "offline") return status
+    return "offline"
+  }
+
+  const filteredOnlineUsers = new Map<string, "online" | "idle" | "offline">()
+  onlineUsers.forEach((status, userId) => {
+    filteredOnlineUsers.set(userId, getValidUserStatus(status))
+  })
+
   if (!activeConversation) {
-    return <div className="flex items-center justify-center h-full">Select a conversation.</div>
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground">
+        Select a conversation to begin
+      </div>
+    )
   }
 
   return (
-    <div className="flex flex-col h-full w-full bg-card">
+    <motion.div
+      className="flex flex-col flex-1 min-h-0 w-full bg-white/90 backdrop-blur-lg rounded-xl shadow-2xl overflow-hidden"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 20 }}
+      transition={{ duration: 0.25 }}
+    >
       {/* Header */}
       <ConversationHeader
         conversation={activeConversation}
         getOtherParticipant={getOtherParticipant}
-        onlineUsers={onlineUsers}
+        onlineUsers={filteredOnlineUsers}
         onToggleInfo={onToggleInfo}
         renderAvatar={renderAvatar}
       />
 
-      {/* Connection Status Banner */}
-      {!wsConnected && (
-        <div
-          className="px-4 py-2 bg-yellow-600 text-white font-medium text-sm text-center"
-          role="alert"
-        >
-          {wsError ? `Connection Error: ${wsError}` : "Reconnecting..."}
-        </div>
-      )}
+      {/* Connection Banner */}
+      <AnimatePresence>
+        {!wsConnected && (
+          <motion.div
+            className="px-4 py-2 bg-yellow-600 text-white font-medium text-sm text-center"
+            role="alert"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+          >
+            {wsError ? `Connection Error: ${wsError}` : "Reconnecting..."}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Message List (Using the dedicated component) */}
-      <MessageList
-        messages={messages}
-        currentUserId={currentUser.id}
-        renderAvatar={renderAvatar}
-        onlineUsers={onlineUsers}
-      />
+      {/* Message List */}
+      <motion.div
+        className="flex-1 min-h-0 overflow-y-auto"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.1, duration: 0.3 }}
+      >
+        <MessageList
+          messages={messages}
+          currentUserId={currentUser.id}
+          renderAvatar={renderAvatar}
+          onlineUsers={filteredOnlineUsers}
+        />
+      </motion.div>
 
-      {/* Typing Indicator & Message Input */}
-      <div className="border-t border-border p-4 bg-background">
+      {/* Typing + Input */}
+      <motion.div
+        className="border-t border-border p-4 bg-background"
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.2, duration: 0.3 }}
+      >
         <TypingIndicator typingUsers={typingUsers} currentUserId={currentUser.id} />
         <MessageInput
           newMessage={newMessage}
@@ -104,7 +150,7 @@ export default function ChatWindow({
           isSending={isSending}
           fileInputRef={fileInputRef}
         />
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
