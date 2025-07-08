@@ -2,15 +2,16 @@
 
 import { useState } from "react"
 import { Search, Users, Shield, DollarSign, Activity, BarChart3, UserPlus, CheckCircle, XCircle } from "lucide-react"
-import type { Guild, User, GuildApplication } from "@/lib/types"
+import type { Guild, User, GuildJoinRequest } from "@/lib/types"
 import { GuildAuditLog } from '@/components/admin/guild-audit-log'
 import { GuildPayouts } from '@/components/guilds/guild-payouts'
 import { GuildRolesConfig } from '@/components/guilds/guild-roles-config'
 
 interface EnhancedGuildManagementProps {
   guilds: Guild[]
-  guildApplications: GuildApplication[]
+  guildApplications: GuildJoinRequest[]
   currentUser: User
+  selectedGuild?: Guild | null
   showToast: (message: string, type?: string) => void
   onViewGuild: (guild: Guild) => void
   onEditGuild: (guild: Guild) => void
@@ -18,12 +19,14 @@ interface EnhancedGuildManagementProps {
   onApproveApplication: (applicationId: string) => void
   onRejectApplication: (applicationId: string) => void
   onManageMembers: (guild: Guild) => void
+  onBack?: () => void
 }
 
 export function EnhancedGuildManagement({
   guilds,
   guildApplications,
   currentUser,
+  selectedGuild: propSelectedGuild,
   showToast,
   onViewGuild,
   onEditGuild,
@@ -31,9 +34,30 @@ export function EnhancedGuildManagement({
   onApproveApplication,
   onRejectApplication,
   onManageMembers,
+  onBack,
 }: EnhancedGuildManagementProps) {
+  // Early return if user is not authenticated
+  if (!currentUser) {
+    return (
+      <section className="bg-[#F4F0E6] min-h-screen py-8">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center py-16">
+            <h2 className="text-2xl font-bold text-[#2C1A1D] mb-4">Authentication Required</h2>
+            <p className="text-[#8B75AA] mb-6">Please log in to access guild management features.</p>
+            <button 
+              onClick={() => onBack && onBack()}
+              className="px-6 py-3 bg-[#8B75AA] text-white rounded-lg hover:bg-[#7A6699] transition-colors"
+            >
+              Return to Home
+            </button>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
   const [activeTab, setActiveTab] = useState<"owned" | "member" | "applications">("owned")
-  const [selectedGuild, setSelectedGuild] = useState<Guild | null>(null)
+  const [selectedGuild, setSelectedGuild] = useState<Guild | null>(propSelectedGuild || null)
   const [managementView, setManagementView] = useState<
     "overview" | "members" | "requests" | "roles" | "audit" | "payouts"
   >("overview")
@@ -41,18 +65,21 @@ export function EnhancedGuildManagement({
   const [memberSearchQuery, setMemberSearchQuery] = useState("")
   const [selectedRole, setSelectedRole] = useState("All")
 
-  // Get guilds where the current user is an admin
-  const ownedGuilds = guilds.filter((guild) => guild.admins && guild.admins.includes(currentUser.id))
+  // Get guilds where the current user is the owner
+  const ownedGuilds = guilds.filter((guild) => 
+    guild.owner?.id === currentUser.id || 
+    guild.poster?.username === currentUser.username
+  )
   const memberGuilds = guilds.filter(
     (guild) =>
       guild.membersList &&
-      guild.membersList.includes(currentUser.id) &&
-      (!guild.admins || !guild.admins.includes(currentUser.id)),
+      guild.membersList.includes(Number(currentUser.id)) &&
+      !(guild.owner?.id === currentUser.id || guild.poster?.username === currentUser.username),
   )
 
   const relevantApplications = guildApplications.filter((app) => {
-    const guild = guilds.find((g) => g.id.toString() === app.guildId)
-    return guild && guild.admins && guild.admins.includes(currentUser.id)
+    const guild = guilds.find((g) => (g.id || g.guild_id)?.toString() === app.guild.guild_id?.toString())
+    return guild && (guild.owner?.id === currentUser.id || guild.poster?.username === currentUser.username)
   })
 
   // Mock member data for demonstration
@@ -107,7 +134,8 @@ export function EnhancedGuildManagement({
   const calculateGuildLevel = (guild: Guild) => {
     // Calculate guild level based on total member XP and activities
     const totalMemberXP = mockMembers.reduce((sum, member) => sum + member.xp, 0)
-    const guildLevel = Math.floor(totalMemberXP / 1000) + guild.members
+    const memberCount = guild.members || guild.member_count || 0
+    const guildLevel = Math.floor(totalMemberXP / 1000) + memberCount
     return Math.min(guildLevel, 100) // Cap at level 100
   }
 
@@ -147,13 +175,17 @@ export function EnhancedGuildManagement({
   }
 
   if (selectedGuild) {
-    const isOwner = selectedGuild.admins && selectedGuild.admins.includes(currentUser.id)
+    const isOwner = selectedGuild.owner?.id === currentUser.id || 
+                   selectedGuild.poster?.username === currentUser.username
 
     return (
       <section className="bg-[#F4F0E6] min-h-screen py-8">
         <div className="max-w-6xl mx-auto px-6">
           <div className="flex items-center gap-4 mb-6">
-            <button onClick={() => setSelectedGuild(null)} className="text-[#8B75AA] hover:text-[#7A6699] font-medium">
+            <button 
+              onClick={() => onBack ? onBack() : setSelectedGuild(null)} 
+              className="text-[#8B75AA] hover:text-[#7A6699] font-medium"
+            >
               ← Back to Guild Management
             </button>
             <div className="flex items-center gap-3">
@@ -221,9 +253,9 @@ export function EnhancedGuildManagement({
                 >
                   <UserPlus size={18} />
                   Requests
-                  {selectedGuild.applications?.filter((app) => app.status === "pending").length > 0 && (
+                  {relevantApplications.filter((app) => app.is_approved === null).length > 0 && (
                     <span className="bg-[#8B75AA] text-white text-xs rounded-full px-2 py-1">
-                      {selectedGuild.applications.filter((app) => app.status === "pending").length}
+                      {relevantApplications.filter((app) => app.is_approved === null).length}
                     </span>
                   )}
                 </button>
@@ -299,7 +331,7 @@ export function EnhancedGuildManagement({
                       <UserPlus size={18} className="text-[#8B75AA]" />
                     </div>
                     <div className="text-3xl font-bold text-[#2C1A1D]">
-                      {selectedGuild.applications?.filter((app) => app.status === "pending").length || 0}
+                      {relevantApplications.filter((app) => app.is_approved === null).length || 0}
                     </div>
                   </div>
                 </div>
@@ -353,7 +385,7 @@ export function EnhancedGuildManagement({
                           .filter(
                             (member) =>
                               (selectedRole === "All" || member.role === selectedRole) &&
-                              member.username.toLowerCase().includes(memberSearchQuery.toLowerCase()),
+                              member.username?.toLowerCase().includes(memberSearchQuery.toLowerCase()),
                           )
                           .map((member) => (
                             <tr key={member.id} className="border-b border-gray-200 hover:bg-gray-50">
@@ -399,19 +431,19 @@ export function EnhancedGuildManagement({
                 <div>
                   <h3 className="text-xl font-bold text-[#2C1A1D] mb-6">Join Requests</h3>
                   <div className="space-y-4">
-                    {selectedGuild.applications
-                      ?.filter((app) => app.status === "pending")
-                      .map((application) => (
+                    {relevantApplications
+                      ?.filter((app: GuildJoinRequest) => app.is_approved === null)
+                      .map((application: GuildJoinRequest) => (
                         <div key={application.id} className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-4">
                           <div className="flex justify-between items-start">
                             <div className="flex items-start gap-3">
                               <div className="w-12 h-12 bg-[#8B75AA] rounded-full flex items-center justify-center text-white font-bold">
-                                {application.avatar}
+                                {application.user.avatar || application.user.username?.charAt(0) || "U"}
                               </div>
                               <div>
-                                <h4 className="font-bold text-[#2C1A1D]">{application.username}</h4>
+                                <h4 className="font-bold text-[#2C1A1D]">{application.user.username}</h4>
                                 <p className="text-sm text-[#8B75AA] mb-2">
-                                  Applied {application.appliedAt.toLocaleDateString()}
+                                  Applied {new Date(application.created_at).toLocaleDateString()}
                                 </p>
                                 <p className="text-[#2C1A1D]">{application.message}</p>
                               </div>

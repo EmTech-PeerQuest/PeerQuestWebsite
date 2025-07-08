@@ -124,12 +124,13 @@ export function GuildHall({
 
         {/* Guild Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-          {guilds.map((guild) => (
-            <div
-              key={guild.guild_id || guild.id}
-              className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-[#CDAA7D]/20 hover:border-[#8B75AA]/30 cursor-pointer group"
-              onClick={() => handleGuildCardClick(guild)}
-            >
+          {guilds && guilds.length > 0 ? (
+            guilds.map((guild) => (
+              <div
+                key={guild.guild_id || guild.id}
+                className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-[#CDAA7D]/20 hover:border-[#8B75AA]/30 cursor-pointer group"
+                onClick={() => handleGuildCardClick(guild)}
+              >
               {/* Guild Header with Gradient */}
               <div className="bg-gradient-to-r from-[#CDAA7D] to-[#B8956D] p-6 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16"></div>
@@ -227,7 +228,24 @@ export function GuildHall({
                 </div>
               </div>
             </div>
-          ))}
+          ))
+          ) : (
+            <div className="col-span-full bg-white rounded-xl shadow-lg p-12 text-center border border-[#CDAA7D]/20">
+              <div className="text-6xl mb-4">🏰</div>
+              <h3 className="text-2xl font-bold text-[#2C1A1D] mb-4">No Guilds Available</h3>
+              <p className="text-[#8B75AA] mb-6 max-w-md mx-auto">
+                Be the first to create a guild and start building your adventuring community! Click the "Create a Guild" button above to get started.
+              </p>
+              {currentUser && (
+                <button
+                  onClick={openCreateGuildModal}
+                  className="bg-[#8B75AA] text-white px-6 py-3 rounded-lg hover:bg-[#7A6699] transition-colors font-medium"
+                >
+                  Create Your First Guild
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Join Guild Modal */}

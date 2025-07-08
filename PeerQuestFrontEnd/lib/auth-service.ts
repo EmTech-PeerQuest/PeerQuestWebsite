@@ -111,9 +111,13 @@ class AuthService {
     const { password: _, ...userWithoutPassword } = user
     this.currentUser = userWithoutPassword as User
 
+    // Generate a mock auth token based on user ID and timestamp
+    const authToken = `mock_token_${user.id}_${Date.now()}`
+
     // Only access localStorage in the browser environment
     if (typeof window !== "undefined") {
       localStorage.setItem("currentUser", JSON.stringify(this.currentUser))
+      localStorage.setItem("authToken", authToken)
     }
 
     return this.currentUser
@@ -174,9 +178,13 @@ class AuthService {
     const { password: _, ...userWithoutPassword } = newUser
     this.currentUser = userWithoutPassword as User
 
+    // Generate a mock auth token based on user ID and timestamp
+    const authToken = `mock_token_${newUser.id}_${Date.now()}`
+
     // Only access localStorage in the browser environment
     if (typeof window !== "undefined") {
       localStorage.setItem("currentUser", JSON.stringify(this.currentUser))
+      localStorage.setItem("authToken", authToken)
     }
 
     return this.currentUser
@@ -201,6 +209,8 @@ class AuthService {
     // Only access localStorage in the browser environment
     if (typeof window !== "undefined") {
       localStorage.removeItem("currentUser")
+      localStorage.removeItem("authToken") // Clear auth token on logout
+      sessionStorage.removeItem("authToken") // Also clear from session storage
     }
   }
 

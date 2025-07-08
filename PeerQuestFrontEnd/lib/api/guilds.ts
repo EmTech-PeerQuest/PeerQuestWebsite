@@ -22,7 +22,8 @@ const API_ENDPOINTS = {
 // Utility function to get auth token
 function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+  // Use the same token keys as AuthContext
+  return localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
 }
 
 // Utility function to create headers
@@ -87,14 +88,9 @@ export const guildApi = {
   async createGuild(guildData: CreateGuildData): Promise<Guild> {
     console.log('Creating guild with data:', guildData);
     
-    // For now, send as JSON instead of FormData for simplicity
     const response = await fetch(API_ENDPOINTS.createGuild, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // Temporarily disable auth for testing
-        // 'Authorization': `Bearer ${getAuthToken()}`,
-      },
+      headers: createHeaders(true), // Enable auth for guild creation
       body: JSON.stringify(guildData),
     });
 

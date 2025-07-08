@@ -12,7 +12,9 @@ interface GuildOverviewModalProps {
   onJoinGuild: (guildId: number, message: string) => void
   onOpenChat: (guildId: number) => void
   onOpenSettings?: (guildId: number) => void
+  onManageGuild?: (guild: Guild) => void
   showToast: (message: string, type?: string) => void
+  isOwnedGuild?: boolean // Add prop to specify if this is an owned guild
 }
 
 export function GuildOverviewModal({
@@ -23,7 +25,9 @@ export function GuildOverviewModal({
   onJoinGuild,
   onOpenChat,
   onOpenSettings,
+  onManageGuild,
   showToast,
+  isOwnedGuild = false,
 }: GuildOverviewModalProps) {
   const [activeTab, setActiveTab] = useState<"about" | "members" | "chat">("about")
   const [joinMessage, setJoinMessage] = useState("")
@@ -32,10 +36,14 @@ export function GuildOverviewModal({
 
   if (!isOpen) return null
 
-  const isOwner = currentUser && guild.poster.id === currentUser.id
-  const isAdmin = currentUser && guild.admins.includes(currentUser.id)
-  const isMember = currentUser && guild.membersList.includes(currentUser.id)
-  const canManage = isOwner || isAdmin
+  // Use the isOwnedGuild prop to determine management capabilities, 
+  // fallback to checking guild ownership for backwards compatibility
+  const isOwner = isOwnedGuild || (currentUser && guild.poster?.username === currentUser.username)
+  const isAdmin = false // For now, we'll focus on ownership
+  const isMember = currentUser && guild.membersList?.some(memberId => 
+    memberId === currentUser.id || String(memberId) === String(currentUser.id)
+  )
+  const canManage = isOwner
 
   const handleJoinClick = () => {
     if (!currentUser) {
@@ -117,9 +125,16 @@ export function GuildOverviewModal({
                 Chat
               </button>
             )}
-            {canManage && onOpenSettings && (
+            {canManage && (onOpenSettings || onManageGuild) && (
               <button
-                onClick={() => onOpenSettings(guild.id)}
+                onClick={() => {
+                  if (onManageGuild) {
+                    onManageGuild(guild)
+                    onClose()
+                  } else if (onOpenSettings && guild.id) {
+                    onOpenSettings(guild.id as number)
+                  }
+                }}
                 className="px-3 py-1.5 border border-white text-white rounded text-sm hover:bg-white hover:text-[#2C1A1D] transition-colors flex items-center gap-1"
               >
                 <Settings size={14} />

@@ -22,10 +22,12 @@ import { fetchInitialData } from '@/lib/api/init-data'
 import { UserSearch } from "@/components/user-search"
 import { MessagingSystem } from '@/components/messaging/messaging-system'
 import { QuestManagement } from '@/components/quests/quest-management'
+import { SimpleGuildManagement } from '@/components/guilds/simple-guild-management'
 import { EnhancedGuildManagement } from '@/components/guilds/enhanced-guild-management'
+import { GuildOverviewModal } from '@/components/guilds/guild-overview-modal'
+import { EnhancedCreateGuildModal } from '@/components/guilds/enhanced-create-guild-modal'
 import { AdminPanel } from '@/components/admin/admin-panel'
 import { AIChatbot } from '@/components/ai/ai-chatbot'
-import { authService } from "@/lib/auth-service"
 import { addSpendingRecord } from "@/lib/spending-utils"
 import { useGuilds, useGuildActions } from "@/hooks/useGuilds"
 
@@ -60,6 +62,15 @@ export default function Home() {
   const [guildApplications, setGuildApplications] = useState<GuildJoinRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [isLoading, setIsLoading] = useState<boolean>(false)
+  
+  // Guild management state
+  const [showDetailedGuildManagement, setShowDetailedGuildManagement] = useState<boolean>(false)
+  const [managingGuild, setManagingGuild] = useState<Guild | null>(null)
+  
+  // Guild overview modal state
+  const [showGuildOverviewModal, setShowGuildOverviewModal] = useState<boolean>(false)
+  const [viewingGuild, setViewingGuild] = useState<Guild | null>(null)
+  const [isViewingOwnedGuild, setIsViewingOwnedGuild] = useState<boolean>(false)
 
   // Auth and hooks
   const { user: currentUser, login, register, logout } = useAuth()
@@ -80,8 +91,8 @@ export default function Home() {
   const handleLogin = async (credentials: { email: string; password: string }) => {
     try {
       setIsLoading(true)
-      const user = await authService.login(credentials.email, credentials.password)
-      // User state managed by auth context
+      // Convert email-based login to username-based for AuthContext
+      await login({ username: credentials.email, password: credentials.password })
       setShowAuthModal(false)
       showToast("Welcome back to the PeerQuest Tavern!", "success")
     } catch (error: any) {
@@ -99,8 +110,7 @@ export default function Home() {
   }) => {
     try {
       setIsLoading(true)
-      const user = await authService.register(userData.username, userData.email, userData.password)
-      // User state managed by auth context
+      await register(userData)
       setShowAuthModal(false)
       showToast("Welcome to the PeerQuest Tavern! Your account has been created.", "success")
     } catch (error: any) {
@@ -110,22 +120,8 @@ export default function Home() {
     }
   }
 
-  const handleForgotPassword = async (email: string) => {
-    try {
-      setIsLoading(true)
-      await authService.forgotPassword(email)
-      showToast("Password reset instructions have been sent to your email.", "success")
-      setAuthMode("login")
-    } catch (error: any) {
-      showToast(error.message || "Failed to send reset instructions. Please try again.", "error")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   const handleLogout = () => {
-    authService.logout()
-    // User state managed by auth context
+    logout() // Use the AuthContext logout function
     setActiveSection("home")
     showToast("You have been logged out.", "info")
   }
@@ -180,18 +176,6 @@ export default function Home() {
     if (!currentUser) return
 
     try {
-      // Deduct gold from user for guild creation and add spending record
-      if (guildData.guildCreationCost) {
-        const updatedUser = addSpendingRecord(
-          currentUser,
-          guildData.guildCreationCost,
-          "guild_creation",
-          `Created guild: ${guildData.name}`,
-        )
-        // TODO: Update user gold through proper auth context method
-        // setCurrentUser({ ...updatedUser, gold: (updatedUser.gold || 0) - guildData.guildCreationCost })
-      }
-
       // Create guild data for API
       const createGuildData: CreateGuildData = {
         name: guildData.name || "Untitled Guild",
@@ -402,18 +386,18 @@ export default function Home() {
         )}
 
         {activeSection === "guild-hall" && (
-          !guildsLoaded ? (
+          guildsLoading ? (
             <div className="flex flex-col items-center justify-center py-16">
               <Spinner />
               <div className="mt-4 text-[#8B75AA] text-lg font-medium">Loading guilds...</div>
             </div>
           ) : (
             <GuildHall
-              guilds={guilds}
+              guilds={guildData}
               currentUser={currentUser}
-              openCreateGuildModal={() => {}}
-              handleApplyForGuild={() => {}}
-              showToast={() => {}}
+              openCreateGuildModal={() => setShowCreateGuildModal(true)}
+              handleApplyForGuild={handleApplyForGuild}
+              showToast={showToast}
             />
           )
         )}
@@ -437,9 +421,65 @@ export default function Home() {
         )}
 
         {activeSection === "guild-management" && currentUser && (
-          <div className="flex flex-col items-center justify-center py-16">
-            <div className="text-[#8B75AA] text-lg font-medium">Guild management feature coming soon...</div>
-          </div>
+          <>
+            {!showDetailedGuildManagement ? (
+              <SimpleGuildManagement
+                guilds={guildData}
+                currentUser={currentUser}
+                showToast={showToast}
+                onViewGuild={(guild) => {
+                  // Check if this is an owned guild to determine management capabilities
+                  const isOwned = guild.owner?.id === currentUser?.id || 
+                                 guild.poster?.username === currentUser?.username
+                  setViewingGuild(guild)
+                  setIsViewingOwnedGuild(isOwned)
+                  setShowGuildOverviewModal(true)
+                }}
+                onManageGuild={(guild) => {
+                  setManagingGuild(guild)
+                  setShowDetailedGuildManagement(true)
+                }}
+                onEditGuild={(guild) => {
+                  setSelectedGuild(guild)
+                  // Edit guild functionality - could open edit modal
+                }}
+                onDeleteGuild={(guildId) => {
+                  // Delete guild functionality
+                  console.log('Delete guild:', guildId)
+                }}
+              />
+            ) : (
+              <EnhancedGuildManagement
+                guilds={guildData}
+                guildApplications={guildApplications}
+                currentUser={currentUser}
+                selectedGuild={managingGuild}
+                showToast={showToast}
+                onViewGuild={(guild) => {
+                  setSelectedGuild(guild)
+                }}
+                onEditGuild={(guild) => {
+                  setSelectedGuild(guild)
+                }}
+                onDeleteGuild={(guildId) => {
+                  console.log('Delete guild:', guildId)
+                }}
+                onApproveApplication={(applicationId) => {
+                  console.log('Approve application:', applicationId)
+                }}
+                onRejectApplication={(applicationId) => {
+                  console.log('Reject application:', applicationId)
+                }}
+                onManageMembers={(guild) => {
+                  console.log('Manage members for guild:', guild.name)
+                }}
+                onBack={() => {
+                  setShowDetailedGuildManagement(false)
+                  setManagingGuild(null)
+                }}
+              />
+            )}
+          </>
         )}
 
         {activeSection === "admin" && currentUser?.roles?.includes("admin") && (
@@ -490,6 +530,60 @@ export default function Home() {
                 throw error;
               }
             }}
+          />
+        )}
+
+        {showCreateGuildModal && (
+          <EnhancedCreateGuildModal
+            isOpen={showCreateGuildModal}
+            onClose={() => setShowCreateGuildModal(false)}
+            currentUser={currentUser}
+            onSubmit={handleGuildSubmit}
+            showToast={showToast}
+          />
+        )}
+
+        {showGuildOverviewModal && viewingGuild && (
+          <GuildOverviewModal
+            isOpen={showGuildOverviewModal}
+            onClose={() => {
+              setShowGuildOverviewModal(false)
+              setViewingGuild(null)
+              setIsViewingOwnedGuild(false)
+            }}
+            guild={viewingGuild}
+            currentUser={currentUser}
+            onJoinGuild={async (guildId, message) => {
+              try {
+                setIsLoading(true)
+                const result = await joinGuild(String(guildId), message)
+                showToast(result.message || "Successfully submitted guild join request!", "success")
+                
+                // Close the modal
+                setShowGuildOverviewModal(false)
+                setViewingGuild(null)
+                
+                // Refresh guild data to get updated membership status
+                await refetchGuilds()
+              } catch (error: any) {
+                showToast(error.message || "Failed to join guild. Please try again.", "error")
+              } finally {
+                setIsLoading(false)
+              }
+            }}
+            onOpenChat={(guildId) => {
+              // Handle chat open
+              console.log('Open chat for guild:', guildId)
+            }}
+            onManageGuild={(guild) => {
+              // Close overview modal and open management
+              setShowGuildOverviewModal(false)
+              setViewingGuild(null)
+              setManagingGuild(guild)
+              setShowDetailedGuildManagement(true)
+            }}
+            showToast={showToast}
+            isOwnedGuild={isViewingOwnedGuild}
           />
         )}
 

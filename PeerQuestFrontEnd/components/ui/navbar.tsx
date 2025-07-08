@@ -39,15 +39,13 @@ export function Navbar({
   const [avatarError, setAvatarError] = useState(false)
 
   const handleNavigation = (section: string) => {
-    // Use section-based navigation for profile and settings
-    if (section === "profile" || section === "settings") {
+    // Use section-based navigation for profile, settings, and guild-management
+    if (section === "profile" || section === "settings" || section === "guild-management") {
       setActiveSection(section);
     } else if (section === "messages") {
       router.push("/messages");
     } else if (section === "quest-management") {
       router.push("/quests");
-    } else if (section === "guild-management") {
-      router.push("/guilds");
     } else if (section === "admin") {
       router.push("/admin");
     } else {
