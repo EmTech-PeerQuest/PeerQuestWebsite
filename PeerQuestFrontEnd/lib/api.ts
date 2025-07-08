@@ -40,17 +40,21 @@ api.interceptors.response.use(
           // Refresh failed, redirect to login
           localStorage.removeItem("access_token");
           localStorage.removeItem("refresh_token");
-          window.location.href = "/login";
+          // Instead of redirecting, throw an error so the UI can handle it
+          // Optionally, you can show a toast here if you have access
+          // window.location.href = "/login";
           return Promise.reject(refreshError);
         }
       } else {
         // No refresh token, redirect to login
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
-        window.location.href = "/login";
+        // Instead of redirecting, throw an error so the UI can handle it
+        // window.location.href = "/login";
       }
     }
 
+    // Optionally, show a toast or set a global error state here
     return Promise.reject(error);
   }
 );
@@ -77,7 +81,12 @@ export const userSearchApi = {
     try {
       const response = await api.get("/users/search/");
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      if (error.response && error.response.status === 401) {
+        // Handle unauthorized error gracefully
+        console.warn("Not authorized to fetch all users. Returning empty list.");
+        return [];
+      }
       console.error("Error fetching all users:", error);
       throw error;
     }

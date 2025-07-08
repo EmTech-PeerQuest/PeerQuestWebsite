@@ -23,12 +23,29 @@ import { IntegratedProfile } from '@/components/profile/integrated-profile';
 import { UserSearch } from '@/components/search/user-search';
 import type { User, Quest, Guild, GuildApplication } from "@/lib/types"
 import { fetchInitialData } from '@/lib/api/init-data'
+import { userSearchApi } from '@/lib/api'
+
+import dynamic from 'next/dynamic';
+const AdminPanel = dynamic(() => import('@/components/admin/admin-panel'), { ssr: false });
+
+// Helper to check admin status (same logic as AdminPanel)
+const isAdmin = (user: any) => {
+  if (!user) return false;
+  return Boolean(
+    user.is_staff === true || user.is_staff === 'true' ||
+    user.isSuperuser === true || user.isSuperuser === 'true' ||
+    user.is_superuser === true || user.is_superuser === 'true'
+  );
+};
 
 export default function Home() {
+  // DEBUG PANEL: Show currentUser and token at all times for troubleshooting
+  const debugToken = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
   const [activeSection, setActiveSection] = useState<string>("home");
   const [quests, setQuests] = useState<Quest[]>([]);
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [guildApplications, setGuildApplications] = useState<GuildApplication[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshQuestBoard, setRefreshQuestBoard] = useState(0); // Trigger refresh without remounting
   const { user: currentUser, login, register, logout, refreshUser } = useAuth();
@@ -83,18 +100,30 @@ export default function Home() {
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
-    fetchInitialData()
-      .then((data) => {
+    Promise.all([
+      fetchInitialData(),
+      userSearchApi.getAllUsers()
+    ])
+      .then(([data, usersData]) => {
         if (!isMounted) return;
         setQuests(data?.quests || []);
         setGuilds(data?.guilds || []);
         setGuildApplications(data?.guildApplications || []);
+        setUsers(Array.isArray(usersData) ? usersData.map((u: any) => ({
+          ...u,
+          isBanned: u.is_banned,
+          banReason: u.ban_reason,
+          banExpiration: u.ban_expires_at,
+          isSuperuser: u.is_superuser,
+          createdAt: u.date_joined,
+        })) : []);
       })
       .catch((err) => {
         if (!isMounted) return;
         setQuests([]);
         setGuilds([]);
         setGuildApplications([]);
+        setUsers([]);
         console.error("Initialization failed", err);
       })
       .finally(() => {
@@ -259,11 +288,52 @@ export default function Home() {
           </div>
         )}
 
-        {activeSection === "admin" && currentUser && (
-          <div className="p-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Admin Panel</h2>
-            <p className="text-gray-600">Admin panel is being developed...</p>
-          </div>
+        {activeSection === "admin" && (
+          (() => {
+            const token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
+            if (!currentUser || !token) {
+              return (
+                <div className="max-w-6xl mx-auto px-4 py-16 text-center">
+                  <h2 className="text-2xl font-bold text-[#2C1A1D] mb-4">Admin Login Required</h2>
+                  <p className="text-gray-600 mb-6">You must be logged in as an admin to access the admin panel.</p>
+                  {process.env.NODE_ENV !== "production" && (
+                    <div style={{ background: '#fffbe6', color: '#8B75AA', padding: 12, marginTop: 24, border: '1px solid #CDAA7D', borderRadius: 8 }}>
+                      <strong>DEBUG:</strong> currentUser = {JSON.stringify(currentUser)}<br />
+                      access_token = {token || 'n/a'}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            if (!isAdmin(currentUser)) {
+              return (
+                <div className="max-w-6xl mx-auto px-4 py-16 text-center">
+                  <h2 className="text-2xl font-bold text-[#2C1A1D] mb-4">Access Denied</h2>
+                  <p className="text-gray-600 mb-6">You do not have permission to access the admin panel.</p>
+                  {process.env.NODE_ENV !== "production" && (
+                    <div style={{ background: '#fffbe6', color: '#8B75AA', padding: 12, marginTop: 24, border: '1px solid #CDAA7D', borderRadius: 8 }}>
+                      <strong>DEBUG:</strong> currentUser = {JSON.stringify(currentUser)}<br />
+                      access_token = {token || 'n/a'}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            return (
+              <AdminPanel
+                currentUser={currentUser}
+                users={users}
+                quests={quests}
+                guilds={guilds}
+                setUsers={setUsers}
+                setQuests={setQuests}
+                setGuilds={setGuilds}
+                showToast={(message: string, type?: string) => {
+                  toast({ title: message, variant: type === "error" ? "destructive" : "default" });
+                }}
+              />
+            );
+          })()
         )}
 
         {activeSection === "about" && <About />}

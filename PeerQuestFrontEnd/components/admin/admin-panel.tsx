@@ -483,13 +483,31 @@ function AdminPanel({
     setSelectedReport(report)
   }
 
-  if (!currentUser || !(currentUser.is_staff || currentUser.isSuperuser || currentUser.is_superuser)) {
+  // Robust admin check
+  const isAdmin = (user: any) => {
+    if (!user) return false;
+    return Boolean(
+      user.is_staff === true || user.is_staff === 'true' ||
+      user.isSuperuser === true || user.isSuperuser === 'true' ||
+      user.is_superuser === true || user.is_superuser === 'true'
+    );
+  };
+
+  if (currentUser === null || currentUser === undefined) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 py-16 text-center">
+        <span className="text-[#8B75AA] text-lg animate-pulse">Loading admin panel...</span>
+      </div>
+    );
+  }
+
+  if (!isAdmin(currentUser)) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-16 text-center">
         <h2 className="text-2xl font-bold text-[#2C1A1D] mb-4">Access Denied</h2>
         <p className="text-gray-600 mb-6">You do not have permission to access the admin panel.</p>
       </div>
-    )
+    );
   }
 
   return (

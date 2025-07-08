@@ -50,7 +50,10 @@ from rest_framework import serializers, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.core.exceptions import ValidationError
-from .serializers import UserProfileSerializer, RegisterSerializer, UserInfoUpdateSerializer
+from .serializers import (
+    UserProfileSerializer, RegisterSerializer, UserInfoUpdateSerializer,
+    UserSkillSerializer, SkillsManagementSerializer
+)
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
@@ -1080,15 +1083,26 @@ class UserSkillsView(APIView):
     def get(self, request):
         """Get user's current skills"""
         try:
+            print("[DEBUG] User in request:", request.user)
+            if not request.user or not request.user.is_authenticated:
+                print("[DEBUG] User is not authenticated!")
+                return Response({
+                    'success': False,
+                    'error': 'Authentication required.'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+
             user_skills = UserSkill.objects.filter(user=request.user).select_related('skill')
+            print(f"[DEBUG] Found {user_skills.count()} user skills for user {request.user}")
             serializer = UserSkillSerializer(user_skills, many=True)
-            
+            print(f"[DEBUG] Serialized data: {serializer.data}")
             return Response({
                 'success': True,
                 'skills': serializer.data
             }, status=status.HTTP_200_OK)
-            
         except Exception as e:
+            import traceback
+            print("[DEBUG] Exception in UserSkillsView.get:", str(e))
+            traceback.print_exc()
             return Response({
                 'success': False,
                 'error': str(e)
