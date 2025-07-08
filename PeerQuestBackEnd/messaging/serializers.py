@@ -15,13 +15,15 @@ class UserSerializer(serializers.ModelSerializer):
     def get_is_online(self, obj):
         try:
             return obj.presence.is_online
-        except:
+        except UserPresence.DoesNotExist:
             return False
     
     def get_avatar(self, obj):
-        # Assuming your User model has an avatar field
         if hasattr(obj, 'avatar') and obj.avatar:
-            return obj.avatar.url
+            try:
+                return obj.avatar.url
+            except ValueError:
+                return None
         return None
 
 class MessageAttachmentSerializer(serializers.ModelSerializer):

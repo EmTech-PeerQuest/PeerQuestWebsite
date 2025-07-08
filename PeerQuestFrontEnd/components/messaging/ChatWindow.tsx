@@ -1,212 +1,108 @@
-import React, { useState, useEffect, useRef, RefObject } from "react"
-import MessageBubble from "./MessageBubble"
+"use client"
+
+import React, { useCallback, RefObject } from "react"
+import MessageList from "./MessageList" // Import the corrected MessageList
 import TypingIndicator from "./TypingIndicator"
 import MessageInput from "./MessageInput"
 import ConversationHeader from "./ConversationHeader"
-import type {
-  User,
-  Message,
-  TypingUser,
-  Attachment,
-  MessageStatus,
-  Conversation,
-} from "@/lib/types"
+import type { User, Message, TypingUser, Attachment, Conversation } from "@/lib/types"
 
 interface ChatWindowProps {
   messages: Message[]
-  currentUserId: string
   currentUser: User
-  otherParticipant: User | null
-  conversationName?: string
-  isGroupChat: boolean
   onSendMessage: (content: string, files?: File[]) => Promise<void>
   onTyping: () => void
-  typingUserIds: string[]
+  // Pass the full TypingUser object, not just the ID
+  typingUsers: TypingUser[]
   wsError?: string
   wsConnected: boolean
-  messagesContainerRef: RefObject<HTMLDivElement>
   newMessage: string
-  setNewMessage: (msg: string) => void
+  setNewMessage: React.Dispatch<React.SetStateAction<string>>
   renderAvatar: (user: User, size?: "sm" | "md" | "lg") => JSX.Element
-  formatTime: (date: string) => string
   handleFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void
   removeFile: (index: number) => void
   selectedFiles: File[]
   onToggleInfo: () => void
-  onlineUsers?: Map<string, "online" | "idle" | "offline">
+  onlineUsers: Map<string, "online" | "idle" | "offline">
   isSending: boolean
   fileInputRef: RefObject<HTMLInputElement>
-  children?: React.ReactNode
-  activeConversation: string | null
-  conversations: Conversation[]
+  activeConversation: Conversation | null // Pass the whole conversation object
   getOtherParticipant: (conversation: Conversation) => User | null
 }
 
 export default function ChatWindow({
   messages,
-  currentUserId,
   currentUser,
-  otherParticipant,
-  conversationName,
-  isGroupChat,
   onSendMessage,
   onTyping,
-  typingUserIds,
+  typingUsers, // Use the simplified prop
   wsError,
   wsConnected,
-  messagesContainerRef,
   newMessage,
   setNewMessage,
   renderAvatar,
-  formatTime,
   handleFileSelect,
   removeFile,
   selectedFiles,
   onToggleInfo,
-  onlineUsers = new Map(),
+  onlineUsers,
   isSending,
   fileInputRef,
   activeConversation,
-  conversations,
   getOtherParticipant,
 }: ChatWindowProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const handleAttachmentClick = useCallback((attachment: Attachment) => {
+    // Logic to handle opening/downloading attachments
+    window.open(attachment.url, "_blank", "noopener,noreferrer")
+  }, [])
 
-  const transformedTypingUsers: TypingUser[] = typingUserIds
-    .filter((userId) => userId !== currentUserId)
-    .map((userId) => {
-      const user =
-        otherParticipant?.id === userId
-          ? otherParticipant
-          : currentUser.id === userId
-          ? currentUser
-          : null
-      return {
-        user_id: userId,
-        username: user?.username || `User ${userId}`,
-      }
-    })
-
-  const scrollToBottom = () => {
-    const scrollContainer = messagesContainerRef?.current
-    if (scrollContainer) {
-      const isNearBottom =
-        scrollContainer.scrollHeight - scrollContainer.clientHeight <=
-        scrollContainer.scrollTop + 100
-      if (isNearBottom || messages.length <= 1) {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-      } else {
-        const lastMessage = messages[messages.length - 1]
-        if (lastMessage && lastMessage.sender.id === currentUserId) {
-          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-        }
-      }
-    }
-  }
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages, currentUserId])
-
-  const handleAttachmentClick = (attachment: Attachment) => {
-    if (!attachment.url) return
-    if (attachment.content_type?.startsWith("image/")) {
-      window.open(attachment.url, "_blank")
-    } else {
-      const link = document.createElement("a")
-      link.href = attachment.url
-      link.download = attachment.filename
-      link.target = "_blank"
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-    }
-  }
-
-  const handleTypingEvent = () => {
-    onTyping()
+  if (!activeConversation) {
+    return <div className="flex items-center justify-center h-full">Select a conversation.</div>
   }
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full w-full bg-card">
+      {/* Header */}
       <ConversationHeader
-        activeConversation={activeConversation}
-        conversations={conversations}
+        conversation={activeConversation}
         getOtherParticipant={getOtherParticipant}
         onlineUsers={onlineUsers}
-        wsConnected={wsConnected}
-        wsError={wsError}
         onToggleInfo={onToggleInfo}
         renderAvatar={renderAvatar}
       />
 
-      {/* WebSocket Status */}
-      {!wsConnected && wsError && (
+      {/* Connection Status Banner */}
+      {!wsConnected && (
         <div
-          className="px-4 py-2 bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] text-white font-medium text-sm"
+          className="px-4 py-2 bg-yellow-600 text-white font-medium text-sm text-center"
           role="alert"
         >
-          <p>Connection Error: {wsError}</p>
-        </div>
-      )}
-      {!wsConnected && !wsError && (
-        <div
-          className="px-4 py-2 bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] text-white font-medium text-sm"
-          role="status"
-        >
-          <p>Disconnected from server. Trying to reconnect...</p>
+          {wsError ? `Connection Error: ${wsError}` : "Reconnecting..."}
         </div>
       )}
 
-      {/* Messages */}
-      <div
-        ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50"
-        aria-live="polite"
-        role="log"
-      >
-        {messages.length === 0 ? (
-          <div className="text-center text-gray-400 text-sm mt-6">
-            No messages yet. Say hello!
-          </div>
-        ) : (
-          messages.map((message) => (
-            <MessageBubble
-              key={message.id || message.timestamp + message.sender.id}
-              message={message}
-              isOwnMessage={message.sender.id === currentUserId}
-              status={message.status as MessageStatus}
-              onAttachmentClick={handleAttachmentClick}
-              renderAvatar={renderAvatar}
-              onlineUsers={onlineUsers}
-            />
-          ))
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+      {/* Message List (Using the dedicated component) */}
+      <MessageList
+        messages={messages}
+        currentUserId={currentUser.id}
+        renderAvatar={renderAvatar}
+        onlineUsers={onlineUsers}
+      />
 
-      {/* Typing Indicator */}
-      <div className="bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] text-white px-4 py-1">
-        <TypingIndicator
-          typingUsers={transformedTypingUsers}
-          currentUserId={currentUserId}
-        />
-      </div>
-
-      {/* Message Input */}
-      <div className="bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D]">
+      {/* Typing Indicator & Message Input */}
+      <div className="border-t border-border p-4 bg-background">
+        <TypingIndicator typingUsers={typingUsers} currentUserId={currentUser.id} />
         <MessageInput
           newMessage={newMessage}
           setNewMessage={setNewMessage}
           onSend={onSendMessage}
-          onTyping={handleTypingEvent}
+          onTyping={onTyping}
           disabled={!wsConnected || isSending}
           handleFileSelect={handleFileSelect}
           removeFile={removeFile}
           selectedFiles={selectedFiles}
           isSending={isSending}
           fileInputRef={fileInputRef}
-          wsConnected={wsConnected}
         />
       </div>
     </div>

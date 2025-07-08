@@ -33,7 +33,7 @@ export default function Home() {
   const [guilds, setGuilds] = useState<Guild[]>([]);
   const [guildApplications, setGuildApplications] = useState<GuildApplication[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user: currentUser, login, register, logout } = useAuth();
+  const { user: currentUser, token, login, register, logout } = useAuth();
   const { toast } = useToast();
   // Adapter for showToast: expects (message: string, type?: string) => void
   const showToast = (message: string, type: string = "default") => {
@@ -43,6 +43,8 @@ export default function Home() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot'>('login');
   const router = useRouter();
+  
+
 
   // Ensure home section is shown after logout
   useEffect(() => {
@@ -171,8 +173,13 @@ export default function Home() {
           />
         )}
 
-        {activeSection === "messages" && currentUser && (
-          <MessagingSystem currentUser={currentUser} showToast={showToast} />
+        {activeSection === "messages" && currentUser && token &&(
+          <MessagingSystem
+            currentUser={currentUser}
+            showToast={showToast}
+            token={token} // Assuming your `User` object includes a `token` field
+            onlineUsers={new Map()}   // Replace with actual onlineUsers map if available
+          />
         )}
 
         {activeSection === "quest-management" && currentUser && (

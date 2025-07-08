@@ -7,82 +7,59 @@ type Props = {
   messages: Message[]
   currentUserId: string
   renderAvatar: (user: User, size?: "sm" | "md" | "lg") => JSX.Element
-  formatTime: (date: string) => string
-  onlineUsers: Map<string, "online" | "idle"> // This map tracks user presence
+  // Corrected type to include all possible statuses
+  onlineUsers: Map<string, "online" | "idle" | "offline">
 }
 
-const MessageList: React.FC<Props> = ({
-  messages,
-  currentUserId,
-  renderAvatar,
-  formatTime,
-  onlineUsers, // Pass onlineUsers down to MessageBubble if it needs it for avatar status
-}) => {
-  const scrollRef = useRef<HTMLDivElement>(null)
+const MessageList: React.FC<Props> = ({ messages, currentUserId, renderAvatar, onlineUsers }) => {
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  // Scroll to the bottom when messages update
   useEffect(() => {
-    const scrollContainer = scrollRef.current?.parentElement
-    if (scrollContainer) {
-      const isAtBottom =
-        scrollContainer.scrollHeight - scrollContainer.clientHeight <=
-        scrollContainer.scrollTop + 100 // 100px buffer
-      if (isAtBottom) {
-        scrollRef.current?.scrollIntoView({ behavior: "smooth" })
-      } else {
-        const lastMessage = messages[messages.length - 1]
-        if (lastMessage && lastMessage.sender.id === currentUserId) {
-          scrollRef.current?.scrollIntoView({ behavior: "smooth" })
-        }
-      }
-    } else {
-      scrollRef.current?.scrollIntoView({ behavior: "smooth" })
+    const scrollContainer = containerRef.current
+    if (!scrollContainer) return
+
+    // Heuristic to check if user is scrolled up to see older messages
+    const isScrolledUp =
+      scrollContainer.scrollHeight - scrollContainer.clientHeight > scrollContainer.scrollTop + 200 // 200px threshold
+
+    // If the user hasn't scrolled up, or the new message is from the current user, scroll to bottom
+    const lastMessage = messages[messages.length - 1]
+    if (!isScrolledUp || lastMessage?.sender.id === currentUserId) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
     }
-  }, [messages, currentUserId]) // Add currentUserId as a dependency for the scroll logic
+  }, [messages, currentUserId])
 
   return (
     <div
-      className="flex-1 min-h-0 overflow-y-auto px-4 py-2 space-y-2"
+      ref={containerRef}
+      className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50 min-h-0"
       aria-live="polite"
       role="log"
     >
       {messages.length === 0 ? (
-        <div className="text-center text-gray-400 text-sm mt-6">
-          No messages yet. Say hello!
-        </div>
+        <div className="text-center text-gray-400 text-sm mt-6">No messages yet. Say hello!</div>
       ) : (
         messages.map((msg, index) => {
           const isOwnMessage = msg.sender.id === currentUserId
           const prevMsg = messages[index - 1]
-          // Show avatar if it's not own message AND (it's the first message OR sender changed from previous)
-          const showAvatar =
-            !isOwnMessage && (!prevMsg || prevMsg.sender.id !== msg.sender.id)
-
-          // The `status` prop for MessageBubble should be for MESSAGE DELIVERY STATUS,
-          // not the sender's online presence.
-          // If your Message type has msg.status (e.g., 'sent', 'delivered', 'read'), pass that.
-          const messageDeliveryStatus = msg.status // Assuming msg.status exists in Message type
+          // Group consecutive messages by the same sender
+          const showAvatar = !isOwnMessage && (!prevMsg || prevMsg.sender.id !== msg.sender.id)
 
           return (
-            <div key={msg.id || `${msg.sender.id}-${index}`} className="relative">
-              {/* Removed absolute positioned presence dot here. 
-                  It's better handled within MessageBubble itself alongside the avatar,
-                  or in the ConversationHeader. */}
-              <MessageBubble
-                message={msg}
-                isOwnMessage={isOwnMessage}
-                showAvatar={showAvatar}
-                status={messageDeliveryStatus}
-                renderAvatar={renderAvatar}
-                onlineUsers={onlineUsers} // Pass the map directly
-              />
-            </div>
+            <MessageBubble
+              key={msg.id ?? `${msg.sender.id}-${index}`}
+              message={msg}
+              isOwnMessage={isOwnMessage}
+              showAvatar={showAvatar}
+              renderAvatar={renderAvatar}
+              onlineUsers={onlineUsers}
+            />
           )
         })
       )}
-
-      {/* This ensures smooth scrolling to the latest message */}
-      <div ref={scrollRef} className="scroll-mb-64" />
+      {/* Anchor for scrolling to the bottom */}
+      <div ref={messagesEndRef} />
     </div>
   )
 }

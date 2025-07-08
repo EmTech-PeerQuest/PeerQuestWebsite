@@ -1,15 +1,15 @@
 "use client"
 
-import React from "react"
+import React, { useCallback } from "react"
 import dynamic from "next/dynamic"
 
-// Define types locally since @emoji-mart/react types might not be available
 interface EmojiData {
   native: string
   id: string
   unified: string
   colons: string
   shortcodes: string
+  [key: string]: any
 }
 
 interface PickerProps {
@@ -25,7 +25,6 @@ interface PickerProps {
   perLine?: number
 }
 
-// Dynamically import emoji picker with SSR disabled
 const Picker = dynamic(
   () => import("@emoji-mart/react").then((mod) => mod.default || mod),
   {
@@ -34,7 +33,7 @@ const Picker = dynamic(
       <div className="flex items-center justify-center p-4">
         <span>Loading emojis...</span>
       </div>
-    ), // Could also use a spinner here
+    ),
   }
 ) as React.ComponentType<PickerProps>
 
@@ -49,19 +48,22 @@ export default function EmojiPicker({
   theme = "light",
   className = "",
 }: EmojiPickerProps) {
-  const handleEmojiSelect = (emoji: EmojiData) => {
-    // Ensuring the emoji data has a native property before passing to onSelect
-    if (emoji?.native) {
-      onSelect(emoji.native)
-    }
-  }
+  const handleEmojiSelect = useCallback(
+    (emoji: EmojiData) => {
+      if (emoji?.native) {
+        onSelect(emoji.native)
+      }
+    },
+    [onSelect]
+  )
 
   return (
     <div
       className={`${
         theme === "dark" ? "bg-gray-800" : "bg-white"
-      } p-2 rounded-lg shadow-lg ${className}`}
+      } p-2 rounded-lg shadow-lg ${className} cursor-pointer`}
       aria-label="Emoji Picker"
+      tabIndex={0}
     >
       <Picker
         onEmojiSelect={handleEmojiSelect}
@@ -74,6 +76,7 @@ export default function EmojiPicker({
         maxFrequentRows={2}
         navPosition="top"
         perLine={9}
+        aria-label="Select emoji"
       />
     </div>
   )

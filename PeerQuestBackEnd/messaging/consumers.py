@@ -4,19 +4,17 @@ from django.utils import timezone
 from django.contrib.auth import get_user_model
 from channels.db import database_sync_to_async
 import logging
-import uuid # For generating UUIDs if needed, though DB handles message IDs
+import uuid
 
 # Import your models. Adjust these imports if your models are in a different path.
 from messaging.models import Message, Conversation, UserPresence 
-# Import xp.utils.award_xp. Ensure this module and function exist.
+# Import xp.utils.award_xp. Ensure this module and function exists.
 from xp.utils import award_xp
 
 # Use a specific logger for this module for better log management
 logger = logging.getLogger(__name__)
 
 # --- Database Async Helper Functions ---
-# These functions interact with the database and need to be wrapped in database_sync_to_async
-# because Channels consumers run in an async context.
 
 @database_sync_to_async
 def create_message(conversation_id, sender_id, content, message_type='text'):
@@ -33,21 +31,36 @@ def create_message(conversation_id, sender_id, content, message_type='text'):
         messaging.models.Message: The created Message object, or None if an error occurred.
     """
     try:
+        logger.info(f"[CREATE_MESSAGE] Starting with conversation_id={conversation_id}, sender_id={sender_id}, content='{content}'")
+        
         conversation = Conversation.objects.get(id=conversation_id)
+        logger.info(f"[CREATE_MESSAGE] Found conversation: {conversation}")
+        
+        # Get the recipient (the other participant in the conversation)
+        participants = conversation.participants.all()
+        recipient = participants.exclude(id=sender_id).first()
+        
+        if not recipient:
+            logger.error(f"[CREATE_MESSAGE] Could not determine recipient for conversation {conversation_id}")
+            return None
+        
+        logger.info(f"[CREATE_MESSAGE] Determined recipient: {recipient.username} (ID: {recipient.id})")
         
         message = Message.objects.create(
             conversation=conversation,
             sender_id=sender_id,
+            recipient_id=recipient.id,  # This was missing!
             content=content,
             message_type=message_type,
         )
-        logger.debug(f"[DB] Message created: ID={message.id}, Conversation={conversation_id}, Sender={sender_id}")
+        logger.info(f"[CREATE_MESSAGE] Message created successfully: ID={message.id}")
         return message
+        
     except Conversation.DoesNotExist:
-        logger.error(f"[DB] Error creating message: Conversation with ID {conversation_id} does not exist.")
+        logger.error(f"[CREATE_MESSAGE] Conversation with ID {conversation_id} does not exist.")
         return None
     except Exception as e:
-        logger.exception(f"[DB] Unhandled error creating message for conversation {conversation_id}, sender {sender_id}: {e}")
+        logger.exception(f"[CREATE_MESSAGE] Error creating message: {e}")
         return None
     
 @database_sync_to_async
@@ -197,10 +210,10 @@ def get_conversation_messages(conversation_id, limit=50):
             sender_avatar_url = None
             if sender_avatar:
                 try:
-                    sender_avatar_url = sender_avatar.url # Get URL if it's an ImageField/FileField
+                    sender_avatar_url = sender_avatar.url
                 except ValueError:
                     logger.warning(f"Avatar for user {msg.sender_id} is corrupted or missing URL.")
-                    sender_avatar_url = None # Set to None if URL cannot be retrieved
+                    sender_avatar_url = None
             
             serialized_messages.append({
                 'id': str(msg.id),
@@ -226,6 +239,22 @@ def get_conversation_messages(conversation_id, limit=50):
         logger.exception(f"[DB] Error fetching conversation messages for {conversation_id}: {e}")
         return []
 
+@database_sync_to_async
+def award_xp_async(user, amount, reason):
+    """
+    Async wrapper for the XP award function.
+    
+    Args:
+        user: The user object to award XP to
+        amount: The amount of XP to award
+        reason: The reason for the XP award
+    """
+    try:
+        award_xp(user, amount=amount, reason=reason)
+        logger.debug(f"[XP] XP awarded to {user.username}.")
+    except Exception as e:
+        logger.warning(f"[XP] XP award failed for {user.username}: {e}")
+
 # --- Chat Consumer Class ---
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -242,7 +271,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             # Extract conversation ID from URL routing
             self.conversation_id = self.scope['url_route']['kwargs']['conversation_id']
             self.room_group_name = f"chat_{self.conversation_id}"
-            self.user_group_name = None # Will be set if user is authenticated
+            self.user_group_name = None
 
             user = self.scope.get('user')
             
@@ -254,7 +283,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 is_participant = await is_user_in_conversation(user.id, self.conversation_id)
                 if not is_participant:
                     logger.warning(f"[CONNECT] User {user.username} (ID: {user.id}) is NOT a participant in conversation {self.conversation_id}. Denying connection.")
-                    await self.close(code=4003) # 4003: Policy Violation (e.g., unauthorized to access this specific resource)
+                    await self.close(code=4003)
                     return
 
                 # Mark user as online in the UserPresence system
@@ -266,7 +295,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     self.channel_name
                 )
                 
-                # Add user's channel to their personal group for direct notifications (e.g., presence)
+                # Add user's channel to their personal group for direct notifications
                 self.user_group_name = f"user_{user.id}"
                 await self.channel_layer.group_add(
                     self.user_group_name,
@@ -285,7 +314,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     'user_id': str(user.id) 
                 }))
                 
-                # Send initial historical messages for this conversation to the newly connected client
+                # Send initial historical messages for this conversation
                 initial_messages = await get_conversation_messages(self.conversation_id)
                 logger.debug(f"[CONNECT] Sending {len(initial_messages)} initial messages for conversation {self.conversation_id} to user {user.username}.")
                 await self.send(text_data=json.dumps({
@@ -293,12 +322,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     'messages': initial_messages
                 }))
 
-                # Notify other participants in the conversation that this user is now online
+                # Notify other participants that this user is now online
                 participants = await get_conversation_participants(self.conversation_id)
                 for participant_id in participants:
-                    if str(participant_id) != str(user.id): # Don't send presence update to self
+                    if str(participant_id) != str(user.id):
                         await self.channel_layer.group_send(
-                            f"user_{participant_id}", # Send to their personal presence group
+                            f"user_{participant_id}",
                             {
                                 'type': 'user_presence_update',
                                 'user_id': str(user.id),
@@ -308,13 +337,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         )
             else:
                 logger.warning("[CONNECT] WebSocket rejected: User not authenticated or user object is None.")
-                await self.close(code=4001) # 4001: Unauthorized (authentication failure)
+                await self.close(code=4001)
         except KeyError:
             logger.error(f"[CONNECT ERROR] 'conversation_id' not found in URL route kwargs for connection attempt. Close code 4000.")
-            await self.close(code=4000) # 4000: Bad request / Invalid frame payload data (e.g., missing URL param)
+            await self.close(code=4000)
         except Exception as e:
             logger.exception(f"[CONNECT ERROR] Unhandled exception during WebSocket connection: {e}. Close code 4000.")
-            await self.close(code=4000) # Generic error for any other unexpected issues
+            await self.close(code=4000)
 
     async def disconnect(self, close_code):
         """
@@ -368,17 +397,27 @@ class ChatConsumer(AsyncWebsocketConsumer):
         try:
             logger.info(f"[RECEIVE] Raw text data: {text_data}")
             data = json.loads(text_data)
+            
+            logger.info(f"[RECEIVE] Parsed data: {data}")
+            logger.info(f"[RECEIVE] Message type: {data.get('type')}")
 
             message_type = data.get('type')
             
-            if message_type == 'chat_message':
+            if message_type == 'send_message':
+                logger.info(f"[RECEIVE] Calling handle_chat_message for send_message")
+                await self.handle_chat_message(data)
+            elif message_type == 'chat_message':
+                logger.info(f"[RECEIVE] Calling handle_chat_message for chat_message")
                 await self.handle_chat_message(data)
             elif message_type == 'typing':
+                logger.info(f"[RECEIVE] Calling handle_typing")
                 await self.handle_typing(data)
             elif message_type == 'read_receipt':
+                logger.info(f"[RECEIVE] Calling handle_read_receipt")
                 await self.handle_read_receipt(data)
             else:
                 logger.warning(f"[RECEIVE] Unrecognized message type received: '{message_type}'")
+                logger.warning(f"[RECEIVE] Full data received: {data}")
 
         except json.JSONDecodeError as e:
             logger.error(f"[RECEIVE ERROR] Invalid JSON received: {e}. Data: '{text_data}'")
@@ -393,19 +432,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
         user = self.scope.get('user')
         if not (user and user.is_authenticated):
             logger.warning("[HANDLE_CHAT_MESSAGE] Unauthenticated user attempted to send chat message.")
-            return # Silently ignore unauthenticated message attempts
+            return
 
-        sender_id = str(user.id) # Always use the authenticated user's ID as sender
+        sender_id = str(user.id)
         content = data.get('content', '').strip()
-        
-        # 'recipient_id' might be sent from frontend, but for a Conversation, the recipients are
-        # implied by the conversation participants. You can use it if your Message model
-        # specifically needs to track a direct recipient within a multi-participant conversation.
-        # For simplicity, if this is a conversation-based chat, you might not strictly need recipient_id here.
-        # However, if your 'Message' model requires it, ensure it's provided.
-        # For now, keeping it to match your original `create_message` signature (if it had recipient_id).
-        # Otherwise, remove recipient_id from create_message signature as well.
-        recipient_id = data.get('recipient_id') 
+        recipient_id = data.get('recipient_id')
 
         logger.info(f"[HANDLE_CHAT_MESSAGE] Processing message. Sender: {sender_id}, Content: '{content[:50]}...'")
 
@@ -420,7 +451,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return 
 
         # Create message in database
-        # Passed recipient_id based on your original thought, but reconsider if truly needed.
         message = await create_message(self.conversation_id, sender_id, content) 
         if not message:
             logger.error(f"[HANDLE_CHAT_MESSAGE] Failed to create message for conversation {self.conversation_id}, sender {sender_id}.")
@@ -428,30 +458,26 @@ class ChatConsumer(AsyncWebsocketConsumer):
             
         logger.info(f"[HANDLE_CHAT_MESSAGE] Message saved to DB with ID: {message.id}")
 
-        # Get sender info (might be slightly stale from `connect` if user's profile changed, so refetch)
+        # Get sender info
         sender = await get_user_by_id(sender_id)
         if not sender:
             logger.error(f"[HANDLE_CHAT_MESSAGE] Sender with ID {sender_id} not found after message creation. This is unexpected.")
             return
 
         # Award XP (optional)
-        try:
-            await award_xp(sender, amount=10, reason='Chat message')
-            logger.debug(f"[XP] XP awarded to {sender.username}.")
-        except Exception as e:
-            logger.warning(f"[XP] XP award failed for {sender.username}: {e}")
+        await award_xp_async(sender, amount=10, reason='Chat message')
 
         # Prepare message data for broadcasting to clients
         sender_avatar_url = None
         if getattr(sender, 'avatar', None):
             try:
-                sender_avatar_url = sender.avatar.url # Get URL from Django ImageField/FileField
+                sender_avatar_url = sender.avatar.url
             except ValueError:
                 logger.warning(f"Could not get avatar URL for user {sender.id}.")
                 sender_avatar_url = None
 
         message_data_for_broadcast = {
-            'type': 'chat_message', # This matches the consumer method 'chat_message'
+            'type': 'chat_message',
             'message': {
                 'id': str(message.id),
                 'conversation_id': str(self.conversation_id),
@@ -460,7 +486,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     'username': sender.username,
                     'avatar': sender_avatar_url,
                 },
-                'recipient_id': str(recipient_id) if recipient_id else None, # Include if provided
+                'recipient_id': str(recipient_id) if recipient_id else None,
                 'content': content,
                 'message_type': 'text',
                 'timestamp': message.timestamp.isoformat(),
@@ -476,18 +502,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
             message_data_for_broadcast
         )
 
-        # Send conversation update to all participants in the conversation
-        # This is for updating the 'last message' and timestamp on conversation lists
+        # Send conversation update to all participants
         participants_ids = await get_conversation_participants(self.conversation_id)
         for participant_id in participants_ids:
             await self.channel_layer.group_send(
-                f"user_{participant_id}", # Send to each user's personal group
+                f"user_{participant_id}",
                 {
-                    'type': 'conversation_update', # This matches the consumer method 'conversation_update'
+                    'type': 'conversation_update',
                     'conversation_id': str(self.conversation_id),
                     'last_message': content,
                     'timestamp': message.timestamp.isoformat(),
-                    'last_sender_id': str(sender.id) # Useful for UI (e.g., "You: ...")
+                    'last_sender_id': str(sender.id)
                 }
             )
 
@@ -503,8 +528,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         is_typing = data.get('is_typing', False)
         logger.debug(f"[HANDLE_TYPING] Typing indicator from {user.username} (ID: {user.id}): {is_typing}")
 
-        # Broadcast typing status to everyone in the room except the sender themselves
-        # The sender's client should manage their own typing indicator locally
+        # Broadcast typing status to everyone in the room except the sender
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -539,23 +563,32 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 {
                     'type': 'message_read_update', 
                     'message_id': message_id,
-                    'user_id': str(user.id), # The user who performed the read action
+                    'user_id': str(user.id),
                 }
             )
         else:
-            logger.warning(f"[HANDLE_READ_RECEIPT] Failed to mark message {message_id} as read (it might not exist or already read).")
+            logger.warning(f"[HANDLE_READ_RECEIPT] Failed to mark message {message_id} as read.")
 
-    # --- WebSocket Event Handlers (These methods receive events from the Channel Layer) ---
-    # These methods are named after the 'type' key in the dict passed to channel_layer.group_send
+    # --- WebSocket Event Handlers ---
 
     async def chat_message(self, event):
         """
         Receives a 'chat_message' event from the channel layer and sends it to the client.
         """
         try:
-            # 'event['message']' already contains the full message dictionary prepared in handle_chat_message
-            logger.debug(f"[SEND_WS] Sending chat_message to client: Message ID={event['message'].get('id')}")
-            await self.send(text_data=json.dumps(event['message']))
+            logger.info(f"[SEND_WS] *** chat_message method called ***")
+            logger.info(f"[SEND_WS] Event data: {event}")
+            
+            # Send the message to the WebSocket client
+            message_data = {
+                'type': 'new_message',  # Frontend expects 'new_message' type
+                'message': event['message']
+            }
+            
+            logger.info(f"[SEND_WS] Sending to client: {message_data}")
+            await self.send(text_data=json.dumps(message_data))
+            logger.info(f"[SEND_WS] Message sent successfully to client")
+            
         except Exception as e:
             logger.exception(f"[SEND_WS_ERROR - chat_message] Failed to send chat message to client: {e}")
 
@@ -564,12 +597,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
         Receives a 'user_presence_update' event from the channel layer and sends it to the client.
         """
         try:
-            # Optional: Filter if current user is always up-to-date locally.
-            # This prevents sending redundant updates about one's own presence from another tab.
+            # Filter to prevent sending updates about one's own presence
             if str(event['user_id']) != str(self.scope["user"].id): 
                 logger.debug(f"[SEND_WS] Sending presence_update for user {event['user_id']}: {event['is_online']}")
                 await self.send(text_data=json.dumps({
-                    'type': 'presence_update', # Frontend expects 'presence_update' type
+                    'type': 'presence_update',
                     'user_id': event['user_id'],
                     'username': event['username'],
                     'is_online': event['is_online'],
@@ -584,7 +616,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         try:
             logger.debug(f"[SEND_WS] Sending conversation_update for conversation {event['conversation_id']}")
             await self.send(text_data=json.dumps({
-                'type': 'conversation_update', # Frontend expects 'conversation_update' type
+                'type': 'conversation_update',
                 'conversation_id': event['conversation_id'],
                 'last_message': event['last_message'],
                 'timestamp': event['timestamp'],
@@ -598,11 +630,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
         Receives a 'typing_indicator' event from the channel layer and sends it to the client.
         """
         try:
-            # Only send typing update if it's from another user (client handles its own typing)
+            # Only send typing update if it's from another user
             if str(event['user_id']) != str(self.scope["user"].id):
                 logger.debug(f"[SEND_WS] Sending typing_indicator from user {event['user_id']}: {event['is_typing']}")
                 await self.send(text_data=json.dumps({
-                    'type': 'typing', # Frontend expects 'typing' type
+                    'type': 'typing',
                     'user_id': event['user_id'],
                     'username': event['username'],
                     'is_typing': event['is_typing'],
@@ -615,11 +647,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
         Receives a 'message_read_update' event from the channel layer and sends it to the client.
         """
         try:
-            logger.debug(f"[SEND_WS] Sending message_read_update for message {event['message_id']} by user {event['user_id']}")
+            logger.debug(f"[SEND_WS] Message {event['message_id']} read by user {event['user_id']}")
             await self.send(text_data=json.dumps({
-                'type': 'message',
+                'type': 'message_read_update',
                 'message_id': event['message_id'],
-                'user_id': event['message'],
+                'user_id': event['user_id'],
             }))
         except Exception as e:
             logger.exception(f"[SEND_WS_ERROR - message_read_update] Failed to send message read update: {e}")

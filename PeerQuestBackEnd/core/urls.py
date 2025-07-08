@@ -40,6 +40,7 @@ urlpatterns = [
     path('api/guilds/', include('guilds.urls')),
     # Messaging app
     path('api/messages/', include('messaging.urls')),
+    path('api/conversations/', include('messaging.urls')),
     # Start conversation endpoint (to match frontend expectation)
     path('api/conversations/start/', StartConversationView.as_view(), name='start-conversation'),
     # API Docs (Swagger + Redoc)

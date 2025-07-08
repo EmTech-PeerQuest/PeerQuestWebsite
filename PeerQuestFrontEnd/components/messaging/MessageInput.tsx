@@ -13,7 +13,7 @@ type MessageInputProps = {
   removeFile: (index: number) => void
   selectedFiles: File[]
   newMessage: string
-  setNewMessage: (msg: string) => void
+  setNewMessage: React.Dispatch<React.SetStateAction<string>>
   isSending: boolean
   fileInputRef: React.RefObject<HTMLInputElement>
   wsConnected?: boolean
@@ -35,28 +35,28 @@ export default function MessageInput({
   const [showEmoji, setShowEmoji] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Send message if input or files exist
   const handleSend = async () => {
     const trimmed = newMessage.trim()
     if (trimmed || selectedFiles.length > 0) {
       await onSend(trimmed, selectedFiles.length > 0 ? selectedFiles : undefined)
-      setShowEmoji(false)  // Optional: Close emoji picker after sending
-      inputRef.current?.focus() // Focus back to input after sending
+      setShowEmoji(false)        // Close emoji picker after send
+      inputRef.current?.focus()  // Focus input after send
     }
   }
 
+  // Add selected emoji to message input and focus
   const handleEmojiSelect = (emoji: string) => {
-    setNewMessage(newMessage + emoji)
-    inputRef.current?.focus() // Focus back after adding emoji
+    setNewMessage((prev) => prev + emoji)
+    inputRef.current?.focus()
   }
 
-  // Debounce typing indicator
+  // Debounce typing indicator to avoid flooding
   useEffect(() => {
     if (!onTyping) return
-
     const handler = setTimeout(() => {
       onTyping(newMessage.length > 0)
     }, 500)
-
     return () => clearTimeout(handler)
   }, [newMessage, onTyping])
 
@@ -76,7 +76,7 @@ export default function MessageInput({
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [showEmoji])
 
-  const isSendButtonDisabled = 
+  const isSendButtonDisabled =
     (!newMessage.trim() && selectedFiles.length === 0) || disabled || isSending
 
   return (
@@ -88,12 +88,15 @@ export default function MessageInput({
               key={index}
               className="flex items-center gap-1 bg-card border border-border rounded-full pl-3 pr-1 py-1"
             >
-              <span className="truncate max-w-[100px]">{file.name}</span>
+              <span className="truncate max-w-[100px]" title={file.name}>
+                {file.name}
+              </span>
               <button
                 type="button"
                 onClick={() => removeFile(index)}
                 className="text-muted-foreground hover:text-red-500 transition-colors rounded-full p-1"
                 aria-label={`Remove file ${file.name}`}
+                tabIndex={0}
               >
                 <X size={14} />
               </button>
@@ -103,16 +106,20 @@ export default function MessageInput({
       )}
 
       <div className="relative flex items-center gap-2">
+        {/* Emoji Picker Toggle */}
         <button
           type="button"
-          className="text-muted-foreground p-2 rounded-full hover:bg-muted-foreground/10 transition-colors"
-          onClick={() => setShowEmoji(prev => !prev)}
+          className="text-muted-foreground p-2 rounded-full hover:bg-muted-foreground/10 transition-colors cursor-pointer"
+          onClick={() => setShowEmoji((prev) => !prev)}
           disabled={disabled || isSending}
-          aria-label="Open emoji picker"
+          aria-label="Toggle emoji picker"
+          aria-pressed={showEmoji}
+          tabIndex={0}
         >
           <Smile size={20} />
         </button>
 
+        {/* File Attachment */}
         <input
           type="file"
           multiple
@@ -123,14 +130,16 @@ export default function MessageInput({
         />
         <button
           type="button"
-          className="text-muted-foreground p-2 rounded-full hover:bg-muted-foreground/10 transition-colors"
+          className="text-muted-foreground p-2 rounded-full hover:bg-muted-foreground/10 transition-colors cursor-pointer"
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled || isSending}
           aria-label="Attach files"
+          tabIndex={0}
         >
           <Paperclip size={20} />
         </button>
 
+        {/* Message Input */}
         <input
           ref={inputRef}
           type="text"
@@ -146,8 +155,12 @@ export default function MessageInput({
           }}
           disabled={disabled || isSending}
           aria-label="Message input"
+          spellCheck={false}
+          autoComplete="off"
+          tabIndex={0}
         />
 
+        {/* Send Button */}
         <button
           type="button"
           className={cn(
@@ -158,23 +171,44 @@ export default function MessageInput({
           onClick={handleSend}
           disabled={isSendButtonDisabled}
           aria-label="Send message"
+          tabIndex={0}
         >
           {isSending ? (
-            <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            <svg
+              className="animate-spin h-5 w-5 text-white"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              role="img"
+              aria-label="Loading"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
             </svg>
           ) : (
             <Send size={20} />
           )}
         </button>
 
+        {/* Emoji Picker */}
         {showEmoji && (
           <div className="absolute bottom-full mb-2 left-0 z-50">
             <EmojiPicker onSelect={handleEmojiSelect} />
           </div>
         )}
 
+        {/* WebSocket Disconnected Message */}
         {wsConnected === false && (
           <div className="absolute bottom-full mb-[3.5rem] left-0 text-xs text-red-500 animate-pulse">
             Disconnected from server. Trying to reconnect...

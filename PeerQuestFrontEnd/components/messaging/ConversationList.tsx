@@ -6,39 +6,34 @@ import { Conversation, User, UserStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { Search, MessageSquarePlus } from "lucide-react"
 
-type MessageContentType = {
-  content: string
-}
-
 type ConversationListProps = {
   conversations: Conversation[]
   userMap: Map<string, User>
   selectedConversationId: string | null
   onSelectConversation: (conversation: Conversation) => void
   currentUserId: string
-  unreadCounts?: Record<string, number>
-  searchQuery?: string
-  setSearchQuery?: (query: string) => void
-  showUserSearch?: boolean
-  setShowUserSearch?: React.Dispatch<React.SetStateAction<boolean>>
-  userSearchQuery?: string
-  setUserSearchQuery?: (query: string) => void
-  userSearchResults?: User[]
-  setUserSearchResults?: (users: User[]) => void
+  // The parent component must update the conversations list after a new chat is started.
   startConversation: (participants: User[]) => Promise<void>
-  isSearchingUsers?: boolean
-  setActiveConversation?: (conversationId: string | null) => void
-  onlineUsers?: Map<string, UserStatus>
-  getOtherParticipant?: (conversation: Conversation) => User | null
-  renderAvatar?: (user: User, size?: "sm" | "md" | "lg") => JSX.Element
-  onlineStatusMap: Map<string, UserStatus>
+  getOtherParticipant: (conversation: Conversation) => User | null
+  renderAvatar: (user: User, size?: "sm" | "md" | "lg") => JSX.Element
+  onlineStatusMap: Map<string, "online" | "idle" | "offline">
+
+  // Search and UI state
+  searchQuery: string
+  setSearchQuery: (query: string) => void
+  showUserSearch: boolean
+  setShowUserSearch: React.Dispatch<React.SetStateAction<boolean>>
+  userSearchQuery: string
+  setUserSearchQuery: (query: string) => void
+  userSearchResults: User[]
+  isSearchingUsers: boolean
 }
 
 export default function ConversationList({
   conversations,
   currentUserId,
   userMap,
-  onlineUsers,
+  onlineStatusMap,
   selectedConversationId,
   onSelectConversation,
   searchQuery,
@@ -53,161 +48,152 @@ export default function ConversationList({
   getOtherParticipant,
   renderAvatar,
 }: ConversationListProps) {
-  // Default Avatar Renderer in case renderAvatar is not passed
-  const defaultRenderAvatar = (user: User, size: string = "md"): JSX.Element => {
-    const sizeClasses: Record<string, string> = {
-      sm: "h-8 w-8",
-      md: "h-10 w-10",
-      lg: "h-12 w-12",
-    }
+  // Fallback avatar renderer if one isn't provided via props
+  const defaultRenderAvatar = (user: User, size: "sm" | "md" | "lg" = "md"): JSX.Element => {
+    const sizeClasses: Record<string, string> = { sm: "h-8 w-8", md: "h-10 w-10", lg: "h-12 w-12" }
     return (
-      <div className={cn("relative", sizeClasses[size])}>
+      <div className={cn("relative rounded-full", sizeClasses[size])}>
         <Image
           src={user.avatar || "/placeholder-user.jpg"}
           alt={user.username}
-          className="rounded-full object-cover"
+          className="object-cover rounded-full"
           fill
+          sizes="(max-width: 768px) 40px, 64px"
         />
-        {onlineUsers?.get(user.id) === "online" && (
+        {onlineStatusMap.get(user.id) === "online" && (
           <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-white"></span>
         )}
       </div>
     )
   }
 
-  const avatarRenderer = renderAvatar || defaultRenderAvatar;
+  const avatarRenderer = renderAvatar || defaultRenderAvatar
+
+  // Function to safely get the current user object
+  const getCurrentUser = (): User | undefined => {
+    return userMap.get(currentUserId)
+  }
+
+  // Handle starting a new conversation safely
+  const handleStartConversation = async (user: User) => {
+    const currentUser = getCurrentUser()
+    if (!currentUser) {
+      console.error("Could not start conversation: Current user not found.")
+      return
+    }
+    await startConversation([currentUser, user])
+    // After starting, switch back to the conversation list view
+    setShowUserSearch(false)
+  }
+
+  const getMessagePreview = (conversation: Conversation): string => {
+    const lastMessage = conversation.last_message
+    if (!lastMessage || typeof lastMessage.content !== "string") {
+      return "No messages yet"
+    }
+    const preview = lastMessage.content
+    return preview.length > 40 ? `${preview.slice(0, 40)}...` : preview
+  }
 
   return (
-    <div className="flex flex-col h-full bg-card shadow-sm rounded-lg">
-      <div className="p-4 border-b border-border flex items-center justify-between bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] text-white">
+    <div className="flex flex-col h-full bg-card shadow-lg rounded-lg border border-border">
+      {/* Header */}
+      <div className="p-4 border-b border-border flex items-center justify-between bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] text-white rounded-t-lg">
         <h2 className="text-xl font-semibold">Chats</h2>
         <button
-          onClick={() => setShowUserSearch && setShowUserSearch(prev => !prev)}
+          onClick={() => setShowUserSearch((prev) => !prev)}
           className="p-2 rounded-full hover:bg-white/20 transition-colors"
-          aria-label={showUserSearch ? "Back to conversations" : "New chat"}
+          aria-label={showUserSearch ? "Close search" : "New chat"}
         >
-          {showUserSearch ? (
-            <Search className="h-5 w-5 rotate-90" />
-          ) : (
-            <MessageSquarePlus className="h-5 w-5" />
-          )}
+          {showUserSearch ? <Search className="h-5 w-5" /> : <MessageSquarePlus className="h-5 w-5" />}
         </button>
       </div>
 
+      {/* Search Bar */}
       <div className="p-4 border-b border-border">
-        {showUserSearch ? (
-          <input
-            type="text"
-            placeholder="Search users to start a chat..."
-            className="w-full p-2 border border-input rounded-md bg-background focus:ring-2 focus:ring-primary focus:border-transparent"
-            value={userSearchQuery || ""}
-            onChange={(e) => setUserSearchQuery && setUserSearchQuery(e.target.value)}
-          />
-        ) : (
-          <input
-            type="text"
-            placeholder="Search conversations..."
-            className="w-full p-2 border border-input rounded-md bg-background focus:ring-2 focus:ring-primary focus:border-transparent"
-            value={searchQuery || ""}
-            onChange={(e) => setSearchQuery && setSearchQuery(e.target.value)}
-          />
-        )}
+        <input
+          type="text"
+          placeholder={showUserSearch ? "Search for users..." : "Search conversations..."}
+          className="w-full p-2 border border-input rounded-md bg-background focus:ring-2 focus:ring-primary"
+          value={showUserSearch ? userSearchQuery : searchQuery}
+          onChange={(e) => (showUserSearch ? setUserSearchQuery(e.target.value) : setSearchQuery(e.target.value))}
+          autoFocus
+        />
       </div>
 
-      <div className="flex-1 overflow-y-auto divide-y divide-border">
+      {/* List Area */}
+      <div className="flex-1 overflow-y-auto">
         {showUserSearch ? (
-          <div className="py-2">
-            {isSearchingUsers && <div className="p-4 text-center text-muted-foreground">Searching users...</div>}
-            {!isSearchingUsers && userSearchResults && userSearchResults.length === 0 && userSearchQuery && (
+          <div>
+            {isSearchingUsers && <div className="p-4 text-center text-muted-foreground">Searching...</div>}
+            {!isSearchingUsers && userSearchResults.length > 0 && (
+              userSearchResults.map((user) => (
+                <div
+                  key={user.id}
+                  onClick={() => handleStartConversation(user).catch(console.error)}
+                  className="cursor-pointer flex items-center p-3 hover:bg-accent transition-colors"
+                  tabIndex={0}
+                >
+                  {avatarRenderer(user, "md")}
+                  <div className="ml-3 font-medium">{user.username}</div>
+                </div>
+              ))
+            )}
+            {!isSearchingUsers && userSearchResults.length === 0 && userSearchQuery && (
               <div className="p-4 text-center text-muted-foreground">No users found.</div>
             )}
-            {!isSearchingUsers && userSearchResults && userSearchResults.map((user) => (
-              <div
-                key={user.id}
-                onClick={() => startConversation([userMap.get(currentUserId)!, user])}
-                className="cursor-pointer flex items-center px-4 py-3 hover:bg-accent transition"
-              >
-                {avatarRenderer(user, "md")}
-                <div className="ml-3 text-sm font-medium">{user.username}</div>
-              </div>
-            ))}
           </div>
         ) : (
-          <div className="py-2">
+          <div>
             {conversations.length === 0 && !searchQuery && (
-              <div className="p-4 text-center text-muted-foreground">
-                No conversations yet. Start a new one!
-              </div>
+              <div className="p-4 text-center text-muted-foreground">No chats yet. Start a new one!</div>
             )}
-            {conversations.filter(conversation =>
-              searchQuery
-                ? (conversation.name || getOtherParticipant?.(conversation)?.username || "")
-                  .toLowerCase()
-                  .includes(searchQuery.toLowerCase())
-                : true
-            ).map((conversation) => {
-              const isSelected = conversation.id === selectedConversationId;
-              const otherParticipant = getOtherParticipant?.(conversation);
-              const displayUser = conversation.is_group ? null : otherParticipant;
-              const isOnline = displayUser ? onlineUsers?.get(displayUser.id) === "online" : false;
+            {conversations
+              .filter((conv) => {
+                if (!searchQuery) return true
+                const name = conv.name || getOtherParticipant(conv)?.username || "Unknown"
+                return name.toLowerCase().includes(searchQuery.toLowerCase())
+              })
+              .map((conv) => {
+                const isSelected = conv.id.toString() === selectedConversationId
+                const otherParticipant = getOtherParticipant(conv)
+                const displayName = conv.is_group ? conv.name : otherParticipant?.username || "Unknown User"
+                const displayUser = !conv.is_group ? otherParticipant : null
+                const preview = getMessagePreview(conv)
 
-              const avatarSrc = displayUser?.avatar || "/default-avatar.png";
-              const displayName = conversation.is_group && conversation.name
-                ? conversation.name
-                : displayUser?.username || "Unknown User";
-
-              const lastMessage = conversation.last_message;
-              let preview = "No messages yet";
-
-              if (lastMessage) {
-                if (typeof lastMessage === "string") {
-                  preview = lastMessage.length > 40 ? lastMessage.slice(0, 40) + "..." : lastMessage;
-                } else if (
-                  typeof lastMessage === "object" &&
-                  lastMessage !== null &&
-                  "content" in lastMessage
-                ) {
-                  const messageContent = (lastMessage as MessageContentType).content;
-                  preview = messageContent.length > 40 ? messageContent.slice(0, 40) + "..." : messageContent;
-                }
-              }
-
-              return (
-                <div
-                  key={conversation.id}
-                  onClick={() => onSelectConversation(conversation)}
-                  className={cn(
-                    "cursor-pointer flex items-center px-4 py-3 hover:bg-accent transition",
-                    isSelected && "bg-accent"
-                  )}
-                >
-                  {displayUser ? (
-                    avatarRenderer(displayUser, "md")
-                  ) : (
-                    <div className="relative w-10 h-10 mr-3">
-                      <Image
-                        src={conversation.is_group ? "/group-placeholder.png" : "/default-avatar.png"}
-                        alt={displayName}
-                        className="rounded-full object-cover"
-                        fill
-                      />
-                    </div>
-                  )}
-
-                  <div className="flex-1 min-w-0 ml-3">
-                    <div className="text-sm font-medium truncate">
-                      {displayName}
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {preview}
+                return (
+                  <div
+                    key={conv.id}
+                    onClick={() => onSelectConversation(conv)}
+                    className={cn(
+                      "cursor-pointer flex items-center p-3 transition-colors",
+                      isSelected ? "bg-accent" : "hover:bg-accent/50"
+                    )}
+                    tabIndex={0}
+                  >
+                    {displayUser ? (
+                      avatarRenderer(displayUser, "md")
+                    ) : (
+                      <div className="relative w-10 h-10">
+                        <Image
+                          src={conv.is_group ? "/group-placeholder.png" : "/placeholder-user.jpg"}
+                          alt={displayName}
+                          className="rounded-full object-cover"
+                          fill
+                          sizes="40px"
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0 ml-3">
+                      <div className="font-semibold truncate">{displayName}</div>
+                      <div className="text-sm text-muted-foreground truncate">{preview}</div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                )
+              })}
           </div>
         )}
       </div>
     </div>
-  );
+  )
 }

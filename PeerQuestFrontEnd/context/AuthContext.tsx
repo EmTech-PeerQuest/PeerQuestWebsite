@@ -1,6 +1,13 @@
 'use client';
+
 import { createContext, useContext, useEffect, useState } from 'react';
-import { login as apiLogin, register as apiRegister, fetchUser as fetchUserApi, logout as apiLogout, TokenInvalidError } from '@/lib/api/auth';
+import {
+  login as apiLogin,
+  register as apiRegister,
+  fetchUser as fetchUserApi,
+  logout as apiLogout,
+  TokenInvalidError
+} from '@/lib/api/auth';
 import { useRouter } from 'next/navigation';
 import ThemedLoading from '@/components/ui/themed-loading';
 import { toast } from '@/hooks/use-toast';
@@ -14,16 +21,23 @@ interface User {
 
 interface AuthContextProps {
   user: User | null;
+  token?: string | null; // Optional token for API calls
   login: (credentials: { username: string; password: string }) => Promise<void>;
-  register: (data: { username: string; email: string; password: string; confirmPassword?: string }) => Promise<void>;
+  register: (data: {
+    username: string;
+    email: string;
+    password: string;
+    confirmPassword?: string;
+  }) => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextProps>({
   user: null,
+  token: null,
   login: async () => {},
   register: async () => {},
-  logout: () => {},
+  logout: () => {}
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -34,6 +48,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
     return null;
   });
+
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('access_token');
+    }
+    return null;
+  });
+
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -42,20 +64,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const res = await fetchUserApi(token);
       setUser(res.data);
       localStorage.setItem('user', JSON.stringify(res.data));
+      setToken(token);
     } catch (err) {
       if (err instanceof TokenInvalidError) {
-        // Token invalid/expired: auto-logout and notify
         localStorage.removeItem('access_token');
         localStorage.removeItem('user');
         setUser(null);
+        setToken(null);
         toast({
           title: 'Session expired',
           description: 'Your session has expired. Please log in again.',
-          variant: 'destructive',
+          variant: 'destructive'
         });
         router.push('/');
       } else {
         setUser(null);
+        setToken(null);
         localStorage.removeItem('user');
       }
     } finally {
@@ -63,22 +87,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const login = async (credentials: { username: string; password: string }) => {
-    const res = await apiLogin(credentials.username, credentials.password);
-    const { access } = res.data;
+  const login = async ({ username, password }: { username: string; password: string }) => {
+    const res = await apiLogin(username, password);
+    const access = res.data.access;
     localStorage.setItem('access_token', access);
     await loadUser(access);
   };
 
-  const register = async (data: { username: string; email: string; password: string; confirmPassword?: string }) => {
+  const register = async (data: {
+    username: string;
+    email: string;
+    password: string;
+    confirmPassword?: string;
+  }) => {
     try {
-      // Call backend registration API
       await apiRegister(data);
-      // Only login if registration succeeds
       await login({ username: data.username, password: data.password });
     } catch (err: any) {
-      // Optionally show a toast or propagate error
-      toast({ title: 'Registration failed', description: err?.message || 'Please try again.', variant: 'destructive' });
+      toast({
+        title: 'Registration failed',
+        description: err?.message || 'Please try again.',
+        variant: 'destructive'
+      });
       throw err;
     }
   };
@@ -87,20 +117,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
     setUser(null);
+    setToken(null);
     router.push('/');
   };
 
   useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      loadUser(token);
+    const savedToken = localStorage.getItem('access_token');
+    if (savedToken) {
+      loadUser(savedToken);
     } else {
       setLoading(false);
     }
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, login, register, logout }}>
       {loading ? <ThemedLoading /> : children}
     </AuthContext.Provider>
   );

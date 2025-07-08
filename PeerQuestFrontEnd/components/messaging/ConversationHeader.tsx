@@ -2,7 +2,7 @@
 
 import React, { useMemo } from "react"
 import { MoreVertical, AlertCircle } from "lucide-react"
-import { User, Conversation } from "@/lib/types" // Use @/lib/types for consistent imports
+import { User, Conversation } from "@/lib/types"
 
 type Props = {
   activeConversation: string | null
@@ -30,40 +30,35 @@ const ConversationHeader: React.FC<Props> = ({
     [activeConversation, conversations]
   )
 
-  const other = useMemo(() => conversation && !conversation.is_group ? getOtherParticipant(conversation) : null, [
-    conversation,
-    getOtherParticipant
-  ])
+  const other = useMemo(
+    () => conversation && !conversation.is_group ? getOtherParticipant(conversation) : null,
+    [conversation, getOtherParticipant]
+  )
 
-  // Determine the display name for the header
   const displayName = useMemo(() => {
     if (!conversation) return "Select a conversation"
-    if (conversation.is_group && conversation.name) {
-      return conversation.name
-    }
+    if (conversation.is_group && conversation.name) return conversation.name
     return other?.username || "Unknown User"
   }, [conversation, other])
 
-  // Determine the avatar to display
   const displayAvatarUser = useMemo(() => {
     if (!conversation) return null
     if (conversation.is_group) {
       return {
-        id: 'group_avatar', // Placeholder ID
+        id: 'group_avatar',
         username: displayName,
-        avatar: '/group-placeholder.png', // A path to a generic group avatar
-      } as User // Cast as User if renderAvatar expects it fully
+        avatar: '/group-placeholder.png',
+      } as User
     }
     return other
   }, [conversation, other, displayName])
 
-  // Function to safely get the presence status (only for non-group chats)
   const getPresence = (user: User | null): "online" | "idle" | "offline" => {
-    if (conversation?.is_group) return "offline" // Groups don't have a single "other" presence
+    if (conversation?.is_group) return "offline"
     return user ? onlineUsers.get(String(user.id)) ?? "offline" : "offline"
   }
 
-  const presence = getPresence(other) // Use 'other' for 1-on-1
+  const presence = getPresence(other)
   const presenceLabel = presence.charAt(0).toUpperCase() + presence.slice(1)
 
   const presenceColor = useMemo(() => {
@@ -98,25 +93,22 @@ const ConversationHeader: React.FC<Props> = ({
           <div className="flex items-center space-x-3">
             {displayAvatarUser && renderAvatar(displayAvatarUser, "md")}
             <div>
-              <p
-                className="font-semibold text-sm truncate"
-                title={displayName}
-              >
+              <p className="font-semibold text-sm truncate" title={displayName}>
                 {displayName}
               </p>
 
-              <div className="flex items-center space-x-1 text-xs text-white/80">
+              <div
+                className="flex items-center space-x-1 text-xs text-white/80"
+                aria-live="polite"
+                aria-atomic="true"
+              >
                 {!conversation.is_group && other && (
                   <span className="flex items-center" title={`User is ${presence}`}>
-                    <span
-                      className={`w-2 h-2 rounded-full mr-1 ${presenceColor}`}
-                    />
+                    <span className={`w-2 h-2 rounded-full mr-1 ${presenceColor}`} />
                     {presenceLabel}
                   </span>
                 )}
-                {other?.level && (
-                  <span className="ml-2">• Level {other.level}</span>
-                )}
+                {other?.level && <span className="ml-2" title={`Level ${other.level}`}>• Level {other.level}</span>}
                 {wsConnected && <span className="ml-2">• Connected</span>}
               </div>
             </div>
@@ -125,7 +117,9 @@ const ConversationHeader: React.FC<Props> = ({
           <button
             onClick={onToggleInfo}
             aria-label="Toggle conversation info"
-            className="p-2 hover:bg-white/20 rounded-full transition-colors"
+            className="p-2 hover:bg-white/20 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-white cursor-pointer"
+            type="button"
+            tabIndex={0}
           >
             <MoreVertical size={18} />
           </button>
