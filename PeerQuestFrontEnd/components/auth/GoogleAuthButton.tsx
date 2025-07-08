@@ -126,6 +126,7 @@ const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({ onLoginSuccess, onS
         alert("Google login failed. Please try again.");
       }}
       useOneTap
+      use_fedcm_for_prompt={false}
     />
   );
 };

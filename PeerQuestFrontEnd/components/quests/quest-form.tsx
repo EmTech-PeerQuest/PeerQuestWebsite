@@ -214,6 +214,13 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Skip confirmation modal if editing a quest where gold is locked
+    if (isEditing && quest && isGoldBudgetLocked) {
+      await doSubmit(e);
+      return;
+    }
+    
     // Show confirmation modal before actually submitting
     setPendingSubmitEvent(e);
     setShowConfirmModal(true);

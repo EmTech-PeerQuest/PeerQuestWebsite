@@ -191,17 +191,6 @@ export const QuestAPI = {
       }
     )
 
-    // If fetchWithAuth returns null (not logged in), treat as empty result
-    if (!response) {
-      return { results: [], count: 0, next: null, previous: null };
-    }
-
-    // Defensive: if response.ok is undefined, treat as already-parsed data
-    if (typeof response.ok === 'undefined') {
-      // Already JSON
-      return response;
-    }
-
     if (!response.ok) {
       let errorText = '';
       try {
@@ -217,6 +206,10 @@ export const QuestAPI = {
     const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/${slug}/`, {
       headers: getAuthHeaders(),
     })
+
+    if (!response) {
+      throw new Error('Authentication required')
+    }
 
     if (!response.ok) {
       throw new Error(`Failed to fetch quest: ${response.statusText}`)
@@ -248,7 +241,9 @@ export const QuestAPI = {
         body: JSON.stringify(formattedData),
       })
 
-      console.log('🔍 Frontend: Response status:', response.status, response.statusText)
+      if (!response) {
+        throw new Error('Authentication required')
+      }
 
       if (!response.ok) {
         // Try to parse the error response
