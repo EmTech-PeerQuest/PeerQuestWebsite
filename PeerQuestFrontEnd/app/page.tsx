@@ -277,24 +277,7 @@ export default function Home() {
           />
         )}
 
-        {showAuthModal && (
-          <AuthModal
-            isOpen={showAuthModal}
-            mode={authMode}
-            setMode={setAuthMode}
-            onClose={() => setShowAuthModal(false)}
-            onLogin={async (credentials) => {
-              await login(credentials);
-              setShowAuthModal(false);
-              // No redirect, stay on homepage
-            }}
-            onRegister={async (data) => {
-              await register(data);
-              setShowAuthModal(false);
-              // No redirect, stay on homepage
-            }}
-          />
-        )}
+
 
         {showGoldSystemModal && (
           <GoldSystemModal
@@ -316,7 +299,7 @@ export default function Home() {
             mode={authMode}
             setMode={setAuthMode}
             onClose={() => setShowAuthModal(false)}
-            onLogin={async (credentials) => {
+            onLogin={async (credentials: { username: string; password: string }) => {
               try {
                 await login(credentials);
                 setShowAuthModal(false);
@@ -327,7 +310,7 @@ export default function Home() {
                 throw error;
               }
             }}
-            onRegister={async (data) => {
+            onRegister={async (data: { username: string; email: string; password: string; confirmPassword: string }) => {
               try {
                 await register(data);
                 // Close modal after successful registration

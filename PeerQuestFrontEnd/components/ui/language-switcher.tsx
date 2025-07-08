@@ -17,7 +17,7 @@ export function LanguageSwitcher() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors"
-        title={t('navbar.language')}
+        
       >
         <Globe size={20} />
       </button>
