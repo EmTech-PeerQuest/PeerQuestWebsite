@@ -32,6 +32,7 @@ interface QuestManagementProps {
   onQuestStatusChange: (questId: number, newStatus: string) => void
   setQuests: React.Dispatch<React.SetStateAction<Quest[]>>
   showToast: (message: string, type?: string) => void
+  focusedQuestId?: number
 }
 
 export function QuestManagement({
@@ -39,6 +40,7 @@ export function QuestManagement({
   onQuestStatusChange,
   setQuests,
   showToast,
+  focusedQuestId,
 }: QuestManagementProps) {
   const [activeTab, setActiveTab] = useState<"created" | "participating">("created")
   const [searchQuery, setSearchQuery] = useState("")
@@ -68,6 +70,13 @@ export function QuestManagement({
       setLoading(false)
     }
   }, [currentUser])
+
+  // Auto-expand the focused quest if provided
+  useEffect(() => {
+    if (focusedQuestId) {
+      setExpandedQuestId(focusedQuestId)
+    }
+  }, [focusedQuestId])
 
   const loadMyQuests = async () => {
     try {

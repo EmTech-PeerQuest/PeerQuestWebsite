@@ -67,7 +67,18 @@ export const createApplication = async (questId: number): Promise<Application> =
     const result = await handleApiResponse<Application>(response)
     console.log('✅ API Response - Application created:', result)
     return result
-  } catch (error) {
+  } catch (error: any) {
+    // Try to extract backend error message if available
+    if (error && error.response && error.response.error) {
+      // If backend returned a JSON error with 'details', show it
+      const backendMsg = error.response.details || error.response.error;
+      console.error('❌ API Error - Failed to create application:', backendMsg);
+      throw new Error(`Failed to create application: ${backendMsg}`);
+    }
+    if (error && error.message) {
+      console.error('❌ API Error - Failed to create application:', error.message)
+      throw new Error(`Failed to create application: ${error.message}`)
+    }
     console.error('❌ API Error - Failed to create application:', error)
     throw error
   }

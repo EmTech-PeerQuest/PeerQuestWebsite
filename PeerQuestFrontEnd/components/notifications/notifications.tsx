@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Bell, X, Check, Award, Shield, MessageSquare } from "lucide-react"
 import type { User as UserType } from "@/lib/types"
-import { clearAllNotifications } from "@/lib/api/notifications"
+import { clearAllNotifications, fetchNotifications } from "@/lib/api/notifications"
+import { useRouter } from "next/navigation"
 
 interface NotificationsProps {
   currentUser: UserType | null
@@ -13,59 +14,78 @@ interface NotificationsProps {
 export function Notifications({ currentUser, onClose }: NotificationsProps) {
   const [notifications, setNotifications] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState<"all" | "unread">("all")
-
-  // Mock notifications data
-  const mockNotifications = [
-    {
-      id: 1,
-      type: "quest_application",
-      title: "New Quest Application",
-      message: "HeroicAdventurer has applied for your quest 'Create a Website for the Tavern'",
-      read: false,
-      createdAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-      actionUrl: "/quest-management",
-    },
-    {
-      id: 2,
-      type: "guild_invite",
-      title: "Guild Invitation",
-      message: "You've been invited to join the Mystic Brewers Guild",
-      read: true,
-      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-      actionUrl: "/guild-hall",
-    },
-    {
-      id: 3,
-      type: "quest_completed",
-      title: "Quest Completed",
-      message: "Your quest 'Design a Tavern Logo' has been marked as completed",
-      read: false,
-      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
-      actionUrl: "/quest-management",
-    },
-    {
-      id: 4,
-      type: "level_up",
-      title: "Level Up!",
-      message: "Congratulations! You've reached level 11",
-      read: true,
-      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-      actionUrl: "/profile",
-    },
-    {
-      id: 5,
-      type: "message",
-      title: "New Message",
-      message: "TavernKeeper sent you a message",
-      read: false,
-      createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-      actionUrl: "/messages",
-    },
-  ]
+  const wsRef = useRef<WebSocket | null>(null)
+  const router = useRouter()
 
   useEffect(() => {
-    // Always use mock notifications for now
-    setNotifications(mockNotifications)
+    // Fetch notifications from backend
+    async function loadNotifications() {
+      try {
+        const data = await fetchNotifications()
+        setNotifications(
+          data
+            .filter((n: any) => n.type !== "welcome back to the peerquest tavern")
+            .map((n: any) => ({
+              id: n.notification_id || n.id,
+              type: n.type,
+              title: n.title,
+              message: n.message,
+              read: n.is_read,
+              createdAt: new Date(n.created_at),
+              actionUrl: n.action_url || "",
+              quest_id: n.quest_id || undefined,
+            })),
+        )
+      } catch (err) {
+        setNotifications([])
+      }
+    }
+    if (currentUser) {
+      loadNotifications()
+      // --- WebSocket setup for real-time notifications ---
+      let wsHost = process.env.NEXT_PUBLIC_WS_URL || window.location.hostname + ":8000";
+      // If wsHost does not include a port, add :8000
+      if (!/:\d+$/.test(wsHost)) wsHost += ":8000";
+      const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+      const wsUrl = `${wsProtocol}://${wsHost}/ws/notifications/${currentUser.id}/`;
+      console.log("Connecting to WebSocket:", wsUrl);
+      wsRef.current = new WebSocket(wsUrl);
+      wsRef.current.onopen = () => {
+        console.log("WebSocket connection established.");
+      };
+      wsRef.current.onmessage = (event) => {
+        try {
+          const notification = JSON.parse(event.data);
+          if (notification.type === "welcome back to the peerquest tavern") return;
+          setNotifications((prev) => [
+            {
+              id: notification.id,
+              type: notification.type,
+              title: notification.title,
+              message: notification.message,
+              read: false,
+              createdAt: new Date(notification.created_at),
+              actionUrl: notification.action_url || "",
+              quest_id: notification.quest_id || undefined,
+            },
+            ...prev,
+          ]);
+        } catch (e) {
+          console.error("WebSocket notification parse error", e);
+        }
+      };
+      wsRef.current.onerror = (err) => {
+        console.error("WebSocket error:", err);
+      };
+      wsRef.current.onclose = (event) => {
+        console.warn("WebSocket closed:", event);
+      };
+      return () => {
+        wsRef.current?.close();
+      };
+    } else {
+      setNotifications([])
+    }
   }, [currentUser])
 
   const filteredNotifications =
@@ -127,6 +147,13 @@ export function Notifications({ currentUser, onClose }: NotificationsProps) {
     }
   }
 
+  // Remove quest management redirect on notification click
+  const handleNotificationClick = (notification: any) => {
+    // No redirect or navigation
+    // Optionally, you could mark as read or show a toast here
+    onClose()
+  }
+
   return (
     <div className="notifications-panel bg-white rounded-lg shadow-lg w-80 max-h-[80vh] overflow-hidden flex flex-col">
       <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-[#2C1A1D] text-white">
@@ -169,7 +196,7 @@ export function Notifications({ currentUser, onClose }: NotificationsProps) {
               className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
                 !notification.read ? "bg-blue-50" : ""
               }`}
-              onClick={() => markAsRead(notification.id)}
+              onClick={() => handleNotificationClick(notification)}
             >
               <div className="flex">
                 <div className="mr-3 mt-1">{getNotificationIcon(notification.type)}</div>

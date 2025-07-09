@@ -11,3 +11,14 @@ export const clearAllNotifications = async () => {
   }
   return response.json();
 };
+
+export const fetchNotifications = async () => {
+  const response = await fetch(`${API_BASE_URL}/notifications/`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error("Failed to fetch notifications");
+  }
+  return response.json();
+};

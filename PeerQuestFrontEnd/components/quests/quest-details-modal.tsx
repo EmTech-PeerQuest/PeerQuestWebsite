@@ -18,6 +18,7 @@ interface QuestDetailsModalProps {
   setAuthModalOpen: (open: boolean) => void
   openEditQuestModal?: (quest: Quest) => void
   onQuestUpdate?: () => Promise<void>
+  showToast?: (message: string, type?: string) => void
 }
 
 export function QuestDetailsModal({

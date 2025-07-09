@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'django_filters',
+    'channels',
 ]
 
 # Middleware
@@ -172,3 +173,10 @@ SESSION_COOKIE_SAMESITE = "Lax"  # Use "None" if using HTTPS and cross-site
 SESSION_COOKIE_SECURE = False     # Set to True if using HTTPS
 CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SECURE = False
+
+# Django Channels config for WebSocket support
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    }
+}

@@ -6,6 +6,7 @@ from rest_framework.viewsets import ModelViewSet
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 import logging
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ from .serializers import (
     ApplicationDetailSerializer,
     ApplicationCreateSerializer
 )
-from notifications.utils import create_application_accepted_notification, create_application_rejected_notification
+from notifications.utils import create_application_accepted_notification, create_application_rejected_notification, create_application_submitted_notification
 
 
 class ApplicationViewSet(ModelViewSet):
@@ -30,18 +31,34 @@ class ApplicationViewSet(ModelViewSet):
         return ApplicationDetailSerializer
     
     def create(self, request, *args, **kwargs):
-        """Create a new application with debug logging"""
+        """Create a new application with debug logging and notify quest maker"""
         logger.info(f"Application create request from user: {request.user}")
         logger.info(f"Request data: {request.data}")
-        
         try:
             response = super().create(request, *args, **kwargs)
             logger.info(f"Application created successfully: {response.data}")
+            # Notify quest maker
+            # Get quest and applicant info
+            quest_id = request.data.get('quest')
+            from quests.models import Quest
+            quest = Quest.objects.get(id=quest_id)
+            applicant = request.user
+            quest_maker = quest.creator
+            create_application_submitted_notification(
+                quest_maker,
+                applicant.username,
+                quest.title,
+                quest.id
+            )
             return response
         except Exception as e:
             logger.error(f"Error creating application: {str(e)}")
             logger.error(f"Exception type: {type(e)}")
-            raise
+            logger.error(traceback.format_exc())  # Log full stack trace
+            return Response(
+                {'error': 'Failed to create application', 'details': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
     def get_queryset(self):
         """Return applications based on the action"""
@@ -108,7 +125,7 @@ class ApplicationViewSet(ModelViewSet):
             
             if result:
                 # Send real-time notification
-                create_application_accepted_notification(application.applicant, application.quest.title)
+                create_application_accepted_notification(application.applicant, application.quest.title, application.quest.id)
                 logger.info(f"Application approved successfully: {application.applicant.username} -> Quest '{application.quest.title}'")
                 serializer = self.get_serializer(application)
                 return Response({
@@ -124,10 +141,11 @@ class ApplicationViewSet(ModelViewSet):
                 
         except Exception as e:
             logger.error(f"Application approval failed with exception: {application.applicant.username} -> Quest '{application.quest.title}': {str(e)}")
+            logger.error(traceback.format_exc())  # Log full stack trace
             return Response(
                 {
                     'error': 'Failed to approve application due to system error.',
-                    'details': str(e)
+                    'details': str(e)  # <-- Return the real backend error here
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
@@ -155,7 +173,7 @@ class ApplicationViewSet(ModelViewSet):
         result = application.reject(request.user)
         if result:
             # Send real-time notification
-            create_application_rejected_notification(application.applicant, application.quest.title)
+            create_application_rejected_notification(application.applicant, application.quest.title, application.quest.id)
             serializer = self.get_serializer(application)
             return Response(serializer.data)
         else:
