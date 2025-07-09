@@ -13,6 +13,7 @@ py manage.py runserver
 
 # Frontend:
 npm install --legacy-peer-deps
+npm install next-i18next --legacy-peer-deps
 npm run dev
 
 # To add a new Python package:
