@@ -1,11 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useTranslation } from "next-i18next"
 import QuestSubmitWorkModal from "./quest-submit-work-modal"
-import { X, CircleDollarSign, Star, Clock, Palette, Code, PenTool, Users, CheckCircle, Trash2, AlertCircle } from "lucide-react"
+import { X, CircleDollarSign, Star, Clock, Palette, Code, PenTool, Users, CheckCircle, Trash2, AlertCircle, Flag } from "lucide-react"
 import type { Quest, User, Application } from "@/lib/types"
 import { formatTimeRemaining, getDifficultyClass } from "@/lib/utils"
 import { QuestAPI } from "@/lib/api/quests"
+import { reportQuest } from "@/lib/api/quest-report"
 import { getMyApplications, getApplicationAttempts, type ApplicationAttemptInfo } from "@/lib/api/applications"
 import { useGoldBalance } from "@/context/GoldBalanceContext"
 
@@ -35,6 +37,7 @@ export function QuestDetailsModal({
   onQuestUpdate,
 }: QuestDetailsModalProps) {
   const [userApplications, setUserApplications] = useState<Application[]>([])
+  const { t } = useTranslation()
   const [isLoadingApplications, setIsLoadingApplications] = useState(false)
   const [attemptInfo, setAttemptInfo] = useState<ApplicationAttemptInfo | null>(null)
   const [isLoadingAttempts, setIsLoadingAttempts] = useState(false)
@@ -45,6 +48,13 @@ export function QuestDetailsModal({
   const [submissionFeedback, setSubmissionFeedback] = useState<string | null>(null)
   const [isLoadingSubmissionStatus, setIsLoadingSubmissionStatus] = useState(false)
   
+  const [showReportQuestModal, setShowReportQuestModal] = useState(false)
+  const [reportReason, setReportReason] = useState("")
+  const [reportMessage, setReportMessage] = useState("")
+  const [isReporting, setIsReporting] = useState(false)
+  // Only allow reporting if user is not the quest creator and is authenticated
+  const canReportQuest = isAuthenticated && quest && currentUser && String(quest.creator.id) !== String(currentUser.id)
+
   // Add gold balance refresh capability
   const { refreshBalance } = useGoldBalance()
 
@@ -73,13 +83,13 @@ export function QuestDetailsModal({
 
   // Find the participant record for the current user (need this early for useEffect dependencies)
   const myParticipant = quest?.participants_detail?.find(
-    (p) => p.user.id === currentUser?.id
+    (p) => String(p.user.id) === String(currentUser?.id)
   );
 
   // Check if user is already a participant (either through participants_detail or approved application)
   // BUT exclude kicked users - they should no longer be considered participants
   const isAlreadyParticipant = !hasBeenKicked && (
-    (quest?.participants_detail?.some((p) => p.user.id === currentUser?.id) || false) || 
+    (quest?.participants_detail?.some((p) => String(p.user.id) === String(currentUser?.id)) || false) || 
     hasApprovedApplication
   )
 
@@ -295,7 +305,7 @@ export function QuestDetailsModal({
     }
   }
 
-  const isQuestOwner = currentUser && quest.creator && quest.creator.id === currentUser.id
+  const isQuestOwner = currentUser && quest.creator && String(quest.creator.id) === String(currentUser.id)
 
   // Check application eligibility based on new rules
   const getApplicationEligibility = () => {
@@ -391,7 +401,89 @@ export function QuestDetailsModal({
               >
                 {quest.difficulty.charAt(0).toUpperCase() + quest.difficulty.slice(1)}
               </span>
+              {canReportQuest && (
+                <button
+                  className="ml-4 flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors text-sm font-medium"
+                  onClick={() => setShowReportQuestModal(true)}
+                  title="Report this quest"
+                >
+                  <Flag size={16} /> Report Quest
+                </button>
+              )}
             </div>
+      {/* Report Quest Modal */}
+      {showReportQuestModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-60 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] text-white p-6 rounded-t-xl flex items-center gap-3">
+              <Flag size={24} />
+              <div>
+                <h3 className="text-xl font-bold">Report Quest</h3>
+                <p className="text-white/80">Help us keep PeerQuest safe and fair</p>
+              </div>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium text-[#2C1A1D] mb-2">Reason</label>
+              <select
+                className="w-full border border-[#CDAA7D] rounded px-3 py-2 text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] mb-4"
+                value={reportReason}
+                onChange={e => setReportReason(e.target.value)}
+              >
+                <option value="">Select a reason...</option>
+                <option value="Inappropriate content">Inappropriate content</option>
+                <option value="Spam or scam">Spam or scam</option>
+                <option value="Fraudulent or misleading">Fraudulent or misleading</option>
+                <option value="Abusive or offensive">Abusive or offensive</option>
+                <option value="Other">Other</option>
+              </select>
+              <label className="block text-sm font-medium text-[#2C1A1D] mb-2">Details (optional)</label>
+              <textarea
+                className="w-full border border-[#CDAA7D] rounded px-3 py-2 text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] h-24 resize-none mb-4"
+                value={reportMessage}
+                onChange={e => setReportMessage(e.target.value)}
+                placeholder="Add any additional details..."
+              />
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowReportQuestModal(false)}
+                  className="px-4 py-2 border border-[#CDAA7D] rounded text-[#2C1A1D] hover:bg-[#CDAA7D] hover:text-white transition-colors"
+                  disabled={isReporting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!reportReason) {
+                      showToast("Please select a reason for reporting.", "error");
+                      return;
+                    }
+                    setIsReporting(true);
+                    try {
+                      await reportQuest({
+                        reportedQuest: String(quest.id),
+                        reason: reportReason,
+                        message: reportMessage,
+                      });
+                      showToast("Quest reported successfully!", "success");
+                      setShowReportQuestModal(false);
+                      setReportReason("");
+                      setReportMessage("");
+                    } catch (err: any) {
+                      showToast(err?.message || "Failed to report quest.", "error");
+                    } finally {
+                      setIsReporting(false);
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium shadow-md disabled:opacity-50"
+                  disabled={isReporting || !reportReason}
+                >
+                  {isReporting ? "Reporting..." : "Submit Report"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
             {/* Quest Meta Information */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-[#F4F0E6] rounded-lg">

@@ -43,38 +43,20 @@ export const PaymentAPI = {
       formData.append('bonus', data.bonus || '')
       formData.append('receipt', data.receipt)
 
-      const response = await fetchWithAuth(`${API_BASE_URL}/payments/submit-proof/`, {
+      const result = await fetchWithAuth(`${API_BASE_URL}/payments/submit-proof/`, {
         method: 'POST',
         body: formData,
         // Note: Don't set Content-Type for FormData - browser will set it with boundary
       })
-
-      if (response.ok) {
-        const result = await response.json()
-        console.log('✅ Payment proof submitted successfully');
-        return result
+      console.log('✅ Payment proof submitted successfully');
+      return result;
+    } catch (error: any) {
+      // Log more details if available (for Axios or fetch errors)
+      if (error?.response) {
+        console.error('❌ Error submitting payment proof:', error, error.response.data);
       } else {
-        const contentType = response.headers.get('content-type')
-        if (contentType && contentType.includes('application/json')) {
-          try {
-            const error = await response.json()
-            // Handle different error response formats
-            const errorMessage = error.message || error.detail || error.error || 
-                               (typeof error === 'string' ? error : 'Failed to submit payment proof')
-            throw new Error(errorMessage)
-          } catch (jsonError) {
-            // If JSON parsing fails, fall back to status-based error
-            throw new Error(`Server error (${response.status}): ${response.statusText || 'Failed to submit payment proof'}`)
-          }
-        } else {
-          // Handle HTML error pages (Django error pages)
-          const errorText = await response.text()
-          console.error('Server returned HTML error:', errorText)
-          throw new Error(`Server error (${response.status}): Please ensure the Django backend is running on http://localhost:8000`)
-        }
+        console.error('❌ Error submitting payment proof:', error);
       }
-    } catch (error) {
-      console.error('❌ Error submitting payment proof:', error);
       throw error;
     }
   },

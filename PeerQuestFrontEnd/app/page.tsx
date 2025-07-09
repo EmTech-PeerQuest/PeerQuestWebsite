@@ -174,7 +174,6 @@ export default function Home() {
       {showInitialLoading && <LoadingModal message="Loading your adventure..." />}
       <main className="min-h-screen bg-[#F4F0E6]">
         <Navbar
-          currentUser={currentUser}
           setActiveSection={handleSectionChange}
           handleLogout={logout}
           openAuthModal={() => setShowAuthModal(true)}
