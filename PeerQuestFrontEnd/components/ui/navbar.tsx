@@ -88,8 +88,6 @@ export function Navbar({
       router.push("/messages");
     } else if (section === "search") {
       setActiveSection("search");
-    } else if (section === "guild-management") {
-      router.push("/guilds");
     } else {
       // For sections that are handled by the main page
       setActiveSection(section);

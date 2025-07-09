@@ -457,7 +457,11 @@ class CommonPasswordValidatorEnhanced(SuperAdminExemptPasswordValidator):
     
     def __init__(self, password_list_path=None, exempt_superadmin=True):
         super().__init__(exempt_superadmin)
-        self.common_validator = CommonPasswordValidator(password_list_path)
+        # Only create CommonPasswordValidator if path is provided
+        if password_list_path:
+            self.common_validator = CommonPasswordValidator(password_list_path)
+        else:
+            self.common_validator = CommonPasswordValidator()
     
     def _validate_password(self, password, user=None):
         # Use Django's built-in common password validator

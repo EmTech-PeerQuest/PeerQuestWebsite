@@ -1,19 +1,24 @@
 // --- fetchWithAuth utility for authenticated fetch requests ---
-export async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<any> {
+export async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  
   const headers = {
     ...(options.headers || {}),
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
   };
+  
   const response = await fetch(url, { ...options, headers });
-  if (!response.ok) {
+  
+  // Handle authentication errors
+  if (response.status === 401) {
     // Try to parse error details
     let errorDetail = '';
     try {
       const data = await response.json();
       errorDetail = data?.detail || '';
     } catch {}
-    if (response.status === 401 || errorDetail.includes('token')) {
+    
+    if (errorDetail.includes('token') || errorDetail.includes('authentication')) {
       // Remove invalid tokens and redirect to login ONLY if a token was present
       if (token && typeof window !== 'undefined') {
         localStorage.removeItem('access_token');
@@ -21,12 +26,10 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}): Pro
         window.location.href = '/';
         throw new TokenInvalidError(errorDetail || 'Token not valid');
       }
-      // If no token, just return null (no explicit error)
-      return null;
     }
-    throw new Error(errorDetail || 'Request failed');
   }
-  return response.json();
+  
+  return response;
 }
 import axios from "axios";
 
