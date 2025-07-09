@@ -281,6 +281,21 @@ export function QuestManagement({
     setProcessingApplications((prev: Set<number>) => new Set(prev).add(applicationId))
     try {
       await approveApplication(applicationId)
+      
+      // Find the quest to check its current status
+      const quest = myQuests.created.find(q => q.id === questId)
+      
+      // If quest is still "open", update it to "in-progress" since we now have an approved participant
+      if (quest && quest.status === 'open') {
+        try {
+          await QuestAPI.updateQuestStatus(quest.slug, 'in-progress')
+          console.log('✅ Quest status updated to in-progress after approving participant')
+        } catch (statusError) {
+          console.error('Failed to update quest status to in-progress:', statusError)
+          // Don't fail the whole operation if status update fails
+        }
+      }
+      
       // Reload applications to get updated status (application stays in log)
       await loadQuestApplications(questId, true)
       await loadMyQuests() // Refresh quest data
@@ -860,8 +875,8 @@ export function QuestManagement({
                           <h4 className="text-lg font-bold text-[#2C1A1D] font-serif">
                             Applications Log ({questApplications[quest.id]?.length || quest.applications_count || 0})
                           </h4>
-                          {/* Show View Submitted Work button for in-progress quests */}
-                          {quest.status === "in-progress" && (
+                          {/* Show View Submitted Work button for in-progress and completed quests */}
+                          {(quest.status === "in-progress" || quest.status === "completed") && (
                             <button
                               onClick={() => {
                                 setSubmissionsQuest(quest);

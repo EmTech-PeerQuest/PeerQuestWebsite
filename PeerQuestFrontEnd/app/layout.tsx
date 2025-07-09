@@ -19,6 +19,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning={true}>
       <head>
+        {/* Enable FedCM API for Google Sign-In */}
+        <meta httpEquiv="Permissions-Policy" content="identity-credentials-get=()" />
         <script src="https://accounts.google.com/gsi/client" async defer></script>
       </head>
       <body suppressHydrationWarning={true}>
