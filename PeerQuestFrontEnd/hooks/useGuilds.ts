@@ -185,6 +185,7 @@ interface UseGuildActionsReturn {
   leaveGuild: (guildId: string) => Promise<any>;
   processJoinRequest: (guildId: string, requestId: number, action: 'approve' | 'reject') => Promise<any>;
   kickMember: (guildId: string, userId: number) => Promise<any>;
+  getGuildJoinRequests: (guildId: string, type?: 'pending' | 'processed' | 'all') => Promise<any>;
   loading: boolean;
   error: string | null;
 }
@@ -230,6 +231,9 @@ export function useGuildActions(): UseGuildActionsReturn {
     
     kickMember: (guildId: string, userId: number) => 
       executeAction(() => guildApi.kickMember(guildId, userId)),
+    
+    getGuildJoinRequests: (guildId: string, type?: 'pending' | 'processed' | 'all') =>
+      executeAction(() => guildApi.getGuildJoinRequests(guildId, type)),
     
     loading,
     error,

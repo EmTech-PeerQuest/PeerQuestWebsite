@@ -1,14 +1,15 @@
 "use client"
-import { useState } from "react"
-import type { Guild, User } from "@/lib/types"
+import { useState, useEffect, useCallback } from "react"
+import type { Guild, User, GuildMembership } from "@/lib/types"
 import { GuildOverviewModal } from '@/components/guilds/guild-overview-modal'
 import { GuildChatModal } from '@/components/guilds/guild-chat-modal'
+import { guildApi } from '@/lib/api/guilds'
 
 interface GuildHallProps {
   guilds: Guild[]
   currentUser: User | null
   openCreateGuildModal: () => void
-  handleApplyForGuild: (guildId: number, message: string) => void
+  handleApplyForGuild: (guildId: string | number, message: string) => void
   showToast: (message: string, type?: string) => void
 }
 
@@ -20,32 +21,109 @@ export function GuildHall({
   showToast,
 }: GuildHallProps) {
   const [showJoinModal, setShowJoinModal] = useState(false)
-  const [selectedGuildId, setSelectedGuildId] = useState<number | null>(null)
+  // State for tracking join requests
+  const [userJoinRequests, setUserJoinRequests] = useState<Record<string, 'pending' | 'approved' | 'declined' | null>>({})
+  const [selectedGuildId, setSelectedGuildId] = useState<string | null>(null)
   const [joinMessage, setJoinMessage] = useState("")
   const [showOverviewModal, setShowOverviewModal] = useState(false)
   const [showChatModal, setShowChatModal] = useState(false)
   const [selectedGuild, setSelectedGuild] = useState<Guild | null>(null)
+  const [userMemberships, setUserMemberships] = useState<{[guildId: string]: boolean}>({})
+
+  // Check user membership status for all guilds
+  useEffect(() => {
+    if (currentUser && guilds.length > 0) {
+      checkUserMemberships()
+      checkUserJoinRequests()
+    }
+  }, [currentUser, guilds])
+
+  const checkUserMemberships = async () => {
+    if (!currentUser) return
+    
+    const memberships: {[guildId: string]: boolean} = {}
+    
+    try {
+      // Check each guild for user membership
+      const membershipChecks = guilds.map(async (guild) => {
+        try {
+          const members = await guildApi.getGuildMembers(guild.guild_id)
+          const isMember = members.some(membership => 
+            String(membership.user.id) === String(currentUser.id) && 
+            membership.status === 'approved' && 
+            membership.is_active
+          )
+          memberships[guild.guild_id] = isMember
+        } catch (error) {
+          // If we can't fetch members, assume not a member
+          memberships[guild.guild_id] = false
+        }
+      })
+      
+      await Promise.all(membershipChecks)
+      setUserMemberships(memberships)
+    } catch (error) {
+      console.error('Failed to check user memberships:', error)
+    }
+  }
 
   // Helper function to check if user is a member of a guild
   const isUserMember = (guild: Guild, user: User | null): boolean => {
     if (!user) return false
-    
-    // Check using membersList (legacy support) - handle both string and number arrays
-    if (guild.membersList) {
-      const userId = user.id
-      const userIdStr = String(userId)
-      const userIdNum = Number(userId)
-      
-      return guild.membersList.some(memberId => 
-        memberId === userId || 
-        memberId === userIdNum || 
-        String(memberId) === userIdStr
-      )
-    }
-    
-    // TODO: Add check using membership API endpoint if needed
-    return false
+    return userMemberships[guild.guild_id] || false
   }
+
+  // Helper function to get join request status for a guild
+  const getJoinRequestStatus = (guildId: string): 'pending' | 'approved' | 'declined' | null => {
+    return userJoinRequests[guildId] || null
+  }
+
+  // Function to check user join requests for all guilds
+  const checkUserJoinRequests = useCallback(async () => {
+    if (!currentUser) {
+      setUserJoinRequests({})
+      return
+    }
+
+    try {
+      // For each guild, check if the user has any join requests
+      const requestStatuses: Record<string, 'pending' | 'approved' | 'declined' | null> = {}
+      
+      for (const guild of guilds) {
+        try {
+          const response = await fetch(`http://localhost:8000/api/guilds/${guild.guild_id}/join-requests/?user_id=${currentUser.id}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+              'Content-Type': 'application/json'
+            }
+          })
+          
+          if (response.ok) {
+            const requests = await response.json()
+            const userRequest = requests.find((req: any) => 
+              req.user.id === currentUser.id || req.user.username === currentUser.username
+            )
+            
+            if (userRequest) {
+              if (userRequest.is_approved === null) {
+                requestStatuses[guild.guild_id] = 'pending'
+              } else if (userRequest.is_approved === true) {
+                requestStatuses[guild.guild_id] = 'approved'
+              } else if (userRequest.is_approved === false) {
+                requestStatuses[guild.guild_id] = 'declined'
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`Error checking join requests for guild ${guild.guild_id}:`, error)
+        }
+      }
+      
+      setUserJoinRequests(requestStatuses)
+    } catch (error) {
+      console.error('Error checking user join requests:', error)
+    }
+  }, [currentUser, guilds])
 
   const handleJoinClick = (guildId: string | number | undefined) => {
     if (!guildId) return
@@ -64,7 +142,7 @@ export function GuildHall({
     }
 
     // Open the join modal
-    setSelectedGuildId(Number(guildId))
+    setSelectedGuildId(guildId.toString())
     setShowJoinModal(true)
   }
 
@@ -82,12 +160,19 @@ export function GuildHall({
     }
   }
 
-  const submitJoinRequest = () => {
+  const submitJoinRequest = async () => {
     if (selectedGuildId && joinMessage.trim()) {
-      handleApplyForGuild(selectedGuildId, joinMessage)
-      setShowJoinModal(false)
-      setJoinMessage("")
-      setSelectedGuildId(null)
+      try {
+        await handleApplyForGuild(selectedGuildId, joinMessage)
+        setShowJoinModal(false)
+        setJoinMessage("")
+        setSelectedGuildId(null)
+        // Refresh membership status and join requests after joining
+        await checkUserMemberships()
+        await checkUserJoinRequests()
+      } catch (error) {
+        console.error('Failed to submit join request:', error)
+      }
     }
   }
 
@@ -214,15 +299,23 @@ export function GuildHall({
                       e.stopPropagation()
                       handleJoinClick(guild.guild_id || guild.id)
                     }}
-                    disabled={isUserMember(guild, currentUser)}
+                    disabled={isUserMember(guild, currentUser) || getJoinRequestStatus(guild.guild_id) === 'pending'}
                     className={`px-6 py-2 rounded-lg font-medium transition-all duration-200 shadow-md ${
                       isUserMember(guild, currentUser)
                         ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                        : getJoinRequestStatus(guild.guild_id) === 'pending'
+                        ? "bg-yellow-200 text-yellow-700 cursor-not-allowed"
+                        : getJoinRequestStatus(guild.guild_id) === 'declined'
+                        ? "bg-red-100 border-2 border-red-300 text-red-700 hover:bg-red-200 hover:shadow-lg transform hover:-translate-y-0.5"
                         : "bg-[#8B75AA] text-white hover:bg-[#7A6699] hover:shadow-lg transform hover:-translate-y-0.5"
                     }`}
                   >
                     {isUserMember(guild, currentUser)
                       ? "✓ JOINED"
+                      : getJoinRequestStatus(guild.guild_id) === 'pending'
+                      ? "⏳ PENDING"
+                      : getJoinRequestStatus(guild.guild_id) === 'declined'
+                      ? "🔄 REAPPLY"
                       : "JOIN GUILD"}
                   </button>
                 </div>
@@ -284,7 +377,11 @@ export function GuildHall({
         {selectedGuild && (
           <GuildOverviewModal
             isOpen={showOverviewModal}
-            onClose={() => setShowOverviewModal(false)}
+            onClose={() => {
+              console.log('🔍 Guild overview modal closing')
+              setShowOverviewModal(false)
+              setSelectedGuild(null)
+            }}
             guild={selectedGuild}
             currentUser={currentUser}
             onJoinGuild={handleApplyForGuild}

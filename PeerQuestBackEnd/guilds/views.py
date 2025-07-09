@@ -192,11 +192,20 @@ def join_guild(request, guild_id):
         )
     
     # Check if user has pending request
-    if GuildJoinRequest.objects.filter(guild=guild, user=user, is_approved=None).exists():
+    pending_request = GuildJoinRequest.objects.filter(guild=guild, user=user, is_approved=None).first()
+    if pending_request:
         return Response(
             {'error': 'You already have a pending request for this guild.'},
             status=status.HTTP_400_BAD_REQUEST
         )
+    
+    # For declined requests, delete the old request to allow reapplication
+    # This allows users to reapply after being declined
+    declined_requests = GuildJoinRequest.objects.filter(guild=guild, user=user, is_approved=False)
+    if declined_requests.exists():
+        declined_requests.delete()
+        # Log that we're allowing reapplication
+        print(f"User {user.username} is reapplying to guild {guild.name} after previous decline")
     
     # Check minimum level requirement (assuming user has a level attribute)
     # You might need to adjust this based on your user model
@@ -297,12 +306,25 @@ def guild_join_requests(request, guild_id):
             status=status.HTTP_403_FORBIDDEN
         )
     
-    pending_requests = GuildJoinRequest.objects.filter(
-        guild=guild,
-        is_approved=None
-    ).select_related('user')
+    # Get filter from query parameters
+    request_type = request.GET.get('type', 'pending')  # 'pending', 'processed', or 'all'
     
-    serializer = GuildJoinRequestSerializer(pending_requests, many=True)
+    if request_type == 'pending':
+        requests = GuildJoinRequest.objects.filter(
+            guild=guild,
+            is_approved=None
+        ).select_related('user')
+    elif request_type == 'processed':
+        requests = GuildJoinRequest.objects.filter(
+            guild=guild,
+            is_approved__isnull=False
+        ).select_related('user', 'processed_by').order_by('-processed_at')
+    else:  # 'all'
+        requests = GuildJoinRequest.objects.filter(
+            guild=guild
+        ).select_related('user', 'processed_by').order_by('-created_at')
+    
+    serializer = GuildJoinRequestSerializer(requests, many=True)
     return Response(serializer.data)
 
 
@@ -400,3 +422,27 @@ def kick_member(request, guild_id, user_id):
         {'message': f'{membership.user.username} has been kicked from the guild.'},
         status=status.HTTP_200_OK
     )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_join_requests(request, guild_id):
+    """
+    API endpoint for users to check their own join request status for a specific guild
+    """
+    guild = get_object_or_404(Guild, guild_id=guild_id)
+    user = request.user
+    
+    # Get the user's join requests for this guild
+    join_requests = GuildJoinRequest.objects.filter(
+        guild=guild,
+        user=user
+    ).order_by('-created_at')
+    
+    if join_requests.exists():
+        # Return the most recent request
+        latest_request = join_requests.first()
+        serializer = GuildJoinRequestSerializer(latest_request)
+        return Response(serializer.data)
+    else:
+        return Response({'message': 'No join requests found'}, status=status.HTTP_404_NOT_FOUND)

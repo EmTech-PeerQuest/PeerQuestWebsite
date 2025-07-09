@@ -4,20 +4,16 @@ import React, { useState } from 'react';
 import { GuildHall } from '@/components/guilds/guild-hall';
 import { EnhancedCreateGuildModal } from '@/components/guilds/enhanced-create-guild-modal';
 import { useGuilds, useGuildActions } from '@/hooks/useGuilds';
+import { useAuth } from '@/context/AuthContext';
+import { AuthModal } from '@/components/auth/auth-modal';
 import type { User, CreateGuildData } from '@/lib/types';
 import { Toast } from '@/components/toast';
 
 export default function GuildsPage() {
-  // Mock user for testing - replace with real auth later
-  const [currentUser, setCurrentUser] = useState<User | null>({
-    id: 1,
-    username: 'testuser',
-    first_name: 'Test',
-    email: 'test@test.com',
-    gold: 5000, // Add enough gold for guild creation
-    level: 10,
-    xp: 1000
-  });
+  // Use real authentication
+  const { user: currentUser, login, register } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [authMode, setAuthMode] = useState<"login" | "register" | "forgot">("login");
   const [showCreateGuildModal, setShowCreateGuildModal] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: string } | null>(null);
 
@@ -31,6 +27,12 @@ export default function GuildsPage() {
   };
 
   const handleGuildSubmit = async (guildData: any) => {
+    if (!currentUser) {
+      showToast("Please log in to create a guild", "error");
+      setShowAuthModal(true);
+      return;
+    }
+
     console.log('Creating guild with data:', guildData);
     
     try {
@@ -68,19 +70,39 @@ export default function GuildsPage() {
     }
   };
 
-  const handleApplyForGuild = async (guildId: number, message: string) => {
+  const handleApplyForGuild = async (guildId: string | number, message: string) => {
+    const guildIdStr = guildId.toString();
+    console.log('🔍 handleApplyForGuild called with:', { guildId: guildIdStr, message, currentUser: currentUser?.username });
+    
     if (!currentUser) {
+      console.log('❌ No current user, showing auth modal');
       showToast("Please log in to apply for guilds", "error");
+      setShowAuthModal(true);
       return;
     }
 
     try {
-      await joinGuild(guildId.toString(), message);
+      console.log('🚀 Attempting to join guild:', guildIdStr);
+      const result = await joinGuild(guildIdStr, message);
+      console.log('✅ Join guild result:', result);
+      
       await refetch(); // Refresh the guild list to show updated membership
-      showToast("Guild application submitted successfully!", "success");
-    } catch (error) {
-      console.error('Error applying for guild:', error);
-      showToast('Failed to apply for guild. Please try again.', "error");
+      
+      // Show appropriate message based on whether approval is required
+      if (result?.join_request) {
+        showToast("Request to Join Submitted! Waiting for guild master approval.", "success");
+        console.log('📨 Join request created, awaiting approval');
+      } else if (result?.membership) {
+        showToast("Successfully joined the guild!", "success");
+        console.log('🎉 Auto-joined guild successfully');
+      } else {
+        showToast("Request to Join Submitted!", "success");
+        console.log('📋 Generic join request submitted');
+      }
+    } catch (error: any) {
+      console.error('❌ Error applying for guild:', error);
+      const errorMessage = error?.message || error?.response?.data?.detail || 'Failed to submit join request. Please try again.';
+      showToast(`Error: ${errorMessage}`, "error");
     }
   };
 
@@ -113,6 +135,25 @@ export default function GuildsPage() {
 
   return (
     <div className="min-h-screen bg-[#F4F0E6]">
+      {/* Debug user status */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative mb-4">
+          <strong>Debug Info:</strong> 
+          {currentUser ? (
+            <span className="text-green-600"> Logged in as {currentUser.username} (ID: {currentUser.id})</span>
+          ) : (
+            <span className="text-red-600"> Not logged in 
+              <button 
+                onClick={() => setShowAuthModal(true)}
+                className="ml-2 bg-blue-500 text-white px-2 py-1 rounded text-sm hover:bg-blue-600"
+              >
+                Login
+              </button>
+            </span>
+          )}
+        </div>
+      )}
+      
       <GuildHall
         guilds={guilds}
         currentUser={currentUser}
@@ -128,6 +169,31 @@ export default function GuildsPage() {
           currentUser={currentUser}
           onSubmit={handleGuildSubmit}
           showToast={showToast}
+        />
+      )}
+
+      {showAuthModal && (
+        <AuthModal
+          isOpen={showAuthModal}
+          mode={authMode}
+          setMode={setAuthMode}
+          onClose={() => setShowAuthModal(false)}
+          onLogin={async (credentials) => {
+            try {
+              await login(credentials);
+              setShowAuthModal(false);
+            } catch (error) {
+              throw error;
+            }
+          }}
+          onRegister={async (data) => {
+            try {
+              await register(data);
+              setShowAuthModal(false);
+            } catch (error) {
+              throw error;
+            }
+          }}
         />
       )}
 

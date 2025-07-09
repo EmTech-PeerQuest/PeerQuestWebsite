@@ -228,12 +228,20 @@ export default function Home() {
     }
 
     try {
-      await joinGuild(guildId.toString(), message)
+      const result = await joinGuild(guildId.toString(), message)
       await refetchGuilds() // Refresh the guild list to show updated membership
-      showToast("Guild application submitted successfully!", "success")
+      
+      // Show appropriate message based on whether approval is required
+      if (result?.join_request) {
+        showToast("Request to Join Submitted! Waiting for guild master approval.", "success")
+      } else if (result?.membership) {
+        showToast("Successfully joined the guild!", "success")
+      } else {
+        showToast("Request to Join Submitted!", "success")
+      }
     } catch (error) {
       console.error('Error applying for guild:', error)
-      showToast('Failed to apply for guild. Please try again.', "error")
+      showToast('Failed to submit join request. Please try again.', "error")
     }
   }
 
@@ -477,6 +485,10 @@ export default function Home() {
                   setShowDetailedGuildManagement(false)
                   setManagingGuild(null)
                 }}
+                onDataChanged={async () => {
+                  // Refresh guild data when join requests are processed
+                  await refetchGuilds()
+                }}
               />
             )}
           </>
@@ -557,7 +569,15 @@ export default function Home() {
               try {
                 setIsLoading(true)
                 const result = await joinGuild(String(guildId), message)
-                showToast(result.message || "Successfully submitted guild join request!", "success")
+                
+                // Show appropriate message based on whether approval is required
+                if (result?.join_request) {
+                  showToast("Request to Join Submitted! Waiting for guild master approval.", "success")
+                } else if (result?.membership) {
+                  showToast("Successfully joined the guild!", "success")
+                } else {
+                  showToast(result.message || "Request to Join Submitted!", "success")
+                }
                 
                 // Close the modal
                 setShowGuildOverviewModal(false)

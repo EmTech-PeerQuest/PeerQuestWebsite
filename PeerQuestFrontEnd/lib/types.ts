@@ -128,6 +128,21 @@ export interface Guild {
     avatar?: string;
     name?: string;
   };
+  
+  // Additional fields for overview modal
+  category?: string;
+  announcements?: GuildAnnouncement[];
+  shout?: {
+    content: string;
+    authorName: string;
+    createdAt: string;
+  };
+  settings?: {
+    joinRequirements?: {
+      manualApproval: boolean;
+    };
+  };
+  socialLinks?: string[]; // For backward compatibility
 }
 
 export interface GuildTag {
@@ -139,6 +154,15 @@ export interface GuildSocialLink {
   id: number;
   platform_name: string;
   url: string;
+}
+
+export interface GuildAnnouncement {
+  id: number;
+  title: string;
+  content: string;
+  author: User;
+  created_at: string;
+  is_pinned?: boolean;
 }
 
 export interface GuildMembership {

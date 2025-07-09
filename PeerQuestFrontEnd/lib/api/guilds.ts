@@ -71,7 +71,26 @@ export const guildApi = {
       headers: createHeaders(false), // Public endpoint
     });
 
-    return handleResponse<Guild[]>(response);
+    const guilds = await handleResponse<Guild[]>(response);
+    
+    // Enhance guild data with mock data for demo purposes
+    return guilds.map((guild, index) => ({
+      ...guild,
+      category: guild.specialization === 'alchemy' ? 'Alchemists' : 
+               guild.specialization === 'development' ? 'Developers' :
+               guild.specialization === 'writing' ? 'Writers' :
+               guild.specialization === 'art' ? 'Artists' :
+               guild.specialization === 'music' ? 'Musicians' :
+               guild.specialization === 'gaming' ? 'Gamers' :
+               'Adventurers',
+      funds: guild.funds || Math.floor(Math.random() * 3000) + 500,
+      socialLinks: guild.socialLinks || [
+        `https://discord.gg/${guild.name.toLowerCase().replace(/\s+/g, '')}`,
+        `https://twitter.com/${guild.name.toLowerCase().replace(/\s+/g, '')}`
+      ],
+      welcome_message: guild.welcome_message || 
+        `Welcome to the ${guild.name}! We're currently working on exciting new projects. Check out our latest guild quest!`
+    }));
   },
 
   // Get guild details
@@ -184,8 +203,9 @@ export const guildApi = {
   },
 
   // Get guild join requests (admin/owner only)
-  async getGuildJoinRequests(guildId: string): Promise<GuildJoinRequest[]> {
-    const response = await fetch(API_ENDPOINTS.guildJoinRequests(guildId), {
+  async getGuildJoinRequests(guildId: string, type: 'pending' | 'processed' | 'all' = 'pending'): Promise<GuildJoinRequest[]> {
+    const url = `${API_ENDPOINTS.guildJoinRequests(guildId)}?type=${type}`;
+    const response = await fetch(url, {
       method: 'GET',
       headers: createHeaders(),
     });

@@ -2,7 +2,8 @@ from django.urls import path
 from .views import (
     GuildListView, GuildDetailView, GuildCreateView, GuildUpdateView, 
     GuildDeleteView, MyGuildsView, GuildMembersView, join_guild, 
-    leave_guild, guild_join_requests, process_join_request, kick_member
+    leave_guild, guild_join_requests, process_join_request, kick_member,
+    my_join_requests
 )
 
 app_name = 'guilds'

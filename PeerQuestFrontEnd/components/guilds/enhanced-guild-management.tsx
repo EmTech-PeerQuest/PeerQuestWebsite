@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search, Users, Shield, DollarSign, Activity, BarChart3, UserPlus, CheckCircle, XCircle } from "lucide-react"
-import type { Guild, User, GuildJoinRequest } from "@/lib/types"
+import type { Guild, User, GuildJoinRequest, GuildMembership } from "@/lib/types"
 import { GuildAuditLog } from '@/components/admin/guild-audit-log'
 import { GuildPayouts } from '@/components/guilds/guild-payouts'
 import { GuildRolesConfig } from '@/components/guilds/guild-roles-config'
+import { guildApi } from '@/lib/api/guilds'
 
 interface EnhancedGuildManagementProps {
   guilds: Guild[]
@@ -20,6 +21,7 @@ interface EnhancedGuildManagementProps {
   onRejectApplication: (applicationId: string) => void
   onManageMembers: (guild: Guild) => void
   onBack?: () => void
+  onDataChanged?: () => Promise<void> | void
 }
 
 export function EnhancedGuildManagement({
@@ -35,6 +37,7 @@ export function EnhancedGuildManagement({
   onRejectApplication,
   onManageMembers,
   onBack,
+  onDataChanged,
 }: EnhancedGuildManagementProps) {
   // Early return if user is not authenticated
   if (!currentUser) {
@@ -64,22 +67,137 @@ export function EnhancedGuildManagement({
   const [searchQuery, setSearchQuery] = useState("")
   const [memberSearchQuery, setMemberSearchQuery] = useState("")
   const [selectedRole, setSelectedRole] = useState("All")
+  const [guildMembers, setGuildMembers] = useState<GuildMembership[]>([])
+  const [joinRequests, setJoinRequests] = useState<GuildJoinRequest[]>([])
+  const [processedRequests, setProcessedRequests] = useState<GuildJoinRequest[]>([])
+  const [userMemberGuilds, setUserMemberGuilds] = useState<Guild[]>([])
+  const [loadingMembers, setLoadingMembers] = useState(false)
+  const [loadingRequests, setLoadingRequests] = useState(false)
+  const [loadingUserGuilds, setLoadingUserGuilds] = useState(false)
+  const [requestsTab, setRequestsTab] = useState<"pending" | "processed">("pending")
+
+  // Fetch guild data when selectedGuild changes
+  useEffect(() => {
+    if (selectedGuild) {
+      fetchGuildData()
+    }
+  }, [selectedGuild])
+
+  // Fetch user's member guilds when component loads or guilds data changes
+  useEffect(() => {
+    if (guilds.length > 0) {
+      fetchUserMemberGuilds()
+    }
+  }, [currentUser, guilds])
+
+  const fetchUserMemberGuilds = async () => {
+    setLoadingUserGuilds(true)
+    try {
+      const memberGuilds: Guild[] = []
+      
+      // Check each guild to see if user is a member
+      const membershipChecks = guilds.map(async (guild) => {
+        try {
+          const members = await guildApi.getGuildMembers(guild.guild_id)
+          const isMember = members.some(membership => 
+            String(membership.user.id) === String(currentUser.id) && 
+            membership.status === 'approved' && 
+            membership.is_active &&
+            membership.role !== 'owner' // Exclude owned guilds
+          )
+          if (isMember) {
+            memberGuilds.push(guild)
+          }
+        } catch (error) {
+          console.error(`Failed to check membership for guild ${guild.guild_id}:`, error)
+        }
+      })
+      
+      await Promise.all(membershipChecks)
+      setUserMemberGuilds(memberGuilds)
+    } catch (error) {
+      console.error('Failed to fetch user member guilds:', error)
+    } finally {
+      setLoadingUserGuilds(false)
+    }
+  }
+
+  const fetchGuildData = async () => {
+    if (!selectedGuild) return
+
+    // Fetch members
+    setLoadingMembers(true)
+    try {
+      const members = await guildApi.getGuildMembers(selectedGuild.guild_id)
+      setGuildMembers(members)
+    } catch (error) {
+      console.error('Failed to fetch guild members:', error)
+    } finally {
+      setLoadingMembers(false)
+    }
+
+    // Fetch join requests (only if owner)
+    const isOwner = String(selectedGuild.owner?.id) === String(currentUser.id) || 
+                   selectedGuild.poster?.username === currentUser.username
+    if (isOwner) {
+      setLoadingRequests(true)
+      try {
+        // Fetch both pending and processed requests
+        const [pendingRequests, processedRequestsData] = await Promise.all([
+          guildApi.getGuildJoinRequests(selectedGuild.guild_id, 'pending'),
+          guildApi.getGuildJoinRequests(selectedGuild.guild_id, 'processed')
+        ]);
+        
+        setJoinRequests(pendingRequests)
+        setProcessedRequests(processedRequestsData)
+      } catch (error) {
+        console.error('Failed to fetch join requests:', error)
+      } finally {
+        setLoadingRequests(false)
+      }
+    }
+  }
+
+  const handleProcessJoinRequest = async (requestId: number, action: 'approve' | 'reject') => {
+    if (!selectedGuild) return
+
+    try {
+      await guildApi.processJoinRequest(selectedGuild.guild_id, requestId, action)
+      showToast(`Join request ${action}d successfully!`, "success")
+      
+      // Refresh all guild data
+      await fetchGuildData()
+      
+      // If approved, refresh user's member guilds to update the Member Guilds tab
+      if (action === 'approve') {
+        await fetchUserMemberGuilds()
+      }
+      
+      // Notify parent component to refresh its data
+      if (onDataChanged) {
+        await onDataChanged()
+      }
+      
+      // Switch to processed tab to show the result
+      setRequestsTab("processed")
+    } catch (error) {
+      console.error(`Failed to ${action} join request:`, error)
+      showToast(`Failed to ${action} join request. Please try again.`, "error")
+    }
+  }
 
   // Get guilds where the current user is the owner
   const ownedGuilds = guilds.filter((guild) => 
-    guild.owner?.id === currentUser.id || 
+    String(guild.owner?.id) === String(currentUser.id) || 
     guild.poster?.username === currentUser.username
   )
-  const memberGuilds = guilds.filter(
-    (guild) =>
-      guild.membersList &&
-      guild.membersList.includes(Number(currentUser.id)) &&
-      !(guild.owner?.id === currentUser.id || guild.poster?.username === currentUser.username),
-  )
+  
+  // Use the real member guilds data from API
+  const memberGuilds = userMemberGuilds
 
   const relevantApplications = guildApplications.filter((app) => {
     const guild = guilds.find((g) => (g.id || g.guild_id)?.toString() === app.guild.guild_id?.toString())
-    return guild && (guild.owner?.id === currentUser.id || guild.poster?.username === currentUser.username)
+    return guild && (String(guild.owner?.id) === String(currentUser.id) || guild.poster?.username === currentUser.username)
   })
 
   // Mock member data for demonstration
@@ -429,50 +547,168 @@ export function EnhancedGuildManagement({
 
               {managementView === "requests" && (
                 <div>
-                  <h3 className="text-xl font-bold text-[#2C1A1D] mb-6">Join Requests</h3>
-                  <div className="space-y-4">
-                    {relevantApplications
-                      ?.filter((app: GuildJoinRequest) => app.is_approved === null)
-                      .map((application: GuildJoinRequest) => (
-                        <div key={application.id} className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-4">
-                          <div className="flex justify-between items-start">
-                            <div className="flex items-start gap-3">
-                              <div className="w-12 h-12 bg-[#8B75AA] rounded-full flex items-center justify-center text-white font-bold">
-                                {application.user.avatar || application.user.username?.charAt(0) || "U"}
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-[#2C1A1D]">Join Requests</h3>
+                    <div className="flex bg-gray-100 rounded-lg p-1">
+                      <button
+                        onClick={() => setRequestsTab("pending")}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                          requestsTab === "pending"
+                            ? "bg-white text-[#8B75AA] shadow-sm"
+                            : "text-gray-600 hover:text-[#8B75AA]"
+                        }`}
+                      >
+                        Pending ({joinRequests.length})
+                      </button>
+                      <button
+                        onClick={() => setRequestsTab("processed")}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                          requestsTab === "processed"
+                            ? "bg-white text-[#8B75AA] shadow-sm"
+                            : "text-gray-600 hover:text-[#8B75AA]"
+                        }`}
+                      >
+                        Processed ({processedRequests.length})
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {loadingRequests ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#8B75AA] mx-auto"></div>
+                      <p className="text-[#8B75AA] mt-2">Loading join requests...</p>
+                    </div>
+                  ) : requestsTab === "pending" ? (
+                    <div className="space-y-4">
+                      {joinRequests.length > 0 ? (
+                        joinRequests.map((request) => (
+                          <div key={request.id} className="bg-white border border-[#CDAA7D] rounded-lg p-6 shadow-sm">
+                            <div className="flex justify-between items-start">
+                              <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 bg-[#8B75AA] rounded-full flex items-center justify-center text-white font-bold text-lg">
+                                  {request.user.avatar || request.user.username?.charAt(0)?.toUpperCase() || "U"}
+                                </div>
+                                <div className="flex-1">
+                                  <h4 className="font-bold text-[#2C1A1D] text-lg mb-1">
+                                    {request.user.username || `User ${request.user.id}`}
+                                  </h4>
+                                  <p className="text-sm text-[#8B75AA] mb-3">
+                                    📅 Submitted on {new Date(request.created_at).toLocaleDateString('en-US', {
+                                      year: 'numeric',
+                                      month: 'long',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </p>
+                                  {request.message && (
+                                    <div className="bg-[#F4F0E6] rounded-lg p-3 mb-4">
+                                      <p className="text-sm font-medium text-[#2C1A1D] mb-1">Reason for joining:</p>
+                                      <p className="text-[#2C1A1D] italic">"{request.message}"</p>
+                                    </div>
+                                  )}
+                                  {request.user.level && (
+                                    <p className="text-sm text-[#8B75AA]">
+                                      ⭐ Level {request.user.level} | 🏆 {request.user.xp || request.user.experience_points || 0} XP
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              <div>
-                                <h4 className="font-bold text-[#2C1A1D]">{application.user.username}</h4>
-                                <p className="text-sm text-[#8B75AA] mb-2">
-                                  Applied {new Date(application.created_at).toLocaleDateString()}
-                                </p>
-                                <p className="text-[#2C1A1D]">{application.message}</p>
+                              <div className="flex gap-3 ml-4">
+                                <button
+                                  onClick={() => handleProcessJoinRequest(request.id, 'approve')}
+                                  className="px-6 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2 font-medium shadow-sm"
+                                >
+                                  <CheckCircle size={18} />
+                                  Approve
+                                </button>
+                                <button
+                                  onClick={() => handleProcessJoinRequest(request.id, 'reject')}
+                                  className="px-6 py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2 font-medium shadow-sm"
+                                >
+                                  <XCircle size={18} />
+                                  Decline
+                                </button>
                               </div>
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => onApproveApplication(application.id.toString())}
-                                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors flex items-center gap-2"
-                              >
-                                <CheckCircle size={16} />
-                                Accept
-                              </button>
-                              <button
-                                onClick={() => onRejectApplication(application.id.toString())}
-                                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors flex items-center gap-2"
-                              >
-                                <XCircle size={16} />
-                                Decline
-                              </button>
                             </div>
                           </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-12 bg-white rounded-lg border border-[#CDAA7D]">
+                          <UserPlus size={48} className="mx-auto mb-4 text-gray-400" />
+                          <h4 className="text-lg font-medium text-[#2C1A1D] mb-2">No Pending Requests</h4>
+                          <p className="text-gray-500">There are no pending join requests for this guild.</p>
                         </div>
-                      )) || (
-                      <div className="text-center py-8">
-                        <UserPlus size={48} className="mx-auto mb-4 text-gray-400" />
-                        <p className="text-gray-500">No pending join requests</p>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {processedRequests.length > 0 ? (
+                        processedRequests.map((request) => (
+                          <div key={request.id} className="bg-white border border-[#CDAA7D] rounded-lg p-6 shadow-sm">
+                            <div className="flex justify-between items-start">
+                              <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 bg-[#8B75AA] rounded-full flex items-center justify-center text-white font-bold text-lg">
+                                  {request.user.avatar || request.user.username?.charAt(0)?.toUpperCase() || "U"}
+                                </div>
+                                <div className="flex-1">
+                                  <h4 className="font-bold text-[#2C1A1D] text-lg mb-1">
+                                    {request.user.username || `User ${request.user.id}`}
+                                  </h4>
+                                  <div className="flex items-center gap-4 mb-3">
+                                    <p className="text-sm text-[#8B75AA]">
+                                      📅 Submitted: {new Date(request.created_at).toLocaleDateString('en-US', {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                    </p>
+                                    {request.processed_at && (
+                                      <p className="text-sm text-[#8B75AA]">
+                                        ⚡ Processed: {new Date(request.processed_at).toLocaleDateString('en-US', {
+                                          month: 'short',
+                                          day: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit'
+                                        })}
+                                      </p>
+                                    )}
+                                  </div>
+                                  {request.message && (
+                                    <div className="bg-[#F4F0E6] rounded-lg p-3 mb-4">
+                                      <p className="text-sm font-medium text-[#2C1A1D] mb-1">Reason for joining:</p>
+                                      <p className="text-[#2C1A1D] italic">"{request.message}"</p>
+                                    </div>
+                                  )}
+                                  {request.processed_by && (
+                                    <p className="text-sm text-[#8B75AA]">
+                                      👤 Processed by: {request.processed_by.username || `User ${request.processed_by.id}`}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 ml-4">
+                                <span className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                                  request.is_approved 
+                                    ? "bg-green-100 text-green-800 border border-green-200" 
+                                    : "bg-red-100 text-red-800 border border-red-200"
+                                }`}>
+                                  {request.is_approved ? "✓ Approved" : "✗ Declined"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-12 bg-white rounded-lg border border-[#CDAA7D]">
+                          <Activity size={48} className="mx-auto mb-4 text-gray-400" />
+                          <h4 className="text-lg font-medium text-[#2C1A1D] mb-2">No Processed Requests</h4>
+                          <p className="text-gray-500">No join requests have been processed yet.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -523,82 +759,93 @@ export function EnhancedGuildManagement({
         </div>
 
         {/* Guild Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {(activeTab === "owned" ? ownedGuilds : memberGuilds).map((guild) => (
-            <div
-              key={guild.id}
-              className="bg-white border border-[#CDAA7D] rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
-            >
-              <div className="bg-[#CDAA7D] p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-xl">
-                    {guild.emblem}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-[#2C1A1D]">{guild.name}</h3>
-                    <p className="text-sm text-[#2C1A1D]/70">Level {calculateGuildLevel(guild)}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4">
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-1">
-                      <Users size={16} className="text-[#8B75AA]" />
-                      <span className="text-sm font-medium text-[#2C1A1D]">{guild.members}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <DollarSign size={16} className="text-[#8B75AA]" />
-                      <span className="text-sm font-medium text-[#2C1A1D]">{guild.funds || 0}</span>
+        {activeTab === "member" && loadingUserGuilds ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#8B75AA] mx-auto"></div>
+            <p className="text-[#8B75AA] mt-2">Loading member guilds...</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {(activeTab === "owned" ? ownedGuilds : memberGuilds).length > 0 ? (
+              (activeTab === "owned" ? ownedGuilds : memberGuilds).map((guild) => (
+                <div
+                  key={guild.guild_id || guild.id}
+                  className="bg-white border border-[#CDAA7D] rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
+                >
+                  <div className="bg-[#CDAA7D] p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-xl">
+                        {guild.custom_emblem ? (
+                          <img src={guild.custom_emblem} alt="Guild emblem" className="w-full h-full object-cover rounded-lg" />
+                        ) : (
+                          guild.preset_emblem || guild.emblem || "🏆"
+                        )}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-[#2C1A1D]">{guild.name}</h3>
+                        <p className="text-sm text-[#2C1A1D]/70">Level {calculateGuildLevel(guild)}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Guild Level Progress */}
-                <div className="mb-4">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-medium text-[#2C1A1D]">Level {calculateGuildLevel(guild)}</span>
-                    <span className="text-xs text-[#8B75AA]">{getGuildXPProgress(guild).toFixed(0)}%</span>
+                  <div className="p-4">
+                    <div className="flex justify-between items-center mb-4">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1">
+                          <Users size={16} className="text-[#8B75AA]" />
+                          <span className="text-sm font-medium text-[#2C1A1D]">{guild.member_count || guild.members || 0}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <DollarSign size={16} className="text-[#8B75AA]" />
+                          <span className="text-sm font-medium text-[#2C1A1D]">{guild.funds || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Guild Level Progress */}
+                    <div className="mb-4">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-medium text-[#2C1A1D]">Level {calculateGuildLevel(guild)}</span>
+                        <span className="text-xs text-[#8B75AA]">{getGuildXPProgress(guild).toFixed(0)}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5">
+                        <div
+                          className="bg-[#8B75AA] h-1.5 rounded-full transition-all duration-300"
+                          style={{ width: `${getGuildXPProgress(guild)}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <p className="text-sm text-[#2C1A1D] mb-4 line-clamp-2">{guild.description}</p>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setSelectedGuild(guild)}
+                        className="flex-1 px-4 py-2 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699] transition-colors text-sm font-medium"
+                      >
+                        Manage
+                      </button>
+                      <button
+                        onClick={() => onViewGuild(guild)}
+                        className="px-4 py-2 border border-[#CDAA7D] rounded text-[#2C1A1D] hover:bg-[#CDAA7D] hover:text-white transition-colors text-sm font-medium"
+                      >
+                        View
+                      </button>
+                    </div>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-1.5">
-                    <div
-                      className="bg-[#8B75AA] h-1.5 rounded-full transition-all duration-300"
-                      style={{ width: `${getGuildXPProgress(guild)}%` }}
-                    ></div>
-                  </div>
                 </div>
-
-                <p className="text-sm text-[#2C1A1D] mb-4 line-clamp-2">{guild.description}</p>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setSelectedGuild(guild)}
-                    className="flex-1 px-4 py-2 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699] transition-colors text-sm font-medium"
-                  >
-                    Manage
-                  </button>
-                  <button
-                    onClick={() => onViewGuild(guild)}
-                    className="px-4 py-2 border border-[#CDAA7D] rounded text-[#2C1A1D] hover:bg-[#CDAA7D] hover:text-white transition-colors text-sm font-medium"
-                  >
-                    View
-                  </button>
-                </div>
+              ))
+            ) : (
+              <div className="col-span-full bg-white border border-[#CDAA7D] rounded-lg p-8 text-center">
+                <Shield size={48} className="mx-auto mb-4 text-[#CDAA7D]" />
+                <h3 className="text-xl font-bold text-[#2C1A1D] mb-2">No Guilds Found</h3>
+                <p className="text-[#8B75AA]">
+                  {activeTab === "owned"
+                    ? "You don't own any guilds yet. Create a new guild to get started!"
+                    : "You're not a member of any guilds yet. Join a guild from the Guild Hall!"}
+                </p>
               </div>
-            </div>
-          ))}
-        </div>
-
-        {(activeTab === "owned" ? ownedGuilds : memberGuilds).length === 0 && (
-          <div className="bg-white border border-[#CDAA7D] rounded-lg p-8 text-center">
-            <Shield size={48} className="mx-auto mb-4 text-[#CDAA7D]" />
-            <h3 className="text-xl font-bold text-[#2C1A1D] mb-2">No Guilds Found</h3>
-            <p className="text-[#8B75AA]">
-              {activeTab === "owned"
-                ? "You don't own any guilds yet. Create a new guild to get started!"
-                : "You're not a member of any guilds yet. Join a guild from the Guild Hall!"}
-            </p>
+            )}
           </div>
         )}
       </div>
