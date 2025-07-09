@@ -1,4 +1,17 @@
-c
+
+export interface QuestReport {
+  id: number;
+  reported_quest: string;
+  reporter: string;
+  reason: string;
+  message?: string;
+  created_at: string;
+  resolved: boolean;
+  resolved_by?: string;
+  resolved_at?: string;
+  reporter_username?: string;
+  reported_quest_title?: string;
+}
 export interface ActionLogEntry {
   id: number;
   action: string;
@@ -161,6 +174,7 @@ export interface Quest {
   applications_count: number
   can_accept_participants: boolean
   is_completed: boolean
+  reports_count?: number
   participants_detail?: Array<{
     id: number
     user: {

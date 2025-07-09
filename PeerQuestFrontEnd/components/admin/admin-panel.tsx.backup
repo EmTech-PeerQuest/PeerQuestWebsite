@@ -5,7 +5,6 @@ import { Users, FileText, Flag, Home, X, Search, Trash2, AlertTriangle, Clock } 
 import type { ActionLogEntry } from "@/lib/types";
 import { ReportDetailsModal } from "@/components/modals/report-details-modal";
 import type { User, Quest, Guild } from "@/lib/types";
-import { QuestAPI } from "@/lib/api/quests";
 
 // --- Helper: fetchWithAuth ---
 // Handles token refresh for all API calls
@@ -76,7 +75,6 @@ function AdminPanel({
   setGuilds,
   showToast,
 }: AdminPanelProps) {
-  // Robust admin check (moved to top of function)
   const [activeTab, setActiveTab] = useState<"overview" | "users" | "quests" | "guilds" | "reports" | "appeals" | "actionlog">("overview")
   // Action Log State
   const [actionLogs, setActionLogs] = useState<ActionLogEntry[]>([]);
@@ -88,52 +86,8 @@ function AdminPanel({
   
   // Reports State
   const [reports, setReports] = useState<any[]>([]);
-  const [reportTypeFilter, setReportTypeFilter] = useState<string>("all");
-  // Reports search state
-  const [reportSearch, setReportSearch] = useState("");
-  // Filter and search reports
-  const filteredReports = useMemo(() => {
-    let filtered = reports;
-    if (reportTypeFilter === "user") filtered = filtered.filter((r) => r.type === "user" || !!r.reported_user);
-    else if (reportTypeFilter === "quest") filtered = filtered.filter((r) => r.type === "quest" || !!r.reported_quest);
-    if (reportSearch.trim()) {
-      const q = reportSearch.trim().toLowerCase();
-      filtered = filtered.filter((r) => {
-        // Search in reported user/quest, reporter, reason, message
-        return (
-          (r.reported_user?.username?.toLowerCase?.().includes(q) || r.reported_user_username?.toLowerCase?.().includes(q)) ||
-          (r.reported_quest_title?.toLowerCase?.().includes(q)) ||
-          (r.reporter?.username?.toLowerCase?.().includes(q) || r.reporter_username?.toLowerCase?.().includes(q)) ||
-          (r.reason?.toLowerCase?.().includes(q)) ||
-          (r.message?.toLowerCase?.().includes(q))
-        );
-      });
-    }
-    return filtered;
-  }, [reports, reportTypeFilter, reportSearch]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [reportsError, setReportsError] = useState("");
-
-  // Fetch quests for admin panel
-  const fetchQuestsForAdmin = async () => {
-    try {
-      // Fetch all quests (no filters)
-      const data = await QuestAPI.getQuests();
-      // Defensive: support both {results: Quest[]} and Quest[]
-      if (Array.isArray(data)) {
-        setQuests(data);
-      } else if (Array.isArray(data.results)) {
-        setQuests(data.results);
-      } else if (Array.isArray(data.value)) {
-        setQuests(data.value);
-      } else {
-        setQuests([]);
-      }
-    } catch (err: any) {
-      setQuests([]);
-      if (showToast) showToast("Failed to fetch quests: " + (err?.message || err), "error");
-    }
-  };
 
   // Fetch action logs from backend
   const fetchActionLogs = async () => {
@@ -184,14 +138,7 @@ function AdminPanel({
   useEffect(() => {
     if (activeTab === "actionlog") fetchActionLogs();
     if (activeTab === "reports") fetchReports();
-    if (activeTab === "quests") fetchQuestsForAdmin();
   }, [activeTab]);
-
-  // Also fetch quests on mount (for overview stats)
-  useEffect(() => {
-    fetchQuestsForAdmin();
-    // eslint-disable-next-line
-  }, []);
   const [searchTerm, setSearchTerm] = useState("")
   // Accept only UUID string for user IDs
   const [showBanConfirm, setShowBanConfirm] = useState<string | null>(null)
@@ -311,24 +258,6 @@ function AdminPanel({
   const openQuests = quests.filter((quest) => quest.status === "open").length
   const completedQuests = quests.filter((quest) => quest.status === "completed").length
 
-  // Quest search state
-  const [questSearch, setQuestSearch] = useState("");
-  // Filtered and searched quests
-  const filteredQuests = useMemo(() => {
-    if (!questSearch.trim()) return quests;
-    const q = questSearch.trim().toLowerCase();
-    return quests.filter((quest: any) => {
-      const title = (quest.title || "").toLowerCase();
-      const author = (quest.creator?.username || "").toLowerCase();
-      const category = (typeof quest.category === 'string' ? quest.category : quest.category?.name || "").toLowerCase();
-      return (
-        title.includes(q) ||
-        author.includes(q) ||
-        category.includes(q)
-      );
-    });
-  }, [quests, questSearch]);
-
 
   // Ban Appeals State
   const [appeals, setAppeals] = useState<any[]>([]);
@@ -340,35 +269,46 @@ function AdminPanel({
   // Fetch appeals from backend (with token refresh)
   const fetchAppeals = async () => {
     setAppealsLoading(true);
-    setAppealsError("");
+    const API_BASE = "http://localhost:8000";
     try {
-      const API_BASE = "http://localhost:8000";
-      const res = await fetchWithAuth(`${API_BASE}/api/users/ban-appeals/`);
+      const res = await fetchWithAuth(`${API_BASE}/api/users/ban-appeal/list/`);
       if (!res.ok) {
         const err = await res.text();
+        console.error("[AdminPanel] Ban appeals API error:", err);
         setAppealsError(err);
         setAppeals([]);
         setAppealsLoading(false);
         return;
       }
       const data = await res.json();
-      setAppeals(Array.isArray(data) ? data : (data.results || []));
+      console.log("[AdminPanel] Ban appeals API response:", data);
+      if (!Array.isArray(data)) {
+        setAppealsError("Ban appeals API did not return an array");
+        setAppeals([]);
+      } else {
+        setAppeals(data);
+      }
     } catch (err: any) {
-      setAppealsError("Error fetching appeals: " + (err?.message || err));
+      console.error("[AdminPanel] Error fetching ban appeals:", err);
+      setAppealsError("Error fetching ban appeals: " + (err?.message || err));
       setAppeals([]);
     }
     setAppealsLoading(false);
   };
 
   useEffect(() => {
-    if (activeTab === "appeals") fetchAppeals();
-  }, [activeTab]);
+    fetchAppeals();
+  }, []);
+
+  // For now, treat each appeal as a report (if you have a separate reports API, fetch it similarly)
+  // Only show unresolved appeals as reports (for dashboard count)
+  const reports = appeals.filter(a => !a.reviewed);
 
   // Filtered appeals for search
   const filteredAppeals = useMemo(() => {
     if (!appealSearch) return appeals;
     const q = appealSearch.toLowerCase();
-    return appeals.filter((a: any) =>
+    return appeals.filter(a =>
       (a.user_email && a.user_email.toLowerCase().includes(q)) ||
       (a.message && a.message.toLowerCase().includes(q))
     );
@@ -564,9 +504,309 @@ function AdminPanel({
     setCustomDeleteGuildReason("")
   }
 
-  // Patch: Actually resolve report via API and update UI
-  const handleResolveReport = async (reportId: number, action: string, notes: string) => {
-    console.log('[AdminPanel] handleResolveReport called', { reportId, action, notes });
+  const handleResolveReport = (reportId: number, action: string, notes: string) => {
+    setResolvedReports((prev) => [...prev, reportId])
+    showToast(`Report resolved with action: ${action}`, "success")
+  }
+
+  const handleViewReport = (report: any) => {
+    setSelectedReport(report)
+  }
+
+  // Fetch reports from backend
+  const fetchReports = async () => {
+    setReportsLoading(true);
+    setReportsError("");
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/users/admin/reports/`);
+      if (!res.ok) {
+        const err = await res.text();
+        setReportsError(err);
+        setReports([]);
+        setReportsLoading(false);
+        return;
+      }
+      const data = await res.json();
+      setReports(data);
+    } catch (err: any) {
+      setReportsError("Error fetching reports: " + (err?.message || err));
+      setReports([]);
+    }
+    setReportsLoading(false);
+  };
+
+  // Appeals search
+  const [appealSearch, setAppealSearch] = useState("");
+  
+  // Reports State
+  const [reports, setReports] = useState<any[]>([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [reportsError, setReportsError] = useState("");
+  // Fetch action logs from backend
+  const fetchActionLogs = async () => {
+    setActionLogsLoading(true);
+    setActionLogsError("");
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/users/action-log/`);
+      if (!res.ok) {
+        const err = await res.text();
+        setActionLogsError(err);
+        setActionLogs([]);
+        setActionLogsLoading(false);
+        return;
+      }
+      const data = await res.json();
+      setActionLogs(data);
+    } catch (err: any) {
+      setActionLogsError("Error fetching action logs: " + (err?.message || err));
+      setActionLogs([]);
+    }
+    setActionLogsLoading(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === "actionlog") fetchActionLogs();
+  }, [activeTab]);
+  const [searchTerm, setSearchTerm] = useState("")
+  // Accept only UUID string for user IDs
+  const [showBanConfirm, setShowBanConfirm] = useState<string | null>(null)
+  const [showDeleteUserConfirm, setShowDeleteUserConfirm] = useState<string | null>(null)
+  const [banReason, setBanReason] = useState("")
+  const [customBanReason, setCustomBanReason] = useState("")
+  const [banType, setBanType] = useState<"permanent" | "temporary">("permanent")
+  const [banDuration, setBanDuration] = useState({ amount: 1, unit: "days" })
+  const [showDeleteQuestConfirm, setShowDeleteQuestConfirm] = useState<number | null>(null)
+  const [deleteQuestReason, setDeleteQuestReason] = useState("")
+  const [customDeleteQuestReason, setCustomDeleteQuestReason] = useState("")
+  const [showDeleteGuildConfirm, setShowDeleteGuildConfirm] = useState<number | null>(null)
+  const [deleteGuildReason, setDeleteGuildReason] = useState("")
+  const [customDeleteGuildReason, setCustomDeleteGuildReason] = useState("")
+  const [selectedUserDetails, setSelectedUserDetails] = useState<User | null>(null)
+  const [selectedQuestDetails, setSelectedQuestDetails] = useState<Quest | null>(null)
+  const [selectedGuildDetails, setSelectedGuildDetails] = useState<Guild | null>(null)
+  const [selectedReport, setSelectedReport] = useState<any>(null)
+  const [resolvedReports, setResolvedReports] = useState<number[]>([])
+
+  // Inappropriate content detection
+  const inappropriateWords = [
+    "hate", "racist", "nazi", "slur", "offensive", "inappropriate", "spam", "scam", "fraud"
+  ]
+
+  const isInappropriateUsername = (username: string) => {
+    return inappropriateWords.some(word => 
+      username.toLowerCase().includes(word.toLowerCase())
+    )
+  }
+
+
+  // Fetch users from backend on mount (with auth header and token refresh)
+  useEffect(() => {
+    const API_BASE = "http://localhost:8000";
+    async function fetchUsersWithRefresh() {
+      let token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
+      const refresh = typeof window !== 'undefined' ? localStorage.getItem("refresh_token") : null;
+      if (!token) {
+        console.error("[AdminPanel] No access token found in localStorage");
+        return;
+      }
+      let res = await fetch(`${API_BASE}/api/users/admin/users/`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.status === 401 && refresh) {
+        // Try to refresh token
+        const refreshRes = await fetch(`${API_BASE}/api/token/refresh/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh })
+        });
+        if (refreshRes.ok) {
+          const data = await refreshRes.json();
+          if (data.access) {
+            localStorage.setItem("access_token", data.access);
+            token = data.access;
+            // Retry original request
+            res = await fetch(`${API_BASE}/api/users/admin/users/`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+          }
+        } else {
+          // Refresh failed, force logout
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          setUsers([]);
+          showToast("Session expired. Please log in again.", "error");
+          return;
+        }
+      }
+      if (!res.ok) {
+        const err = await res.text();
+        console.error(`[AdminPanel] Failed to fetch users: ${res.status} ${res.statusText}`, err);
+        setUsers([]);
+        return;
+      }
+      const data = await res.json();
+      if (!Array.isArray(data)) {
+        console.error("[AdminPanel] Users API did not return an array:", data);
+        setUsers([]);
+        return;
+      }
+      setUsers(
+        data.map((u: any) => ({
+          ...u,
+          isBanned: u.is_banned,
+          banReason: u.ban_reason,
+          banExpiration: u.ban_expires_at,
+          isSuperuser: u.is_superuser,
+          createdAt: u.date_joined,
+        }))
+      );
+    }
+    fetchUsersWithRefresh();
+    // eslint-disable-next-line
+  }, []);
+
+  // Filtered and searched users
+  const filteredUsers = useMemo(() => {
+    return users.filter(user => {
+      // Accept string or non-string username/email for robustness
+      const username = typeof user.username === 'string' ? user.username : String(user.username ?? '');
+      const email = typeof user.email === 'string' ? user.email : String(user.email ?? '');
+      const matchesSearch = searchTerm === "" || 
+        username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        email.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesSearch;
+    });
+  }, [users, searchTerm]);
+
+  // Count active and banned users
+  const activeUsers = users.filter((user) => !user.isBanned).length
+  const bannedUsers = users.filter((user) => user.isBanned).length
+
+  // Count open, completed quests
+  const openQuests = quests.filter((quest) => quest.status === "open").length
+  const completedQuests = quests.filter((quest) => quest.status === "completed").length
+
+
+  // Ban Appeals State
+  const [appeals, setAppeals] = useState<any[]>([]);
+  const [appealsLoading, setAppealsLoading] = useState(false);
+  const [appealsError, setAppealsError] = useState("");
+  const [appealActionLoading, setAppealActionLoading] = useState<string | null>(null); // appeal id
+  const [appealActionError, setAppealActionError] = useState("");
+
+  // Fetch appeals from backend (with token refresh)
+  const fetchAppeals = async () => {
+    setAppealsLoading(true);
+    const API_BASE = "http://localhost:8000";
+    try {
+      const res = await fetchWithAuth(`${API_BASE}/api/users/ban-appeal/list/`);
+      if (!res.ok) {
+        const err = await res.text();
+        console.error("[AdminPanel] Ban appeals API error:", err);
+        setAppealsError(err);
+        setAppeals([]);
+        setAppealsLoading(false);
+        return;
+      }
+      const data = await res.json();
+      console.log("[AdminPanel] Ban appeals API response:", data);
+      if (!Array.isArray(data)) {
+        setAppealsError("Ban appeals API did not return an array");
+        setAppeals([]);
+      } else {
+        setAppeals(data);
+      }
+    } catch (err: any) {
+      console.error("[AdminPanel] Error fetching ban appeals:", err);
+      setAppealsError("Error fetching ban appeals: " + (err?.message || err));
+      setAppeals([]);
+    }
+    setAppealsLoading(false);
+  };
+
+  useEffect(() => {
+    fetchAppeals();
+  }, []);
+
+  // For now, treat each appeal as a report (if you have a separate reports API, fetch it similarly)
+  // Only show unresolved appeals as reports (for dashboard count)
+  const reports = appeals.filter(a => !a.reviewed);
+
+  // Filtered appeals for search
+  const filteredAppeals = useMemo(() => {
+    if (!appealSearch) return appeals;
+    const q = appealSearch.toLowerCase();
+    return appeals.filter(a =>
+      (a.user_email && a.user_email.toLowerCase().includes(q)) ||
+      (a.message && a.message.toLowerCase().includes(q))
+    );
+  }, [appeals, appealSearch]);
+
+  // Appeal Actions
+  // Patch: All appeal actions POST to /api/users/ban-appeal/<appeal_id>/review/ with { decision }
+  const handleAppealAction = async (
+    appealId: string | number,
+    action: "dismiss" | "lift_ban" | "resolve"
+  ) => {
+    setAppealActionLoading(String(appealId));
+    setAppealActionError("");
+    const API_BASE = "http://localhost:8000";
+    const endpoint = `/api/users/ban-appeal/${appealId}/review/`;
+    let decision = "";
+    if (action === "dismiss") {
+      decision = "dismissed";
+    } else if (action === "lift_ban") {
+      decision = "lifted";
+    } else if (action === "resolve") {
+      // If backend supports a separate 'resolved' state, use it; otherwise, fallback to 'dismissed'
+      decision = "dismissed";
+    }
+    try {
+      const res = await fetchWithAuth(`${API_BASE}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision }),
+      });
+      if (!res.ok) {
+        let err, rawErr;
+        try {
+          rawErr = await res.text();
+          err = JSON.parse(rawErr);
+        } catch {
+          err = rawErr;
+        }
+        setAppealActionError((err && err.detail) || err || "Failed to process appeal action");
+        setAppealActionLoading(null);
+        showToast((err && err.detail) || err || "Failed to process appeal action", "error");
+        return;
+      }
+      showToast(`Appeal action '${action}' successful.`, "success");
+      // Remove the appeal from the list immediately for better UX
+      setAppeals((prevAppeals) => prevAppeals.filter((a) => String(a.id) !== String(appealId)));
+      // Optionally, refetch action logs if on actionlog tab
+      if (activeTab === "actionlog") fetchActionLogs();
+    } catch (e) {
+      setAppealActionError("Failed to process appeal action");
+      showToast("Failed to process appeal action", "error");
+    }
+    setAppealActionLoading(null);
+  };
+
+  const handleBanUser = async (userId: string | null) => {
+    if (!userId) return;
+    const finalReason = banReason === "custom" ? customBanReason : banReason;
+    let expires_at = null;
+    if (banType === "temporary") {
+      const now = new Date();
+      let ms = banDuration.amount * (
+        banDuration.unit === "hours" ? 60 * 60 * 1000 :
+        banDuration.unit === "days" ? 24 * 60 * 60 * 1000 :
+        7 * 24 * 60 * 60 * 1000 // weeks
+      );
+      expires_at = new Date(now.getTime() + ms).toISOString();
+    }
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
       const API_BASE = "http://localhost:8000";
@@ -574,34 +814,129 @@ function AdminPanel({
         showToast("No access token found. Please log in again.", "error");
         return;
       }
-      // PATCH to backend to resolve report
-      const res = await fetch(`${API_BASE}/api/users/admin/reports/${reportId}/resolve/`, {
-        method: "PATCH",
+      // Always use UUID string for userId
+      const userUuid = String(userId);
+      const res = await fetch(`${API_BASE}/api/users/admin/users/${userUuid}/ban/`, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ action, notes }),
+        body: JSON.stringify({ reason: finalReason, expires_at }),
       });
-      console.log('[AdminPanel] resolve report response', res.status, res.statusText);
       if (!res.ok) {
         let err, rawErr;
         try { rawErr = await res.text(); err = JSON.parse(rawErr); } catch { err = rawErr; }
-        console.error('[AdminPanel] Failed to resolve report', err, rawErr, res.status, res.statusText);
-        showToast((err && err.detail) || err || `Failed to resolve report (${res.status})`, "error");
+        console.error('[AdminPanel] Ban user error:', err, rawErr, res.status, res.statusText);
+        showToast((err && err.detail) || err || "Failed to ban user", "error");
         return;
       }
-      // Remove the resolved report from the local reports state immediately
-      setReports((prevReports) => prevReports.filter(r => r.id !== reportId));
-      setResolvedReports((prev) => [...prev, reportId]);
-      showToast(`Report resolved with action: ${action}`, "success");
-      // Optionally, refetch reports from backend for full sync (will not re-add resolved if backend filters them)
-      await fetchReports();
-      if (activeTab === "actionlog") fetchActionLogs();
+      setUsers(users.map((user) =>
+        user.id === userUuid ? {
+          ...user,
+          isBanned: true,
+          banReason: finalReason,
+          banExpiration: expires_at,
+        } : user
+      ));
+      const banTypeText = banType === "permanent" ? "permanently" : `temporarily (expires ${expires_at ? new Date(expires_at).toLocaleString() : ""})`;
+      showToast(`User has been banned ${banTypeText}. Reason: ${finalReason}`, "success");
     } catch (e) {
-      console.error('[AdminPanel] Exception in handleResolveReport', e);
-      showToast("Failed to resolve report (exception)", "error");
+      showToast("Failed to ban user", "error");
     }
+    setShowBanConfirm(null);
+    setBanReason("");
+    setCustomBanReason("");
+    setBanType("permanent");
+    setBanDuration({ amount: 1, unit: "days" });
+  };
+
+  const handleDeleteUser = async (userId: string | null) => {
+    if (!userId) return;
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
+      const API_BASE = "http://localhost:8000";
+      if (!token) {
+        showToast("No access token found. Please log in again.", "error");
+        return;
+      }
+      // Always use UUID string for userId
+      const userUuid = String(userId);
+      const res = await fetch(`${API_BASE}/api/users/admin/users/${userUuid}/delete/`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+      });
+      if (!res.ok) {
+        let err, rawErr;
+        try { rawErr = await res.text(); err = JSON.parse(rawErr); } catch { err = rawErr; }
+        console.error('[AdminPanel] Delete user error:', err, rawErr, res.status, res.statusText);
+        showToast((err && err.detail) || err || "Failed to delete user", "error");
+        return;
+      }
+      setUsers(users.filter((user) => user.id !== userUuid));
+      showToast(`User account has been permanently deleted.`, "success");
+      setShowDeleteUserConfirm(null);
+    } catch (e) {
+      showToast("Failed to delete user", "error");
+    }
+  }
+
+  const handleUnbanUser = async (userId: string | null) => {
+    if (!userId) return;
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
+      const API_BASE = "http://localhost:8000";
+      if (!token) {
+        showToast("No access token found. Please log in again.", "error");
+        return;
+      }
+      // Always use UUID string for userId
+      const userUuid = String(userId);
+      const res = await fetch(`${API_BASE}/api/users/admin/users/${userUuid}/unban/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+      });
+      if (!res.ok) {
+        let err, rawErr;
+        try { rawErr = await res.text(); err = JSON.parse(rawErr); } catch { err = rawErr; }
+        console.error('[AdminPanel] Unban user error:', err, rawErr, res.status, res.statusText);
+        showToast((err && err.detail) || err || "Failed to unban user", "error");
+        return;
+      }
+      setUsers(users.map((user) => (user.id === userUuid ? { ...user, isBanned: false, banReason: undefined, banExpiration: undefined } : user)));
+      showToast(`User has been unbanned.`, "success");
+    } catch (e) {
+      showToast("Failed to unban user", "error");
+    }
+  };
+
+  const handleDeleteQuest = (questId: number) => {
+    const finalReason = deleteQuestReason === "custom" ? customDeleteQuestReason : deleteQuestReason
+    setQuests(quests.filter((quest) => quest.id !== questId))
+    showToast(`Quest has been deleted. Reason: ${finalReason}`, "success")
+    setShowDeleteQuestConfirm(null)
+    setDeleteQuestReason("")
+    setCustomDeleteQuestReason("")
+  }
+
+  const handleDeleteGuild = (guildId: number) => {
+    const finalReason = deleteGuildReason === "custom" ? customDeleteGuildReason : deleteGuildReason
+    setGuilds(guilds.filter((guild) => guild.id !== guildId))
+    showToast(`Guild has been deleted. Reason: ${finalReason}`, "success")
+    setShowDeleteGuildConfirm(null)
+    setDeleteGuildReason("")
+    setCustomDeleteGuildReason("")
+  }
+
+  const handleResolveReport = (reportId: number, action: string, notes: string) => {
+    setResolvedReports((prev) => [...prev, reportId])
+    showToast(`Report resolved with action: ${action}`, "success")
   }
 
   const handleViewReport = (report: any) => {
@@ -634,41 +969,6 @@ function AdminPanel({
       </div>
     );
   }
-
-
-
-  // ...existing code...
-
-  // Delete Report handler for resolved reports (top-level, robust)
-  const handleDeleteReport = async (reportId: number) => {
-    try {
-      const response = await fetchWithAuth(`/api/admin/reports/${reportId}/`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      if (!response.ok) {
-        throw new Error('Failed to delete report');
-      }
-      setReports((prev: any[]) => prev.filter((r: any) => r.id !== reportId));
-      if (showToast) showToast('Report deleted successfully', 'success');
-      setActionLogs((prev: any[]) => [
-        {
-          id: Date.now(),
-          created_at: new Date().toISOString(),
-          admin: currentUser?.username || 'Admin',
-          action: 'delete_report',
-          target_user: reportId?.toString?.() ?? String(reportId),
-          details: 'Deleted report from admin panel',
-        },
-        ...((prev as any[]) || [])
-      ]);
-      if (typeof fetchActionLogs === 'function') fetchActionLogs();
-    } catch (error: any) {
-      if (showToast) showToast(error.message || 'Failed to delete report', 'error');
-    }
-  };
 
   return (
     <>
@@ -1189,19 +1489,6 @@ function AdminPanel({
           {activeTab === "quests" && (
             <div className="py-8">
               <h3 className="text-xl font-bold text-[#2C1A1D] mb-8 text-center">Quest Management</h3>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-                <div></div>
-                <div className="relative w-full sm:w-80">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                  <input
-                    type="text"
-                    placeholder="Search quests by title, author, or category..."
-                    value={questSearch}
-                    onChange={e => setQuestSearch(e.target.value)}
-                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B75AA] focus:border-transparent w-full"
-                  />
-                </div>
-              </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
                   <thead>
@@ -1216,27 +1503,21 @@ function AdminPanel({
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredQuests.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="py-6 text-center text-gray-400">No quests found.</td>
+                    {quests.map((quest) => (
+                      <tr key={quest.id} className="hover:bg-gray-50">
+                        <td className="py-3 px-4 border-b text-gray-900 font-medium cursor-pointer underline" onClick={() => setSelectedQuestDetails(quest)}>{quest.title}</td>
+                        <td className="py-3 px-4 border-b">{quest.category?.name || '-'}</td>
+                        <td className="py-3 px-4 border-b">{quest.creator?.username || '-'}</td>
+                        <td className="py-3 px-4 border-b">{quest.created_at ? new Date(quest.created_at).toLocaleString() : '-'}</td>
+                        <td className="py-3 px-4 border-b capitalize">{quest.status}</td>
+                        <td className="py-3 px-4 border-b text-center">{quest.reports_count ?? 0}</td>
+                        <td className="py-3 px-4 border-b">
+                          <button onClick={() => setSelectedQuestDetails(quest)} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium mr-2">View</button>
+                          <button onClick={() => setShowDeleteQuestConfirm(quest.id)} className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-medium mr-2">Delete</button>
+                          <button className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">Disable</button>
+                        </td>
                       </tr>
-                    ) : (
-                      filteredQuests.map((quest) => (
-                        <tr key={quest.id} className="hover:bg-gray-50">
-                          <td className="py-3 px-4 border-b text-gray-900 font-medium cursor-pointer underline" onClick={() => setSelectedQuestDetails(quest)}>{quest.title}</td>
-                          <td className="py-3 px-4 border-b">{typeof quest.category === 'string' ? quest.category : quest.category?.name ?? '-'}</td>
-                          <td className="py-3 px-4 border-b">{quest.creator && typeof quest.creator === 'object' ? quest.creator.username : '-'}</td>
-                          <td className="py-3 px-4 border-b">{quest.created_at ? new Date(quest.created_at).toLocaleString() : '-'}</td>
-                          <td className="py-3 px-4 border-b capitalize">{quest.status}</td>
-                          <td className="py-3 px-4 border-b text-center">{typeof quest.reports_count === 'number' ? quest.reports_count : 0}</td>
-                          <td className="py-3 px-4 border-b">
-                            <button onClick={() => setSelectedQuestDetails(quest)} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium mr-2">View</button>
-                            <button onClick={() => setShowDeleteQuestConfirm(quest.id)} className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-medium mr-2">Delete</button>
-                            <button className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">Disable</button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -1272,38 +1553,16 @@ function AdminPanel({
           {/* Reports Tab */}
           {activeTab === "reports" && (
             <div className="py-8">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
-                <h3 className="text-xl font-bold text-[#2C1A1D]">Reports</h3>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
-                  <div className="flex items-center gap-2 mb-2 sm:mb-0">
-                    <label className="text-sm font-medium text-[#2C1A1D] mr-2">Filter:</label>
-                    <select
-                      className="border border-gray-300 rounded px-2 py-1 text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]"
-                      value={reportTypeFilter}
-                      onChange={e => setReportTypeFilter(e.target.value)}
-                    >
-                      <option value="all">All</option>
-                      <option value="user">User Reports</option>
-                      <option value="quest">Quest Reports</option>
-                    </select>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Search reports..."
-                    value={reportSearch}
-                    onChange={e => setReportSearch(e.target.value)}
-                    className="border border-gray-300 rounded px-2 py-1 text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] w-full sm:w-64"
-                  />
-                  {reportsLoading && <span className="text-[#8B75AA] ml-4">Loading reports...</span>}
-                  {reportsError && <span className="text-red-500 ml-4">Error: {reportsError}</span>}
-                </div>
+              <div className="flex justify-between items-center mb-8">
+                <h3 className="text-xl font-bold text-[#2C1A1D]">User Reports</h3>
+                {reportsLoading && <span className="text-[#8B75AA]">Loading reports...</span>}
+                {reportsError && <span className="text-red-500">Error: {reportsError}</span>}
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
                   <thead>
                     <tr className="bg-gray-50">
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Type</th>
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Reported</th>
+                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Reported User</th>
                       <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Reporter</th>
                       <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Reason</th>
                       <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Message</th>
@@ -1313,122 +1572,77 @@ function AdminPanel({
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredReports.length === 0 ? (
+                    {reports.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-8 text-center text-gray-500">
+                        <td colSpan={7} className="py-8 text-center text-gray-500">
                           {reportsLoading ? "Loading reports..." : "No reports found."}
                         </td>
                       </tr>
                     ) : (
-                      // Sort: unresolved first, then resolved
-                      [...filteredReports].sort((a, b) => (a.resolved === b.resolved ? 0 : a.resolved ? 1 : -1)).map((report: any) => {
-                        let createdAtString = '-';
-                        if (report.created_at) {
-                          try {
-                            const dateObj = new Date(report.created_at);
-                            if (!isNaN(dateObj.getTime())) {
-                              createdAtString = dateObj.toLocaleString();
-                            }
-                          } catch {}
-                        }
-                        const isUserReport = report.type === "user" || !!report.reported_user;
-                        // Use a unique key for each report type
-                        const reportKey = isUserReport
-                          ? `user-${report.id}`
-                          : `quest-${report.id}`;
-                        return (
-                          <tr key={reportKey} className="hover:bg-gray-50">
-                            <td className="py-3 px-4 border-b font-medium">
-                              {isUserReport ? (
-                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">User</span>
-                              ) : (
-                                <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs">Quest</span>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 border-b">
-                              {isUserReport ? (
-                                <div>
-                                  <div className="font-medium text-[#2C1A1D]">{report.reported_user?.username || report.reported_user_username || 'Unknown User'}</div>
-                                  <div className="text-sm text-gray-500">{report.reported_user?.email || ''}</div>
-                                </div>
-                              ) : (
-                                <div>
-                                  <div className="font-medium text-[#2C1A1D]">{report.reported_quest_title || 'Unknown Quest'}</div>
-                                  <div className="text-sm text-gray-500">Quest ID: {report.reported_quest}</div>
-                                </div>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 border-b">
-                              <div>
-                                <div className="font-medium text-[#2C1A1D]">{report.reporter?.username || report.reporter_username || 'Unknown Reporter'}</div>
-                                <div className="text-sm text-gray-500">{report.reporter?.email || ''}</div>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 border-b">
-                              <span className="inline-block px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
-                                {report.reason || 'No reason provided'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 border-b max-w-xs">
-                              <div className="truncate text-sm text-gray-600" title={report.message}>
-                                {report.message || 'No additional message'}
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 border-b text-sm text-gray-500">
-                              {createdAtString}
-                            </td>
-                            <td className="py-3 px-4 border-b">
-                              <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
-                                report.resolved 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}>
-                                {report.resolved ? 'Resolved' : 'Pending'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 border-b">
-                              <div className="flex gap-2">
-                                {!report.resolved && (
-                                  <button 
-                                    onClick={() => handleResolveReport(report.id, 'resolve', 'Marked as resolved by admin')}
-                                    className="px-3 py-1 bg-green-100 text-green-800 rounded text-xs font-medium hover:bg-green-200 transition-colors"
-                                  >
-                                    Resolve
-                                  </button>
-                                )}
+                      reports.map((report: any) => (
+                        <tr key={report.id} className="hover:bg-gray-50">
+                          <td className="py-3 px-4 border-b">
+                            <div>
+                              <div className="font-medium text-[#2C1A1D]">{report.reported_user?.username || 'Unknown User'}</div>
+                              <div className="text-sm text-gray-500">{report.reported_user?.email || ''}</div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 border-b">
+                            <div>
+                              <div className="font-medium text-[#2C1A1D]">{report.reporter?.username || 'Unknown Reporter'}</div>
+                              <div className="text-sm text-gray-500">{report.reporter?.email || ''}</div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 border-b">
+                            <span className="inline-block px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
+                              {report.reason || 'No reason provided'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 border-b max-w-xs">
+                            <div className="truncate text-sm text-gray-600" title={report.message}>
+                              {report.message || 'No additional message'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 border-b text-sm text-gray-500">
+                            {report.created_at ? new Date(report.created_at).toLocaleString() : '-'}
+                          </td>
+                          <td className="py-3 px-4 border-b">
+                            <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
+                              report.resolved 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {report.resolved ? 'Resolved' : 'Pending'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 border-b">
+                            <div className="flex gap-2">
+                              {!report.resolved && (
                                 <button 
-                                  onClick={() => setSelectedReport(report)}
-                                  className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium hover:bg-blue-200 transition-colors"
+                                  onClick={() => handleResolveReport(report.id, 'resolve', 'Marked as resolved by admin')}
+                                  className="px-3 py-1 bg-green-100 text-green-800 rounded text-xs font-medium hover:bg-green-200 transition-colors"
                                 >
-                                  View Details
+                                  Resolve
                                 </button>
-                                {isUserReport && !report.resolved && (
-                                  <button 
-                                    onClick={() => setShowBanConfirm(report.reported_user.id)}
-                                    className="px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-medium hover:bg-red-200 transition-colors"
-                                  >
-                                    Ban User
-                                  </button>
-                                )}
-                                {/* New: Delete and Disable actions for all reports */}
-                                <button
-                                  onClick={() => handleDeleteReport(report.id)}
+                              )}
+                              <button 
+                                onClick={() => setSelectedReport(report)}
+                                className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium hover:bg-blue-200 transition-colors"
+                              >
+                                View Details
+                              </button>
+                              {report.reported_user && (
+                                <button 
+                                  onClick={() => setShowBanConfirm(report.reported_user.id)}
                                   className="px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-medium hover:bg-red-200 transition-colors"
                                 >
-                                  Delete
+                                  Ban User
                                 </button>
-                                <button
-                                  onClick={() => alert('Disable action coming soon!')}
-                                  className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium hover:bg-yellow-200 transition-colors"
-                                  disabled={!!report.resolved}
-                                >
-                                  Disable
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
                     )}
                   </tbody>
                 </table>
@@ -1767,7 +1981,7 @@ function AdminPanel({
       {/* Guild Details Modal */}
       {selectedGuildDetails && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-md p-6">
+          <div className="bg-white rounded-lg w-full max-w-2xl p-6">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-[#2C1A1D]">Guild Details</h3>
               <button onClick={() => setSelectedGuildDetails(null)} className="text-gray-400 hover:text-gray-600">

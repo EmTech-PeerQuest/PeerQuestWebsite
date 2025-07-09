@@ -1,3 +1,120 @@
+# User Report API
+from .models import UserReport
+from .serializers import UserReportSerializer
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+
+class UserReportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        data = request.data.copy()
+        data['reporter'] = request.user.id
+
+        # Prevent self-reporting
+        if str(data.get('reported_user')) == str(request.user.id):
+            return Response({'success': False, 'message': 'You cannot report yourself.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if reported user is staff or superuser
+        from .models import User
+        try:
+            reported_user = User.objects.get(id=data.get('reported_user'))
+        except User.DoesNotExist:
+            return Response({'success': False, 'message': 'Reported user not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if reported_user.is_superuser or reported_user.is_staff:
+            return Response({'success': False, 'message': 'You cannot report staff or superusers.'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = UserReportSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'success': True, 'message': 'User reported successfully.'}, status=status.HTTP_201_CREATED)
+        return Response({'success': False, 'errors': serializer.errors, 'message': 'Failed to report user.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, pk=None):
+        # Mark a user report as resolved (admin only)
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        report_id = pk or request.data.get('id')
+        if not report_id:
+            return Response({'detail': 'Report ID required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            report = UserReport.objects.get(id=report_id)
+        except UserReport.DoesNotExist:
+            return Response({'detail': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+        report.status = 'resolved'
+        report.save()
+        return Response({'success': True, 'message': 'User report resolved.'}, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk=None):
+        # Allow admin to delete a user report
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        report_id = pk or request.data.get('id')
+        if not report_id:
+            return Response({'detail': 'Report ID required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            report = UserReport.objects.get(id=report_id)
+        except UserReport.DoesNotExist:
+            return Response({'detail': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+        report.delete()
+        return Response({'success': True, 'message': 'User report deleted.'}, status=status.HTTP_200_OK)
+
+# Quest Report API
+from .models import QuestReport
+from .serializers import QuestReportSerializer
+from quests.models import Quest
+
+class QuestReportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        data = request.data.copy()
+        data['reporter'] = request.user.id
+
+        # Prevent reporting own quest
+        try:
+            quest = Quest.objects.get(id=data.get('reported_quest'))
+        except Quest.DoesNotExist:
+            return Response({'success': False, 'message': 'Reported quest not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if str(quest.creator.id) == str(request.user.id):
+            return Response({'success': False, 'message': 'You cannot report your own quest.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = QuestReportSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'success': True, 'message': 'Quest reported successfully.'}, status=status.HTTP_201_CREATED)
+        return Response({'success': False, 'errors': serializer.errors, 'message': 'Failed to report quest.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, pk=None):
+        # Mark a quest report as resolved (admin only)
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        report_id = pk or request.data.get('id')
+        if not report_id:
+            return Response({'detail': 'Report ID required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            report = QuestReport.objects.get(id=report_id)
+        except QuestReport.DoesNotExist:
+            return Response({'detail': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+        report.status = 'resolved'
+        report.save()
+        return Response({'success': True, 'message': 'Quest report resolved.'}, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk=None):
+        # Allow admin to delete a quest report
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        report_id = pk or request.data.get('id')
+        if not report_id:
+            return Response({'detail': 'Report ID required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            report = QuestReport.objects.get(id=report_id)
+        except QuestReport.DoesNotExist:
+            return Response({'detail': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+        report.delete()
+        return Response({'success': True, 'message': 'Quest report deleted.'}, status=status.HTTP_200_OK)
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from .models import BanAppeal, ActionLog
@@ -52,7 +169,7 @@ from rest_framework.response import Response
 from django.core.exceptions import ValidationError
 from .serializers import (
     UserProfileSerializer, RegisterSerializer, UserInfoUpdateSerializer,
-    UserSkillSerializer, SkillsManagementSerializer
+    UserSkillSerializer, SkillsManagementSerializer, UserSearchSerializer
 )
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import RefreshToken

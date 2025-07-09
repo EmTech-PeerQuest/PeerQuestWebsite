@@ -1,18 +1,20 @@
 "use client"
 
 import { useState } from "react"
-import { Clock, Star, Users, User, Calendar, CheckCircle, AlertCircle, Eye, Edit } from "lucide-react"
+import { Clock, Star, Users, User, Calendar, CheckCircle, AlertCircle, Eye, Edit, Flag } from "lucide-react"
+
 import { Quest } from "@/lib/types"
 import { formatTimeRemaining } from "@/lib/utils"
 
 interface TavernQuestCardProps {
-  quest: Quest
-  currentUser?: any
-  onViewDetails: (quest: Quest) => void
-  onLeaveQuest?: (quest: Quest) => void
-  onEditQuest?: (quest: Quest) => void
-  onViewApplications?: (quest: Quest) => void
-  showActions?: boolean
+  quest: Quest;
+  currentUser?: any;
+  onViewDetails: (quest: Quest) => void;
+  onLeaveQuest?: (quest: Quest) => void;
+  onEditQuest?: (quest: Quest) => void;
+  onViewApplications?: (quest: Quest) => void;
+  showActions?: boolean;
+  onReportQuest?: (quest: Quest) => void;
 }
 
 export function TavernQuestCard({
@@ -22,7 +24,8 @@ export function TavernQuestCard({
   onLeaveQuest,
   onEditQuest,
   onViewApplications,
-  showActions = true
+  showActions = true,
+  onReportQuest
 }: TavernQuestCardProps) {
   const [isLoading, setIsLoading] = useState(false)
 
@@ -114,6 +117,7 @@ export function TavernQuestCard({
     return "Overdue"
   }
 
+  const canReportQuest = currentUser && quest.creator.id !== currentUser.id;
   return (
     <div
       className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer group focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
@@ -158,6 +162,15 @@ export function TavernQuestCard({
       </div>
       {/* White Body Section */}
       <div className="p-4">
+        {canReportQuest && onReportQuest && (
+          <button
+            className="mb-2 flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors text-xs font-medium"
+            onClick={e => { e.stopPropagation(); onReportQuest(quest); }}
+            title="Report this quest"
+          >
+            <Flag size={14} /> Report
+          </button>
+        )}
         {/* Reward Section */}
         <div className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-lg p-3 mb-4">
           <div className="flex items-center justify-center gap-8">

@@ -408,6 +408,11 @@ export function QuestBoard({
                 onEditQuest={handleEditQuest}
                 onViewApplications={handleViewApplications}
                 showActions={true}
+                onReportQuest={() => {
+                  setSelectedQuest(quest);
+                  setShowQuestDetails(true);
+                  // The QuestDetailsModal already has the report modal logic
+                }}
               />
             ))}
           </div>

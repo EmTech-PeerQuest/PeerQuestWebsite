@@ -1,7 +1,25 @@
+# ...existing imports...
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
-from .models import User, BanAppeal, BanAppealFile
+from .models import User, BanAppeal, UserReport, QuestReport
+# UserReport admin registration
+@admin.register(UserReport)
+class UserReportAdmin(admin.ModelAdmin):
+    list_display = ('id', 'reported_user', 'reporter', 'reason', 'created_at', 'resolved', 'resolved_by', 'resolved_at')
+    list_filter = ('resolved', 'reason', 'created_at')
+    search_fields = ('reported_user__username', 'reporter__username', 'reason', 'message')
+    date_hierarchy = 'created_at'
+    readonly_fields = ('created_at',)
+
+# QuestReport admin registration
+@admin.register(QuestReport)
+class QuestReportAdmin(admin.ModelAdmin):
+    list_display = ('id', 'reported_quest', 'reporter', 'reason', 'created_at', 'resolved', 'resolved_by', 'resolved_at')
+    list_filter = ('resolved', 'reason', 'created_at')
+    search_fields = ('reported_quest__id', 'reporter__username', 'reason', 'message')
+    date_hierarchy = 'created_at'
+    readonly_fields = ('created_at',)
 # BanAppeal admin registration
 @admin.register(BanAppeal)
 class BanAppealAdmin(admin.ModelAdmin):
@@ -11,14 +29,7 @@ class BanAppealAdmin(admin.ModelAdmin):
     date_hierarchy = 'created_at'
     readonly_fields = ('created_at',)
 
-# BanAppealFile admin registration (optional, for file management)
-@admin.register(BanAppealFile)
-class BanAppealFileAdmin(admin.ModelAdmin):
-    list_display = ('id', 'appeal', 'file', 'uploaded_at')
-    list_filter = ('uploaded_at',)
-    search_fields = ('appeal__user__username', 'file')
-    date_hierarchy = 'uploaded_at'
-    readonly_fields = ('uploaded_at',)
+# Note: BanAppealFile model not present, registration removed
 from django.contrib import messages
 
 @admin.register(User)

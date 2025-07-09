@@ -1,7 +1,38 @@
+
+
+# User Report Serializer
+from rest_framework import serializers
+from .models import UserReport, QuestReport
+
+class UserReportSerializer(serializers.ModelSerializer):
+    reporter_username = serializers.CharField(source='reporter.username', read_only=True)
+    reported_user_username = serializers.CharField(source='reported_user.username', read_only=True)
+
+    class Meta:
+        model = UserReport
+        fields = [
+            'id', 'reported_user', 'reporter', 'reason', 'message', 'created_at',
+            'resolved', 'resolved_by', 'resolved_at',
+            'reporter_username', 'reported_user_username',
+        ]
+        read_only_fields = ['id', 'created_at', 'resolved', 'resolved_by', 'resolved_at', 'reporter_username', 'reported_user_username']
+
+# Quest Report Serializer
+class QuestReportSerializer(serializers.ModelSerializer):
+    reporter_username = serializers.CharField(source='reporter.username', read_only=True)
+    reported_quest_title = serializers.CharField(source='reported_quest.title', read_only=True)
+
+    class Meta:
+        model = QuestReport
+        fields = [
+            'id', 'reported_quest', 'reporter', 'reason', 'message', 'created_at',
+            'resolved', 'resolved_by', 'resolved_at',
+            'reporter_username', 'reported_quest_title',
+        ]
+        read_only_fields = ['id', 'created_at', 'resolved', 'resolved_by', 'resolved_at', 'reporter_username', 'reported_quest_title']
 from .validators import PROFANITY_LIST, LEET_MAP, levenshtein, normalize_username
 from itertools import product
 import unicodedata
-from rest_framework import serializers
 from .models import User, UserRole, COLLEGE_SKILLS, Skill, UserSkill
 from django.contrib.auth.password_validation import validate_password
 

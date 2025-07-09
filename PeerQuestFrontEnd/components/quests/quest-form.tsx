@@ -178,9 +178,17 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
           description: quest.description,
           category: quest.category.id,
           difficulty: quest.difficulty as DifficultyTier,
-          due_date: quest.due_date ? quest.due_date.split('T')[0] : "",
-          requirements: quest.requirements || "",
-          resources: quest.resources || "",
+          due_date: typeof quest.due_date === "string"
+            ? quest.due_date.split("T")[0]
+            : Array.isArray(quest.due_date)
+            ? (quest.due_date[0] ? String(quest.due_date[0]) : "")
+            : "",
+          requirements: Array.isArray(quest.requirements)
+            ? (quest.requirements[0] ? String(quest.requirements[0]) : "")
+            : (quest.requirements || ""),
+          resources: Array.isArray(quest.resources)
+            ? (quest.resources[0] ? String(quest.resources[0]) : "")
+            : (quest.resources || ""),
         })
         // Calculate budget from existing quest reward (reverse calculation)
         const existingReward = quest.gold_reward || 0;
@@ -889,7 +897,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                 type="date"
                 id="due_date"
                 name="due_date"
-                value={formData.due_date}
+                value={Array.isArray(formData.due_date) ? (formData.due_date.length > 0 ? formData.due_date[0] : "") : (formData.due_date || "")}
                 onChange={handleChange}
                 min={new Date().toISOString().split('T')[0]} // Prevent past dates
                 max={new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]} // Max 1 year

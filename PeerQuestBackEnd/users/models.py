@@ -1,3 +1,33 @@
+# User Report model for reporting users
+from django.db import models
+
+class UserReport(models.Model):
+    reported_user = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='reports_against')
+    reporter = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='reports_made')
+    reason = models.CharField(max_length=255)
+    message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved = models.BooleanField(default=False)
+    resolved_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='resolved_reports')
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Report by {self.reporter.username} against {self.reported_user.username} at {self.created_at}"
+
+# Quest Report model for reporting quests
+class QuestReport(models.Model):
+    from quests.models import Quest
+    reported_quest = models.ForeignKey('quests.Quest', on_delete=models.CASCADE, related_name='reports_against')
+    reporter = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='quest_reports_made')
+    reason = models.CharField(max_length=255)
+    message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved = models.BooleanField(default=False)
+    resolved_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='resolved_quest_reports')
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"QuestReport by {self.reporter.username} against Quest {self.reported_quest.id} at {self.created_at}"
 
 
 # Ban Appeal model for user ban appeals
