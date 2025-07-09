@@ -74,8 +74,5 @@ git pull origin your-branch
 git fetch origin
 git merge origin/main
 
-
-//////////AI API KEY////////////
-#Attach this to .env
 # Groq API Key for AI chatbot
 to view api please check emtech documentation
