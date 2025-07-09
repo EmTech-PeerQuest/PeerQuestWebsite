@@ -1,4 +1,3 @@
-
 from pathlib import Path
 import os
 from dotenv import load_dotenv
@@ -266,6 +265,13 @@ DJRESTAUTH_TOKEN_MODEL = None
 
 # Default primary key type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# OAuth2 Provider models (fixes makemigrations error)
+OAUTH2_PROVIDER_ACCESS_TOKEN_MODEL = 'oauth2_provider.AccessToken'
+OAUTH2_PROVIDER_APPLICATION_MODEL = 'oauth2_provider.Application'
+OAUTH2_PROVIDER_ID_TOKEN_MODEL = 'oauth2_provider.IDToken'
+OAUTH2_PROVIDER_GRANT_MODEL = 'oauth2_provider.Grant'
+OAUTH2_PROVIDER_REFRESH_TOKEN_MODEL = 'oauth2_provider.RefreshToken'
 
 # Add CSRF trusted origins for frontend
 CSRF_TRUSTED_ORIGINS = [
