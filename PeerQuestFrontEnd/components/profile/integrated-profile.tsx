@@ -361,21 +361,7 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
                   ))}
                 </div>
               ) : (
-                <div>
-                  <div className="border-b border-[#CDAA7D] pb-4 mb-4">
-                    <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
-                      <h4 className="font-medium">WRITE TAVERN LORE</h4>
-                      <span className="text-[#8B75AA] font-medium">250 XP</span>
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      Looking for a skilled writer to create lore and stories about the PeerQuest Tavern's history.
-                    </p>
-                    <div className="flex flex-col sm:flex-row sm:justify-between gap-2 text-sm">
-                      <span>Reward: 400 Gold</span>
-                      <span>Completed: 6/3/2025</span>
-                    </div>
-                  </div>
-                </div>
+                <p className="text-gray-500 text-sm">No completed quests.</p>
               )}
             </div>
           </div>
