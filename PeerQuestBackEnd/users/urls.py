@@ -1,4 +1,3 @@
-
 from django.urls import path
 from .views import (
     UserProfileView, RegisterView, GoogleLoginCallbackView, 
@@ -11,6 +10,7 @@ from .views import (
 from .admin_views import AdminUserListView, AdminUserBanView, AdminUserUnbanView, AdminUserDeleteView, AdminReportsListView
 from .ban_appeal_views import BanAppealSubmitView, BanAppealListView, BanAppealReviewView
 from .action_log_views import ActionLogListView
+from .ai_chatbot_proxy import AIChatbotProxyView
 
 urlpatterns = [
     path("register/", RegisterView.as_view(), name="register"),
@@ -55,4 +55,6 @@ urlpatterns = [
     path("ban-appeal/<int:appeal_id>/review/", BanAppealReviewView.as_view(), name="ban-appeal-review"),
     # Action Log API
     path("action-log/", ActionLogListView.as_view(), name="action-log-list"),
+    # AI Chatbot API (Proxy)
+    path("ai-chat/", AIChatbotProxyView.as_view(), name="ai-chatbot-proxy"),
 ]

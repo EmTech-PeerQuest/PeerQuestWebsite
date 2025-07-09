@@ -75,3 +75,7 @@ git fetch origin
 git merge origin/main
 
 
+//////////AI API KEY////////////
+#Attach this to .env
+# Groq API Key for AI chatbot
+GROQ_API_KEY=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
