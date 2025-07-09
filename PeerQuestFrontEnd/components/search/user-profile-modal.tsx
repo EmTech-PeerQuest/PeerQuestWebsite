@@ -50,6 +50,13 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
     }
     return "?";
   }
+  // XP/Level calculation (same as integrated-profile)
+  const xpForNextLevel = 1000;
+  const userXp = typeof user.xp === 'number' && user.xp > 0 ? user.xp : 0;
+  const userLevel = Math.floor(userXp / xpForNextLevel) + 1;
+  const xpThisLevel = userXp % xpForNextLevel;
+  const xpProgress = (xpThisLevel / xpForNextLevel) * 100;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-2xl shadow-2xl border border-[#CDAA7D] max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-all">
@@ -83,12 +90,18 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
               {user.displayName || user.username}
             </h2>
             <p className="text-white/80 text-lg mb-1">@{user.username}</p>
-            <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-2">
-              <span className="bg-[#8B75AA] text-white text-sm px-4 py-1 rounded-full font-semibold shadow">Level {user.level || 1}</span>
-              <span className="bg-[#2C1A1D] text-white text-sm px-4 py-1 rounded-full font-semibold shadow">{user.xp || 0} XP</span>
-              {user.roleDisplay && (
-                <span className="bg-[#CDAA7D] text-[#2C1A1D] text-sm px-4 py-1 rounded-full font-semibold shadow">{user.roleDisplay}</span>
-              )}
+            <div className="flex flex-col gap-2 w-full max-w-xs mt-2">
+              <div className="flex flex-wrap justify-center md:justify-start gap-2">
+                <span className="bg-[#8B75AA] text-white text-sm px-4 py-1 rounded-full font-semibold shadow">Level {userLevel}</span>
+                <span className="bg-[#2C1A1D] text-white text-sm px-4 py-1 rounded-full font-semibold shadow">{xpThisLevel} / {xpForNextLevel} XP</span>
+                {user.roleDisplay && (
+                  <span className="bg-[#CDAA7D] text-[#2C1A1D] text-sm px-4 py-1 rounded-full font-semibold shadow">{user.roleDisplay}</span>
+                )}
+              </div>
+              {/* XP Progress Bar */}
+              <div className="w-full bg-[#2C1A1D] rounded-full h-2">
+                <div className="bg-[#CDAA7D] h-2 rounded-full transition-all duration-300" style={{ width: `${xpProgress}%` }}></div>
+              </div>
             </div>
           </div>
         </div>
