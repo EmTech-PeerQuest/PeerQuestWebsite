@@ -307,17 +307,18 @@ function AdminPanel({
   const activeUsers = users.filter((user) => !user.isBanned).length
   const bannedUsers = users.filter((user) => user.isBanned).length
 
-  // Count open, completed quests
-  const openQuests = quests.filter((quest) => quest.status === "open").length
-  const completedQuests = quests.filter((quest) => quest.status === "completed").length
+  // Count open, completed quests (robust to non-array quests)
+  const safeQuests = Array.isArray(quests) ? quests : [];
+  const openQuests = safeQuests.filter((quest) => quest.status === "open").length;
+  const completedQuests = safeQuests.filter((quest) => quest.status === "completed").length;
 
   // Quest search state
   const [questSearch, setQuestSearch] = useState("");
   // Filtered and searched quests
   const filteredQuests = useMemo(() => {
-    if (!questSearch.trim()) return quests;
+    if (!questSearch.trim()) return safeQuests;
     const q = questSearch.trim().toLowerCase();
-    return quests.filter((quest: any) => {
+    return safeQuests.filter((quest: any) => {
       const title = (quest.title || "").toLowerCase();
       const author = (quest.creator?.username || "").toLowerCase();
       const category = (typeof quest.category === 'string' ? quest.category : quest.category?.name || "").toLowerCase();
@@ -327,7 +328,7 @@ function AdminPanel({
         category.includes(q)
       );
     });
-  }, [quests, questSearch]);
+  }, [safeQuests, questSearch]);
 
 
   // Ban Appeals State
