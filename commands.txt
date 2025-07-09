@@ -78,5 +78,4 @@ git merge origin/main
 //////////AI API KEY////////////
 #Attach this to .env
 # Groq API Key for AI chatbot
-GROQ_API_KEY=add your api key 
-
+to view api please check emtech documentation
