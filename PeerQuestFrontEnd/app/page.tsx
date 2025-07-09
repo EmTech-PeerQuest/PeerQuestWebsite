@@ -100,7 +100,14 @@ export default function Home() {
   return (
     <ToastProvider>
       {showInitialLoading && <LoadingModal message="Loading your adventure..." />}
-      <main className="min-h-screen bg-[#F4F0E6]">
+      <main
+        className={`${
+          activeSection === "messages"
+            ? "h-screen overflow-hidden"
+            : "min-h-screen overflow-auto"
+        } bg-[#F4F0E6]`}
+      >
+
         <Navbar
           currentUser={currentUser}
           setActiveSection={handleSectionChange}
@@ -247,7 +254,7 @@ export default function Home() {
 
         <AIChatbot currentUser={currentUser} />
 
-        <Footer />
+        {activeSection !== "messages" && <Footer />}
       </main>
     </ToastProvider>
   )

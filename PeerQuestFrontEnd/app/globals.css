@@ -2,11 +2,88 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Tavern Color Variables */
 :root {
   --tavern-dark: #2c1a1d;
   --tavern-cream: #f4f0e6;
   --tavern-gold: #cdaa7d;
   --tavern-purple: #8b75aa;
+}
+
+/* Force tavern styling */
+.tavern-bg {
+  background: linear-gradient(135deg, #f4f0e6 0%, #e8dcc0 100%) !important;
+}
+
+.tavern-card {
+  background: linear-gradient(135deg, #f4f0e6 0%, rgba(244, 240, 230, 0.9) 100%) !important;
+  border: 2px solid #cdaa7d !important;
+  box-shadow: 0 4px 16px rgba(44, 26, 29, 0.15) !important;
+}
+
+.tavern-header {
+  background: linear-gradient(135deg, #2c1a1d 0%, #3d2a2f 100%) !important;
+  color: #f4f0e6 !important;
+  border-bottom: 3px solid #cdaa7d !important;
+}
+
+.tavern-text {
+  color: #2c1a1d !important;
+}
+
+.tavern-text-light {
+  color: #8b75aa !important;
+}
+
+.tavern-font {
+  font-family: "Papyrus", "Bradley Hand", "Brush Script MT", cursive !important;
+  font-weight: bold !important;
+}
+
+.tavern-button {
+  background: linear-gradient(135deg, #cdaa7d 0%, #e6c78a 100%) !important;
+  color: #2c1a1d !important;
+  border: 2px solid #8b75aa !important;
+  transition: all 0.3s ease !important;
+}
+
+.tavern-button:hover {
+  background: linear-gradient(135deg, #e6c78a 0%, #cdaa7d 100%) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 24px rgba(205, 170, 125, 0.4) !important;
+}
+
+.tavern-input {
+  background: rgba(244, 240, 230, 0.9) !important;
+  border: 2px solid #cdaa7d !important;
+  color: #2c1a1d !important;
+}
+
+.tavern-input:focus {
+  border-color: #8b75aa !important;
+  box-shadow: 0 0 0 3px rgba(139, 117, 170, 0.2) !important;
+  background: #f4f0e6 !important;
+}
+
+.tavern-message-own {
+  background: linear-gradient(135deg, #cdaa7d 0%, #e6c78a 100%) !important;
+  color: #2c1a1d !important;
+  border: 2px solid #8b75aa !important;
+}
+
+.tavern-message-other {
+  background: linear-gradient(135deg, white 0%, rgba(244, 240, 230, 0.9) 100%) !important;
+  color: #2c1a1d !important;
+  border: 2px solid #cdaa7d !important;
+}
+
+.tavern-pattern {
+  background-image: linear-gradient(45deg, rgba(205, 170, 125, 0.05) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(139, 117, 170, 0.05) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(205, 170, 125, 0.05) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(139, 117, 170, 0.05) 75%) !important;
+  background-size: 20px 20px !important;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px !important;
 }
 
 * {
@@ -476,27 +553,6 @@ body {
   color: var(--tavern-gold);
 }
 
-.tavern-header {
-  background-color: var(--tavern-dark);
-  color: var(--tavern-cream);
-  padding: 4px 0;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.tavern-card {
-  background-color: white;
-  border: 1px solid var(--tavern-gold);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transition: box-shadow 0.3s ease;
-}
-
-.tavern-card-header {
-  background-color: rgba(205, 170, 125, 0.2);
-  padding: 4px 0;
-}
-
 .tavern-section-title {
   font-size: 2.25rem;
   font-weight: bold;
@@ -516,16 +572,13 @@ body {
   .stats-grid {
     grid-template-columns: 1fr;
   }
-
   .filter-section {
     padding: 16px;
   }
-
   .modal-content {
     margin: 16px;
     max-width: calc(100vw - 32px);
   }
-
   .btn {
     padding: 10px 16px;
     font-size: 14px;
@@ -560,4 +613,111 @@ body {
   height: 64px;
   margin: 0 auto 16px;
   opacity: 0.5;
+}
+
+/* Ensure proper scrolling for message containers */
+.message-container {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar for message list */
+.message-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.message-container::-webkit-scrollbar-track {
+  background: rgba(139, 117, 170, 0.1);
+  border-radius: 3px;
+}
+
+.message-container::-webkit-scrollbar-thumb {
+  background: rgba(205, 170, 125, 0.5);
+  border-radius: 3px;
+}
+
+.message-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(205, 170, 125, 0.7);
+}
+
+html,
+body {
+  height: 100%;
+  overflow-y: auto;
+}
+
+
+
+#__next {
+  height: 100%;
+}
+
+/* Ensure proper flex behavior */
+.flex-1 {
+  flex: 1 1 0%;
+}
+
+.min-h-0 {
+  min-height: 0px;
+}
+
+/* Loading screen styles */
+.tavern-loading-screen {
+  display: flex;
+  height: 100vh;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f4f0e6 0%, #e8dcc0 100%);
+}
+
+.tavern-loading-card {
+  text-align: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, white 0%, rgba(244, 240, 230, 0.9) 100%);
+  border: 2px solid #cdaa7d;
+  border-radius: 1rem;
+  box-shadow: 0 8px 32px rgba(44, 26, 29, 0.2);
+}
+
+.tavern-loading-icon {
+  position: relative;
+  margin: 0 auto 2rem;
+  width: 4rem;
+  height: 4rem;
+}
+
+.scroll-icon {
+  width: 4rem;
+  height: 4rem;
+  color: #8b75aa;
+}
+
+.spinner-icon {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2rem;
+  height: 2rem;
+  color: #cdaa7d;
+  animation: spin 1s linear infinite;
+}
+
+.tavern-loading-title {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #2c1a1d;
+  margin-bottom: 0.5rem;
+  font-family: "Papyrus", "Bradley Hand", cursive;
+}
+
+.tavern-loading-subtitle {
+  color: #8b75aa;
+  margin-bottom: 1rem;
+}
+
+.connection-icon {
+  width: 1rem;
+  height: 1rem;
 }

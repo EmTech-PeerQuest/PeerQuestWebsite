@@ -180,6 +180,19 @@ class SendMessageView(APIView):
                 })
 
             message_data = MessageSerializer(message).data
+            # ✅ Broadcast over WebSocket
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"chat_{conversation.id}",
+                {
+                    "type": "chat.message",
+                    "message": message_data,
+                    "temp_id": None,
+                }
+            )
+
             return Response(message_data, status=201)
 
         except Exception as e:

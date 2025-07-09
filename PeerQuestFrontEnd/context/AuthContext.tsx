@@ -1,140 +1,219 @@
-'use client';
+"use client"
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import type React from "react"
+import { createContext, useContext, useEffect, useState } from "react"
 import {
   login as apiLogin,
   register as apiRegister,
   fetchUser as fetchUserApi,
-  logout as apiLogout,
-  TokenInvalidError
-} from '@/lib/api/auth';
-import { useRouter } from 'next/navigation';
-import ThemedLoading from '@/components/ui/themed-loading';
-import { toast } from '@/hooks/use-toast';
-
-interface User {
-  id: string;
-  username: string;
-  email: string;
-  avatar_url?: string;
-}
+  TokenInvalidError,
+} from "@/lib/api/auth"
+import { useRouter } from "next/navigation"
+import { toast } from "@/hooks/use-toast"
+import type { User } from "@/lib/types"
 
 interface AuthContextProps {
-  user: User | null;
-  token?: string | null; // Optional token for API calls
-  login: (credentials: { username: string; password: string }) => Promise<void>;
+  user: User | null
+  token: string | null
+  isLoading: boolean
+  login: (credentials: { username: string; password: string }) => Promise<void>
   register: (data: {
-    username: string;
-    email: string;
-    password: string;
-    confirmPassword?: string;
-  }) => Promise<void>;
-  logout: () => void;
+    username: string
+    email: string
+    password: string
+    confirmPassword?: string
+  }) => Promise<void>
+  logout: () => void
+  updateUser: (userData: Partial<User>) => void
 }
 
 const AuthContext = createContext<AuthContextProps>({
   user: null,
   token: null,
+  isLoading: true,
   login: async () => {},
   register: async () => {},
-  logout: () => {}
-});
+  logout: () => {},
+  updateUser: () => {},
+})
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('user');
-      return stored ? JSON.parse(stored) : null;
-    }
-    return null;
-  });
+  // Initialize with null to prevent hydration mismatch
+  const [user, setUser] = useState<User | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [mounted, setMounted] = useState(false)
+  const router = useRouter()
 
-  const [token, setToken] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('access_token');
-    }
-    return null;
-  });
-
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  // Ensure component is mounted before accessing localStorage
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const loadUser = async (token: string) => {
     try {
-      const res = await fetchUserApi(token);
-      setUser(res.data);
-      localStorage.setItem('user', JSON.stringify(res.data));
-      setToken(token);
+      const apiUser = await fetchUserApi(token) as any
+
+      const mappedUser: User = {
+        id: apiUser.id?.toString() || apiUser.pk?.toString() || "",
+        username: apiUser.username || "",
+        email: apiUser.email || "",
+        avatar: apiUser.avatar_url || apiUser.avatar,
+        isOnline: true,
+        lastSeen: new Date().toISOString(),
+        roles: apiUser.roles || [],
+        createdAt: apiUser.created_at || apiUser.date_joined || new Date().toISOString(),
+        level: apiUser.level || 1,
+        xp: apiUser.xp || 0,
+        gold: apiUser.gold || 0,
+        bio: apiUser.bio || "",
+      }
+
+      setUser(mappedUser)
+      if (mounted && typeof window !== "undefined") {
+        localStorage.setItem("user", JSON.stringify(mappedUser))
+      }
+      setToken(token)
     } catch (err) {
       if (err instanceof TokenInvalidError) {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('user');
-        setUser(null);
-        setToken(null);
+        if (mounted && typeof window !== "undefined") {
+          localStorage.removeItem("access_token")
+          localStorage.removeItem("user")
+        }
+        setUser(null)
+        setToken(null)
         toast({
-          title: 'Session expired',
-          description: 'Your session has expired. Please log in again.',
-          variant: 'destructive'
-        });
-        router.push('/');
+          title: "Session expired",
+          description: "Your session has expired. Please log in again.",
+          variant: "destructive",
+        })
+        router.push("/")
       } else {
-        setUser(null);
-        setToken(null);
-        localStorage.removeItem('user');
+        console.error("Error loading user:", err)
+        setUser(null)
+        setToken(null)
+        if (mounted && typeof window !== "undefined") {
+          localStorage.removeItem("access_token")
+          localStorage.removeItem("user")
+        }
       }
     } finally {
-      setLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   const login = async ({ username, password }: { username: string; password: string }) => {
-    const res = await apiLogin(username, password);
-    const access = res.data.access;
-    localStorage.setItem('access_token', access);
-    await loadUser(access);
-  };
+    try {
+      const res = await apiLogin(username, password)
+      const { access } = res
+
+
+      if (!access) {
+        throw new Error("No access token received from server")
+      }
+
+      if (mounted && typeof window !== "undefined") {
+        localStorage.setItem("access_token", access)
+      }
+      await loadUser(access)
+    } catch (err: any) {
+      console.error("Login error:", err)
+      toast({
+        title: "Login failed",
+        description: err?.message || "Please check your credentials and try again.",
+        variant: "destructive",
+      })
+      throw err
+    }
+  }
 
   const register = async (data: {
-    username: string;
-    email: string;
-    password: string;
-    confirmPassword?: string;
+    username: string
+    email: string
+    password: string
+    confirmPassword?: string
   }) => {
     try {
-      await apiRegister(data);
-      await login({ username: data.username, password: data.password });
+      await apiRegister(data)
+      await login({ username: data.username, password: data.password })
     } catch (err: any) {
       toast({
-        title: 'Registration failed',
-        description: err?.message || 'Please try again.',
-        variant: 'destructive'
-      });
-      throw err;
+        title: "Registration failed",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      })
+      throw err
     }
-  };
+  }
 
   const logout = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('user');
-    setUser(null);
-    setToken(null);
-    router.push('/');
-  };
-
-  useEffect(() => {
-    const savedToken = localStorage.getItem('access_token');
-    if (savedToken) {
-      loadUser(savedToken);
-    } else {
-      setLoading(false);
+    if (mounted && typeof window !== "undefined") {
+      localStorage.removeItem("access_token")
+      localStorage.removeItem("user")
     }
-  }, []);
+    setUser(null)
+    setToken(null)
+    router.push("/")
+  }
+
+  const updateUser = (userData: Partial<User>) => {
+    if (user) {
+      const updatedUser = { ...user, ...userData }
+      setUser(updatedUser)
+      if (mounted && typeof window !== "undefined") {
+        localStorage.setItem("user", JSON.stringify(updatedUser))
+      }
+    }
+  }
+
+  // Only run after component is mounted to prevent hydration mismatch
+  useEffect(() => {
+    if (!mounted) return
+
+    const initializeAuth = async () => {
+      try {
+        if (typeof window === "undefined") {
+          setIsLoading(false)
+          return
+        }
+
+        const savedToken = localStorage.getItem("access_token")
+        const savedUser = localStorage.getItem("user")
+
+        if (savedToken && savedUser) {
+          try {
+            const parsedUser = JSON.parse(savedUser)
+            setUser(parsedUser)
+            setToken(savedToken)
+          } catch (parseError) {
+            console.warn("Failed to parse saved user data:", parseError)
+            localStorage.removeItem("user")
+          }
+
+          await loadUser(savedToken)
+        } else {
+          setIsLoading(false)
+        }
+      } catch (error) {
+        console.error("Auth initialization error:", error)
+        setIsLoading(false)
+      }
+    }
+
+    initializeAuth()
+  }, [mounted])
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout }}>
-      {loading ? <ThemedLoading /> : children}
+    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout, updateUser }}>
+      {children}
     </AuthContext.Provider>
-  );
-};
+  )
+}
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider")
+  }
+  return context
+}

@@ -1,9 +1,11 @@
 "use client"
 
-import React, { useEffect, useRef } from "react"
+import type React from "react"
+import { useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import type { Message, User, UserStatus } from "@/lib/types"
-import MessageBubble from "./MessageBubble"
+import MessageBubble from "./message-bubble"
+import { Scroll } from "lucide-react"
 
 type MessageListProps = {
   messages: Message[]
@@ -12,12 +14,7 @@ type MessageListProps = {
   onlineUsers: Map<string, UserStatus>
 }
 
-const MessageList: React.FC<MessageListProps> = ({
-  messages,
-  currentUserId,
-  renderAvatar,
-  onlineUsers,
-}) => {
+const MessageList: React.FC<MessageListProps> = ({ messages, currentUserId, renderAvatar, onlineUsers }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
@@ -25,8 +22,7 @@ const MessageList: React.FC<MessageListProps> = ({
     const container = containerRef.current
     if (!container) return
 
-    const atBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight < 200
+    const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 200
 
     const lastMsg = messages.at(-1)
     if (atBottom || lastMsg?.sender.id === currentUserId) {
@@ -37,33 +33,41 @@ const MessageList: React.FC<MessageListProps> = ({
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50 min-h-0"
+      className="h-full overflow-y-auto overflow-x-hidden p-4 space-y-2"
+      style={{
+        backgroundColor: "#f8fafc",
+        backgroundImage: `
+        linear-gradient(45deg, rgba(203, 213, 225, 0.1) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(148, 163, 184, 0.1) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(203, 213, 225, 0.1) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(148, 163, 184, 0.1) 75%)
+      `,
+        backgroundSize: "20px 20px",
+        backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0px",
+      }}
       aria-live="polite"
       role="log"
     >
       {messages.length === 0 ? (
-        <motion.p
-          className="text-center text-gray-400 text-sm mt-6"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
+        <div
         >
-          No messages yet. Say hello!
-        </motion.p>
+          <div className="w-16 h-16 mb-4 opacity-50">
+            <Scroll className="w-full h-full" style={{ color: "#8b75aa" }} />
+          </div>
+          <h3 className="text-lg font-semibold mb-2" style={{ color: "#2c1a1d" }}>
+            No messages yet
+          </h3>
+          <p style={{ color: "#8b75aa" }}>Start the conversation by sending a message!</p>
+        </div>
       ) : (
         <AnimatePresence initial={false}>
           {messages.map((msg, i) => {
             const isOwn = msg.sender.id === currentUserId
-            const showAvatar =
-              !isOwn && (i === 0 || messages[i - 1].sender.id !== msg.sender.id)
+            const showAvatar = true
 
             return (
-              <motion.div
+              <div
                 key={msg.id ?? `${msg.sender.id}-${i}`}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 8 }}
-                transition={{ duration: 0.2, delay: i * 0.01 }}
               >
                 <MessageBubble
                   message={msg}
@@ -72,7 +76,7 @@ const MessageList: React.FC<MessageListProps> = ({
                   renderAvatar={renderAvatar}
                   onlineUsers={onlineUsers}
                 />
-              </motion.div>
+              </div>
             )
           })}
         </AnimatePresence>

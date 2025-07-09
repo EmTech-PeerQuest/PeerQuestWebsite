@@ -152,6 +152,12 @@ class Message(models.Model):
 
     def get_preview(self, max_length=50):
         return self.content if len(self.content) <= max_length else self.content[:max_length] + "..."
+    
+    def mark_as_delivered(self):
+        if self.status == 'sent':
+            self.status = 'delivered'
+            self.save(update_fields=['status'])
+
 
 
 
@@ -231,13 +237,17 @@ class UserPresence(models.Model):
     last_activity = models.DateTimeField(auto_now=True)
     
     def __str__(self):
-        status = "Online" if self.is_online else "Offline"
-        return f"{self.user.username} - {status}"
+        return f"{self.user.username} - {self.status}"
+
+    @property
+    def status(self):
+        """Return human-readable status for use in UI or logs."""
+        return "online" if self.is_online else "offline"
 
     @classmethod
     def set_user_online(cls, user):
-        """Set user as online"""
-        presence, created = cls.objects.get_or_create(user=user)
+        """Set user as online and update activity timestamp"""
+        presence, _ = cls.objects.get_or_create(user=user)
         presence.is_online = True
         presence.last_activity = timezone.now()
         presence.save()
@@ -252,6 +262,7 @@ class UserPresence(models.Model):
             presence.save()
         except cls.DoesNotExist:
             pass
+
 
 
 # Signal to create UserPresence when user is created
