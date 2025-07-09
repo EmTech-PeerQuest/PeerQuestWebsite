@@ -44,8 +44,8 @@ urlpatterns = [
     path('api/users/', __import__('users.views').views.UserListForFrontendView.as_view(), name='frontend-user-list'),
     # Direct Google login callback for /api/google-login-callback/
     path('api/google-login-callback/', GoogleLoginCallbackView.as_view(), name='google-login-callback'),
-    # Quests and Guilds APIs
-    path('api/quests/', include('quests.urls')),
+    
+    # Guilds API
     path('api/guilds/', include('guilds.urls')),
     # Applications API
     path('api/', include('applications.urls')),
@@ -55,6 +55,7 @@ urlpatterns = [
     path('api/payments/', include('payments.urls')),
 
     # API Docs (Swagger + Redoc)
+    path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     path('docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     path('schema/', schema_view.without_ui(cache_timeout=0), name='schema-json'),

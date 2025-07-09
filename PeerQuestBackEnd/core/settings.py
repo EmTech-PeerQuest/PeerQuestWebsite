@@ -21,6 +21,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # OAuth2 and social auth
+    'oauth2_provider',
+    'social_django',
+    'drf_social_oauth2',
+    
     'quests.apps.QuestsConfig',
     'drf_yasg',
     'users',

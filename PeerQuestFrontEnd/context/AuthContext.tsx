@@ -285,6 +285,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
     localStorage.removeItem('jwt');
+    localStorage.removeItem('authToken'); // Clear old authToken key as well
+    localStorage.removeItem('currentUser'); // Clear mock auth user
+    
+    // Clear any other cached data
     sessionStorage.clear();
     // Clear cookies
     document.cookie.split(';').forEach((c) => {
