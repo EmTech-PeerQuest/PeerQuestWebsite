@@ -1,3 +1,34 @@
+import os
+import requests
+def ai_check_username_profanity(username):
+    """
+    Uses the Groq LLM to check if a username is appropriate.
+    Returns True if clean, False if inappropriate/profane.
+    """
+    GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+    GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+    prompt = f"Is the following username appropriate and free of profanity or offensive language? Only answer 'yes' or 'no'. Username: '{username}'"
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": "You are a moderation assistant that only answers 'yes' or 'no'."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 5,
+    }
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    try:
+        r = requests.post(GROQ_API_URL, json=payload, headers=headers, timeout=15)
+        r.raise_for_status()
+        data = r.json()
+        reply = data["choices"][0]["message"]["content"].strip().lower()
+        return reply.startswith('yes')
+    except Exception as e:
+        # If the AI check fails, default to allowing (or you can default to block)
+        return True
 # User Report API
 from .models import UserReport
 from .serializers import UserReportSerializer
@@ -472,19 +503,19 @@ class RegisterView(APIView):
     def post(self, request):
         try:
             serializer = RegisterSerializer(data=request.data)
+            username = request.data.get('username', '')
+            if username and not ai_check_username_profanity(username):
+                return Response({'error': 'Username contains inappropriate language.'}, status=status.HTTP_400_BAD_REQUEST)
             if serializer.is_valid():
                 user = serializer.save()
-                
                 # Automatically verify superusers
                 if user.is_superuser:
                     user.email_verified = True
                     user.save()
-                
                 # Generate JWT tokens
                 refresh = RefreshToken.for_user(user)
                 access_token = str(refresh.access_token)
                 refresh_token = str(refresh)
-                
                 # Send verification email (skip for superusers)
                 email_sent = False
                 if not user.is_superuser:
@@ -492,9 +523,7 @@ class RegisterView(APIView):
                         send_verification_email(user)
                         email_sent = True
                     except Exception as e:
-                        # Don't fail registration if email fails
                         pass
-                
                 return Response({
                     'message': 'Registration successful',
                     'user': {
