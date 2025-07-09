@@ -194,10 +194,32 @@ export function useGuildActions(): UseGuildActionsReturn {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Defensive: log and validate guildId before joinGuild
+  const joinGuild = useCallback(async (guildId: string, message?: string) => {
+    if (!guildId || typeof guildId !== 'string') {
+      setError('No guild selected or invalid guild ID.');
+      throw new Error('No guild selected or invalid guild ID.');
+    }
+    // Log for debugging
+    console.log('[useGuildActions.joinGuild] Attempting to join guildId:', guildId, typeof guildId);
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await guildApi.joinGuild(guildId, message);
+      return result;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // All other actions remain the same
   const executeAction = useCallback(async <T>(action: () => Promise<T>): Promise<T> => {
     setLoading(true);
     setError(null);
-    
     try {
       const result = await action();
       return result;
@@ -213,28 +235,19 @@ export function useGuildActions(): UseGuildActionsReturn {
   return {
     createGuild: (guildData: CreateGuildData) => 
       executeAction(() => guildApi.createGuild(guildData)),
-    
     updateGuild: (guildId: string, guildData: Partial<CreateGuildData>) => 
       executeAction(() => guildApi.updateGuild(guildId, guildData)),
-    
     deleteGuild: (guildId: string) => 
       executeAction(() => guildApi.deleteGuild(guildId)),
-    
-    joinGuild: (guildId: string, message?: string) => 
-      executeAction(() => guildApi.joinGuild(guildId, message)),
-    
+    joinGuild,
     leaveGuild: (guildId: string) => 
       executeAction(() => guildApi.leaveGuild(guildId)),
-    
     processJoinRequest: (guildId: string, requestId: number, action: 'approve' | 'reject') => 
       executeAction(() => guildApi.processJoinRequest(guildId, requestId, action)),
-    
     kickMember: (guildId: string, userId: number) => 
       executeAction(() => guildApi.kickMember(guildId, userId)),
-    
     getGuildJoinRequests: (guildId: string, type?: 'pending' | 'processed' | 'all') =>
       executeAction(() => guildApi.getGuildJoinRequests(guildId, type)),
-    
     loading,
     error,
   };

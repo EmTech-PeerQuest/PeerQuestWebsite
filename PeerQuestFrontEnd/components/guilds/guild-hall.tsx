@@ -9,7 +9,7 @@ interface GuildHallProps {
   guilds: Guild[]
   currentUser: User | null
   openCreateGuildModal: () => void
-  handleApplyForGuild: (guildId: string | number, message: string) => void
+  handleApplyForGuild: (guildId: string, message: string) => void
   showToast: (message: string, type?: string) => void
 }
 
@@ -20,6 +20,21 @@ export function GuildHall({
   handleApplyForGuild,
   showToast,
 }: GuildHallProps) {
+  // Debug: log all guilds and their IDs and types
+  console.log('[GuildHall] guilds:', guilds.map(g => ({
+    guild_id: g.guild_id,
+    guild_id_type: typeof g.guild_id,
+    id: g.id,
+    id_type: typeof g.id,
+    name: g.name
+  })));
+  // Filter out guilds with invalid guild_id (must be a valid UUID string)
+  const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+  const validGuilds = guilds.filter(g =>
+    typeof g.guild_id === 'string' &&
+    !!g.guild_id &&
+    uuidRegex.test(g.guild_id)
+  );
   const [showJoinModal, setShowJoinModal] = useState(false)
   // State for tracking join requests
   const [userJoinRequests, setUserJoinRequests] = useState<Record<string, 'pending' | 'approved' | 'declined' | null>>({})
@@ -126,24 +141,29 @@ export function GuildHall({
   }, [currentUser, guilds])
 
   const handleJoinClick = (guildId: string | number | undefined) => {
-    if (!guildId) return
-    
+    // Extra debug log for join attempts
+    console.log('[handleJoinClick] guildId:', guildId);
+    // Always use only string UUIDs
+    if (!guildId || typeof guildId !== 'string' || !uuidRegex.test(guildId)) {
+      showToast('🚫 Invalid guild. Please check the guild and try again!', 'error');
+      return;
+    }
     if (!currentUser) {
-      if (window.openAuthModal) window.openAuthModal()
-      return
+      if (window.openAuthModal) window.openAuthModal();
+      return;
     }
-
-    const guild = guilds.find((g) => (g.guild_id || g.id) === guildId)
-    if (!guild) return
-
+    // Only match by guild.guild_id (never fallback to id)
+    const guild = guilds.find((g) => g.guild_id === guildId);
+    if (!guild || typeof guild.guild_id !== 'string' || !uuidRegex.test(guild.guild_id)) {
+      showToast('❓ Guild not found or has an invalid ID. Please refresh the page and try again.', 'error');
+      return;
+    }
     if (isUserMember(guild, currentUser)) {
-      showToast("You are already a member of this guild", "error")
-      return
+      showToast('✅ You are already a member of this guild!', 'info');
+      return;
     }
-
-    // Open the join modal
-    setSelectedGuildId(guildId.toString())
-    setShowJoinModal(true)
+    setSelectedGuildId(guild.guild_id);
+    setShowJoinModal(true);
   }
 
   const handleGuildCardClick = (guild: Guild) => {
@@ -161,17 +181,30 @@ export function GuildHall({
   }
 
   const submitJoinRequest = async () => {
-    if (selectedGuildId && joinMessage.trim()) {
-      try {
-        await handleApplyForGuild(selectedGuildId, joinMessage)
-        setShowJoinModal(false)
-        setJoinMessage("")
-        setSelectedGuildId(null)
-        // Refresh membership status and join requests after joining
-        await checkUserMemberships()
-        await checkUserJoinRequests()
-      } catch (error) {
-        console.error('Failed to submit join request:', error)
+    // Strict validation for selectedGuildId
+    if (!selectedGuildId || typeof selectedGuildId !== 'string' || !uuidRegex.test(selectedGuildId)) {
+      console.error('[submitJoinRequest] Invalid selectedGuildId:', selectedGuildId, typeof selectedGuildId, selectedGuildId && selectedGuildId.length);
+      showToast('🚫 Invalid guild. Please check the guild and try again!', 'error');
+      setSelectedGuildId(null);
+      setShowJoinModal(false);
+      return;
+    }
+    try {
+      // Extra debug: log the value and type
+      console.log('[submitJoinRequest] Applying for guildId:', selectedGuildId, typeof selectedGuildId, selectedGuildId && selectedGuildId.length);
+      if (selectedGuildId) {
+        await handleApplyForGuild(selectedGuildId, joinMessage);
+      }
+      setShowJoinModal(false);
+      setJoinMessage("");
+      setSelectedGuildId(null);
+      // Refresh membership status and join requests after joining
+      await checkUserMemberships();
+      await checkUserJoinRequests();
+    } catch (error: any) {
+      console.error('Failed to submit join request:', error);
+      if (typeof showToast === 'function') {
+        showToast('❌ ' + (error?.message || 'Failed to submit join request. Please try again.'), 'error');
       }
     }
   }
@@ -196,7 +229,10 @@ export function GuildHall({
           <h2 className="text-4xl font-bold text-[#2C1A1D] font-serif">Guild Hall</h2>
           {currentUser && (
             <button
-              onClick={openCreateGuildModal}
+              onClick={e => {
+                e.stopPropagation();
+                openCreateGuildModal();
+              }}
               className="bg-[#8B75AA] text-white px-4 py-2 rounded hover:bg-[#7A6699] transition-colors"
             >
               Create a Guild
@@ -209,8 +245,8 @@ export function GuildHall({
 
         {/* Guild Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-          {guilds && guilds.length > 0 ? (
-            guilds.map((guild) => (
+          {validGuilds && validGuilds.length > 0 ? (
+            validGuilds.map((guild) => (
               <div
                 key={guild.guild_id || guild.id}
                 className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-[#CDAA7D]/20 hover:border-[#8B75AA]/30 cursor-pointer group"
@@ -222,10 +258,14 @@ export function GuildHall({
                 <div className="relative z-10">
                   <div className="flex items-center gap-4 mb-3">
                     <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center text-3xl shadow-lg">
-                      {guild.custom_emblem ? (
+                      {guild.custom_emblem && typeof guild.custom_emblem === 'string' && guild.custom_emblem.startsWith('http') ? (
                         <img src={guild.custom_emblem} alt="Guild emblem" className="w-full h-full object-cover rounded-xl" />
+                      ) : guild.preset_emblem && typeof guild.preset_emblem === 'string' && guild.preset_emblem.startsWith('http') ? (
+                        <img src={guild.preset_emblem} alt="Guild emblem" className="w-full h-full object-cover rounded-xl" />
+                      ) : guild.emblem && typeof guild.emblem === 'string' && guild.emblem.startsWith('http') ? (
+                        <img src={guild.emblem} alt="Guild emblem" className="w-full h-full object-cover rounded-xl" />
                       ) : (
-                        guild.preset_emblem || guild.emblem || "🏆"
+                        guild.preset_emblem || guild.custom_emblem || guild.emblem || "🏆"
                       )}
                     </div>
                     <div className="flex-1">
@@ -294,30 +334,47 @@ export function GuildHall({
                     <span className="font-medium">Active Guild</span>
                   </div>
 
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleJoinClick(guild.guild_id || guild.id)
-                    }}
-                    disabled={isUserMember(guild, currentUser) || getJoinRequestStatus(guild.guild_id) === 'pending'}
-                    className={`px-6 py-2 rounded-lg font-medium transition-all duration-200 shadow-md ${
-                      isUserMember(guild, currentUser)
-                        ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                  {typeof guild.guild_id === 'string' && guild.guild_id && guild.guild_id !== 'NaN' && guild.guild_id !== 'undefined' ? (
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        handleJoinClick(guild.guild_id);
+                      }}
+                      disabled={
+                        isUserMember(guild, currentUser) ||
+                        getJoinRequestStatus(guild.guild_id) === 'pending'
+                      }
+                      className={`px-6 py-2 rounded-lg font-medium transition-all duration-200 shadow-md ${
+                        isUserMember(guild, currentUser)
+                          ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                          : getJoinRequestStatus(guild.guild_id) === 'pending'
+                          ? "bg-yellow-200 text-yellow-700 cursor-not-allowed"
+                          : getJoinRequestStatus(guild.guild_id) === 'declined'
+                          ? "bg-red-100 border-2 border-red-300 text-red-700 hover:bg-red-200 hover:shadow-lg transform hover:-translate-y-0.5"
+                          : "bg-[#8B75AA] text-white hover:bg-[#7A6699] hover:shadow-lg transform hover:-translate-y-0.5"
+                      }`}
+                    >
+                      {isUserMember(guild, currentUser)
+                        ? "✓ JOINED"
                         : getJoinRequestStatus(guild.guild_id) === 'pending'
-                        ? "bg-yellow-200 text-yellow-700 cursor-not-allowed"
+                        ? (
+                            <span className="inline-flex items-center gap-1">
+                              <span role="img" aria-label="pending">⏳</span>
+                              <span>Request Pending Approval</span>
+                            </span>
+                          )
                         : getJoinRequestStatus(guild.guild_id) === 'declined'
-                        ? "bg-red-100 border-2 border-red-300 text-red-700 hover:bg-red-200 hover:shadow-lg transform hover:-translate-y-0.5"
-                        : "bg-[#8B75AA] text-white hover:bg-[#7A6699] hover:shadow-lg transform hover:-translate-y-0.5"
-                    }`}
-                  >
-                    {isUserMember(guild, currentUser)
-                      ? "✓ JOINED"
-                      : getJoinRequestStatus(guild.guild_id) === 'pending'
-                      ? "⏳ PENDING"
-                      : getJoinRequestStatus(guild.guild_id) === 'declined'
-                      ? "🔄 REAPPLY"
-                      : "JOIN GUILD"}
-                  </button>
+                        ? "🔄 REAPPLY"
+                        : "JOIN GUILD"}
+                    </button>
+                  ) : (
+                    <button
+                      disabled
+                      className="px-6 py-2 rounded-lg font-medium bg-gray-100 text-gray-400 cursor-not-allowed shadow-md"
+                    >
+                      NOT AVAILABLE
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -384,7 +441,7 @@ export function GuildHall({
             }}
             guild={selectedGuild}
             currentUser={currentUser}
-            onJoinGuild={handleApplyForGuild}
+            onJoinGuild={(guildId, message) => handleApplyForGuild(guildId, message)}
             onOpenChat={handleOpenChat}
             showToast={showToast}
           />

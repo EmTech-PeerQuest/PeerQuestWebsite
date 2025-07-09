@@ -273,7 +273,7 @@ export default function Home() {
     setShowEditQuestModal(false)
   }
 
-  const handleApplyForGuild = async (guildId: number, message: string) => {
+  const handleApplyForGuild = async (guildId: string, message: string) => {
     if (!currentUser) {
       showToast("Please log in to apply for guilds", "error")
       setShowAuthModal(true)
@@ -281,20 +281,32 @@ export default function Home() {
     }
 
     try {
-      const result = await joinGuild(guildId.toString(), message)
+      const result = await joinGuild(String(guildId), message)
       await refetchGuilds() // Refresh the guild list to show updated membership
-      
       // Show appropriate message based on whether approval is required
       if (result?.join_request) {
         showToast("Request to Join Submitted! Waiting for guild master approval.", "success")
       } else if (result?.membership) {
         showToast("Successfully joined the guild!", "success")
       } else {
-        showToast("Request to Join Submitted!", "success")
+        showToast(result?.message || "Request to Join Submitted!", "success")
       }
-    } catch (error) {
-      console.error('Error applying for guild:', error)
-      showToast('Failed to submit join request. Please try again.', "error")
+    } catch (error: any) {
+      // Surface backend error details if available
+      let errorMsg = error?.message || 'Failed to submit join request. Please try again.';
+      if (error?.response && typeof error.response.json === 'function') {
+        try {
+          const data = await error.response.json();
+          if (data?.message) errorMsg = data.message;
+        } catch {}
+      }
+      // Only log unexpected errors, not friendly info
+      if (errorMsg.includes('pending join request')) {
+        showToast(errorMsg, 'info');
+      } else {
+        console.error('Error applying for guild:', error);
+        showToast(errorMsg, 'error');
+      }
     }
   }
 
@@ -492,8 +504,8 @@ export default function Home() {
             <GuildHall
               guilds={guildData}
               currentUser={currentUser}
-              openCreateGuildModal={() => {}}
-              handleApplyForGuild={() => {}}
+              openCreateGuildModal={() => setShowCreateGuildModal(true)}
+              handleApplyForGuild={(guildId, message) => handleApplyForGuild(guildId, message)}
               showToast={(message: string, type?: string) => {
                 toast({ title: message, variant: type === "error" ? "destructive" : "default" });
               }}

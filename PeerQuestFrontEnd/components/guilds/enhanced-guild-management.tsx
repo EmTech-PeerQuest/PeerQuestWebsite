@@ -308,7 +308,15 @@ export function EnhancedGuildManagement({
             </button>
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-[#CDAA7D] rounded-lg flex items-center justify-center text-xl">
-                {selectedGuild.emblem}
+                {selectedGuild.custom_emblem && typeof selectedGuild.custom_emblem === 'string' && selectedGuild.custom_emblem.startsWith('http') ? (
+                  <img src={selectedGuild.custom_emblem} alt="Guild emblem" className="w-full h-full object-cover rounded-lg" />
+                ) : selectedGuild.preset_emblem && typeof selectedGuild.preset_emblem === 'string' && selectedGuild.preset_emblem.startsWith('http') ? (
+                  <img src={selectedGuild.preset_emblem} alt="Guild emblem" className="w-full h-full object-cover rounded-lg" />
+                ) : selectedGuild.emblem && typeof selectedGuild.emblem === 'string' && selectedGuild.emblem.startsWith('http') ? (
+                  <img src={selectedGuild.emblem} alt="Guild emblem" className="w-full h-full object-cover rounded-lg" />
+                ) : (
+                  selectedGuild.preset_emblem || selectedGuild.custom_emblem || selectedGuild.emblem || "🏆"
+                )}
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-[#2C1A1D]">{selectedGuild.name}</h2>
@@ -775,10 +783,14 @@ export function EnhancedGuildManagement({
                   <div className="bg-[#CDAA7D] p-4">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-xl">
-                        {guild.custom_emblem ? (
+                        {guild.custom_emblem && typeof guild.custom_emblem === 'string' && guild.custom_emblem.startsWith('http') ? (
                           <img src={guild.custom_emblem} alt="Guild emblem" className="w-full h-full object-cover rounded-lg" />
+                        ) : guild.preset_emblem && typeof guild.preset_emblem === 'string' && guild.preset_emblem.startsWith('http') ? (
+                          <img src={guild.preset_emblem} alt="Guild emblem" className="w-full h-full object-cover rounded-lg" />
+                        ) : guild.emblem && typeof guild.emblem === 'string' && guild.emblem.startsWith('http') ? (
+                          <img src={guild.emblem} alt="Guild emblem" className="w-full h-full object-cover rounded-lg" />
                         ) : (
-                          guild.preset_emblem || guild.emblem || "🏆"
+                          guild.preset_emblem || guild.custom_emblem || guild.emblem || "🏆"
                         )}
                       </div>
                       <div>

@@ -10,7 +10,7 @@ interface GuildOverviewModalProps {
   onClose: () => void
   guild: Guild
   currentUser: User | null
-  onJoinGuild: (guildId: number, message: string) => void
+  onJoinGuild: (guildId: string, message: string) => void
   onOpenChat: (guildId: number) => void
   onOpenSettings?: (guildId: number) => void
   onManageGuild?: (guild: Guild) => void
@@ -73,6 +73,20 @@ export function GuildOverviewModal({
     }
   }
 
+  // Utility to get a valid guildId (always prefer string UUID if present)
+  function getValidGuildId(guild: Guild): string | null {
+    if (typeof guild.guild_id === 'string' && guild.guild_id && guild.guild_id !== 'NaN' && guild.guild_id !== 'undefined' && guild.guild_id !== 'null' && guild.guild_id.length >= 8) {
+      return guild.guild_id;
+    }
+    if (typeof guild.id === 'string' && guild.id && guild.id !== 'NaN' && guild.id !== 'undefined' && guild.id !== 'null' && guild.id.length >= 8) {
+      return guild.id;
+    }
+    if (typeof guild.id === 'number' && guild.id > 0) {
+      return guild.id.toString();
+    }
+    return null;
+  }
+
   const handleJoinClick = async () => {
     if (!currentUser) {
       showToast("Please log in to join guilds", "error")
@@ -82,7 +96,7 @@ export function GuildOverviewModal({
     if (guild.require_approval) {
       setShowJoinForm(true)
     } else {
-      const guildId = (guild.id || guild.guild_id) as number
+      const guildId = getValidGuildId(guild);
       if (guildId) {
         try {
           await onJoinGuild(guildId, "")
@@ -93,13 +107,15 @@ export function GuildOverviewModal({
           console.error('Failed to join guild:', error)
           showToast('Failed to join guild. Please try again.', 'error')
         }
+      } else {
+        showToast('Invalid guild. Please try again.', 'error');
       }
     }
   }
 
   const handleJoinSubmit = async () => {
     if (joinMessage.trim()) {
-      const guildId = (guild.id || guild.guild_id) as number
+      const guildId = getValidGuildId(guild);
       if (guildId) {
         try {
           await onJoinGuild(guildId, joinMessage)
@@ -112,6 +128,8 @@ export function GuildOverviewModal({
           console.error('Failed to join guild:', error)
           showToast('Failed to join guild. Please try again.', 'error')
         }
+      } else {
+        showToast('Invalid guild. Please try again.', 'error');
       }
     }
   }
@@ -152,7 +170,15 @@ export function GuildOverviewModal({
 
           <div className="flex items-center gap-3 pr-8">
             <div className="w-12 h-12 sm:w-16 sm:h-16 bg-[#CDAA7D] rounded-lg flex items-center justify-center text-2xl sm:text-3xl flex-shrink-0">
-              {guild.emblem}
+              {guild.custom_emblem && typeof guild.custom_emblem === 'string' && guild.custom_emblem.startsWith('http') ? (
+                <img src={guild.custom_emblem} alt="Guild emblem" className="w-full h-full object-cover rounded-lg" />
+              ) : guild.preset_emblem && typeof guild.preset_emblem === 'string' && guild.preset_emblem.startsWith('http') ? (
+                <img src={guild.preset_emblem} alt="Guild emblem" className="w-full h-full object-cover rounded-lg" />
+              ) : guild.emblem && typeof guild.emblem === 'string' && guild.emblem.startsWith('http') ? (
+                <img src={guild.emblem} alt="Guild emblem" className="w-full h-full object-cover rounded-lg" />
+              ) : (
+                guild.preset_emblem || guild.custom_emblem || guild.emblem || "🏆"
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-lg sm:text-xl font-bold mb-1 truncate">{guild.name}</h2>
