@@ -1,3 +1,4 @@
+
 import os
 from django.views.generic import View
 from django.http import JsonResponse
@@ -5,6 +6,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 import requests
 import json
+from quests.models import Quest
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 print("GROQ_API_KEY loaded in proxy:", GROQ_API_KEY)
@@ -17,7 +19,17 @@ class AIChatbotProxyView(View):
             data = json.loads(request.body.decode())
             messages = data.get("messages", [])
             user = data.get("user", {})
+            # Check if user is asking for good quests
+            user_message = next((m.get("content", "") for m in messages if m.get("role") == "user"), "")
             system_prompt = f"You are a helpful support assistant for PeerQuest. User info: {user}"
+
+            # If user asks for good quests, fetch and inject recommendations
+            if "good quest" in user_message.lower() or "recommend" in user_message.lower():
+                good_quests = list(Quest.active_quests.all()[:3].values('title', 'description'))
+                if good_quests:
+                    quest_list = "\n".join([f"- {q['title']}: {q['description'][:100]}" for q in good_quests])
+                    system_prompt += f"\nHere are some good quests for the user to try next:\n{quest_list}"
+
             groq_messages = [
                 {"role": "system", "content": system_prompt},
             ]
