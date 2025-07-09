@@ -53,6 +53,9 @@ urlpatterns = [
     path('api/transactions/', include('transactions.urls')),
     # Payments API
     path('api/payments/', include('payments.urls')),
+    # Quests API
+    path('api/quests/', include('quests.urls')),
+
 
     # API Docs (Swagger + Redoc)
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
