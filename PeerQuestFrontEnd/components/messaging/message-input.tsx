@@ -36,13 +36,21 @@ export default function MessageInput({
   const [showEmoji, setShowEmoji] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const handleSend = async () => {
+  const handleSubmit = async (
+    e?: React.FormEvent<HTMLFormElement> | React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (e) e.preventDefault?.()
     const trimmed = newMessage.trim()
-    if (trimmed || selectedFiles.length) {
+    if (!trimmed && selectedFiles.length === 0) return
+    if (isSending) return
+
+    try {
       await onSend(trimmed, selectedFiles.length ? selectedFiles : undefined)
       setNewMessage("")
       setShowEmoji(false)
       inputRef.current?.focus()
+    } catch (error) {
+      console.error("Error sending message:", error)
     }
   }
 
@@ -111,7 +119,7 @@ export default function MessageInput({
       </AnimatePresence>
 
       {/* Input area */}
-      <div className="relative">
+      <form onSubmit={handleSubmit}>
         <div
           className="flex items-center gap-3 p-3 rounded-2xl transition-all focus-within:shadow-lg"
           style={{
@@ -122,6 +130,7 @@ export default function MessageInput({
         >
           {/* Emoji button */}
           <button
+            type="button"
             onClick={() => setShowEmoji((p) => !p)}
             disabled={disabled || isSending}
             className="p-2 rounded-full transition-all hover:scale-110 flex items-center justify-center"
@@ -138,9 +147,10 @@ export default function MessageInput({
             <Smile className="h-5 w-5" />
           </button>
 
-          {/* File attachment button */}
+          {/* File upload */}
           <input type="file" hidden multiple ref={fileInputRef} onChange={handleFileSelect} />
           <button
+            type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled || isSending}
             className="p-2 rounded-full transition-all hover:scale-110 flex items-center justify-center"
@@ -164,7 +174,7 @@ export default function MessageInput({
             <Paperclip className="h-5 w-5" />
           </button>
 
-          {/* Message input */}
+          {/* Text input */}
           <input
             ref={inputRef}
             type="text"
@@ -173,7 +183,7 @@ export default function MessageInput({
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !isDisabled) {
                 e.preventDefault()
-                handleSend()
+                handleSubmit(e)
               }
             }}
             className="flex-1 border-0 bg-transparent focus:outline-none text-base px-2"
@@ -187,7 +197,7 @@ export default function MessageInput({
 
           {/* Send button */}
           <button
-            onClick={handleSend}
+            type="submit"
             disabled={isDisabled}
             className="p-2 rounded-full transition-all flex items-center justify-center"
             style={{
@@ -215,40 +225,40 @@ export default function MessageInput({
             {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
           </button>
         </div>
+      </form>
 
-        {/* Emoji picker */}
-        <AnimatePresence>
-          {showEmoji && (
-            <motion.div
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              className="absolute bottom-full mb-2 left-0 z-50 emoji-picker"
-            >
-              <EmojiPicker onSelect={handleEmojiSelect} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+      {/* Emoji Picker */}
+      <AnimatePresence>
+        {showEmoji && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            className="absolute bottom-full mb-2 left-0 z-50 emoji-picker"
+          >
+            <EmojiPicker onSelect={handleEmojiSelect} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        {/* Connection status */}
-        <AnimatePresence>
-          {wsConnected === false && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="absolute bottom-full mb-2 left-0 text-xs px-2 py-1 rounded-md card"
-              style={{ backgroundColor: "#f8d7da", color: "#721c24", borderColor: "#f5c6cb" }}
-            >
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                Disconnected from tavern. Trying to reconnect...
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      {/* Connection status */}
+      <AnimatePresence>
+        {wsConnected === false && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="absolute bottom-full mb-2 left-0 text-xs px-2 py-1 rounded-md card"
+            style={{ backgroundColor: "#f8d7da", color: "#721c24", borderColor: "#f5c6cb" }}
+          >
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+              Disconnected from tavern. Trying to reconnect...
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

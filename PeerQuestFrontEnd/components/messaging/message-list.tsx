@@ -67,7 +67,7 @@ const MessageList: React.FC<MessageListProps> = ({ messages, currentUserId, rend
 
             return (
               <div
-                key={msg.id ?? `${msg.sender.id}-${i}`}
+                key={`${msg.id}-${msg.status ?? ""}`}
               >
                 <MessageBubble
                   message={msg}

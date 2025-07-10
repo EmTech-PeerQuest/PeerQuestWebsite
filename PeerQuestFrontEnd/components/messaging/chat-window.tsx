@@ -1,37 +1,31 @@
 "use client"
 
-import type React from "react"
-import type { RefObject } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import MessageList from "./message-list"
-import TypingIndicator from "./typing-indicator"
+import React, { useEffect, useRef } from "react"
+import { Info, Wifi, WifiOff } from "lucide-react"
+import type { Message, User, Conversation, UserStatus, TypingUser } from "@/lib/types"
 import MessageInput from "./message-input"
-import ConversationHeader from "./conversation-header"
-import type { User, Message, TypingUser, Conversation, UserStatus } from "@/lib/types"
-import { AlertTriangle } from "lucide-react"
-import type { JSX } from "react/jsx-runtime"
 
 interface ChatWindowProps {
   messages: Message[]
   currentUser: User
   onSendMessage: (content: string, files?: File[]) => Promise<void>
   onTyping: () => void
-  typingUsers: TypingUser[]
-  wsError?: string
+  typingUsers: Pick<TypingUser, "user_id" | "username">[]
   wsConnected: boolean
+  wsError?: string
   newMessage: string
   setNewMessage: React.Dispatch<React.SetStateAction<string>>
-  renderAvatar: (user: User, size?: "sm" | "md" | "lg") => JSX.Element
+  renderAvatar: (user: User) => React.ReactNode
   handleFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void
   removeFile: (index: number) => void
   selectedFiles: File[]
   onToggleInfo: () => void
   onlineUsers: Map<string, UserStatus>
   isSending: boolean
-  fileInputRef: RefObject<HTMLInputElement>
-  activeConversation: Conversation | null
-  getOtherParticipant: (conversation: Conversation) => User | null
+  fileInputRef: React.RefObject<HTMLInputElement>
+  activeConversation: Conversation
   conversations: Conversation[]
+  getOtherParticipant: (conv: Conversation) => User | null
   isLoading: boolean
 }
 
@@ -41,8 +35,8 @@ export default function ChatWindow({
   onSendMessage,
   onTyping,
   typingUsers,
-  wsError,
   wsConnected,
+  wsError,
   newMessage,
   setNewMessage,
   renderAvatar,
@@ -54,103 +48,260 @@ export default function ChatWindow({
   isSending,
   fileInputRef,
   activeConversation,
+  conversations,
   getOtherParticipant,
   isLoading,
 }: ChatWindowProps) {
-  const getValidUserStatus = (status: UserStatus): "online" | "idle" | "offline" => {
-    if (status === "online" || status === "idle" || status === "offline") return status
-    return "offline"
-  }
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
-  const filteredOnlineUsers = new Map<string, "online" | "idle" | "offline">()
-  onlineUsers.forEach((status, userId) => {
-    filteredOnlineUsers.set(userId, getValidUserStatus(status))
-  })
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (container) {
+      container.scrollTop = container.scrollHeight
+    }
+  }, [messages])
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full text-gray-500">
-        Loading messages...
-      </div>
-    )
-  }
-
-  if (!activeConversation) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <div className="w-24 h-24 mx-auto mb-6 opacity-50">
-            <svg viewBox="0 0 64 64" fill="currentColor" className="text-slate-400">
-              <path d="M32 8C18.7 8 8 18.7 8 32s10.7 24 24 24 24-10.7 24-24S45.3 8 32 8zm0 4c11 0 20 9 20 20s-9 20-20 20-20-9-20-20 9-20 20-20zm-8 12v8l6-4-6-4zm16 0v8l6-4-6-4z" />
-            </svg>
-          </div>
-          <h3 className="text-2xl font-bold mb-3 text-slate-700">Select a Conversation</h3>
-          <p className="text-slate-500">Choose a conversation to start messaging</p>
-        </div>
-      </div>
-    )
-  }
+  const otherParticipant = getOtherParticipant(activeConversation)
+  const isOnline = otherParticipant
+    ? onlineUsers.get(otherParticipant.id) === "online"
+    : false
 
   return (
-<div className="flex flex-col h-full">
-  {/* Sticky Header Section */}
-  <div className="sticky top-0 z-10 bg-white border-b border-slate-200">
-      <ConversationHeader
-        conversation={activeConversation}
-        getOtherParticipant={getOtherParticipant}
-        onlineUsers={filteredOnlineUsers}
-        onToggleInfo={onToggleInfo}
-        renderAvatar={renderAvatar}
-      />
-
-      {/* WebSocket banner */}
-      <AnimatePresence>
-        {!wsConnected && (
-          <motion.div
-            className="px-4 py-2 bg-amber-50 border-t border-amber-200 flex items-center gap-2"
-            role="alert"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
+    <div
+      className="flex flex-col h-screen relative overflow-hidden"
+      style={{ backgroundColor: "var(--tavern-cream)" }}
+    >
+      {/* Header */}
+      <div
+        className="flex-shrink-0 px-4 py-3 border-b"
+        style={{
+          backgroundColor: "var(--tavern-dark)",
+          borderColor: "var(--tavern-gold)",
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {otherParticipant && renderAvatar(otherParticipant)}
+            <div>
+              <h2
+                className="font-semibold"
+                style={{ color: "var(--tavern-gold)" }}
+              >
+                {otherParticipant?.username || "Unknown User"}
+              </h2>
+              <div
+                className="flex items-center gap-2 text-sm"
+                style={{ color: "var(--tavern-cream)" }}
+              >
+                {isOnline ? (
+                  <>
+                    <div className="w-2 h-2 bg-green-500 rounded-full" />
+                    <span className="text-green-400 font-medium">
+                      Online
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-2 h-2 bg-slate-400 rounded-full" />
+                    <span className="text-slate-300 font-medium">
+                      Offline
+                    </span>
+                  </>
+                )}
+                {wsConnected ? (
+                  <Wifi className="w-4 h-4 text-green-400 ml-2" />
+                ) : (
+                  <WifiOff className="w-4 h-4 text-red-400 ml-2" />
+                )}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onToggleInfo}
+            className="p-2 rounded-lg transition-colors hover:bg-opacity-20"
+            style={{ backgroundColor: "var(--tavern-gold)" }}
           >
-            <AlertTriangle className="w-4 h-4 text-amber-600" />
-            <p className="text-sm font-medium text-amber-800">
-              {wsError ? `Connection Error: ${wsError}` : "Reconnecting..."}
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-
-      {/* Main content area */}
-      <div className="flex-1 overflow-y-auto">
-        <MessageList
-          messages={messages}
-          currentUserId={currentUser.id}
-          renderAvatar={renderAvatar}
-          onlineUsers={filteredOnlineUsers}
-        />
+            <Info
+              className="w-5 h-5"
+              style={{ color: "var(--tavern-dark)" }}
+            />
+          </button>
+        </div>
       </div>
 
-      {/* Footer: Typing + Input */}
-      <div className="shrink-0 border-t border-slate-200 bg-white">
-        <TypingIndicator typingUsers={typingUsers} currentUserId={currentUser.id} />
-        <div className="p-4">
-          <MessageInput
-            newMessage={newMessage}
-            setNewMessage={setNewMessage}
-            onSend={onSendMessage}
-            onTyping={onTyping}
-            disabled={!wsConnected || isSending}
-            handleFileSelect={handleFileSelect}
-            removeFile={removeFile}
-            selectedFiles={selectedFiles}
-            isSending={isSending}
-            fileInputRef={fileInputRef}
-            wsConnected={wsConnected}
-          />
+      {/* WebSocket Error */}
+      {wsError && (
+        <div className="flex-shrink-0 bg-red-900 border-b border-red-700 p-3 text-center">
+          <p className="text-red-200 text-sm font-medium">
+            Connection lost. Trying to reconnect...
+          </p>
         </div>
+      )}
+
+      {/* Messages */}
+      <div
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+        ref={scrollContainerRef}
+        style={{ backgroundColor: "var(--tavern-cream)", paddingBottom:  "140px" }}
+      >
+        {isLoading ? (
+          <div className="flex items-center justify-center h-full">
+            <div
+              className="animate-spin rounded-full h-8 w-8 border-b-2"
+              style={{ borderColor: "var(--tavern-gold)" }}
+            />
+          </div>
+        ) : messages.length === 0 ? (
+          <div
+            className="flex items-center justify-center h-full"
+            style={{ color: "var(--tavern-dark)" }}
+          >
+            <p className="font-medium">No messages yet. Start the conversation!</p>
+          </div>
+        ) : (
+          <>
+            {messages.map((message) => {
+              const isCurrentUser = message.sender.id === currentUser.id
+              return (
+                <div
+                  key={message.id}
+                  className={`flex gap-3 ${
+                    isCurrentUser ? "flex-row-reverse" : ""
+                  }`}
+                >
+                  <div className="flex-shrink-0">
+                    {renderAvatar(message.sender)}
+                  </div>
+                  <div className="flex-1 max-w-xs lg:max-w-md xl:max-w-lg">
+                    <div
+                      className={`px-4 py-2 rounded-2xl shadow-sm ${
+                        isCurrentUser ? "ml-auto" : ""
+                      }`}
+                      style={{
+                        backgroundColor: isCurrentUser
+                          ? "var(--tavern-gold)"
+                          : "white",
+                        color: "var(--tavern-dark)",
+                        border: `1px solid ${
+                          isCurrentUser
+                            ? "var(--tavern-purple)"
+                            : "var(--tavern-gold)"
+                        }`,
+                      }}
+                    >
+                      {message.content && (
+                        <p className="whitespace-pre-wrap break-words">
+                          {message.content}
+                        </p>
+                      )}
+                      {Array.isArray(message.attachments) &&
+                        message.attachments.length > 0 && (
+                          <div className="mt-2 space-y-2">
+                            {message.attachments.map((attachment) => (
+                              <div
+                                key={attachment.url || attachment.filename}
+                                className="flex items-center gap-2"
+                              >
+                                <a
+                                  href={attachment.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="underline font-medium hover:opacity-80"
+                                  style={{ color: "var(--tavern-purple)" }}
+                                >
+                                  {attachment.filename}
+                                </a>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                    </div>
+                    <div
+                      className={`mt-1 text-xs font-medium ${
+                        isCurrentUser ? "text-right" : ""
+                      }`}
+                      style={{ color: "var(--tavern-dark)" }}
+                    >
+                      {new Date(message.timestamp).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                      {isCurrentUser && message.status && (
+                        <span className="ml-2" style={{ color: "var(--tavern-purple)" }}>
+                          {message.status === "sending"   && "⏳"}
+                          {message.status === "sent"      && "✓" }
+                          {message.status === "delivered" && "✓✓"}  {/* ← delivered */}
+                          {message.status === "read"      && "✓✓"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Typing Indicator */}
+            {typingUsers.length > 0 && (
+              <div className="flex gap-3">
+                <div className="flex-shrink-0">
+                  {otherParticipant && renderAvatar(otherParticipant)}
+                </div>
+                <div
+                  className="px-4 py-2 rounded-2xl shadow-sm"
+                  style={{
+                    backgroundColor: "white",
+                    border: "1px solid var(--tavern-gold)",
+                  }}
+                >
+                  <div className="flex space-x-1">
+                    <div
+                      className="w-2 h-2 rounded-full animate-bounce"
+                      style={{ backgroundColor: "var(--tavern-gold)" }}
+                    />
+                    <div
+                      className="w-2 h-2 rounded-full animate-bounce"
+                      style={{
+                        backgroundColor: "var(--tavern-gold)",
+                        animationDelay: "0.1s",
+                      }}
+                    />
+                    <div
+                      className="w-2 h-2 rounded-full animate-bounce"
+                      style={{
+                        backgroundColor: "var(--tavern-gold)",
+                        animationDelay: "0.2s",
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Fixed Input */}
+      <div
+        className="fixed bottom-0 left-[300px] z-10 border-t p-4 bg-[var(--tavern-dark)]"
+        style={{
+          borderColor: "var(--tavern-gold)",
+          height: "75px",
+          width: "calc(100% - 300px)",
+        }}
+      >
+        <MessageInput
+          newMessage={newMessage}
+          setNewMessage={setNewMessage}
+          onSend={onSendMessage}
+          onTyping={onTyping}
+          disabled={!wsConnected}
+          handleFileSelect={handleFileSelect}
+          removeFile={removeFile}
+          selectedFiles={selectedFiles}
+          isSending={isSending}
+          fileInputRef={fileInputRef}
+          wsConnected={wsConnected}
+        />
       </div>
     </div>
   )

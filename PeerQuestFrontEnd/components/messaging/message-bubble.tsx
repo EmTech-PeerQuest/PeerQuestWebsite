@@ -5,7 +5,7 @@ import { motion } from "framer-motion"
 import type { Message, User, Attachment, MessageStatus } from "@/lib/types"
 import { Check, CheckCheck, AlertCircle, File, FileText, ImageIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { JSX } from "react/jsx-runtime" // Import JSX to fix the undeclared variable error
+import type { JSX } from "react/jsx-runtime"
 
 export interface MessageBubbleProps {
   message: Message
@@ -81,13 +81,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
       <div
         className={cn(
-          "relative max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-lg transition-all group-hover:shadow-xl card",
+          "relative max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-lg transition-all group-hover:shadow-xl",
           isOwnMessage ? "rounded-br-md" : "rounded-bl-md",
         )}
         style={{
           backgroundColor: isOwnMessage ? "var(--tavern-gold)" : "white",
-          color: isOwnMessage ? "var(--tavern-dark)" : "var(--tavern-dark)",
-          borderColor: isOwnMessage ? "var(--tavern-purple)" : "var(--tavern-gold)",
+          color: "var(--tavern-dark)",
+          border: `2px solid ${isOwnMessage ? "var(--tavern-purple)" : "var(--tavern-gold)"}`,
         }}
       >
         {/* Sender name for group chats */}
@@ -105,7 +105,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         {/* Image attachments */}
         {imageAttachments.length > 0 && (
           <div
-            className={cn("mt-2 space-y-2", message.content && "pt-2 border-t border-opacity-20")}
+            className={cn("mt-2 space-y-2", message.content && "pt-2 border-t border-opacity-30")}
             style={{ borderColor: "var(--tavern-purple)" }}
           >
             {imageAttachments.map((a) => {
@@ -137,14 +137,14 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         {/* File attachments */}
         {otherAttachments.length > 0 && (
           <div
-            className={cn("mt-2 space-y-1", shouldShowBorder && "pt-2 border-t border-opacity-20")}
+            className={cn("mt-2 space-y-1", shouldShowBorder && "pt-2 border-t border-opacity-30")}
             style={{ borderColor: "var(--tavern-purple)" }}
           >
             {otherAttachments.map((a) => (
               <div
                 key={a.id}
                 onClick={() => onAttachmentClick?.(a)}
-                className="flex items-center space-x-2 cursor-pointer p-2 rounded-lg transition-all hover:bg-opacity-20"
+                className="flex items-center space-x-2 cursor-pointer p-2 rounded-lg transition-all hover:bg-opacity-10"
                 style={{ backgroundColor: "var(--tavern-cream)" }}
               >
                 {getFileIcon(a)}
@@ -161,12 +161,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         {time && (
           <div
             className={cn(
-              "flex items-center gap-2 text-xs mt-2 opacity-70",
+              "flex items-center gap-2 text-xs mt-2 opacity-75",
               isOwnMessage ? "justify-end" : "justify-start",
             )}
           >
             <span>{time}</span>
-            {isOwnMessage && status && getStatusIcon(status)}
+            {isOwnMessage && message.status && getStatusIcon(message.status)}
           </div>
         )}
       </div>

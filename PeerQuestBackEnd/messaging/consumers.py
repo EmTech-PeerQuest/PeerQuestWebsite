@@ -168,13 +168,13 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         # serialize in a thread
         serialized = await serialize_message(msg)
 
-        # broadcast new_message with temp_id
+        # broadcast new_message with temp_id to all participants (including sender)
         await self.channel_layer.group_send(
             self.room_group,
             {
-                "type": "chat.message", 
+                "type": "chat.message",
                 "message": serialized,
-                "temp_id": temp_id,  # Include temp_id in the broadcast
+                "temp_id": temp_id,
             },
         )
 
@@ -189,6 +189,17 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                     "last_message": serialized,
                 },
             )
+
+        # ✅ Send status=sent to sender only
+        await self.channel_layer.group_send(
+            f"user_{user.id}",
+            {
+                "type": "message.status",
+                "message_id": str(msg.id),
+                "status": "sent",
+            },
+        )
+
 
     async def handle_typing(self, data):
         user = self.scope["user"]
@@ -257,3 +268,10 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
     async def message_read(self, event):
         await self.send_json({"type": "message_read_update", "message_id": event["message_id"]})
+    
+    async def message_status(self, event):
+        await self.send_json({
+            "type": "message_status",
+            "message_id": event["message_id"],
+            "status": event["status"],
+        })
