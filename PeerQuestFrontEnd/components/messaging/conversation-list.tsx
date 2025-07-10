@@ -168,52 +168,56 @@ export default function ConversationList({
                 </div>
               )}
               {!isSearchingUsers &&
-                userSearchResults.map((user) => (
-                  <motion.div
-                    key={user.id}
-                    onClick={() => handleStartConversation(user)}
-                    className="cursor-pointer flex items-center p-4 rounded-xl transition-all group"
-                    style={{
-                      background: "linear-gradient(135deg, white 0%, rgba(244, 240, 230, 0.8) 100%)",
-                      border: "2px solid #cdaa7d",
-                      boxShadow: "0 2px 8px rgba(44, 26, 29, 0.1)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = "translateY(-2px)"
-                      e.currentTarget.style.boxShadow = "0 8px 24px rgba(44, 26, 29, 0.15)"
-                      e.currentTarget.style.borderColor = "#8b75aa"
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = "translateY(0)"
-                      e.currentTarget.style.boxShadow = "0 2px 8px rgba(44, 26, 29, 0.1)"
-                      e.currentTarget.style.borderColor = "#cdaa7d"
-                    }}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    layout
-                  >
-                    {renderAvatar(user, "md")}
-                    <div className="ml-3 flex-1">
-                      <p className="font-semibold transition-colors" style={{ color: "#2c1a1d" }}>
-                        ⚔️ {user.username}
-                      </p>
-                      <p className="text-sm" style={{ color: "#8b75aa" }}>
-                        📜 Start conversation
-                      </p>
-                      {user.level && (
-                        <span
-                          className="inline-block px-2 py-1 rounded-full text-xs font-bold mt-1"
-                          style={{
-                            background: "linear-gradient(135deg, #cdaa7d 0%, #ffe26f 100%)",
-                            color: "#2c1a1d",
-                          }}
-                        >
-                          ⚔️ Lv. {user.level}
-                        </span>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
+                userSearchResults.map((user) => {
+                  // Only use onlineStatusMap for search results (no fallback)
+                  const isOnline = onlineStatusMap.get(user.id) === "online";
+                  return (
+                    <motion.div
+                      key={user.id}
+                      onClick={() => handleStartConversation(user)}
+                      className="cursor-pointer flex items-center p-4 rounded-xl transition-all group"
+                      style={{
+                        background: "linear-gradient(135deg, white 0%, rgba(244, 240, 230, 0.8) 100%)",
+                        border: "2px solid #cdaa7d",
+                        boxShadow: "0 2px 8px rgba(44, 26, 29, 0.1)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = "translateY(-2px)"
+                        e.currentTarget.style.boxShadow = "0 8px 24px rgba(44, 26, 29, 0.15)"
+                        e.currentTarget.style.borderColor = "#8b75aa"
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "translateY(0)"
+                        e.currentTarget.style.boxShadow = "0 2px 8px rgba(44, 26, 29, 0.1)"
+                        e.currentTarget.style.borderColor = "#cdaa7d"
+                      }}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      layout
+                    >
+                      {renderAvatar({ ...user, isOnline }, "md")}
+                      <div className="ml-3 flex-1">
+                        <p className="font-semibold transition-colors" style={{ color: "#2c1a1d" }}>
+                          ⚔️ {user.username}
+                        </p>
+                        <p className="text-sm" style={{ color: "#8b75aa" }}>
+                          📜 Start conversation
+                        </p>
+                        {user.level && (
+                          <span
+                            className="inline-block px-2 py-1 rounded-full text-xs font-bold mt-1"
+                            style={{
+                              background: "linear-gradient(135deg, #cdaa7d 0%, #ffe26f 100%)",
+                              color: "#2c1a1d",
+                            }}
+                          >
+                            ⚔️ Lv. {user.level}
+                          </span>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               {!isSearchingUsers && userSearchResults.length === 0 && userSearchQuery && (
                 <div className="text-center py-12" style={{ color: "#8b75aa" }}>
                   <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -257,7 +261,12 @@ export default function ConversationList({
                   const displayName = conv.is_group ? conv.name : otherParticipant?.username || "Unknown User"
                   const displayUser = !conv.is_group ? otherParticipant : null
                   const preview = getMessagePreview(conv)
-                  const isOnline = displayUser ? onlineStatusMap.get(displayUser.id) === "online" : false
+                  // Only use onlineStatusMap for conversation list (no fallback)
+                  const presence = displayUser ? onlineStatusMap.get(displayUser.id) : undefined;
+                  // Always show Online if presence is online, never show Offline if user is online
+                  const isOnline = presence === "online";
+                  const isIdle = presence === "idle";
+                  const dotLabel = isOnline ? "Online" : isIdle ? "Idle" : "Offline";
                   const hasUnread = unreadConversations.has(conv.id)
 
                   return (
@@ -303,7 +312,10 @@ export default function ConversationList({
 
                       <div className="relative ml-2">
                         {displayUser ? (
-                          renderAvatar(displayUser, "md")
+                          renderAvatar(
+                            displayUser,
+                            "md"
+                          )
                         ) : (
                           <div
                             className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-yellow-600"
@@ -312,12 +324,13 @@ export default function ConversationList({
                             <Shield className="w-5 h-5" style={{ color: "#f4f0e6" }} />
                           </div>
                         )}
-                        {isOnline && (
-                          <motion.div
-                            className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full"
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        {/* Online status dot with label - always render, color by presence */}
+                        {displayUser && (
+                          <span
+                            className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white z-10 ${
+                              isOnline ? "bg-green-500" : isIdle ? "bg-amber-400" : "bg-gray-300"
+                            }`}
+                            title={dotLabel}
                           />
                         )}
                       </div>

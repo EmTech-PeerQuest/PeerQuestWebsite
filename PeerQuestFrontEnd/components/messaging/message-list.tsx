@@ -64,24 +64,55 @@ const MessageList: React.FC<MessageListProps> = ({ messages, currentUserId, rend
           {messages.map((msg, i) => {
             const isOwn = msg.sender.id === currentUserId
             const showAvatar = true
-
+            // Always pass the original sender; renderAvatar uses onlineUsers map for status
             return (
-              <div
-                key={`${msg.id}-${msg.status ?? ""}`}
-              >
+              <div key={`${msg.id}-${msg.status ?? ""}`}> 
                 <MessageBubble
                   message={msg}
                   isOwnMessage={isOwn}
                   showAvatar={showAvatar}
-                  renderAvatar={renderAvatar}
-                  onlineUsers={onlineUsers}
+                  renderAvatar={(user, size) => {
+                    const presence = onlineUsers.get(user.id) || "offline";
+                    let dotColor = "bg-gray-300";
+                    let dotLabel = "Offline";
+                    if (presence === "online") {
+                      dotColor = "bg-green-500";
+                      dotLabel = "Online";
+                    } else if (presence === "idle") {
+                      dotColor = "bg-amber-400";
+                      dotLabel = "Idle";
+                    }
+                    // Always show Online if presence is online, never show Offline if user is online
+                    if (presence === "online") {
+                      dotLabel = "Online";
+                    }
+                    let sizeClass = "w-8 h-8";
+                    if (size === "sm") sizeClass = "w-6 h-6";
+                    if (size === "lg") sizeClass = "w-12 h-12";
+                    return (
+                      <div className={`relative ${sizeClass}`}>
+                        <div className={`${sizeClass} rounded-full bg-gray-400 text-white flex items-center justify-center font-bold`}>
+                          {user.avatar ? (
+                            <img src={user.avatar} alt={user.username || "?"} className="w-full h-full rounded-full object-cover" />
+                          ) : (
+                            <>{user.username ? user.username[0] : "?"}</>
+                          )}
+                        </div>
+                        {/* Online status dot with label - always render, color by presence */}
+                        <span
+                          className={`absolute bottom-0 right-0 ${size === "lg" ? "w-4 h-4" : size === "sm" ? "w-2.5 h-2.5" : "w-3 h-3"} rounded-full border-2 border-white z-10 ${dotColor}`}
+                          title={dotLabel}
+                        />
+                      </div>
+                    );
+                  }}
                 />
               </div>
             )
           })}
+          <div ref={endRef} className="pt-2" />
         </AnimatePresence>
       )}
-      <div ref={endRef} />
     </div>
   )
 }

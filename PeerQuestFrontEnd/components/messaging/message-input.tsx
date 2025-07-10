@@ -1,14 +1,12 @@
 "use client"
-
-import type React from "react"
-import { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { Send, Paperclip, Smile, X, Loader2 } from "lucide-react"
 import EmojiPicker from "./emoji-picker"
 import { motion, AnimatePresence } from "framer-motion"
 
 type MessageInputProps = {
   onSend: (content: string, attachments?: File[]) => Promise<void>
-  onTyping?: (isTyping: boolean) => void
+  onTyping?: () => void
   disabled?: boolean
   handleFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void
   removeFile: (index: number) => void
@@ -34,18 +32,30 @@ export default function MessageInput({
   wsConnected,
 }: MessageInputProps) {
   const [showEmoji, setShowEmoji] = useState(false)
+  const [showFilesPopup, setShowFilesPopup] = useState(true)
+  // ...existing code...
+  // Hide popup if all files are removed
+  useEffect(() => {
+    if (selectedFiles.length === 0) setShowFilesPopup(false);
+    else setShowFilesPopup(true);
+  }, [selectedFiles]);
   const inputRef = useRef<HTMLInputElement>(null)
+  // Use a local ref only if fileInputRef is not provided
+  const localFileInputRef = useRef<HTMLInputElement>(null);
+  const actualFileInputRef = fileInputRef && fileInputRef.current !== undefined && fileInputRef.current !== null ? fileInputRef : localFileInputRef;
 
   const handleSubmit = async (
     e?: React.FormEvent<HTMLFormElement> | React.KeyboardEvent<HTMLInputElement>
   ) => {
     if (e) e.preventDefault?.()
     const trimmed = newMessage.trim()
-    if (!trimmed && selectedFiles.length === 0) return
+    // Allow sending if there is text OR at least one file
+    if (trimmed.length === 0 && (!selectedFiles || selectedFiles.length === 0)) return
     if (isSending) return
 
     try {
-      await onSend(trimmed, selectedFiles.length ? selectedFiles : undefined)
+      // Always pass the files array, even if only files (no text)
+      await onSend(trimmed, selectedFiles && selectedFiles.length > 0 ? selectedFiles : undefined)
       setNewMessage("")
       setShowEmoji(false)
       inputRef.current?.focus()
@@ -53,6 +63,7 @@ export default function MessageInput({
       console.error("Error sending message:", error)
     }
   }
+
 
   const handleEmojiSelect = (emoji: string) => {
     setNewMessage((prev) => prev + emoji)
@@ -62,7 +73,7 @@ export default function MessageInput({
 
   useEffect(() => {
     if (!onTyping) return
-    const handler = setTimeout(() => onTyping(newMessage.length > 0), 500)
+    const handler = setTimeout(() => onTyping(), 500)
     return () => clearTimeout(handler)
   }, [newMessage, onTyping])
 
@@ -81,11 +92,42 @@ export default function MessageInput({
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [showEmoji])
 
-  const isDisabled = (!newMessage.trim() && selectedFiles.length === 0) || disabled || isSending
+  // Enable send button if there is text OR at least one file
+  const isDisabled = (
+    (typeof newMessage === 'string' ? newMessage.trim().length : 0) === 0 &&
+    Array.isArray(selectedFiles) && selectedFiles.length === 0
+  ) ||
+    !Array.isArray(selectedFiles) ||
+    disabled ||
+    isSending;
 
   return (
     <div className="space-y-3">
-      {/* File attachments preview */}
+      {/* Popup for attached files (directly above input area, inside fixed input) */}
+      {selectedFiles.length > 0 && showFilesPopup && (
+        <div
+          className="mb-2 mx-auto w-fit bg-white border border-yellow-400 shadow-lg rounded-xl px-4 py-3 flex items-center gap-3 animate-fade-in"
+          style={{ minWidth: 220, maxWidth: 360 }}
+        >
+          <div className="flex-1 overflow-x-auto whitespace-nowrap text-sm">
+            <b>Attached:</b> {selectedFiles.map(f => f.name.length > 24 ? f.name.slice(0, 21) + '…' : f.name).join(", ")}
+          </div>
+          <button
+            className="ml-2 text-slate-500 hover:text-red-500 focus:outline-none"
+            onClick={() => setShowFilesPopup(false)}
+            aria-label="Dismiss attached files popup"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Show a hint if files are attached and message is empty */}
+      {selectedFiles.length > 0 && newMessage.trim().length === 0 && (
+        <div className="text-xs text-slate-600 px-3 pb-1">Ready to send <b>{selectedFiles.length}</b> file{selectedFiles.length > 1 ? 's' : ''}. Click send to upload.</div>
+      )}
+
+      {/* File attachments preview (still keep for inline removal) */}
       <AnimatePresence>
         {selectedFiles.length > 0 && (
           <motion.div
@@ -148,10 +190,10 @@ export default function MessageInput({
           </button>
 
           {/* File upload */}
-          <input type="file" hidden multiple ref={fileInputRef} onChange={handleFileSelect} />
+          <input type="file" hidden multiple ref={actualFileInputRef} onChange={handleFileSelect} />
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => actualFileInputRef.current?.click()}
             disabled={disabled || isSending}
             className="p-2 rounded-full transition-all hover:scale-110 flex items-center justify-center"
             style={{
@@ -186,8 +228,8 @@ export default function MessageInput({
                 handleSubmit(e)
               }
             }}
-            className="flex-1 border-0 bg-transparent focus:outline-none text-base px-2"
-            style={{ color: "#2c1a1d" }}
+            className="flex-1 border-0 bg-transparent focus:outline-none text-base px-2 truncate"
+            style={{ color: "#2c1a1d", minWidth: 0, maxWidth: '100%' }}
             placeholder="📜 Type your message..."
             disabled={disabled || isSending}
             aria-label="Message input"

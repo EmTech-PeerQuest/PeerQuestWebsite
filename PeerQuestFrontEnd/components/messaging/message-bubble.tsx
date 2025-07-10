@@ -37,10 +37,35 @@ const getFileIcon = (a: Attachment) =>
     <File className="w-4 h-4" style={{ color: "var(--tavern-gold)" }} />
   )
 
-const defaultAvatar = (user: User, size = "md") => {
-  const avatarClass = size === "sm" ? "avatar avatar-sm" : size === "lg" ? "avatar avatar-lg" : "avatar"
-
-  return <div className={avatarClass}>{user.username.charAt(0).toUpperCase()}</div>
+const defaultAvatar = (user: User, size = "md", onlineUsers?: Map<string, "online" | "idle" | "offline">) => {
+  const avatarClass = size === "sm" ? "avatar avatar-sm" : size === "lg" ? "avatar avatar-lg" : "avatar";
+  let presence: "online" | "idle" | "offline" = "offline";
+  if (onlineUsers && onlineUsers.has(user.id)) {
+    presence = onlineUsers.get(user.id) as "online" | "idle" | "offline";
+  }
+  let dotColor = "bg-gray-300";
+  let dotLabel = "Offline";
+  if (presence === "online") {
+    dotColor = "bg-green-500";
+    dotLabel = "Online";
+  } else if (presence === "idle") {
+    dotColor = "bg-amber-400";
+    dotLabel = "Idle";
+  }
+  // Always show Online if presence is online, never show Offline if user is online
+  if (presence === "online") {
+    dotLabel = "Online";
+  }
+  const initial = user.username ? user.username.charAt(0).toUpperCase() : "?";
+  return (
+    <div className={avatarClass + " relative flex items-center justify-center"}>
+      {initial}
+      <span
+        className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white z-10 ${dotColor}`}
+        title={dotLabel}
+      />
+    </div>
+  );
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -50,6 +75,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   status,
   onAttachmentClick,
   renderAvatar,
+  onlineUsers,
 }) => {
   const safeAttachments =
     message.attachments?.filter(
@@ -58,7 +84,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   const imageAttachments = safeAttachments.filter((a) => a.is_image)
   const otherAttachments = safeAttachments.filter((a) => !a.is_image)
-  const Avatar = renderAvatar ?? defaultAvatar
+  // Wrap Avatar to inject onlineUsers if not provided by parent
+  const Avatar = renderAvatar
+    ? (user: User, size?: "sm" | "md" | "lg") => renderAvatar(user, size)
+    : (user: User, size?: "sm" | "md" | "lg") => defaultAvatar(user, size, onlineUsers)
 
   const time = message.timestamp
     ? new Date(message.timestamp).toLocaleTimeString([], {
@@ -75,7 +104,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     >
       {!isOwnMessage && showAvatar && (
         <div className="mr-3 flex-shrink-0 self-end">
-          {message.sender ? Avatar(message.sender, "md") : defaultAvatar({ id: "unknown", username: "Unknown" })}
+          {message.sender ? Avatar(message.sender, "md") : defaultAvatar({ id: "unknown", username: "Unknown", email: "unknown@example.com", avatar: undefined }, "md", onlineUsers)}
         </div>
       )}
 
@@ -173,7 +202,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 
       {isOwnMessage && showAvatar && (
         <div className="ml-3 flex-shrink-0 self-end">
-          {message.sender ? Avatar(message.sender, "md") : defaultAvatar({ id: "unknown", username: "Unknown" })}
+          {message.sender ? Avatar(message.sender, "md") : defaultAvatar({ id: "unknown", username: "Unknown", email: "unknown@example.com", avatar: undefined }, "md", onlineUsers)}
         </div>
       )}
     </div>

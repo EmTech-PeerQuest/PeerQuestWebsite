@@ -7,6 +7,10 @@ import { Loader2, Wifi, WifiOff, Scroll } from "lucide-react"
 
 function MessagesPageContent() {
   const { user: currentUser, token, isLoading } = useAuth()
+  useEffect(() => {
+    // Debug: log auth state on mount and when it changes
+    console.log("[MessagesPage] isLoading:", isLoading, "currentUser:", currentUser, "token:", token);
+  }, [isLoading, currentUser, token]);
   const [mounted, setMounted] = useState(false)
   const [onlineUsers] = useState<Map<string, "online" | "idle" | "offline">>(new Map())
   const [isConnected, setIsConnected] = useState(true)

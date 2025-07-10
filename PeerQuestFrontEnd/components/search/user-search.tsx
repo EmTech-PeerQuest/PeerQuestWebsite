@@ -31,12 +31,19 @@ export function UserSearch({ quests, guilds, currentUser, showToast }: UserSearc
       setUsersError(null);
       try {
         // Try Django backend first, fallback to Next.js API route if 404
-        let res = await fetch("http://localhost:8000/api/users/");
+        console.log("[UserSearch] Fetching users from:", "http://localhost:8000/api/users/api/users/");
+        let res = await fetch("http://localhost:8000/api/users/api/users/");
+        console.log("[UserSearch] Response status:", res.status);
         if (res.status === 404) {
+          console.log("[UserSearch] Fallback to /api/users");
           res = await fetch("/api/users");
         }
-        if (!res.ok) throw new Error("Failed to fetch users");
+        if (!res.ok) {
+          console.error("[UserSearch] Failed to fetch users", res.status, res.statusText);
+          throw new Error("Failed to fetch users");
+        }
         const data = await res.json();
+        console.log("[UserSearch] Data received:", data);
         setUsers(Array.isArray(data.users) ? data.users : data);
       } catch (err: any) {
         setUsersError(err.message || "Failed to load users");

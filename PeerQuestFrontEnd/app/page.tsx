@@ -6,9 +6,8 @@ import { Hero } from '@/components/ui/hero'
 import { QuestBoard } from '@/components/quests/quest-board'
 import { QuestManagement } from '@/components/quests/quest-management'
 import { GuildHall } from '@/components/guilds/guild-hall'
-import { UserSearch } from '@/components/user-search';
+import { UserSearch } from '@/components/search/user-search';
 import MessagingSystem from '@/components/messaging/messaging-system';
-import { QuestManagement } from '@/components/quests/quest-management';
 import { AdminPanel } from '@/components/admin/admin-panel';
 import { EnhancedGuildManagement } from '@/components/guilds/enhanced-guild-management';
 import { About } from "@/components/about"
@@ -25,15 +24,12 @@ import { useRouter } from 'next/navigation';
 import Spinner from '@/components/ui/spinner';
 import LoadingModal from '@/components/ui/loading-modal';
 import { IntegratedProfile } from '@/components/profile/integrated-profile';
-import { UserSearch } from '@/components/search/user-search';
-import type { User, Quest, Guild, GuildApplication } from "@/lib/types"
+
+import type { User, Quest, Guild, GuildJoinRequest } from "@/lib/types"
 import { fetchInitialData } from '@/lib/api/init-data'
-import { MessagingSystem } from '@/components/messaging/messaging-system'
 import { SimpleGuildManagement } from '@/components/guilds/simple-guild-management'
-import { EnhancedGuildManagement } from '@/components/guilds/enhanced-guild-management'
 import { GuildOverviewModal } from '@/components/guilds/guild-overview-modal'
 import { EnhancedCreateGuildModal } from '@/components/guilds/enhanced-create-guild-modal'
-import { AdminPanel } from '@/components/admin/admin-panel'
 import { addSpendingRecord } from "@/lib/spending-utils"
 import { useGuilds, useGuildActions } from "@/hooks/useGuilds"
 
@@ -193,49 +189,73 @@ export default function Home() {
   }
 
   const handleQuestSubmit = (questData: Partial<Quest> & { questCost?: number }) => {
-    if (!currentUser) return
+    if (!currentUser) return;
 
     // Deduct gold from user for quest reward and add spending record
     if (questData.questCost) {
-      const updatedUser = addSpendingRecord(
+      addSpendingRecord(
         currentUser,
         questData.questCost,
-        "quest_posting",
+        "reward",
         `Posted quest: ${questData.title}`,
-      )
-      // TODO: Update user gold through proper auth context method
-      // setCurrentUser({ ...updatedUser, gold: updatedUser.gold - questData.questCost })
+      );
     }
 
+    // Fallbacks for category/difficulty
+    const defaultCategory = { id: 0, name: "misc", description: "Miscellaneous" };
+    const allowedDifficulties = ["initiate", "adventurer", "champion", "mythic"];
+    const difficulty = allowedDifficulties.includes(questData.difficulty as any)
+      ? questData.difficulty
+      : "initiate";
+
+    const now = new Date();
     const newQuest: Quest = {
       id: Date.now(),
       title: questData.title || "Untitled Quest",
       description: questData.description || "",
-      category: questData.category || "misc",
-      difficulty: questData.difficulty || "medium",
+      category: typeof questData.category === "object" && questData.category && "id" in questData.category
+        ? questData.category
+        : defaultCategory,
+      difficulty: difficulty as Quest["difficulty"],
+      status: "open",
+      xp_reward: questData.xp_reward || questData.xp || 50,
+      gold_reward: questData.gold_reward || questData.reward || 100,
+      creator: {
+        id: typeof currentUser.id === 'string' ? parseInt(currentUser.id, 10) : currentUser.id,
+        username: currentUser.username || "",
+        email: currentUser.email,
+        level: currentUser.level,
+        xp: currentUser.xp,
+      },
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+      slug: (questData.title || "untitled-quest").toLowerCase().replace(/\s+/g, "-"),
+      participant_count: 0,
+      applications_count: 0,
+      can_accept_participants: true,
+      is_completed: false,
+      // Legacy/compat fields
       reward: questData.reward || 100,
       xp: questData.xp || 50,
-      status: "open",
       poster: currentUser,
-      createdAt: new Date().toISOString(),
       deadline: questData.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       applicants: [],
       isGuildQuest: questData.isGuildQuest || false,
       guildId: questData.guildId,
       guildReward: questData.guildReward || 0,
-    }
+    };
 
-    setQuests([newQuest, ...quests])
-    setShowPostQuestModal(false)
-    showToast(`Quest posted! ${questData.questCost} gold deducted for reward pool.`, "success")
-  }
+    setQuests([newQuest, ...quests]);
+    setShowPostQuestModal(false);
+    showToast(`Quest posted! ${questData.questCost} gold deducted for reward pool.`, "success");
+  };
 
   const handleGuildSubmit = async (guildData: any) => {
-    if (!currentUser) return
+    if (!currentUser) return;
 
     try {
       // Create guild data for API
-      const createGuildData: CreateGuildData = {
+      const createGuildData = {
         name: guildData.name || "Untitled Guild",
         description: guildData.description || "",
         specialization: guildData.specialization || "general",
@@ -251,17 +271,17 @@ export default function Home() {
         who_can_post_quests: guildData.whoCanPost || 'all_members',
         who_can_invite_members: guildData.whoCanInvite || 'all_members',
         social_links: guildData.socialLinks || [],
-      }
+      };
 
-      await createGuild(createGuildData)
-      await refetchGuilds() // Refresh the guild list
-      setShowCreateGuildModal(false)
-      showToast(`Guild created successfully!`, "success")
+      await createGuild(createGuildData);
+      await refetchGuilds(); // Refresh the guild list
+      setShowCreateGuildModal(false);
+      showToast(`Guild created successfully!`, "success");
     } catch (error) {
-      console.error('Error creating guild:', error)
-      showToast('Failed to create guild. Please try again.', "error")
+      console.error('Error creating guild:', error);
+      showToast('Failed to create guild. Please try again.', "error");
     }
-  }
+  };
 
   const handleQuestClick = (quest: Quest) => {
     setSelectedQuest(quest)
@@ -540,11 +560,11 @@ export default function Home() {
           />
         )}
 
-        {activeSection === "messages" && currentUser && token &&(
+        {activeSection === "messages" && currentUser && debugToken &&(
           <MessagingSystem
             currentUser={currentUser}
             showToast={showToast}
-            token={token} // Assuming your `User` object includes a `token` field
+            token={debugToken}
             onlineUsers={new Map()}   // Replace with actual onlineUsers map if available
           />
         )}
@@ -703,7 +723,7 @@ export default function Home() {
             isOpen={showGoldSystemModal}
             onClose={() => setShowGoldSystemModal(false)}
             currentUser={currentUser}
-            refreshUser={refreshUser}
+            refreshUser={async () => { window.location.reload(); }}
             showToast={(message: string, type?: string) => {
               toast({ title: message, variant: type === "error" ? "destructive" : "default" });
             }}

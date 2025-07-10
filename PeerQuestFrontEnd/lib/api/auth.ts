@@ -487,3 +487,10 @@ export const checkPasswordStrength = async (password: string, username?: string,
     throw error;
   }
 };
+
+export class TokenInvalidError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TokenInvalidError";
+  }
+}

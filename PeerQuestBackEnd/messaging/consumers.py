@@ -126,6 +126,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
     async def disconnect(self, code):
         user = self.scope["user"]
+        logger.warning(f"WebSocket disconnect: user={getattr(user, 'username', None)}, code={code}, conversation_id={getattr(self, 'conversation_id', None)}")
         if user and user.is_authenticated:
             await mark_user_offline(user)
             await self.channel_layer.group_discard(self.room_group, self.channel_name)
@@ -139,66 +140,76 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                     )
 
     async def receive(self, text_data):
-        data = json.loads(text_data)
-        typ = data.get("type")
+        try:
+            data = json.loads(text_data)
+            typ = data.get("type")
 
-        if typ in ("send_message", "chat_message"):
-            await self.handle_chat_message(data)
-        elif typ == "typing":
-            await self.handle_typing(data)
-        elif typ == "read_receipt":
-            await self.handle_read_receipt(data)
+            if typ in ("send_message", "chat_message"):
+                await self.handle_chat_message(data)
+            elif typ == "typing":
+                await self.handle_typing(data)
+            elif typ == "read_receipt":
+                await self.handle_read_receipt(data)
+        except Exception as e:
+            logger.error(f"Exception in receive: {e}", exc_info=True)
+            # Optionally, send error to client or just log
+            # await self.send_json({"type": "error", "detail": str(e)})
 
     async def handle_chat_message(self, data):
-        user = self.scope["user"]
-        content = data.get("content", "").strip()
-        temp_id = data.get("temp_id")  # Get temp_id from frontend
-        
-        if not content:
-            return
+        try:
+            user = self.scope["user"]
+            content = data.get("content", "").strip()
+            temp_id = data.get("temp_id")  # Get temp_id from frontend
+            
+            if not content:
+                return
 
-        # create & persist the message
-        msg = await create_message(self.conversation_id, str(user.id), content)
-        if not msg:
-            return
+            # create & persist the message
+            msg = await create_message(self.conversation_id, str(user.id), content)
+            if not msg:
+                return
 
-        # award XP
-        await award_xp_sync(user, amount=10, reason="chat message")
+            # award XP
+            await award_xp_sync(user, amount=10, reason="chat message")
 
-        # serialize in a thread
-        serialized = await serialize_message(msg)
+            # serialize in a thread
+            serialized = await serialize_message(msg)
 
-        # broadcast new_message with temp_id to all participants (including sender)
-        await self.channel_layer.group_send(
-            self.room_group,
-            {
-                "type": "chat.message",
-                "message": serialized,
-                "temp_id": temp_id,
-            },
-        )
-
-        # update each user's conversation preview
-        pids = await get_participant_ids(self.conversation_id)
-        for pid in pids:
+            # broadcast new_message with temp_id to all participants (including sender)
             await self.channel_layer.group_send(
-                f"user_{pid}",
+                self.room_group,
                 {
-                    "type": "conversation_update",
-                    "conversation_id": str(self.conversation_id),
-                    "last_message": serialized,
+                    "type": "chat.message",
+                    "message": serialized,
+                    "temp_id": temp_id,
                 },
             )
 
-        # ✅ Send status=sent to sender only
-        await self.channel_layer.group_send(
-            f"user_{user.id}",
-            {
-                "type": "message.status",
-                "message_id": str(msg.id),
-                "status": "sent",
-            },
-        )
+            # update each user's conversation preview
+            pids = await get_participant_ids(self.conversation_id)
+            for pid in pids:
+                await self.channel_layer.group_send(
+                    f"user_{pid}",
+                    {
+                        "type": "conversation_update",
+                        "conversation_id": str(self.conversation_id),
+                        "last_message": serialized,
+                    },
+                )
+
+            # ✅ Send status=sent to sender only
+            await self.channel_layer.group_send(
+                f"user_{user.id}",
+                {
+                    "type": "message.status",
+                    "message_id": str(msg.id),
+                    "status": "sent",
+                },
+            )
+        except Exception as e:
+            logger.error(f"Exception in handle_chat_message: {e}", exc_info=True)
+            # Optionally, send error to client or just log
+            # await self.send_json({"type": "error", "detail": str(e)})
 
 
     async def handle_typing(self, data):
