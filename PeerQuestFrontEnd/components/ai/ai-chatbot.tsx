@@ -81,25 +81,34 @@ export function AIChatbot({ currentUser }: AIChatbotProps) {
     setShowSuggestions(false);
 
     try {
-      const res = await fetch("/api/chat", {
+      // Limit messages to last 5 to prevent payload too large error
+      const recentMessages = messages.slice(-5);
+      
+      const res = await fetch("http://localhost:8000/api/users/ai-chat/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...messages, newUserMessage], currentUser }),
+        body: JSON.stringify({ 
+          messages: [...recentMessages, newUserMessage], 
+          user: currentUser 
+        }),
       });
+      
       const data = await res.json();
+      
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: data.reply || data.error || "Sorry, I couldn't process your request.",
+        content: data.reply || data.error || "No response received",
       };
       setMessages((prev) => [...prev, aiResponse]);
     } catch (err) {
+      console.error("AI Service Error:", err);
       setMessages((prev) => [
         ...prev,
         {
           id: (Date.now() + 2).toString(),
           role: "assistant",
-          content: "Sorry, there was an error contacting the AI service.",
+          content: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
         },
       ]);
     } finally {

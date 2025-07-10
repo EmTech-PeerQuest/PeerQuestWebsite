@@ -71,6 +71,9 @@ urlpatterns = [
 
     # Test Google callback endpoint
     path('test-google/', lambda request: JsonResponse({'status': 'Google callback endpoint accessible'}), name='test-google'),
+    
+    # AI Chat endpoint - the route your frontend expects
+    path('api/chat/', __import__('users.ai_chatbot_proxy').ai_chatbot_proxy.AIChatbotProxyView.as_view(), name='ai-chat'),
 ]
 
 if settings.DEBUG:
