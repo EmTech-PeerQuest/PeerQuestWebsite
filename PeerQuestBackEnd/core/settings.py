@@ -11,16 +11,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'your-secret-key'
 DEBUG = True
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver', '*']  # Allow all hosts for development
 
 # Installed Apps
 INSTALLED_APPS = [
+    'daphne',  # Add Daphne at the top for WebSocket support
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'channels',  # Add Django Channels
     'quests.apps.QuestsConfig',
     'drf_yasg',
     'users',
@@ -75,6 +77,24 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'core.wsgi.application'
+ASGI_APPLICATION = 'core.asgi.application'
+
+# Channel Layers for WebSocket support (using in-memory for development)
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer'
+    }
+}
+
+# For production with Redis:
+# CHANNEL_LAYERS = {
+#     'default': {
+#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
+#         'CONFIG': {
+#             "hosts": [('127.0.0.1', 6379)],
+#         },
+#     },
+# }
 
 # Database (SQLite for dev)
 DATABASES = {
@@ -232,6 +252,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3002",
     "http://localhost:3003",
     "http://127.0.0.1:3003",
+    "http://localhost:8001",  # Add backend URL for WebSocket testing
+    "http://127.0.0.1:8001",
 ]
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'X-Requested-With',

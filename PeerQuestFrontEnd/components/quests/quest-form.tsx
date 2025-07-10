@@ -60,8 +60,9 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
   }
 
   const calculateMaxAffordableBudget = (availableBalance: number): number => {
-    // Maximum budget is simply the available balance
-    return Math.min(999, availableBalance)
+    // Maximum budget is the minimum of available balance and difficulty max
+    const difficultyMax = getGoldBudgetRangeForDifficulty(formData.difficulty).max
+    return Math.min(difficultyMax, availableBalance)
   }
 
   // Calculate maximum budget for quest editing
@@ -69,8 +70,9 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     if (isEditing && quest) {
       const oldGoldReward = quest.gold_reward || 0
       const oldBudget = oldGoldReward > 0 ? Math.ceil(oldGoldReward / 0.95) : 0
-      // User can increase budget by their available balance
-      return Math.min(999, oldBudget + userGoldBalance)
+      // User can increase budget by their available balance, but within difficulty limits
+      const difficultyMax = getGoldBudgetRangeForDifficulty(formData.difficulty).max
+      return Math.min(difficultyMax, oldBudget + userGoldBalance)
     }
     return calculateMaxAffordableBudget(userGoldBalance)
   }
@@ -303,9 +305,12 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     
     // For quest editing, validate based on additional gold needed
     if (isEditing && quest) {
-      // Check if quest is in-progress - gold rewards cannot be changed
-      if (quest.status === 'in-progress' && goldBudget !== (quest.gold_reward || 0) ? Math.ceil((quest.gold_reward || 0) / 0.95) : 0) {
-        validationErrors.goldBudget = 'Cannot modify gold reward for a quest that is already in progress. Participants have already committed based on the current reward amount.'
+      // Check if quest is in-progress or completed - gold rewards cannot be changed
+      if (
+        (quest.status === 'in-progress' || quest.status === 'in_progress' || quest.status === 'completed') &&
+        goldBudget !== (quest.gold_reward ? Math.ceil(quest.gold_reward / 0.95) : 0)
+      ) {
+        validationErrors.goldBudget = 'Cannot modify gold reward for a quest that is already in progress or completed. Participants have already committed based on the current reward amount.'
       } else {
         const oldGoldReward = quest.gold_reward || 0
         const oldBudget = oldGoldReward > 0 ? Math.ceil(oldGoldReward / 0.95) : 0
@@ -315,8 +320,8 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
           validationErrors.goldBudget = `You need ${additionalGoldNeeded} additional gold to increase the quest reward, but you only have ${userGoldBalance} gold available.`
         } else if (goldBudget < 0) {
           validationErrors.goldBudget = 'Budget cannot be negative'
-        } else if (goldBudget > 999) {
-          validationErrors.goldBudget = 'Budget cannot exceed 999 gold'
+        } else if (goldBudget > getGoldBudgetRangeForDifficulty(formData.difficulty).max) {
+          validationErrors.goldBudget = `Budget cannot exceed ${getGoldBudgetRangeForDifficulty(formData.difficulty).max} gold for ${formData.difficulty} difficulty`
         }
       }
     } else {
@@ -325,8 +330,8 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
         validationErrors.goldBudget = `Total budget (${goldBudget} gold) exceeds your available balance of ${userGoldBalance} gold.`
       } else if (goldBudget < 0) {
         validationErrors.goldBudget = 'Budget cannot be negative'
-      } else if (goldBudget > 999) {
-        validationErrors.goldBudget = 'Budget cannot exceed 999 gold'
+      } else if (goldBudget > getGoldBudgetRangeForDifficulty(formData.difficulty).max) {
+        validationErrors.goldBudget = `Budget cannot exceed ${getGoldBudgetRangeForDifficulty(formData.difficulty).max} gold for ${formData.difficulty} difficulty`
       }
     }
     
@@ -658,8 +663,8 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     </div>
   );
 
-  // Lock gold budget if quest is not a draft (i.e., if it's open, in-progress, or completed)
-  const isGoldBudgetLocked = isEditing && quest && ["open", "in-progress", "in_progress", "completed"].includes(quest.status)
+  // Lock gold budget when editing any existing quest (for fairness)
+  const isGoldBudgetLocked = isEditing && !!quest
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
@@ -827,6 +832,8 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                   type="range"
                   min="0"
                   max="3"
+                  aria-label="Select quest difficulty level"
+                  title="Difficulty level selector"
                   value={['initiate', 'adventurer', 'champion', 'mythic'].indexOf(formData.difficulty)}
                   onChange={(e) => {
                     // Prevent changes when editing
@@ -839,13 +846,10 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                   }}
                   disabled={isEditing && !!quest}
                   className={`w-full h-3 rounded-lg appearance-none ${
-                    isEditing && quest ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                    isEditing && quest 
+                      ? 'cursor-not-allowed opacity-50 bg-gray-300' 
+                      : 'cursor-pointer bg-gradient-to-r from-green-500 via-blue-500 to-purple-600'
                   }`}
-                  style={{
-                    background: isEditing && quest 
-                      ? '#e5e7eb' 
-                      : 'linear-gradient(to right, #22c55e, #3b82f6, #fbbf24, #a21caf)',
-                  }}
                 />
                 {/* Difficulty level indicators */}
                 <div className="flex justify-between mt-2 px-1">
@@ -928,9 +932,9 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                   <span className="text-white text-xs">🪙</span>
                 </div>
                 GOLD BUDGET *
-                {isEditing && quest && quest.status === 'in-progress' && (
+                {isGoldBudgetLocked && (
                   <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                    🔒 Locked (In Progress)
+                    🔒 Locked (Cannot Edit)
                   </span>
                 )}
               </label>
@@ -941,6 +945,8 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                   pattern="[0-9]*"
                   id="budget"
                   name="budget"
+                  aria-label="Gold budget"
+                  title="Enter the total gold budget for this quest"
                   value={goldBudget === 0 ? '' : goldBudget}
                   onChange={(e) => {
                     if (isGoldBudgetLocked) return;

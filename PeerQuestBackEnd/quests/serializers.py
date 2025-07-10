@@ -434,6 +434,12 @@ class QuestParticipantCreateSerializer(serializers.ModelSerializer):
 
 class QuestSubmissionCreateSerializer(serializers.ModelSerializer):
     """For creating quest submissions"""
+    quest_participant = serializers.PrimaryKeyRelatedField(
+        queryset=QuestParticipant.objects.all(),
+        required=False,
+        write_only=True,
+        help_text="Quest participant ID (if user is already a participant)"
+    )
     files = serializers.ListField(
         child=serializers.FileField(max_length=100000, allow_empty_file=False, use_url=False),
         write_only=True,
@@ -484,7 +490,20 @@ class QuestSubmissionCreateSerializer(serializers.ModelSerializer):
             if application.quest.status not in ['open', 'in-progress']:
                 raise serializers.ValidationError("Cannot submit to a quest that is not active.")
         # Restrict to 5 submissions per participant per quest
-        participant = quest_participant or (application and application.participant)
+        participant = quest_participant
+        if application and not participant:
+            # For applications, we need to get or check if a participant exists
+            # since the participant might be created during the submission process
+            from .models import QuestParticipant
+            try:
+                participant = QuestParticipant.objects.get(
+                    quest=application.quest, 
+                    user=application.applicant
+                )
+            except QuestParticipant.DoesNotExist:
+                # Participant will be created during submission, start count from 0
+                participant = None
+        
         if participant:
             from .models import QuestSubmission
             count = QuestSubmission.objects.filter(quest_participant=participant).count()

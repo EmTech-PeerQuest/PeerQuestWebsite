@@ -1,11 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { X, UploadCloud, FileText, Image as ImageIcon, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 
-
-
-
-
-
 interface QuestSubmitWorkModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -64,6 +59,13 @@ export const QuestSubmitWorkModal: React.FC<QuestSubmitWorkModalProps> = ({
   useEffect(() => {
     if (isOpen && questSlug) {
       fetchSubmissionCount();
+      // Debug: Log submission modal props
+      console.log('QuestSubmitWorkModal opened with:', {
+        questParticipantId,
+        applicationId,
+        questTitle,
+        questSlug
+      });
     }
   }, [isOpen, questSlug, fetchSubmissionCount]);
 
@@ -129,9 +131,19 @@ export const QuestSubmitWorkModal: React.FC<QuestSubmitWorkModalProps> = ({
     setIsLoading(true);
     setErrors("");
     setSuccess(false);
+    
+    console.log('Submit Work - Debug Info:', {
+      questParticipantId,
+      applicationId,
+      questSlug,
+      description: description.trim(),
+      link: link.trim(),
+      filesCount: files.length
+    });
+    
     try {
       if (!questParticipantId && !applicationId) {
-        setErrors("No participant or approved application found for submission.");
+        setErrors("You are not a participant in this quest or don't have an approved application. Please apply for the quest first and wait for approval.");
         setIsLoading(false);
         return;
       }
@@ -147,14 +159,19 @@ export const QuestSubmitWorkModal: React.FC<QuestSubmitWorkModalProps> = ({
         setIsLoading(false);
         return;
       }
-      await QuestAPI.submitQuestWork({
+      
+      const submissionData = {
         questSlug,
         ...(questParticipantId ? { questParticipantId } : {}),
         ...(applicationId ? { applicationId } : {}),
         description,
         link,
         files,
-      });
+      };
+      
+      console.log('Submitting with data:', submissionData);
+      
+      await QuestAPI.submitQuestWork(submissionData);
       setDescription("");
       setLink("");
       setFiles([]);
@@ -245,7 +262,11 @@ export const QuestSubmitWorkModal: React.FC<QuestSubmitWorkModalProps> = ({
             </h2>
             {questTitle && <p className="text-white/90 mt-1">For: {questTitle}</p>}
           </div>
-          <button onClick={onClose} className="text-white/90 hover:text-white p-2 hover:bg-white/10 rounded-full">
+          <button 
+            onClick={onClose} 
+            title="Close modal"
+            className="text-white/90 hover:text-white p-2 hover:bg-white/10 rounded-full"
+          >
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -259,8 +280,8 @@ export const QuestSubmitWorkModal: React.FC<QuestSubmitWorkModalProps> = ({
                   ${errors ? "bg-red-50 border border-red-200 text-red-600" : ""}
                   ${isLoading ? "bg-blue-50 border border-blue-200 text-blue-700" : ""}
                   ${success ? "bg-green-50 border border-green-200 text-green-700" : ""}
+                  ${errors && errors.includes('maximum (5) times') ? "font-bold text-lg border-2 border-orange-400" : ""}
                 `}
-                style={errors && errors.includes('maximum (5) times') ? { fontWeight: 'bold', fontSize: '1.1em', outline: '2px solid #f59e42', outlineOffset: '2px' } : {}}
               >
                 {isLoading ? (
                   <Clock className="w-5 h-5" />
@@ -316,6 +337,8 @@ export const QuestSubmitWorkModal: React.FC<QuestSubmitWorkModalProps> = ({
                 onChange={handleFileChange}
                 ref={fileInputRef}
                 className="hidden"
+                title="Select files to upload"
+                aria-label="Select files to upload"
               />
               <UploadCloud className="w-10 h-10 text-amber-400 mb-2" />
               <span className="text-amber-800 font-medium">Drag & drop files here, or <span className="underline">browse</span></span>

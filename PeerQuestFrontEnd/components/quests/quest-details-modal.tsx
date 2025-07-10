@@ -73,18 +73,45 @@ export function QuestDetailsModal({
 
   // Find the participant record for the current user (need this early for useEffect dependencies)
   const myParticipant = quest?.participants_detail?.find(
-    (p) => p.user.id === currentUser?.id
+    (p) => p.user.id === parseInt(currentUser?.id || '0')
   );
 
   // Check if user is already a participant (either through participants_detail or approved application)
   // BUT exclude kicked users - they should no longer be considered participants
   const isAlreadyParticipant = !hasBeenKicked && (
-    (quest?.participants_detail?.some((p) => p.user.id === currentUser?.id) || false) || 
+    (quest?.participants_detail?.some((p) => p.user.id === parseInt(currentUser?.id || '0')) || false) || 
     hasApprovedApplication
   )
 
-  // Only allow submit if user is still a participant and the quest is not open AND user hasn't been kicked
-  const canSubmitWork = !!myParticipant && quest?.status !== "open" && !hasBeenKicked;
+  // Only allow submit if user is a participant (either in participants_detail or has approved application) 
+  // and the quest is in-progress AND user hasn't been kicked
+  const canSubmitWork = (!!myParticipant || hasApprovedApplication) && 
+    (quest?.status === "in-progress" || quest?.status === "in_progress") && 
+    !hasBeenKicked;
+
+  // Detailed debug logging for submit button troubleshooting
+  if (isAuthenticated && currentUser && quest) {
+    console.log('🔍 Quest Details Modal - Submit Button Debug:', {
+      questTitle: quest.title,
+      questStatus: quest.status,
+      questStatusType: typeof quest.status,
+      currentUserId: currentUser.id,
+      myParticipant: myParticipant ? { id: myParticipant.id, userId: myParticipant.user?.id } : null,
+      hasApprovedApplication,
+      hasBeenKicked,
+      isAlreadyParticipant,
+      canSubmitWork,
+      latestSubmissionStatus,
+      submitButtonWillShow: canSubmitWork && (latestSubmissionStatus !== 'approved'),
+      userApplications: userApplications.filter(app => app.quest.id === quest.id),
+      statusCheck: {
+        isInProgress: quest?.status === "in-progress",
+        isInProgressAlt: quest?.status === "in_progress", 
+        actualStatus: quest?.status,
+        statusOptions: ["open", "in-progress", "in_progress", "completed"]
+      }
+    });
+  }
 
   // Load user applications when modal opens and user is authenticated
   useEffect(() => {
@@ -103,7 +130,7 @@ export function QuestDetailsModal({
 
   // Load submission status when participant info is available
   useEffect(() => {
-    if (isOpen && isAuthenticated && currentUser && myParticipant && quest && isAlreadyParticipant && !isLoadingSubmissionStatus) {
+    if (isOpen && isAuthenticated && currentUser && quest && isAlreadyParticipant && !isLoadingSubmissionStatus) {
       loadLatestSubmissionStatus()
     } else if (!isAlreadyParticipant) {
       // Clear status if user is not a participant
@@ -144,7 +171,10 @@ export function QuestDetailsModal({
   }
 
   const loadLatestSubmissionStatus = async () => {
-    if (!quest || !isAuthenticated || !myParticipant || isLoadingSubmissionStatus) return
+    if (!quest || !isAuthenticated || !currentUser || isLoadingSubmissionStatus) return
+    
+    // Only load for participants (either myParticipant or approved application)
+    if (!isAlreadyParticipant) return
     
     setIsLoadingSubmissionStatus(true)
     try {
@@ -176,12 +206,23 @@ export function QuestDetailsModal({
 
   if (!isOpen || !quest) return null
 
+  const isQuestOwner = currentUser && quest.creator && (
+    quest.creator.id === parseInt(currentUser.id) || 
+    quest.creator.id.toString() === currentUser.id ||
+    quest.creator.username === currentUser.username
+  )
+
   // Debug logging for quest details
   console.log('👁️ Quest Details Modal - Quest data:', {
     id: quest.id,
     title: quest.title,
     description: quest.description,
-    descriptionLength: quest.description?.length || 0
+    descriptionLength: quest.description?.length || 0,
+    creatorId: quest.creator?.id,
+    creatorUsername: quest.creator?.username,
+    currentUserId: currentUser?.id,
+    currentUserUsername: currentUser?.username,
+    isQuestOwner: isQuestOwner
   })
 
   const getCategoryIcon = (category: string) => {
@@ -199,12 +240,18 @@ export function QuestDetailsModal({
 
   const applyForQuest = async (questId: number) => {
     if (!isAuthenticated) {
-      showToast(t('toastMessages.pleaseLoginQuests'), "error")
+      showToast("Please login to apply for quests", "error")
       setAuthModalOpen(true)
       return
     }
 
     if (!currentUser) return
+
+    // Safety check: Prevent quest owners from applying to their own quest
+    if (isQuestOwner) {
+      showToast("You cannot apply to your own quest", "error")
+      return
+    }
 
     try {
       console.log('🎯 Quest Details Modal - Applying for quest:', {
@@ -253,7 +300,7 @@ export function QuestDetailsModal({
       openEditQuestModal(quest)
       onClose()
     } else {
-      showToast(t('toastMessages.questEditingComingSoon'), "info")
+      showToast("Quest editing coming soon", "info")
     }
   }
 
@@ -295,11 +342,12 @@ export function QuestDetailsModal({
     }
   }
 
-  const isQuestOwner = currentUser && quest.creator && quest.creator.id === currentUser.id
-
   // Check application eligibility based on new rules
   const getApplicationEligibility = () => {
     if (!quest || !currentUser) return { canApply: false, reason: "Not authenticated" }
+    
+    // First check: Quest owner cannot apply to their own quest
+    if (isQuestOwner) return { canApply: false, reason: "Cannot apply to your own quest" }
     
     if (!isAuthenticated) return { canApply: false, reason: "Please log in to apply for quests" }
     
@@ -374,7 +422,12 @@ export function QuestDetailsModal({
               <h2 className="text-2xl font-bold font-serif mb-2">Quest Details</h2>
               <p className="text-white/80">Complete quest information and requirements</p>
             </div>
-            <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+            <button 
+              onClick={onClose} 
+              className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+              aria-label="Close quest details modal"
+              title="Close"
+            >
               <X size={24} />
             </button>
           </div>
@@ -458,164 +511,211 @@ export function QuestDetailsModal({
               </div>
             </div>
 
-            {/* Application Status (for non-owners) */}
-            {!isQuestOwner && isAuthenticated && (isAlreadyParticipant || hasApprovedApplication) && (
-              <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <CheckCircle size={20} className="text-green-700" />
-                  <h4 className="text-lg font-bold text-green-800">Quest Participant</h4>
-                </div>
-                <p className="text-green-700">
-                  {hasApprovedApplication 
-                    ? "Your application has been approved! You are now participating in this quest."
-                    : "You are currently participating in this quest."
-                  }
-                </p>
-                
-                {/* Submission Status Display */}
-                {(latestSubmissionStatus || isLoadingSubmissionStatus) && (
-                  <div className="mt-3">
-                    {isLoadingSubmissionStatus ? (
-                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                          <span className="font-semibold text-gray-700">Updating Status...</span>
-                        </div>
-                        <p className="text-gray-600 text-sm">Refreshing your submission status...</p>
-                      </div>
-                    ) : (
-                      <>
-                        {latestSubmissionStatus === 'pending' && (
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Clock size={16} className="text-blue-600" />
-                              <span className="font-semibold text-blue-800">Submission Status</span>
-                            </div>
-                            <p className="text-blue-700 text-sm">Your work is under review by the quest creator.</p>
-                          </div>
-                        )}
-                        
-                        {latestSubmissionStatus === 'needs_revision' && (
-                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                            <div className="flex items-center gap-2 mb-1">
-                              <AlertCircle size={16} className="text-amber-600" />
-                              <span className="font-semibold text-amber-800">Revision Required</span>
-                            </div>
-                            <p className="text-amber-700 text-sm">Your submission needs revision. Please submit updated work.</p>
-                            {submissionFeedback && (
-                              <div className="mt-2 p-2 bg-amber-100 rounded text-xs text-amber-800">
-                                <strong>Feedback:</strong> {submissionFeedback}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        
-                        {latestSubmissionStatus === 'approved' && (
-                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                            <div className="flex items-center gap-2 mb-1">
-                              <CheckCircle size={16} className="text-amber-600" />
-                              <span className="font-semibold text-amber-800">Work Approved</span>
-                            </div>
-                            <p className="text-amber-700 text-sm">Congratulations! Your work has been approved.</p>
-                            {submissionFeedback && (
-                              <div className="mt-2 p-2 bg-amber-100 rounded text-xs text-amber-800">
-                                <strong>Feedback:</strong> {submissionFeedback}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-                
-                {/* Submit Completed Work Button */}
-                {canSubmitWork && (latestSubmissionStatus !== 'approved') && (
-                  <button
-                    className="mt-4 px-5 py-2 bg-gradient-to-r from-purple-500 to-amber-500 text-white rounded-lg font-semibold shadow hover:from-purple-600 hover:to-amber-600 transition-colors"
-                    onClick={() => setShowSubmitWorkModal(true)}
-                  >
-                    {latestSubmissionStatus === 'needs_revision' ? 'Submit Revised Work' : 'Submit Completed Work'}
-                  </button>
-                )}
-              </div>
-            )}
+            {/* Unified Application Status Notification (for non-owners) */}
+            {!isQuestOwner && isAuthenticated && (
+              <>
+                {/* Active Participation or Pending Application */}
+                {(isAlreadyParticipant || hasApprovedApplication || hasAlreadyApplied) && (
+                  <div className={`p-4 rounded-lg ${
+                    isAlreadyParticipant || hasApprovedApplication
+                      ? 'bg-green-50 border border-green-200'
+                      : 'bg-amber-50 border border-amber-200'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      {isAlreadyParticipant || hasApprovedApplication ? (
+                        <>
+                          <CheckCircle size={20} className="text-green-700" />
+                          <h4 className="text-lg font-bold text-green-800">Quest Participant</h4>
+                        </>
+                      ) : (
+                        <>
+                          <Clock size={20} className="text-amber-700" />
+                          <h4 className="text-lg font-bold text-amber-800">Application Pending</h4>
+                        </>
+                      )}
+                    </div>
+                    
+                    <p className={isAlreadyParticipant || hasApprovedApplication ? 'text-green-700' : 'text-amber-700'}>
+                      {isAlreadyParticipant || hasApprovedApplication
+                        ? hasApprovedApplication 
+                          ? "Your application has been approved! You are now participating in this quest."
+                          : "You are currently participating in this quest."
+                        : "Your application is currently under review by the quest creator."
+                      }
+                    </p>
 
-            {!isQuestOwner && isAuthenticated && hasAlreadyApplied && !isAlreadyParticipant && !hasApprovedApplication && (
-              <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <Clock size={20} className="text-amber-700" />
-                  <h4 className="text-lg font-bold text-amber-800">Your Application</h4>
-                </div>
-                <p className="text-amber-700">
-                  You have already applied for this quest. Your application is currently pending review.
-                </p>
-                {/* Show attempt info if available */}
-                {attemptInfo && attemptInfo.attempt_count > 0 && (
-                  <div className="mt-2 text-sm text-amber-600 bg-amber-100 rounded px-2 py-1">
-                    {attemptInfo.max_attempts ? (
-                      <>Application attempt <span className="font-bold">{attemptInfo.attempt_count}/{attemptInfo.max_attempts}</span></>
-                    ) : (
-                      <>Application #{attemptInfo.attempt_count}</>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {!isQuestOwner && isAuthenticated && hasRejectedApplication && !isAlreadyParticipant && !hasAlreadyApplied && (
-              <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <X size={20} className="text-red-700" />
-                  <h4 className="text-lg font-bold text-red-800">Application Status</h4>
-                </div>
-                <p className="text-red-700">
-                  Your application for this quest was not accepted. 
-                  {attemptInfo && attemptInfo.can_apply 
-                    ? " You can apply again if the quest is still open."
-                    : " You have reached the maximum number of application attempts."
-                  }
-                </p>
-                {/* Show attempt info */}
-                {attemptInfo && attemptInfo.attempt_count > 0 && (
-                  <div className="mt-2 text-sm bg-red-100 rounded px-2 py-1">
-                    {attemptInfo.max_attempts ? (
-                      <span className="text-red-700">
-                        Attempts used: <span className="font-bold">{attemptInfo.attempt_count}/{attemptInfo.max_attempts}</span>
-                        {attemptInfo.can_apply ? (
-                          <span className="text-green-700 ml-2">({attemptInfo.max_attempts - attemptInfo.attempt_count} remaining)</span>
+                    {/* Show attempt info for pending applications */}
+                    {hasAlreadyApplied && !isAlreadyParticipant && !hasApprovedApplication && attemptInfo && attemptInfo.attempt_count > 0 && (
+                      <div className="mt-2 text-sm text-amber-600 bg-amber-100 rounded px-2 py-1">
+                        {attemptInfo.max_attempts ? (
+                          <>Attempt <span className="font-bold">{attemptInfo.attempt_count}/{attemptInfo.max_attempts}</span></>
                         ) : (
-                          <span className="text-red-800 ml-2 font-medium">(No attempts remaining)</span>
+                          <>Application #{attemptInfo.attempt_count}</>
                         )}
-                      </span>
-                    ) : (
-                      <span className="text-red-700">
-                        Total attempts: <span className="font-bold">{attemptInfo.attempt_count}</span>
-                        <span className="text-green-700 ml-2">(Unlimited attempts available)</span>
-                      </span>
+                      </div>
+                    )}
+                    
+                    {/* Submission Status Display for active participants */}
+                    {(isAlreadyParticipant || hasApprovedApplication) && (latestSubmissionStatus || isLoadingSubmissionStatus) && (
+                      <div className="mt-3">
+                        {isLoadingSubmissionStatus ? (
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                              <span className="font-semibold text-gray-700">Updating Status...</span>
+                            </div>
+                            <p className="text-gray-600 text-sm">Refreshing your submission status...</p>
+                          </div>
+                        ) : (
+                          <>
+                            {latestSubmissionStatus === 'pending' && (
+                              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Clock size={16} className="text-blue-600" />
+                                  <span className="font-semibold text-blue-800">Submission Status</span>
+                                </div>
+                                <p className="text-blue-700 text-sm">Your work is under review by the quest creator.</p>
+                              </div>
+                            )}
+                            
+                            {latestSubmissionStatus === 'needs_revision' && (
+                              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <AlertCircle size={16} className="text-amber-600" />
+                                  <span className="font-semibold text-amber-800">Revision Required</span>
+                                </div>
+                                <p className="text-amber-700 text-sm">Your submission needs revision. Please submit updated work.</p>
+                                {submissionFeedback && (
+                                  <div className="mt-2 p-2 bg-amber-100 rounded text-xs text-amber-800">
+                                    <strong>Feedback:</strong> {submissionFeedback}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            
+                            {latestSubmissionStatus === 'approved' && (
+                              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <CheckCircle size={16} className="text-amber-600" />
+                                  <span className="font-semibold text-amber-800">Work Approved</span>
+                                </div>
+                                <p className="text-amber-700 text-sm">Congratulations! Your work has been approved.</p>
+                                {submissionFeedback && (
+                                  <div className="mt-2 p-2 bg-amber-100 rounded text-xs text-amber-800">
+                                    <strong>Feedback:</strong> {submissionFeedback}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Submit Completed Work Button for active participants */}
+                    {canSubmitWork && (latestSubmissionStatus !== 'approved') && (
+                      <button
+                        className="mt-4 px-5 py-2 bg-gradient-to-r from-purple-500 to-amber-500 text-white rounded-lg font-semibold shadow hover:from-purple-600 hover:to-amber-600 transition-colors"
+                        onClick={() => setShowSubmitWorkModal(true)}
+                      >
+                        {latestSubmissionStatus === 'needs_revision' ? 'Submit Revised Work' : 'Submit Completed Work'}
+                      </button>
                     )}
                   </div>
                 )}
-              </div>
-            )}
 
-            {!isQuestOwner && isAuthenticated && hasBeenKicked && !isAlreadyParticipant && !hasAlreadyApplied && (
-              <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <AlertCircle size={20} className="text-orange-700" />
-                  <h4 className="text-lg font-bold text-orange-800">Previously Removed</h4>
-                </div>
-                <p className="text-orange-700">
-                  You were previously removed from this quest by the quest giver. However, you can re-apply if you wish to participate again.
-                </p>
-                {/* Show attempt info for kicked users */}
-                {attemptInfo && attemptInfo.attempt_count > 0 && (
-                  <div className="mt-2 text-sm text-orange-600 bg-orange-100 rounded px-2 py-1">
-                    Previous applications: <span className="font-bold">{attemptInfo.attempt_count}</span>
-                    <span className="text-green-700 ml-2 font-medium">(Unlimited reapplications allowed)</span>
+                {/* Application History & Previous Status (for users who can reapply) */}
+                {!hasAlreadyApplied && !isAlreadyParticipant && !hasApprovedApplication && attemptInfo && attemptInfo.attempt_count > 0 && (
+                  <div className={`p-4 rounded-lg ${
+                    hasBeenKicked 
+                      ? 'bg-orange-50 border border-orange-200'
+                      : hasRejectedApplication
+                      ? 'bg-red-50 border border-red-200' 
+                      : 'bg-gray-50 border border-gray-200'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      {hasBeenKicked ? (
+                        <>
+                          <AlertCircle size={20} className="text-orange-700" />
+                          <h4 className="text-lg font-bold text-orange-800">Previously Removed</h4>
+                        </>
+                      ) : hasRejectedApplication ? (
+                        <>
+                          <X size={20} className="text-red-700" />
+                          <h4 className="text-lg font-bold text-red-800">Application Not Accepted</h4>
+                        </>
+                      ) : (
+                        <>
+                          <Clock size={20} className="text-gray-700" />
+                          <h4 className="text-lg font-bold text-gray-800">Application History</h4>
+                        </>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {/* Main status message */}
+                      <p className={
+                        hasBeenKicked 
+                          ? 'text-orange-700'
+                          : hasRejectedApplication
+                          ? 'text-red-700'
+                          : 'text-gray-700'
+                      }>
+                        {hasBeenKicked 
+                          ? "You were previously removed from this quest, but you can re-apply if you wish to participate again."
+                          : hasRejectedApplication
+                          ? attemptInfo.can_apply 
+                            ? "Your previous application was not accepted, but you can apply again if the quest is still open."
+                            : "Your previous application was not accepted and you have reached the maximum number of attempts."
+                          : "You have previously applied for this quest."
+                        }
+                      </p>
+                      
+                      {/* Attempt information with visual emphasis on key details */}
+                      <div className={`text-sm rounded px-3 py-2 ${
+                        hasBeenKicked 
+                          ? 'text-orange-600 bg-orange-100'
+                          : hasRejectedApplication
+                          ? 'text-red-700 bg-red-100'
+                          : 'text-gray-600 bg-gray-100'
+                      }`}>
+                        <div className="flex flex-wrap items-center gap-1 mb-1">
+                          <span>Applications made:</span>
+                          <span className="font-bold text-lg">{attemptInfo.attempt_count}</span>
+                          {attemptInfo.max_attempts && (
+                            <>
+                              <span>of</span>
+                              <span className="font-bold text-lg">{attemptInfo.max_attempts}</span>
+                            </>
+                          )}
+                        </div>
+                        
+                        <div className="flex flex-wrap items-center gap-1">
+                          {attemptInfo.max_attempts ? (
+                            attemptInfo.can_apply ? (
+                              <span className="text-green-700 font-medium">
+                                ✓ {attemptInfo.max_attempts - attemptInfo.attempt_count} attempts remaining
+                              </span>
+                            ) : (
+                              <span className="text-red-800 font-medium">✗ No attempts remaining</span>
+                            )
+                          ) : (
+                            <span className="text-green-700 font-medium">✓ Unlimited attempts available</span>
+                          )}
+                        </div>
+                        
+                        {attemptInfo.last_application_status && (
+                          <div className="mt-2 pt-2 border-t border-current border-opacity-20">
+                            <span className="text-xs opacity-75">
+                              Last status: <span className="font-medium capitalize">{attemptInfo.last_application_status}</span>
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
-              </div>
+              </>
             )}
 
             {/* Applications Count (for quest owner) */}
@@ -672,7 +772,7 @@ export function QuestDetailsModal({
                   Delete Quest
                 </button>
               </div>
-            ) : (
+            ) : isAuthenticated ? (
               <button
                 onClick={() => applyForQuest(quest.id)}
                 className={`px-6 py-2 rounded-lg font-medium shadow-md transition-colors ${
@@ -692,6 +792,13 @@ export function QuestDetailsModal({
                         : "Apply Again"
                       : "Apply for Quest"}
               </button>
+            ) : (
+              <button
+                onClick={() => setAuthModalOpen(true)}
+                className="px-6 py-2 bg-[#8B75AA] text-white rounded-lg hover:bg-[#7A6699] transition-colors font-medium shadow-md"
+              >
+                Login to Apply
+              </button>
             )}
           </div>
         </div>
@@ -708,9 +815,13 @@ export function QuestDetailsModal({
             // Just refresh submission status - don't call onQuestUpdate to avoid double refresh
             loadLatestSubmissionStatus();
           }}
-          questParticipantId={myParticipant.id}
-          questTitle={quest.title}
-          questSlug={quest.slug}
+          questParticipantId={myParticipant?.id}
+          applicationId={hasApprovedApplication && !myParticipant ? 
+            userApplications.find(app => app.quest.id === quest?.id && app.status === 'approved')?.id : 
+            undefined
+          }
+          questTitle={quest?.title}
+          questSlug={quest?.slug}
         />
       )}
 
