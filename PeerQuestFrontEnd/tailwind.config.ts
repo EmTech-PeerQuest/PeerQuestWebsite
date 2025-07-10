@@ -68,31 +68,37 @@ const config: Config = {
         "tavern-purple": "#8b75aa",
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        lg: "1rem",
+        md: "0.75rem",
+        sm: "0.5rem",
+      },
+      boxShadow: {
+        soft: "0 2px 8px rgba(0, 0, 0, 0.06)",
+        "xl-glass": "0 8px 32px rgba(0, 0, 0, 0.15)",
       },
       keyframes: {
-        "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
+        fadeIn: {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
         },
-        "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
+        slideUp: {
+          from: { opacity: "0", transform: "translateY(10px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        accordionDown: {
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
+        },
+        accordionUp: {
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
         },
       },
       animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
+        fadeIn: "fadeIn 0.3s ease-out",
+        slideUp: "slideUp 0.3s ease-out",
+        "accordion-down": "accordionDown 0.2s ease-out",
+        "accordion-up": "accordionUp 0.2s ease-out",
       },
       fontFamily: {
         medieval: ["Papyrus", "Bradley Hand", "Brush Script MT", "cursive"],
@@ -102,4 +108,5 @@ const config: Config = {
   },
   plugins: [require("tailwindcss-animate")],
 }
+
 export default config

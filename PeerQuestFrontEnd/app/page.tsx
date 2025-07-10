@@ -6,6 +6,11 @@ import { Hero } from '@/components/ui/hero'
 import { QuestBoard } from '@/components/quests/quest-board'
 import { QuestManagement } from '@/components/quests/quest-management'
 import { GuildHall } from '@/components/guilds/guild-hall'
+import { UserSearch } from '@/components/user-search';
+import MessagingSystem from '@/components/messaging/messaging-system';
+import { QuestManagement } from '@/components/quests/quest-management';
+import { AdminPanel } from '@/components/admin/admin-panel';
+import { EnhancedGuildManagement } from '@/components/guilds/enhanced-guild-management';
 import { About } from "@/components/about"
 import { Footer } from '@/components/ui/footer'
 import { ToastProvider } from '@/components/ui/toast'
@@ -449,7 +454,14 @@ export default function Home() {
   return (
     <ToastProvider>
       {showInitialLoading && <LoadingModal message="Loading your adventure..." />}
-      <main className="min-h-screen bg-[#F4F0E6]">
+      <main
+        className={`${
+          activeSection === "messages"
+            ? "h-screen overflow-hidden"
+            : "min-h-screen overflow-auto"
+        } bg-[#F4F0E6]`}
+      >
+
         <Navbar
           setActiveSection={handleSectionChange}
           handleLogout={logout}
@@ -528,11 +540,13 @@ export default function Home() {
           />
         )}
 
-        {activeSection === "messages" && currentUser && (
-          <div className="p-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Messages</h2>
-            <p className="text-gray-600">Messaging system is being developed...</p>
-          </div>
+        {activeSection === "messages" && currentUser && token &&(
+          <MessagingSystem
+            currentUser={currentUser}
+            showToast={showToast}
+            token={token} // Assuming your `User` object includes a `token` field
+            onlineUsers={new Map()}   // Replace with actual onlineUsers map if available
+          />
         )}
 
         {activeSection === "quest-management" && currentUser && (
@@ -793,7 +807,7 @@ export default function Home() {
 
         <AIChatbot currentUser={currentUser} />
 
-        <Footer />
+        {activeSection !== "messages" && <Footer />}
       </main>
     </ToastProvider>
   )

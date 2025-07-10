@@ -26,6 +26,8 @@ export interface User {
   email_verified?: boolean;
   username?: string;
   avatar?: string;
+  isOnline?: boolean
+  lastSeen?: string
   isBanned?: boolean;
   banned?: boolean; // Alternative naming
   banReason?: string;
@@ -140,8 +142,6 @@ export interface LevelThreshold {
   perks: string[];
 }
 
-
-
 export interface Quest {
   id: number
   title: string
@@ -201,9 +201,6 @@ export interface Quest {
   assignedTo?: number // Missing property found in components
   requirements?: string[]
 }
-
-
-
 
 export interface Guild {
   guild_id: string;
@@ -380,3 +377,63 @@ export interface Badge {
   rarity?: 'common' | 'rare' | 'epic' | 'legendary';
   earnedAt?: string;
 }
+
+export interface Conversation {
+  id: string
+  is_group: boolean
+  name?: string
+  description?: string
+  participants: User[]
+  last_message?: Message
+  updated_at: string
+  unread_count?: number
+  last_message_date?: string
+  created_at?: string
+  guildId?: string
+}
+
+export interface Message {
+  id: string
+  conversation_id: string
+  sender: {
+    id: string
+    username: string
+    avatar?: string
+  }
+  receiver?: {
+    id: string
+    username: string
+    avatar?: string
+  }
+  content: string
+  created_at: string
+  read: boolean
+  recipient_id?: string
+  message_type: "text" | "file" | string
+  status: "sending" | "sent" | "delivered" | "read" | "failed"
+  timestamp: string
+  attachments?: Attachment[]
+}
+
+export interface TypingUser {
+  user_id: string
+  username: string
+  is_typing?: boolean
+}
+
+export interface Attachment {
+  id: string
+  filename: string
+  file_size: number
+  file_size_human?: string
+  content_type: string
+  file_type?: string
+  thumbnail?: string
+  thumbnail_url?: string
+  url: string
+  file_url?: string
+  is_image?: boolean
+}
+
+export type MessageStatus = "sending" | "sent" | "delivered" | "read" | "failed"
+export type UserStatus = "online" | "idle" | "offline"

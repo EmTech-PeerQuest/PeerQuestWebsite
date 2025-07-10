@@ -19,6 +19,8 @@ interface AuthContextProps {
 
 const AuthContext = createContext<AuthContextProps>({
   user: null,
+  token: null,
+  isLoading: true,
   login: async () => {},
   register: async () => {},
   logout: () => {},
@@ -202,7 +204,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Don't set loading state for login - let parent handle it
       }
     }
-  };
+  }
 
   const login = async (credentials: { username: string; password: string; rememberMe?: boolean }) => {
     try {
@@ -260,7 +262,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
       throw err;
     }
-  };
+  }
 
 
   // Refresh user profile
@@ -441,7 +443,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     <AuthContext.Provider value={{ user, login, register, logout, loginWithGoogle, refreshUser, clearAllAuthCache }}>
       {loading ? <ThemedLoading /> : children}
     </AuthContext.Provider>
-  );
-};
+  )
+}
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider")
+  }
+  return context
+}
