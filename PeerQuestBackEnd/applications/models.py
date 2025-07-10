@@ -92,17 +92,32 @@ class Application(models.Model):
                 raise ValidationError(reason)
 
     def save(self, *args, **kwargs):
-        """Override save to run validation and record application attempts"""
+        """Override save to run validation and record application attempts and create notifications"""
+        from notifications.models import Notification
         self.clean()
         is_new = self.pk is None
         super().save(*args, **kwargs)
-        
         # Record application attempt when creating a new application
         if is_new and self.status == 'pending':
             ApplicationAttempt.record_attempt(self)
+            # Notify quest owner of new application
+            print(f"[DEBUG] Creating notification for quest owner: {self.quest.creator} (user id: {self.quest.creator.id}) for quest '{self.quest.title}'")
+            notif = Notification.objects.create(
+                user=self.quest.creator,
+                notif_type="quest_application",
+                title="New Quest Application",
+                message=f"{self.applicant.username} applied for your quest '{self.quest.title}'.",
+                quest_id=self.quest.id,
+                application_id=self.pk,
+                applicant=self.applicant.username,
+                quest_title=self.quest.title,
+                status=self.status
+            )
+            print(f"[DEBUG] Notification created: {notif}")
 
     def approve(self, reviewer):
-        """Approve the application and assign the quest to the applicant"""
+        """Approve the application and assign the quest to the applicant, and notify applicant and others"""
+        from notifications.models import Notification
         try:
             with transaction.atomic():
                 # Step 1: Update application status
@@ -110,28 +125,22 @@ class Application(models.Model):
                 self.reviewed_by = reviewer
                 self.reviewed_at = timezone.now()
                 self.save()
-                
                 logger.info(f"Application approved: {self.applicant.username} -> Quest '{self.quest.title}' (ID: {self.quest.id})")
-                
                 # Step 2: Assign the quest to the applicant (CRITICAL STEP)
                 try:
                     participant = self.quest.assign_to_user(self.applicant)
                     if not participant:
                         raise Exception("assign_to_user returned None - participant creation failed")
-                    
                     logger.info(f"Quest assignment successful: {self.applicant.username} -> Quest '{self.quest.title}'")
-                    
                 except Exception as assign_error:
                     logger.error(f"CRITICAL: Quest assignment failed for {self.applicant.username} -> Quest '{self.quest.title}' (ID: {self.quest.id}): {str(assign_error)}")
                     # Rollback application approval since quest assignment failed
                     raise Exception(f"Failed to assign quest to user: {str(assign_error)}")
-                
                 # Step 3: Automatically reject all other pending applications for this quest
                 other_pending_applications = Application.objects.filter(
                     quest=self.quest,
                     status='pending'
                 ).exclude(id=self.id)
-                
                 rejected_count = 0
                 for app in other_pending_applications:
                     app.status = 'rejected'
@@ -139,13 +148,34 @@ class Application(models.Model):
                     app.reviewed_at = timezone.now()
                     app.save()
                     rejected_count += 1
-                
+                    # Notify rejected applicants
+                    Notification.objects.create(
+                        user=app.applicant,
+                        notif_type="quest_application_result",
+                        title="Quest Application Rejected",
+                        message=f"Your application for quest '{self.quest.title}' was rejected.",
+                        quest_id=self.quest.id,
+                        application_id=app.id,
+                        quest_title=self.quest.title,
+                        status=app.status,
+                        result="rejected"
+                    )
                 if rejected_count > 0:
                     logger.info(f"Auto-rejected {rejected_count} other pending applications for Quest '{self.quest.title}'")
-                
+                # Notify applicant of approval
+                Notification.objects.create(
+                    user=self.applicant,
+                    notif_type="quest_application_result",
+                    title="Quest Application Approved",
+                    message=f"Your application for quest '{self.quest.title}' was approved!",
+                    quest_id=self.quest.id,
+                    application_id=self.pk,
+                    quest_title=self.quest.title,
+                    status=self.status,
+                    result="accepted"
+                )
                 logger.info(f"Application approval completed successfully: {self.applicant.username} -> Quest '{self.quest.title}'")
                 return True
-                
         except Exception as e:
             logger.error(f"Application approval failed: {self.applicant.username} -> Quest '{self.quest.title}' (ID: {self.quest.id}): {str(e)}")
             # Reset application status if it was changed
@@ -158,15 +188,28 @@ class Application(models.Model):
             raise Exception(f"Application approval failed: {str(e)}")
 
     def reject(self, reviewer):
-        """Reject the application"""
+        """Reject the application and notify applicant"""
+        from notifications.models import Notification
         self.status = 'rejected'
         self.reviewed_by = reviewer
         self.reviewed_at = timezone.now()
         self.save()
+        Notification.objects.create(
+            user=self.applicant,
+            notif_type="quest_application_result",
+            title="Quest Application Rejected",
+            message=f"Your application for quest '{self.quest.title}' was rejected.",
+            quest_id=self.quest.id,
+            application_id=self.pk,
+            quest_title=self.quest.title,
+            status=self.status,
+            result="rejected"
+        )
         return True
 
     def kick(self, reviewer):
-        """Kick the application (soft delete - just change status like reject)"""
+        """Kick the application (soft delete - just change status like reject) and notify applicant"""
+        from notifications.models import Notification
         try:
             with transaction.atomic():
                 # Step 1: Update application status (soft delete - keep record like reject)
@@ -174,49 +217,46 @@ class Application(models.Model):
                 self.reviewed_by = reviewer
                 self.reviewed_at = timezone.now()
                 self.save()
-                
                 logger.info(f"Application kicked: {self.applicant.username} -> Quest '{self.quest.title}' (ID: {self.quest.id})")
-                
                 # Step 2: Update QuestParticipant status instead of deleting (soft delete)
-                # Import QuestParticipant here to avoid circular imports
                 from quests.models import QuestParticipant
                 participants = QuestParticipant.objects.filter(quest=self.quest, user=self.applicant)
                 for participant in participants:
-                    # Set participant status to 'dropped' instead of deleting
                     participant.status = 'dropped'
                     participant.save()
                     logger.info(f"Set participant status to 'dropped': {self.applicant.username} from Quest '{self.quest.title}'")
-                
                 # Step 3: Check if quest should revert to 'open' status
-                # Check both approved applications AND active quest participants
                 approved_applications = Application.objects.filter(
                     quest=self.quest,
                     status='approved'
                 )
-                
-                # Also check for active quest participants (not dropped)
                 from quests.models import QuestParticipant
                 active_participants = QuestParticipant.objects.filter(
                     quest=self.quest,
-                    status__in=['joined', 'in_progress', 'completed']  # Any active status except 'dropped'
+                    status__in=['joined', 'in_progress', 'completed']
                 )
-                
-                # Revert quest status to 'open' if no approved applications AND no active participants remain
                 if (not approved_applications.exists() and 
                     not active_participants.exists() and 
-                    self.quest.status in ['in-progress', 'assigned']):  # Fixed: use 'in-progress' with hyphen
+                    self.quest.status in ['in-progress', 'assigned']):
                     self.quest.status = 'open'
                     self.quest.save()
                     logger.info(f"Quest '{self.quest.title}' reverted to 'open' status - no active participants remain")
-                
+                # Notify applicant of being kicked
+                Notification.objects.create(
+                    user=self.applicant,
+                    notif_type="kicked_from_quest",
+                    title="Kicked from Quest",
+                    message=f"You were kicked from quest '{self.quest.title}'.",
+                    quest_id=self.quest.id,
+                    quest_title=self.quest.title,
+                    reason="Kicked by quest owner"
+                )
                 logger.info(f"Application kick completed successfully: {self.applicant.username} -> Quest '{self.quest.title}'")
                 return True
-                
         except Exception as e:
             logger.error(f"Application kick failed: {self.applicant.username} -> Quest '{self.quest.title}' (ID: {self.quest.id}): {str(e)}")
-            # Reset application status if it was changed
             if self.status == 'kicked':
-                self.status = 'approved'  # Revert to previous state
+                self.status = 'approved'
                 self.save()
                 logger.info(f"Reverted application status due to kick failure")
             raise Exception(f"Application kick failed: {str(e)}")

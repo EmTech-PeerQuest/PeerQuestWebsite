@@ -51,8 +51,12 @@ urlpatterns = [
     path('api/', include('applications.urls')),
     # Transactions API
     path('api/transactions/', include('transactions.urls')),
+
     # Payments API
     path('api/payments/', include('payments.urls')),
+
+    # Notifications API
+    path('api/notifications/', include('notifications.urls')),
 
     # API Docs (Swagger + Redoc)
     path('docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),

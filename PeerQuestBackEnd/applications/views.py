@@ -143,80 +143,97 @@ class ApplicationViewSet(ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
-        """Approve an application"""
-        application = get_object_or_404(Application, pk=pk)
-        
-        # Check if user is the quest creator
-        if application.quest.creator != request.user:
-            return Response(
-                {'error': 'You can only approve applications to your own quests.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        # Check if application is pending
-        if application.status != 'pending':
-            return Response(
-                {'error': 'Application is not pending.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Approve the application with proper error handling
+        """Approve an application with detailed error logging and user info"""
         try:
+            application = get_object_or_404(Application, pk=pk)
+            debug_info = {
+                'request_user_id': getattr(request.user, 'id', None),
+                'request_user_username': getattr(request.user, 'username', None),
+                'quest_creator_id': getattr(application.quest.creator, 'id', None),
+                'quest_creator_username': getattr(application.quest.creator, 'username', None),
+                'application_status': application.status,
+            }
+            logger.error(f"[DEBUG] Approve called. Debug info: {debug_info}")
+            # Check if user is the quest creator
+            if application.quest.creator != request.user:
+                logger.error(f"[DEBUG] User is not quest creator. request.user={request.user}, quest.creator={application.quest.creator}")
+                return Response(
+                    {'error': 'You can only approve applications to your own quests.', 'debug': debug_info},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            # Check if application is pending
+            if application.status != 'pending':
+                logger.error(f"[DEBUG] Application is not pending. Status: {application.status}")
+                return Response(
+                    {'error': 'Application is not pending.', 'current_status': application.status, 'debug': debug_info},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             logger.info(f"Attempting to approve application: {application.applicant.username} -> Quest '{application.quest.title}' (ID: {application.quest.id})")
             result = application.approve(request.user)
-            
             if result:
                 logger.info(f"Application approved successfully: {application.applicant.username} -> Quest '{application.quest.title}'")
                 serializer = self.get_serializer(application)
                 return Response({
                     'message': 'Application approved successfully',
-                    'data': serializer.data
+                    'data': serializer.data,
+                    'debug': debug_info
                 })
             else:
                 logger.error(f"Application approval returned False: {application.applicant.username} -> Quest '{application.quest.title}'")
                 return Response(
-                    {'error': 'Failed to approve application - unknown error.'},
+                    {'error': 'Failed to approve application - unknown error.', 'debug': debug_info},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
-                
         except Exception as e:
-            logger.error(f"Application approval failed with exception: {application.applicant.username} -> Quest '{application.quest.title}': {str(e)}")
+            import traceback
+            tb = traceback.format_exc()
+            logger.error(f"Application approval failed with exception: {e}\nTraceback:\n{tb}")
             return Response(
                 {
                     'error': 'Failed to approve application due to system error.',
-                    'details': str(e)
+                    'details': str(e),
+                    'traceback': tb
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
-        """Reject an application"""
-        application = get_object_or_404(Application, pk=pk)
-        
-        # Check if user is the quest creator
-        if application.quest.creator != request.user:
+        """Reject an application with detailed error logging"""
+        try:
+            application = get_object_or_404(Application, pk=pk)
+            # Check if user is the quest creator
+            if application.quest.creator != request.user:
+                return Response(
+                    {'error': 'You can only reject applications to your own quests.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            # Check if application is pending
+            if application.status != 'pending':
+                return Response(
+                    {'error': 'Application is not pending.', 'current_status': application.status},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            result = application.reject(request.user)
+            if result:
+                serializer = self.get_serializer(application)
+                return Response(serializer.data)
+            else:
+                return Response(
+                    {'error': 'Failed to reject application.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            logger.error(f"Application rejection failed with exception: {e}\nTraceback:\n{tb}")
             return Response(
-                {'error': 'You can only reject applications to your own quests.'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        # Check if application is pending
-        if application.status != 'pending':
-            return Response(
-                {'error': 'Application is not pending.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Reject the application
-        result = application.reject(request.user)
-        if result:
-            serializer = self.get_serializer(application)
-            return Response(serializer.data)
-        else:
-            return Response(
-                {'error': 'Failed to reject application.'},
-                status=status.HTTP_400_BAD_REQUEST
+                {
+                    'error': 'Failed to reject application due to system error.',
+                    'details': str(e),
+                    'traceback': tb
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
     @action(detail=False, methods=['get'])

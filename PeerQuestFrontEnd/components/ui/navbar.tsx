@@ -54,8 +54,8 @@ export function Navbar({
   
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
-  const [unreadMessages, setUnreadMessages] = useState(2)
-  const [unreadNotifications, setUnreadNotifications] = useState(3)
+  const [unreadMessages, setUnreadMessages] = useState(0)
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [quickActionsOpen, setQuickActionsOpen] = useState(false)
   const [showQuestForm, setShowQuestForm] = useState(false)
@@ -116,6 +116,41 @@ export function Navbar({
     }
     // Don't navigate automatically - let user stay on current page
   }
+
+  // Fetch notifications count from backend
+  useEffect(() => {
+    if (!currentUser) return;
+    const fetchNotifications = async () => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      if (!token) {
+        console.warn('[Navbar] No access token found in localStorage. User may not be logged in.');
+        setUnreadNotifications(0);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/notifications-proxy`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        if (res.status === 401) {
+          console.warn('[Navbar] Access token is invalid or expired. Logging out user.');
+          setUnreadNotifications(0);
+          // Optionally, call handleLogout() here if you want to auto-logout
+          return;
+        }
+        if (!res.ok) throw new Error(`Failed to fetch notifications (status ${res.status})`);
+        const data = await res.json();
+        setUnreadNotifications(data.filter((n: any) => !n.read).length);
+      } catch (err) {
+        console.error('[Navbar] Failed to fetch notifications:', err);
+        setUnreadNotifications(0);
+      }
+    };
+    fetchNotifications();
+  }, [currentUser]);
 
   return (
     <nav className="bg-[#2C1A1D] text-[#F4F0E6] px-6 py-4 shadow-lg sticky top-0 z-40">

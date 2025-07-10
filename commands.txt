@@ -7,6 +7,7 @@ pip install -r requirements.txt
 
 # Database setup (Django):
 py manage.py makemigrations
+py manage.py makemigrations notifications  # create migration for new field
 py manage.py migrate
 py manage.py createsuperuser  # (optional, for admin access)
 py manage.py runserver
