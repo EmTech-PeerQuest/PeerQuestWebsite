@@ -228,11 +228,10 @@ AUTHENTICATION_BACKENDS = (
 )
 
 
-# DRF Settings - Session Authentication only
+# DRF Settings - JWT Authentication only, no session redirects for APIs
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
-        "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": (
         "common.not_banned_permission.NotBannedPermission",
@@ -241,6 +240,8 @@ REST_FRAMEWORK = {
     "DEFAULT_FILTER_BACKENDS": ( # Add if you plan to use django-filter extensively
         "django_filters.rest_framework.DjangoFilterBackend",
     ),
+    'UNAUTHENTICATED_USER': None,
+    'UNAUTHENTICATED_TOKEN': None,
 }
 
 # Custom User Model
@@ -293,9 +294,9 @@ CORS_ALLOWED_ORIGINS = [
 ]
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'X-Requested-With',
-    'Authorization',
-    'Cache-Control',
-    'Pragma',
+    'authorization',
+    'cache-control',
+    'pragma',
 ]
 CORS_ALLOW_METHODS = [
     "DELETE",

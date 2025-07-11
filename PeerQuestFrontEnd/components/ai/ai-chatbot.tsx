@@ -81,25 +81,34 @@ export function AIChatbot({ currentUser }: AIChatbotProps) {
     setShowSuggestions(false);
 
     try {
-      const res = await fetch("/api/users/ai-chat/", {
+      // Limit messages to last 5 to prevent payload too large error
+      const recentMessages = messages.slice(-5);
+      
+      const res = await fetch("http://localhost:8000/api/users/ai-chat/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...messages, newUserMessage], user: currentUser }),
+        body: JSON.stringify({ 
+          messages: [...recentMessages, newUserMessage], 
+          user: currentUser 
+        }),
       });
+      
       const data = await res.json();
+      
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: data.reply || data.error || "Sorry, I couldn't process your request.",
+        content: data.reply || data.error || "No response received",
       };
       setMessages((prev) => [...prev, aiResponse]);
     } catch (err) {
+      console.error("AI Service Error:", err);
       setMessages((prev) => [
         ...prev,
         {
           id: (Date.now() + 2).toString(),
           role: "assistant",
-          content: "Sorry, there was an error contacting the AI service.",
+          content: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
         },
       ]);
     } finally {
@@ -143,14 +152,30 @@ export function AIChatbot({ currentUser }: AIChatbotProps) {
 
       {/* Chat Modal */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 w-80 sm:w-96 h-[500px] bg-[var(--tavern-cream)] border-2 border-[var(--tavern-gold)] rounded-lg shadow-2xl flex flex-col">
+        <div className="fixed bottom-6 right-6 z-50 w-80 sm:w-96 h-[500px] flex flex-col shadow-2xl"
+          style={{
+            borderRadius: '2rem',
+            background: 'rgba(255,255,255,0.7)',
+            backdropFilter: 'blur(16px)',
+            border: '2px solid var(--tavern-gold)',
+            boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.18)'
+          }}
+        >
           {/* Header */}
-          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-[var(--tavern-gold)] to-[var(--tavern-purple)] text-[var(--tavern-dark)] rounded-t-lg">
+          <div className="flex items-center justify-between p-4"
+            style={{
+              borderTopLeftRadius: '2rem',
+              borderTopRightRadius: '2rem',
+              background: 'linear-gradient(90deg, var(--tavern-gold) 0%, var(--tavern-purple) 100%)',
+              color: 'var(--tavern-dark)',
+              boxShadow: '0 2px 12px 0 rgba(31, 38, 135, 0.10)'
+            }}
+          >
             <div className="flex items-center gap-2">
               <Bot className="w-5 h-5" />
               <h3 className="font-bold">Tavern AI Assistant</h3>
             </div>
-            <button onClick={() => setIsOpen(false)} className="p-1 hover:bg-black/10 rounded transition-colors">
+            <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-black/10 rounded-full transition-colors" style={{ transition: 'background 0.2s' }}>
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -163,35 +188,47 @@ export function AIChatbot({ currentUser }: AIChatbotProps) {
                 className={`flex gap-2 ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 {message.role === "assistant" && (
-                  <div className="w-8 h-8 bg-[var(--tavern-purple)] rounded-full flex items-center justify-center flex-shrink-0">
+                  <div className="w-8 h-8 bg-gradient-to-br from-[var(--tavern-purple)] to-[var(--tavern-gold)] rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
                     <Bot className="w-4 h-4 text-white" />
                   </div>
                 )}
                 <div
                   className={`
-                    max-w-[80%] p-3 rounded-lg text-sm whitespace-pre-wrap
+                    max-w-[80%] p-3 text-sm whitespace-pre-wrap shadow-md
                     ${
                       message.role === "user"
-                        ? "bg-[var(--tavern-gold)] text-[var(--tavern-dark)] rounded-br-none"
-                        : "bg-white border border-[var(--tavern-gold)] text-[var(--tavern-dark)] rounded-bl-none"
+                        ? "bg-gradient-to-br from-[var(--tavern-gold)] to-[var(--tavern-purple)/20] text-[var(--tavern-dark)]"
+                        : "bg-white/80 border border-[var(--tavern-gold)] text-[var(--tavern-dark)]"
                     }
                   `}
+                  style={{
+                    borderRadius: message.role === "user"
+                      ? '1.5rem 1.5rem 0.5rem 1.5rem'
+                      : '1.5rem 1.5rem 1.5rem 0.5rem',
+                    backdropFilter: 'blur(6px)'
+                  }}
                 >
                   {message.content}
                 </div>
                 {message.role === "user" && (
-                  <div className="w-8 h-8 bg-[var(--tavern-gold)] rounded-full flex items-center justify-center flex-shrink-0">
-                    <User className="w-4 h-4 text-[var(--tavern-dark)]" />
+                  <div className="w-8 h-8 bg-gradient-to-br from-[var(--tavern-gold)] to-[var(--tavern-purple)] rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
+                    <User className="w-4 h-4 text-white" />
                   </div>
                 )}
               </div>
             ))}
             {isLoading && (
               <div className="flex gap-2 justify-start">
-                <div className="w-8 h-8 bg-[var(--tavern-purple)] rounded-full flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 bg-gradient-to-br from-[var(--tavern-purple)] to-[var(--tavern-gold)] rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
                   <Bot className="w-4 h-4 text-white" />
                 </div>
-                <div className="bg-white border border-[var(--tavern-gold)] text-[var(--tavern-dark)] p-3 rounded-lg rounded-bl-none">
+                <div
+                  className="bg-white/80 border border-[var(--tavern-gold)] text-[var(--tavern-dark)] p-3 shadow-md"
+                  style={{
+                    borderRadius: '1.5rem 1.5rem 1.5rem 0.5rem',
+                    backdropFilter: 'blur(6px)'
+                  }}
+                >
                   <Loader2 className="w-4 h-4 animate-spin" />
                 </div>
               </div>
@@ -209,7 +246,8 @@ export function AIChatbot({ currentUser }: AIChatbotProps) {
                     <button
                       key={index}
                       onClick={() => handleSuggestionClick(suggestion)}
-                      className="text-left p-2 text-xs bg-white border border-[var(--tavern-gold)] rounded-lg hover:bg-[var(--tavern-gold)] hover:text-[var(--tavern-dark)] transition-colors"
+                      className="text-left p-2 text-xs bg-white/80 border border-[var(--tavern-gold)] rounded-2xl hover:bg-gradient-to-br hover:from-[var(--tavern-gold)] hover:to-[var(--tavern-purple)] hover:text-white transition-colors shadow-sm"
+                      style={{ borderRadius: '1.25rem' }}
                     >
                       {suggestion}
                     </button>
@@ -228,7 +266,7 @@ export function AIChatbot({ currentUser }: AIChatbotProps) {
           </div>
 
           {/* Input */}
-          <div className="p-4 border-t border-[var(--tavern-gold)]">
+          <div className="p-4 border-t border-[var(--tavern-gold)] bg-white/60 rounded-b-3xl" style={{borderBottomLeftRadius:'2rem',borderBottomRightRadius:'2rem',backdropFilter:'blur(8px)'}}>
             <form onSubmit={handleSubmit} className="flex gap-2">
               <input
                 ref={inputRef}
@@ -237,13 +275,14 @@ export function AIChatbot({ currentUser }: AIChatbotProps) {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="Ask me about quests, guilds, or anything..."
-                className="flex-1 px-3 py-2 border border-[var(--tavern-gold)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--tavern-purple)] text-sm"
+                className="flex-1 px-4 py-2 border border-[var(--tavern-gold)] rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--tavern-purple)] text-sm bg-white/80 shadow-sm"
+                style={{ borderRadius: '1.25rem', backdropFilter: 'blur(4px)' }}
                 disabled={isLoading}
               />
               <button
                 type="submit"
                 disabled={!input.trim() || isLoading}
-                className="px-3 py-2 bg-[var(--tavern-gold)] text-[var(--tavern-dark)] rounded-lg hover:bg-[var(--tavern-purple)] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-gradient-to-br from-[var(--tavern-gold)] to-[var(--tavern-purple)] text-white rounded-2xl hover:scale-105 transition-all shadow disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send className="w-4 h-4" />
               </button>

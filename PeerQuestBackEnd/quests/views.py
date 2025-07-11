@@ -212,38 +212,44 @@ class QuestViewSet(viewsets.ModelViewSet):
         Override destroy to prevent deletion of in-progress or completed quests.
         Only allow deletion of quests that are still 'open' (no participants assigned).
         Returns the actual refund amount and new balance in the response.
+        Also creates a notification for the quest owner.
         """
+        from notifications.models import Notification
         quest = self.get_object()
-        
         # Check if user is the quest creator
         if quest.creator != request.user:
             return Response(
                 {'error': 'You can only delete your own quests.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-        
         # Check if quest is in progress
         if quest.status == 'in-progress':
             return Response(
                 {'error': 'Cannot delete a quest that is already in progress. Please complete or cancel the quest first.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
         # Check if quest has been completed
         if quest.status == 'completed':
             return Response(
                 {'error': 'Cannot delete a completed quest.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
         # Refund gold when quest is deleted
         from transactions.transaction_utils import refund_gold_for_quest_deletion
         refund_result = refund_gold_for_quest_deletion(quest)
-
         if refund_result["success"]:
             print(f"✅ Refunded {refund_result['amount_refunded']} gold to {quest.creator.username} for quest deletion")
             # Soft delete the quest instead of hard delete
             quest.delete()  # This now sets is_deleted=True
+            # Create notification for quest owner
+            Notification.objects.create(
+                user=quest.creator,
+                notif_type="quest_deleted",
+                title="Quest Deleted",
+                message=f"Your quest '{quest.title}' was deleted.",
+                quest_id=quest.id,
+                quest_title=quest.title
+            )
             # Return refund info and new balance
             return Response({
                 'success': True,

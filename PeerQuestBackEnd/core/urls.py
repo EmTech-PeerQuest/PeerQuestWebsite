@@ -51,6 +51,7 @@ urlpatterns = [
     path('api/', include('applications.urls')),
     # Transactions API
     path('api/transactions/', include('transactions.urls')),
+
     # Payments API
     path('api/payments/', include('payments.urls')),
     # Quests API
@@ -61,6 +62,9 @@ urlpatterns = [
     path('api/conversations/', include('messaging.urls')),
     # Start conversation endpoint (to match frontend expectation)
     path('api/conversations/start/', StartConversationView.as_view(), name='start-conversation'),
+    # Notifications API
+    path('api/notifications/', include('notifications.urls')),
+
     # API Docs (Swagger + Redoc)
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     path('docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
@@ -75,6 +79,9 @@ urlpatterns = [
 
     # Test Google callback endpoint
     path('test-google/', lambda request: JsonResponse({'status': 'Google callback endpoint accessible'}), name='test-google'),
+    
+    # AI Chat endpoint - the route your frontend expects
+    path('api/chat/', __import__('users.ai_chatbot_proxy').ai_chatbot_proxy.AIChatbotProxyView.as_view(), name='ai-chat'),
 ]
 
 if settings.DEBUG:
