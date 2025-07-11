@@ -96,6 +96,43 @@ export default function Home() {
   const { toast } = useToast()
   const router = useRouter()
 
+  // Add global error handlers to catch any issues that might cause refresh
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      console.error('🚨 Global error caught:', event.error);
+      event.preventDefault(); // Prevent default error handling that might cause refresh
+    };
+    
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      console.error('🚨 Unhandled promise rejection caught:', event.reason);
+      event.preventDefault(); // Prevent default rejection handling
+    };
+    
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
+
+  // Global event listeners to debug page reloads
+  useEffect(() => {
+    const clickLogger = (e: Event) => {
+      sessionStorage.setItem('globalClickLog', `Global click at ${new Date().toISOString()} on ${(e.target as HTMLElement)?.outerHTML}`);
+    };
+    const beforeUnloadLogger = (e: BeforeUnloadEvent) => {
+      sessionStorage.setItem('beforeUnloadLog', `Page reload at ${new Date().toISOString()}`);
+    };
+    document.addEventListener('click', clickLogger, true);
+    window.addEventListener('beforeunload', beforeUnloadLogger);
+    return () => {
+      document.removeEventListener('click', clickLogger, true);
+      window.removeEventListener('beforeunload', beforeUnloadLogger);
+    };
+  }, []);
+
   // Use guild hooks for backend integration
   const { guilds: guildData, loading: guildsLoading, error: guildsError, refetch: refetchGuilds } = useGuilds({ autoFetch: true })
   const { createGuild, joinGuild, loading: guildActionLoading, error: guildActionError } = useGuildActions()
@@ -487,13 +524,17 @@ export default function Home() {
           handleLogout={logout}
           openAuthModal={() => setShowAuthModal(true)}
           openGoldPurchaseModal={() => {
+            console.log('🏆 openGoldPurchaseModal called in main page - SIMPLIFIED');
+            
             if (!currentUser) {
+              console.log('❌ No current user, showing auth modal');
               toast({ 
                 title: "Please log in to access the Gold Treasury", 
                 variant: "destructive" 
               });
               setShowAuthModal(true);
             } else {
+              console.log('✅ User found, setting Gold System Modal to true');
               setShowGoldSystemModal(true);
             }
           }}
@@ -709,7 +750,13 @@ export default function Home() {
             isOpen={showGoldSystemModal}
             onClose={() => setShowGoldSystemModal(false)}
             currentUser={currentUser}
-            refreshUser={async () => { window.location.reload(); }}
+            refreshUser={async () => { 
+              console.log('🔃 refreshUser called in GoldSystemModal');
+              console.log('🔃 About to call refreshBalance()');
+              // Refresh user balance using the gold balance context
+              refreshBalance();
+              console.log('🔃 refreshBalance() completed');
+            }}
             showToast={(message: string, type?: string) => {
               toast({ title: message, variant: type === "error" ? "destructive" : "default" });
             }}
