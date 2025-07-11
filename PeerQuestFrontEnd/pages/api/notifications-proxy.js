@@ -3,7 +3,7 @@ export default async function handler(req, res) {
   let backendRes;
   if (req.method === 'POST' && req.query.clear_all !== undefined) {
     // Clear all notifications
-    backendRes = await fetch('http://localhost:8000/api/notifications/clear_all/', {
+    backendRes = await fetch('http://backend:8000/api/notifications/clear_all/', {
       method: 'POST',
       headers: {
         'Authorization': token,
@@ -12,7 +12,7 @@ export default async function handler(req, res) {
     });
   } else {
     // Get notifications
-    backendRes = await fetch('http://localhost:8000/api/notifications/', {
+    backendRes = await fetch('http://backend:8000/api/notifications/', {
       method: 'GET',
       headers: {
         'Authorization': token,

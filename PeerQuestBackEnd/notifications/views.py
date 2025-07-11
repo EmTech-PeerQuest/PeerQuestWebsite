@@ -11,11 +11,14 @@ class NotificationListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        notifications = Notification.objects.filter(user=request.user)
-        # Always refresh related application status if present
-        # (Assumes NotificationSerializer includes application/quest info)
-        serializer = NotificationSerializer(notifications, many=True)
-        return Response(serializer.data)
+        print("[DEBUG] NotificationListView called. User:", request.user, "Auth:", request.user.is_authenticated)
+        try:
+            notifications = Notification.objects.filter(user=request.user)
+            serializer = NotificationSerializer(notifications, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            print("NotificationListView error:", str(e))
+            return Response({'error': 'Server error', 'details': str(e)}, status=500)
 
 
 # New endpoint to clear all notifications for the current user
