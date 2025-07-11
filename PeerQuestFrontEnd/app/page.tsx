@@ -498,7 +498,7 @@ export default function Home() {
             }
           }}
           openPostQuestModal={() => {}}
-          openCreateGuildModal={() => {}}
+          openCreateGuildModal={() => setShowCreateGuildModal(true)}
           onQuestCreated={handleQuestCreated}
           activeSection={activeSection}
         />

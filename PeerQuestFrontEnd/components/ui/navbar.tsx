@@ -209,8 +209,13 @@ export function Navbar({
                       </button>
                       <button
                         onClick={() => {
-                          setQuickActionsOpen(false)
-                          openCreateGuildModal()
+                          setQuickActionsOpen(false);
+                          console.log('Create a Guild button pressed!');
+                          if (typeof openCreateGuildModal === 'function') {
+                            openCreateGuildModal();
+                          } else {
+                            alert('Create Guild modal function is not available.');
+                          }
                         }}
                         className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                       >
