@@ -5,7 +5,8 @@ from .views import (
     ResendVerificationView, PasswordResetView, PasswordResetConfirmView,
     LogoutView, LogoutAllView, UserSessionsView, RevokeSessionView,
     PasswordStrengthCheckView, UserSearchView, SkillsListView,
-    UserSkillsView, UserListForFrontendView, UserReportView, QuestReportView
+    UserSkillsView, UserListForFrontendView, UserReportView, QuestReportView,
+    CurrentUserView  # <-- Add this import
 )
 from .admin_views import AdminUserListView, AdminUserBanView, AdminUserUnbanView, AdminUserDeleteView, AdminReportsListView
 from .ban_appeal_views import BanAppealSubmitView, BanAppealListView, BanAppealReviewView
@@ -13,6 +14,15 @@ from .action_log_views import ActionLogListView
 from .ai_chatbot_proxy import AIChatbotProxyView
 
 urlpatterns = [
+    # Authenticated user endpoints
+    path('me/', CurrentUserView.as_view(), name='user-detail'),
+    # path('me/update/', UpdateProfileView.as_view(), name='user-update'),  # Commented out, use UserProfileView for updates
+
+    # Public profile view by username
+    # path('profile/<str:username>/', PublicProfileView.as_view(), name='public-profile'),  # Commented out, not implemented
+
+    # Registration endpoint
+    # path('register/', RegisterUserView.as_view(), name='user-register'),  # Commented out, not implemented
     path("register/", RegisterView.as_view(), name="register"),
     path("profile/", UserProfileView.as_view(), name="profile"),
     path("google-login-callback/", GoogleLoginCallbackView.as_view(), name="google-login-callback"),

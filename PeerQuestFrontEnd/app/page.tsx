@@ -6,6 +6,10 @@ import { Hero } from '@/components/ui/hero'
 import { QuestBoard } from '@/components/quests/quest-board-clean'
 import { QuestManagement } from '@/components/quests/quest-management'
 import { GuildHall } from '@/components/guilds/guild-hall'
+import { UserSearch } from '@/components/search/user-search';
+import MessagingSystem from '@/components/messaging/messaging-system';
+import { AdminPanel } from '@/components/admin/admin-panel';
+import { EnhancedGuildManagement } from '@/components/guilds/enhanced-guild-management';
 import { About } from "@/components/about"
 import { Footer } from '@/components/ui/footer'
 import { ToastProvider } from '@/components/ui/toast'
@@ -23,9 +27,7 @@ import { IntegratedProfile } from '@/components/profile/integrated-profile';
 import { UserSearch } from '@/components/search/user-search';
 import type { User, Quest, Guild, GuildJoinRequest, CreateGuildData } from "@/lib/types"
 import { fetchInitialData } from '@/lib/api/init-data'
-import { MessagingSystem } from '@/components/messaging/messaging-system'
 import { SimpleGuildManagement } from '@/components/guilds/simple-guild-management'
-import { EnhancedGuildManagement } from '@/components/guilds/enhanced-guild-management'
 import { GuildOverviewModal } from '@/components/guilds/guild-overview-modal'
 import { EnhancedCreateGuildModal } from '@/components/guilds/enhanced-create-guild-modal'
 import AdminPanel from '@/components/admin/admin-panel'
@@ -188,20 +190,26 @@ export default function Home() {
   }
 
   const handleQuestSubmit = (questData: Partial<Quest> & { questCost?: number }) => {
-    if (!currentUser) return
+    if (!currentUser) return;
 
     // Deduct gold from user for quest reward and add spending record
     if (questData.questCost) {
-      const updatedUser = addSpendingRecord(
+      addSpendingRecord(
         currentUser,
         questData.questCost,
-        "purchase",
+        "reward",
         `Posted quest: ${questData.title}`,
-      )
-      // TODO: Update user gold through proper auth context method
-      // setCurrentUser({ ...updatedUser, gold: updatedUser.gold - questData.questCost })
+      );
     }
 
+    // Fallbacks for category/difficulty
+    const defaultCategory = { id: 0, name: "misc", description: "Miscellaneous" };
+    const allowedDifficulties = ["initiate", "adventurer", "champion", "mythic"];
+    const difficulty = allowedDifficulties.includes(questData.difficulty as any)
+      ? questData.difficulty
+      : "initiate";
+
+    const now = new Date();
     const newQuest: Quest = {
       id: Date.now(),
       title: questData.title || "Untitled Quest",
@@ -232,25 +240,24 @@ export default function Home() {
       reward: questData.reward || 100,
       xp: questData.xp || 50,
       poster: currentUser,
-      createdAt: new Date().toISOString(),
       deadline: questData.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       applicants: [],
       isGuildQuest: questData.isGuildQuest || false,
       guildId: questData.guildId,
       guildReward: questData.guildReward || 0,
-    }
+    };
 
-    setQuests([newQuest, ...quests])
-    setShowPostQuestModal(false)
-    showToast(`Quest posted! ${questData.questCost} gold deducted for reward pool.`, "success")
-  }
+    setQuests([newQuest, ...quests]);
+    setShowPostQuestModal(false);
+    showToast(`Quest posted! ${questData.questCost} gold deducted for reward pool.`, "success");
+  };
 
   const handleGuildSubmit = async (guildData: any) => {
-    if (!currentUser) return
+    if (!currentUser) return;
 
     try {
       // Create guild data for API
-      const createGuildData: CreateGuildData = {
+      const createGuildData = {
         name: guildData.name || "Untitled Guild",
         description: guildData.description || "",
         specialization: guildData.specialization || "general",
@@ -266,17 +273,17 @@ export default function Home() {
         who_can_post_quests: guildData.whoCanPost || 'all_members',
         who_can_invite_members: guildData.whoCanInvite || 'all_members',
         social_links: guildData.socialLinks || [],
-      }
+      };
 
-      await createGuild(createGuildData)
-      await refetchGuilds() // Refresh the guild list
-      setShowCreateGuildModal(false)
-      showToast(`Guild created successfully!`, "success")
+      await createGuild(createGuildData);
+      await refetchGuilds(); // Refresh the guild list
+      setShowCreateGuildModal(false);
+      showToast(`Guild created successfully!`, "success");
     } catch (error) {
-      console.error('Error creating guild:', error)
-      showToast('Failed to create guild. Please try again.', "error")
+      console.error('Error creating guild:', error);
+      showToast('Failed to create guild. Please try again.', "error");
     }
-  }
+  };
 
   const handleQuestClick = (quest: Quest) => {
     setSelectedQuest(quest)
@@ -469,7 +476,14 @@ export default function Home() {
   return (
     <ToastProvider>
       {showInitialLoading && <LoadingModal message="Loading your adventure..." />}
-      <main className="min-h-screen bg-[#F4F0E6]">
+      <main
+        className={`${
+          activeSection === "messages"
+            ? "h-screen overflow-hidden"
+            : "min-h-screen overflow-auto"
+        } bg-[#F4F0E6]`}
+      >
+
         <Navbar
           setActiveSection={handleSectionChange}
           handleLogout={logout}
@@ -541,11 +555,13 @@ export default function Home() {
           />
         )}
 
-        {activeSection === "messages" && currentUser && (
-          <div className="p-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Messages</h2>
-            <p className="text-gray-600">Messaging system is being developed...</p>
-          </div>
+        {activeSection === "messages" && currentUser && debugToken &&(
+          <MessagingSystem
+            currentUser={currentUser}
+            showToast={showToast}
+            token={debugToken}
+            onlineUsers={new Map()}   // Replace with actual onlineUsers map if available
+          />
         )}
 
         {activeSection === "quest-management" && currentUser && (
@@ -695,6 +711,7 @@ export default function Home() {
             isOpen={showGoldSystemModal}
             onClose={() => setShowGoldSystemModal(false)}
             currentUser={currentUser}
+            refreshUser={async () => { window.location.reload(); }}
             showToast={(message: string, type?: string) => {
               toast({ title: message, variant: type === "error" ? "destructive" : "default" });
             }}
@@ -798,7 +815,7 @@ export default function Home() {
 
         <AIChatbot currentUser={currentUser} />
 
-        <Footer />
+        {activeSection !== "messages" && <Footer />}
       </main>
     </ToastProvider>
   )

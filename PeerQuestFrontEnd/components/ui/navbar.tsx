@@ -60,6 +60,7 @@ export function Navbar({
   const [quickActionsOpen, setQuickActionsOpen] = useState(false)
   const [showQuestForm, setShowQuestForm] = useState(false)
   const [avatarError, setAvatarError] = useState(false)
+  const [loadingMessages, setLoadingMessages] = useState(false)
   // Robust avatar getter
   const getAvatar = (u: any) => {
     let avatar = u?.avatar || u?.avatar_url;
@@ -73,10 +74,7 @@ export function Navbar({
   };
 
   const handleNavigation = (section: string) => {
-    // Play navigation sound
     playSound('nav');
-
-    // Use section-based navigation for profile, settings, quest-management, and admin
     if (
       section === "profile" ||
       section === "settings" ||
@@ -85,20 +83,30 @@ export function Navbar({
     ) {
       setActiveSection(section);
     } else if (section === "messages") {
-      router.push("/messages");
+      setActiveSection("messages");
+      setLoadingMessages(false);
     } else if (section === "search") {
       setActiveSection("search");
     } else {
-      // For sections that are handled by the main page
       setActiveSection(section);
     }
-
     setMobileMenuOpen(false);
-    // Close any open dropdowns when navigating
     setUserDropdownOpen(false);
     setNotificationsOpen(false);
     setQuickActionsOpen(false);
   }
+
+  // Reset loading state when route changes away from /messages
+  useEffect(() => {
+    if (!loadingMessages) return;
+    const handleRouteChange = () => {
+      setLoadingMessages(false);
+    };
+    window.addEventListener('popstate', handleRouteChange);
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange);
+    };
+  }, [loadingMessages]);
 
   const handleOpenQuestForm = () => {
     setShowQuestForm(true)
@@ -224,10 +232,14 @@ export function Navbar({
                 <button
                   onClick={() => handleNavigation("messages")}
                   className="text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors relative"
-                  aria-label="Messages"
+                  disabled={loadingMessages}
                 >
-                  <MessageSquare size={20} />
-                  {unreadMessages > 0 && (
+                  {loadingMessages ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : (
+                    <MessageSquare size={20} />
+                  )}
+                  {unreadMessages > 0 && !loadingMessages && (
                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 flex items-center justify-center rounded-full">
                       {unreadMessages}
                     </span>

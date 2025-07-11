@@ -8,6 +8,8 @@ import { User } from '@/lib/types';
 
 interface AuthContextProps {
   user: User | null;
+  token: string | null;
+  isLoading: boolean;
   login: (credentials: { username: string; password: string; rememberMe?: boolean }) => Promise<void>;
   register: (data: { username: string; email: string; password: string; confirmPassword: string; birthday?: string | null; gender?: string | null }) => Promise<void>;
   logout: () => void;
@@ -19,6 +21,8 @@ interface AuthContextProps {
 
 const AuthContext = createContext<AuthContextProps>({
   user: null,
+  token: null,
+  isLoading: true,
   login: async () => {},
   register: async () => {},
   logout: () => {},
@@ -47,6 +51,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           localStorage.removeItem('user');
         }
       }
+    }
+    return null;
+  });
+
+  // --- ADD: token state management ---
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('access_token');
     }
     return null;
   });
@@ -133,7 +145,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         gold: res.data.gold_balance || res.data.gold || 0,
         is_staff: res.data.is_staff,
         is_superuser: res.data.is_superuser,
-        isSuperuser: res.data.is_superuser,
+        isSuperuser: res.data.is_super_user,
         // Ban fields
         isBanned: res.data.is_banned,
         banReason: res.data.ban_reason,
@@ -202,7 +214,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Don't set loading state for login - let parent handle it
       }
     }
-  };
+  }
 
   const login = async (credentials: { username: string; password: string; rememberMe?: boolean }) => {
     try {
@@ -260,7 +272,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
       throw err;
     }
-  };
+  }
 
 
   // Refresh user profile
@@ -438,10 +450,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loginWithGoogle, refreshUser, clearAllAuthCache }}>
+    <AuthContext.Provider value={{ user, token, isLoading: loading, login, register, logout, loginWithGoogle, refreshUser, clearAllAuthCache }}>
       {loading ? <ThemedLoading /> : children}
     </AuthContext.Provider>
-  );
-};
+  )
+}
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider")
+  }
+  return context
+}

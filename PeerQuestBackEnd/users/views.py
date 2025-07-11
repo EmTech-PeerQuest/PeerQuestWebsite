@@ -1352,3 +1352,38 @@ class UserListForFrontendView(APIView):
             return Response(user_list, status=200)
         except Exception as e:
             return Response({'error': str(e)}, status=500)
+
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+from rest_framework.response import Response
+
+class CurrentUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        # You can use a serializer if you want more fields or custom formatting
+        data = {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'first_name': getattr(user, 'first_name', ''),
+            'last_name': getattr(user, 'last_name', ''),
+            # Add more fields as needed
+        }
+        return Response(data)
+
+class UpdateProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        return Response({'message': 'UpdateProfileView placeholder'}, status=200)
+
+class PublicProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request, username=None):
+        return Response({'message': f'PublicProfileView placeholder for {username}'}, status=200)
+
+class RegisterUserView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        return Response({'message': 'RegisterUserView placeholder'}, status=200)

@@ -176,3 +176,4 @@ database.sqlite3
 
 # Ignore SQLite database file
 PeerQuestBackEnd/db.sqlite3
+node_modules

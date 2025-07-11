@@ -35,15 +35,7 @@ import axios from "axios";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
-// Custom error for invalid/expired JWT
-export class TokenInvalidError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "TokenInvalidError";
-  }
-}
-
-// JWT login
+// Login: Obtain JWT tokens
 export const login = async (username: string, password: string) => {
   console.log('🔍 API login called with username:', username);
   try {
@@ -279,8 +271,8 @@ export const resendVerificationEmail = async (email: string) => {
   }
 };
 
-// Fetch user profile (JWT required)
-export const fetchUser = async (token: string) => {
+// Fetch user profile by token
+export const fetchUser = async (token: string): Promise<User> => {
   try {
     const response = await axios.get(`${API_BASE}/api/users/profile/`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -290,15 +282,19 @@ export const fetchUser = async (token: string) => {
     
     return response;
   } catch (error: any) {
-    // Detect JWT errors
-    const detail = error?.response?.data?.detail || "";
+    console.error("Fetch user API error:", error.response?.data)
+
+    const detail = error?.response?.data?.detail || ""
     if (
       error?.response?.status === 401 &&
-      (detail.includes("token not valid") || detail.includes("token has expired") || detail.includes("credentials were not provided"))
+      (detail.includes("token not valid") ||
+        detail.includes("token has expired") ||
+        detail.includes("credentials were not provided"))
     ) {
-      throw new TokenInvalidError(detail || "Token not valid");
+      throw new TokenInvalidError(detail || "Token not valid")
     }
-    throw error;
+
+    throw new Error("Failed to fetch user")
   }
 };
 
@@ -491,3 +487,10 @@ export const checkPasswordStrength = async (password: string, username?: string,
     throw error;
   }
 };
+
+export class TokenInvalidError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TokenInvalidError";
+  }
+}

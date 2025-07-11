@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:7
+    container_name: peerquest-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+  
+  backend:
+    build:
+      context: ./PeerQuestBackEnd
+    container_name: peerquest-backend
+    command: daphne -b 0.0.0.0 -p 8000 core.asgi:application
+    volumes:
+      - ./PeerQuestBackEnd:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    environment:
+      - DJANGO_SETTINGS_MODULE=core.settings
+      # Add any other env vars you need
