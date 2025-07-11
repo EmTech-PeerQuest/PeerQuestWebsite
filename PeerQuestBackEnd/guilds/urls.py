@@ -3,7 +3,7 @@ from .views import (
     GuildListView, GuildDetailView, GuildCreateView, GuildUpdateView, 
     GuildDeleteView, MyGuildsView, GuildMembersView, join_guild, 
     leave_guild, guild_join_requests, process_join_request, kick_member,
-    my_join_requests
+    my_join_requests, update_member_role
 )
 
 app_name = 'guilds'
@@ -23,7 +23,8 @@ urlpatterns = [
     path('<uuid:guild_id>/members/', GuildMembersView.as_view(), name='guild-members'),
     path('<uuid:guild_id>/join/', join_guild, name='join-guild'),
     path('<uuid:guild_id>/leave/', leave_guild, name='leave-guild'),
-    path('<uuid:guild_id>/kick/<int:user_id>/', kick_member, name='kick-member'),
+    path('<uuid:guild_id>/kick/<uuid:user_id>/', kick_member, name='kick-member'),
+    path('<uuid:guild_id>/members/<uuid:user_id>/role/', update_member_role, name='update-member-role'),
     
     # Join requests management
     path('<uuid:guild_id>/join-requests/', guild_join_requests, name='guild-join-requests'),

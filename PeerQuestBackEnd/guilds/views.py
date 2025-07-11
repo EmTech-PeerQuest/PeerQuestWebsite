@@ -446,3 +446,65 @@ def my_join_requests(request, guild_id):
         return Response(serializer.data)
     else:
         return Response({'message': 'No join requests found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_member_role(request, guild_id, user_id):
+    """
+    API endpoint for guild owners and admins to update a member's role
+    """
+    print(f"DEBUG: update_member_role called with guild_id={guild_id}, user_id={user_id}")
+    print(f"DEBUG: request.user={request.user}, request.data={request.data}")
+    
+    guild = get_object_or_404(Guild, guild_id=guild_id)
+    
+    # Check if the requester has permission to update roles
+    requester_membership = GuildMembership.objects.filter(
+        guild=guild, user=request.user, is_active=True
+    ).first()
+    
+    is_owner = request.user == guild.owner
+    is_admin = requester_membership and requester_membership.role == 'admin'
+    
+    print(f"DEBUG: is_owner={is_owner}, is_admin={is_admin}")
+    
+    if not (is_owner or is_admin):
+        return Response({'error': 'Only guild owners and admins can update member roles'}, 
+                       status=status.HTTP_403_FORBIDDEN)
+    
+    # Get the member to update
+    membership = get_object_or_404(GuildMembership, guild=guild, user__id=user_id, is_active=True)
+    
+    # Prevent updating the owner's role
+    if membership.user == guild.owner:
+        return Response({'error': 'Cannot update the guild owner\'s role'}, 
+                       status=status.HTTP_400_BAD_REQUEST)
+    
+    # Admins can only modify member roles, not other admin roles
+    if is_admin and not is_owner and membership.role == 'admin':
+        return Response({'error': 'Admins cannot modify other admins\' roles'}, 
+                       status=status.HTTP_403_FORBIDDEN)
+    
+    new_role = request.data.get('role')
+    if new_role not in ['member', 'admin']:
+        return Response({'error': 'Invalid role. Must be "member" or "admin"'}, 
+                       status=status.HTTP_400_BAD_REQUEST)
+    
+    # Admins can only demote members, not promote them to admin
+    if is_admin and not is_owner and new_role == 'admin':
+        return Response({'error': 'Only guild owners can promote members to admin'}, 
+                       status=status.HTTP_403_FORBIDDEN)
+    
+    # Update the role
+    old_role = membership.role
+    membership.role = new_role
+    membership.save()
+    
+    # Return updated membership
+    serializer = GuildMembershipSerializer(membership)
+    
+    return Response({
+        'message': f'Member role updated from {old_role} to {new_role}',
+        'membership': serializer.data
+    })

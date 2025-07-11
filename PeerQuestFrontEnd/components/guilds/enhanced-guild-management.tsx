@@ -75,6 +75,9 @@ export function EnhancedGuildManagement({
   const [loadingRequests, setLoadingRequests] = useState(false)
   const [loadingUserGuilds, setLoadingUserGuilds] = useState(false)
   const [requestsTab, setRequestsTab] = useState<"pending" | "processed">("pending")
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
+  const [updatingRole, setUpdatingRole] = useState(false)
+  const [pendingRoleChange, setPendingRoleChange] = useState<string | null>(null)
 
   // Fetch guild data when selectedGuild changes
   useEffect(() => {
@@ -125,36 +128,45 @@ export function EnhancedGuildManagement({
   const fetchGuildData = async () => {
     if (!selectedGuild) return
 
-    // Fetch members
+    // Fetch members first
     setLoadingMembers(true)
     try {
       const members = await guildApi.getGuildMembers(selectedGuild.guild_id)
       setGuildMembers(members)
+      
+      // After members are loaded, check permissions and fetch requests if needed
+      const isOwner = String(selectedGuild.owner?.id) === String(currentUser.id) || 
+                     selectedGuild.poster?.username === currentUser.username
+      
+      // Check if user is an admin in this guild
+      const userMembership = members.find(membership => 
+        String(membership.user.id) === String(currentUser.id) && membership.is_active
+      )
+      const isAdmin = userMembership?.role === 'admin'
+      const isOwnerOrAdmin = isOwner || isAdmin
+      
+      // Fetch join requests if user has permissions
+      if (isOwnerOrAdmin) {
+        setLoadingRequests(true)
+        try {
+          // Fetch both pending and processed requests
+          const [pendingRequests, processedRequestsData] = await Promise.all([
+            guildApi.getGuildJoinRequests(selectedGuild.guild_id, 'pending'),
+            guildApi.getGuildJoinRequests(selectedGuild.guild_id, 'processed')
+          ]);
+          
+          setJoinRequests(pendingRequests)
+          setProcessedRequests(processedRequestsData)
+        } catch (error) {
+          console.error('Failed to fetch join requests:', error)
+        } finally {
+          setLoadingRequests(false)
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch guild members:', error)
     } finally {
       setLoadingMembers(false)
-    }
-
-    // Fetch join requests (only if owner)
-    const isOwner = String(selectedGuild.owner?.id) === String(currentUser.id) || 
-                   selectedGuild.poster?.username === currentUser.username
-    if (isOwner) {
-      setLoadingRequests(true)
-      try {
-        // Fetch both pending and processed requests
-        const [pendingRequests, processedRequestsData] = await Promise.all([
-          guildApi.getGuildJoinRequests(selectedGuild.guild_id, 'pending'),
-          guildApi.getGuildJoinRequests(selectedGuild.guild_id, 'processed')
-        ]);
-        
-        setJoinRequests(pendingRequests)
-        setProcessedRequests(processedRequestsData)
-      } catch (error) {
-        console.error('Failed to fetch join requests:', error)
-      } finally {
-        setLoadingRequests(false)
-      }
     }
   }
 
@@ -186,6 +198,54 @@ export function EnhancedGuildManagement({
     }
   }
 
+  const handleUpdateMemberRole = async (userId: string, newRole: 'member' | 'admin') => {
+    if (!selectedGuild) return
+
+    console.log('DEBUG: Starting role update', { 
+      userId, 
+      newRole, 
+      guildId: selectedGuild.guild_id,
+      userIdType: typeof userId,
+      guildIdType: typeof selectedGuild.guild_id
+    })
+    
+    setUpdatingRole(true)
+    try {
+      const result = await guildApi.updateMemberRole(selectedGuild.guild_id, userId, newRole)
+      console.log('DEBUG: Role update successful', result)
+      showToast(result.message, "success")
+      
+      // Update the local guild members state with the new role
+      setGuildMembers(prev => prev.map(membership => 
+        membership.user.id === userId 
+          ? { ...membership, role: newRole }
+          : membership
+      ))
+      
+      // Clear editing state
+      setEditingMemberId(null)
+      setPendingRoleChange(null)
+      
+      // Notify parent component to refresh its data
+      if (onDataChanged) {
+        await onDataChanged()
+      }
+    } catch (error) {
+      console.error('DEBUG: Role update failed', {
+        error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack',
+        userId,
+        newRole,
+        guildId: selectedGuild.guild_id
+      })
+      showToast(`Failed to update member role. Please try again.`, "error")
+    } finally {
+      setUpdatingRole(false)
+      // Don't clear editing states here as they should only be cleared on success or explicit cancel
+    }
+  }
+
   // Get guilds where the current user is the owner
   const ownedGuilds = guilds.filter((guild) => 
     String(guild.owner?.id) === String(currentUser.id) || 
@@ -200,69 +260,19 @@ export function EnhancedGuildManagement({
     return guild && (String(guild.owner?.id) === String(currentUser.id) || guild.poster?.username === currentUser.username)
   })
 
-  // Mock member data for demonstration
-  const mockMembers = [
-    {
-      id: currentUser.id,
-      username: currentUser.username,
-      avatar: currentUser.avatar,
-      role: "Owner",
-      joinDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-      level: 25,
-      xp: 12500,
-    },
-    {
-      id: 2,
-      username: "QuestMaster",
-      avatar: "Q",
-      role: "Admin",
-      joinDate: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
-      level: 18,
-      xp: 8900,
-    },
-    {
-      id: 3,
-      username: "MysticBrewer",
-      avatar: "M",
-      role: "Member",
-      joinDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000),
-      level: 12,
-      xp: 5600,
-    },
-    {
-      id: 4,
-      username: "ShadowHunter",
-      avatar: "S",
-      role: "Member",
-      joinDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
-      level: 15,
-      xp: 7200,
-    },
-    {
-      id: 5,
-      username: "DragonSlayer",
-      avatar: "D",
-      role: "Member",
-      joinDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-      level: 8,
-      xp: 3400,
-    },
-  ]
-
+  // Calculate guild level based on real member data
   const calculateGuildLevel = (guild: Guild) => {
-    // Calculate guild level based on total member XP and activities
-    const totalMemberXP = mockMembers.reduce((sum, member) => sum + member.xp, 0)
-    const memberCount = guild.members || guild.member_count || 0
-    const guildLevel = Math.floor(totalMemberXP / 1000) + memberCount
-    return Math.min(guildLevel, 100) // Cap at level 100
+    // Calculate guild level based on member count and guild activity
+    const memberCount = guild.members || guild.member_count || guildMembers.length || 0
+    const baseLevel = Math.floor(memberCount / 5) + 1 // 1 level per 5 members
+    return Math.min(baseLevel, 100) // Cap at level 100
   }
 
   const getGuildXPProgress = (guild: Guild) => {
     const currentLevel = calculateGuildLevel(guild)
-    const xpForCurrentLevel = currentLevel * 1000
-    const xpForNextLevel = (currentLevel + 1) * 1000
-    const currentXP = mockMembers.reduce((sum, member) => sum + member.xp, 0)
-    const progress = ((currentXP - xpForCurrentLevel) / (xpForNextLevel - xpForCurrentLevel)) * 100
+    const memberCount = guild.members || guild.member_count || guildMembers.length || 0
+    // Simple progress calculation based on member count
+    const progress = (memberCount % 5) * 20 // 20% per member towards next level
     return Math.max(0, Math.min(100, progress))
   }
 
@@ -295,6 +305,13 @@ export function EnhancedGuildManagement({
   if (selectedGuild) {
     const isOwner = selectedGuild.owner?.id === currentUser.id || 
                    selectedGuild.poster?.username === currentUser.username
+    
+    // Check if user is an admin in this guild
+    const userMembership = guildMembers.find(membership => 
+      String(membership.user.id) === String(currentUser.id) && membership.is_active
+    )
+    const isAdmin = userMembership?.role === 'admin'
+    const isOwnerOrAdmin = isOwner || isAdmin
 
     return (
       <section className="bg-[#F4F0E6] min-h-screen py-8">
@@ -368,7 +385,7 @@ export function EnhancedGuildManagement({
                 <Users size={18} />
                 Members
               </button>
-              {isOwner && (
+              {isOwnerOrAdmin && (
                 <button
                   onClick={() => setManagementView("requests")}
                   className={`px-6 py-4 font-medium whitespace-nowrap flex items-center gap-2 ${
@@ -507,46 +524,132 @@ export function EnhancedGuildManagement({
                         </tr>
                       </thead>
                       <tbody>
-                        {mockMembers
-                          .filter(
-                            (member) =>
-                              (selectedRole === "All" || member.role === selectedRole) &&
-                              member.username?.toLowerCase().includes(memberSearchQuery.toLowerCase()),
-                          )
-                          .map((member) => (
-                            <tr key={member.id} className="border-b border-gray-200 hover:bg-gray-50">
-                              <td className="py-3 px-4">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 bg-[#8B75AA] rounded-full flex items-center justify-center text-white font-bold">
-                                    {member.avatar}
-                                  </div>
-                                  <span className="font-medium text-[#2C1A1D]">{member.username}</span>
-                                </div>
-                              </td>
-                              <td className="py-3 px-4">
-                                <span
-                                  className={`px-2 py-1 rounded text-xs font-bold text-white ${getRoleBadgeColor(member.role)}`}
-                                >
-                                  {member.role}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-[#2C1A1D]">{member.level}</td>
-                              <td className="py-3 px-4 text-[#2C1A1D]">{member.xp.toLocaleString()}</td>
-                              <td className="py-3 px-4 text-[#2C1A1D]">
-                                {member.joinDate?.toLocaleDateString() || "N/A"}
-                              </td>
-                              <td className="py-3 px-4">
-                                <div className="flex items-center gap-2">
-                                  {member.role !== "Owner" && (
-                                    <>
-                                      <button className="text-blue-600 hover:text-blue-800 text-sm">Edit Role</button>
-                                      <button className="text-red-600 hover:text-red-800 text-sm">Remove</button>
-                                    </>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                        {loadingMembers ? (
+                          <tr>
+                            <td colSpan={6} className="py-8 text-center">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#8B75AA] mx-auto"></div>
+                              <p className="text-[#8B75AA] mt-2">Loading members...</p>
+                            </td>
+                          </tr>
+                        ) : guildMembers.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="py-8 text-center text-[#8B75AA]">
+                              No members found
+                            </td>
+                          </tr>
+                        ) : (
+                          guildMembers
+                            .filter((membership) => {
+                              const member = membership.user
+                              const roleMatch = selectedRole === "All" || 
+                                (selectedRole === "Owner" && membership.role === "owner") ||
+                                (selectedRole === "Admin" && membership.role === "admin") ||
+                                (selectedRole === "Member" && membership.role === "member")
+                              const searchMatch = member.username?.toLowerCase().includes(memberSearchQuery.toLowerCase()) || 
+                                                member.display_name?.toLowerCase().includes(memberSearchQuery.toLowerCase())
+                              return roleMatch && searchMatch && membership.is_active
+                            })
+                            .map((membership) => {
+                              const member = membership.user
+                              const memberRole = membership.role === "owner" ? "Owner" : 
+                                               membership.role === "admin" ? "Admin" : "Member"
+                              return (
+                                <tr key={membership.id} className="border-b border-gray-200 hover:bg-gray-50">
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-10 h-10 bg-[#8B75AA] rounded-full flex items-center justify-center text-white font-bold">
+                                        {member.avatar ? (
+                                          typeof member.avatar === 'string' && member.avatar.startsWith('http') ? (
+                                            <img src={member.avatar} alt={member.username} className="w-full h-full rounded-full object-cover" />
+                                          ) : (
+                                            member.avatar
+                                          )
+                                        ) : (
+                                          member.username?.[0]?.toUpperCase() || "M"
+                                        )}
+                                      </div>
+                                      <span className="font-medium text-[#2C1A1D]">
+                                        {member.display_name || member.username}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <span
+                                      className={`px-2 py-1 rounded text-xs font-bold text-white ${getRoleBadgeColor(memberRole)}`}
+                                    >
+                                      {memberRole}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4 text-[#2C1A1D]">{member.level || 1}</td>
+                                  <td className="py-3 px-4 text-[#2C1A1D]">{(member.experience_points || 0).toLocaleString()}</td>
+                                  <td className="py-3 px-4 text-[#2C1A1D]">
+                                    {membership.joined_at ? new Date(membership.joined_at).toLocaleDateString() : "N/A"}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center gap-2">
+                                      {membership.role !== "owner" && isOwnerOrAdmin && (
+                                        <>
+                                          {/* Only owners can edit admin roles, admins can only edit member roles */}
+                                          {(isOwner || (isAdmin && membership.role === "member")) && (
+                                            <>
+                                              {editingMemberId === member.id ? (
+                                                <div className="flex items-center gap-2">
+                                                  <select
+                                                    value={pendingRoleChange || membership.role}
+                                                    onChange={(e) => setPendingRoleChange(e.target.value as 'member' | 'admin')}
+                                                    disabled={updatingRole}
+                                                    className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-[#8B75AA]"
+                                                  >
+                                                    <option value="member">Member</option>
+                                                    {/* Only owners can promote to admin */}
+                                                    {isOwner && <option value="admin">Admin</option>}
+                                                  </select>
+                                                  <button
+                                                    onClick={() => {
+                                                      if (pendingRoleChange && pendingRoleChange !== membership.role) {
+                                                        handleUpdateMemberRole(member.id, pendingRoleChange as 'member' | 'admin')
+                                                      }
+                                                    }}
+                                                    disabled={updatingRole || !pendingRoleChange || pendingRoleChange === membership.role}
+                                                    className="text-green-600 hover:text-green-800 text-sm disabled:text-gray-400"
+                                                  >
+                                                    {updatingRole ? "Saving..." : "Save"}
+                                                  </button>
+                                                  <button
+                                                    onClick={() => {
+                                                      setEditingMemberId(null)
+                                                      setPendingRoleChange(null)
+                                                    }}
+                                                    disabled={updatingRole}
+                                                    className="text-gray-600 hover:text-gray-800 text-sm"
+                                                  >
+                                                    Cancel
+                                                  </button>
+                                                </div>
+                                              ) : (
+                                                <>
+                                                  <button 
+                                                    onClick={() => {
+                                                      setEditingMemberId(member.id)
+                                                      setPendingRoleChange(membership.role)
+                                                    }}
+                                                    className="text-blue-600 hover:text-blue-800 text-sm"
+                                                  >
+                                                    Edit Role
+                                                  </button>
+                                                  <button className="text-red-600 hover:text-red-800 text-sm">Remove</button>
+                                                </>
+                                              )}
+                                            </>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )
+                            })
+                        )}
                       </tbody>
                     </table>
                   </div>
