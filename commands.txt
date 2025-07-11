@@ -1,5 +1,15 @@
-////////// Docker Command //////////
+////////// Docker Command Setup//////////
+docker-compose up --build
+docker-compose exec backend python manage.py migrate
+docker-compose exec backend python manage.py createsuperuser
+docker-compose up
+
+////////// Docker START ONLY //////////
+docker-compose up
+
+/////// IF CHANGED DEPENDENCIES /////////////////
 docker-compose build --no-cache; docker-compose up
+
 
 
 ////////// Copy-Paste Friendly Setup Commands //////////
