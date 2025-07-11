@@ -174,8 +174,8 @@ class SendMessageView(APIView):
                     'filename': attachment.filename,
                     'file_size': attachment.file_size_human,
                     'content_type': attachment.content_type,
-                    'file_url': attachment.file.url,
-                    'thumbnail_url': attachment.thumbnail.url if attachment.thumbnail else None,
+                    'file_url': request.build_absolute_uri(attachment.file.url),
+                    'thumbnail_url': request.build_absolute_uri(attachment.thumbnail.url) if attachment.thumbnail else None,
                     'is_image': attachment.is_image,
                 })
 

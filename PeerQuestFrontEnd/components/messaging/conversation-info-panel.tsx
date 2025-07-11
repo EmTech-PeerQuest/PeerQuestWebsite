@@ -1,19 +1,82 @@
-"use client"
+/* eslint-disable @next/next/no-img-element */
+"use client";
 
-import type React from "react"
-import type { User, Conversation, UserStatus } from "@/lib/types"
-import { X, Users, Calendar, Shield } from "lucide-react"
-import { motion } from "framer-motion"
-import type { JSX } from "react/jsx-runtime"
+import React, { useState, useMemo } from "react";
+import type { User, Conversation, UserStatus, Message } from "@/lib/types";
+import {
+  X,
+  Users,
+  Shield,
+  Paperclip,
+  LinkIcon,
+  Settings,
+  ChevronDown,
+  ChevronRight,
+  Search,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import type { JSX } from "react/jsx-runtime";
+
+interface Attachment {
+  id: string;
+  filename: string;
+  file_url: string;
+  content_type: string;
+  file_size: number;
+}
 
 interface ConversationInfoPanelProps {
-  conversation: Conversation
-  participants: User[]
-  onlineUsers: Map<string, UserStatus>
-  renderAvatar: (user: User, size: "sm" | "md" | "lg") => JSX.Element
-  onClose: () => void
-  currentUser: User | null
+  conversation: Conversation;
+  participants: User[];
+  onlineUsers: Map<string, UserStatus>;
+  renderAvatar: (user: User, size: "sm" | "md" | "lg") => JSX.Element;
+  onClose: () => void;
+  currentUser: User | null;
+  attachments?: Attachment[];
+  sharedLinks?: string[];
+  setInfoSearchQuery: (q: string) => void;
+  infoSearchQuery: string;
+  messages: Message[];
 }
+
+const Section: React.FC<{
+  title: string;
+  icon: JSX.Element;
+  children: React.ReactNode;
+}> = ({ title, icon, children }) => {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="border-t pt-4">
+      <button
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex items-center w-full text-left gap-2 group"
+      >
+        {icon}
+        <h4 className="font-semibold text-base" style={{ color: "var(--tavern-dark)" }}>
+          {title}
+        </h4>
+        {open ? (
+          <ChevronDown className="ml-auto w-4 h-4" />
+        ) : (
+          <ChevronRight className="ml-auto w-4 h-4" />
+        )}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="mt-2"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 const ConversationInfoPanel: React.FC<ConversationInfoPanelProps> = ({
   conversation,
@@ -22,124 +85,116 @@ const ConversationInfoPanel: React.FC<ConversationInfoPanelProps> = ({
   renderAvatar,
   onClose,
   currentUser,
+  attachments = [],
+  sharedLinks = [],
+  setInfoSearchQuery,
+  infoSearchQuery,
+  messages,
 }) => {
+  const lowerQuery = infoSearchQuery.toLowerCase();
+
+  const filteredMessages = useMemo(() => {
+    if (!infoSearchQuery.trim()) return [];
+    return messages.filter(
+      (m) =>
+        m.content?.toLowerCase().includes(lowerQuery) ||
+        m.attachments?.some((a) => a.filename?.toLowerCase().includes(lowerQuery))
+    );
+  }, [infoSearchQuery, messages]);
+
   if (!currentUser) {
     return (
       <div className="p-6 text-center">
         <div className="loading-spinner mx-auto mb-2"></div>
-        <p className="text-sm" style={{ color: "var(--tavern-purple)" }}>
-          Loading...
-        </p>
+        <p className="text-sm" style={{ color: "var(--tavern-purple)" }}>Loading...</p>
       </div>
-    )
+    );
   }
 
-  const handleParticipantClick = (participant: User) => {
-    console.log(`View profile of ${participant.username}`)
-  }
-
-  const handleKeyDown = (event: React.KeyboardEvent, participant: User) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault()
-      handleParticipantClick(participant)
-    }
-  }
+  const otherParticipant = participants.find((p) => p.id !== currentUser.id) || null;
 
   return (
-    <aside aria-label="Conversation information panel" className="relative w-full h-full overflow-hidden">
-      {/* Header with X button */}
+    <aside className="relative w-full h-full overflow-hidden">
       <div
-        className="flex justify-between items-center px-6 py-4"
+        className="flex justify-between items-center px-6 py-4 border-b"
         style={{ backgroundColor: "var(--tavern-dark)", color: "var(--tavern-cream)" }}
       >
         <h3 className="text-lg font-medieval">Conversation Info</h3>
         <button
           onClick={onClose}
-          className="p-2 rounded-lg transition-all duration-200 hover:scale-105"
-          style={{
-            background: "transparent",
-            border: "2px solid #cdaa7d",
-            color: "#f4f0e6",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "#cdaa7d"
-            e.currentTarget.style.color = "#2c1a1d"
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "transparent"
-            e.currentTarget.style.color = "#f4f0e6"
-          }}
+          className="p-2 rounded-lg border-2 border-[#cdaa7d] text-[#f4f0e6] hover:bg-[#cdaa7d] hover:text-[#2c1a1d]"
           aria-label="Close panel"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
-      {/* Body */}
       <div
-        className="p-6 space-y-8 text-sm overflow-y-auto h-full"
-        style={{ backgroundColor: "var(--tavern-cream)", color: "var(--tavern-dark)" }}
+        className="p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-4rem)]"
+        style={{ backgroundColor: "var(--tavern-cream)" }}
       >
-        {/* Conversation Avatar & Name */}
-        <motion.div
-          className="text-center"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          {conversation.is_group ? (
-            <div className="avatar avatar-xl mx-auto mb-4" style={{ backgroundColor: "var(--tavern-purple)" }}>
-              <Users className="w-10 h-10" />
-            </div>
-          ) : (
-            <div className="mx-auto mb-4">
-              {participants.find((p) => p.id !== currentUser.id) &&
-                renderAvatar(participants.find((p) => p.id !== currentUser.id)!, "lg")}
-            </div>
-          )}
-          <h2 className="text-xl font-medieval mb-2" style={{ color: "var(--tavern-dark)" }}>
-            {conversation.is_group
-              ? conversation.name || "Group Chat"
-              : participants.find((p) => p.id !== currentUser.id)?.username || "Unknown User"}
+        <motion.div className="text-center" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="mx-auto mb-3 flex justify-center">
+            {otherParticipant && renderAvatar(otherParticipant, "lg")}
+          </div>
+          <h2 className="text-xl font-medieval" style={{ color: "var(--tavern-dark)" }}>
+            {conversation.is_group ? conversation.name || "Group Chat" : otherParticipant?.username || "Unknown"}
           </h2>
           {conversation.description && (
-            <p style={{ color: "var(--tavern-purple)" }} className="text-sm">
-              {conversation.description}
-            </p>
+            <p className="text-sm mt-1" style={{ color: "var(--tavern-purple)" }}>{conversation.description}</p>
           )}
         </motion.div>
 
-        {/* Participants */}
-        <motion.section
-          aria-labelledby="participants-heading"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <Users className="w-5 h-5" style={{ color: "var(--tavern-purple)" }} />
-            <h4 id="participants-heading" className="font-semibold" style={{ color: "var(--tavern-dark)" }}>
-              Participants ({participants.length})
-            </h4>
+        <div className="px-1">
+          <input
+            type="text"
+            value={infoSearchQuery}
+            onChange={(e) => setInfoSearchQuery(e.target.value)}
+            placeholder="Search messages..."
+            className="w-full px-3 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+          />
+        </div>
+
+        {infoSearchQuery && (
+          <div className="mt-4 px-1 space-y-2 max-h-[300px] overflow-y-auto pr-1">
+            {filteredMessages.map((m) => (
+              <div key={m.id} className="p-2 border rounded-md bg-white shadow-sm">
+                <p className="text-sm text-gray-800 whitespace-pre-wrap">{m.content}</p>
+                {(m.attachments?.length ?? 0) > 0 && (
+                  <ul className="text-xs text-blue-500 mt-1 space-y-1">
+                    {(m.attachments ?? []).map((a, i) => (
+                      <li key={i}>
+                        <a
+                          href={a.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline"
+                        >
+                          {a.filename}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+            {filteredMessages.length === 0 && (
+              <p className="text-sm text-center text-gray-500">No results found.</p>
+            )}
           </div>
-          <div className="space-y-3 max-h-64 overflow-y-auto">
-            {participants.map((participant, index) => {
-              const status = onlineUsers.get(participant.id) ?? "offline"
-              const isOnline = status === "online"
-              const isIdle = status === "idle"
+        )}
+
+        <Section title={`Participants (${participants.length})`} icon={<Users className="w-5 h-5 text-purple-700" />}>
+          <div className="space-y-3 max-h-64 overflow-y-auto mt-2">
+            {participants.map((participant) => {
+              const status = onlineUsers.get(participant.id) ?? "offline";
+              const isOnline = status === "online";
+              const isIdle = status === "idle";
 
               return (
-                <motion.div
+                <div
                   key={participant.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 + index * 0.1 }}
-                  className="flex items-center gap-3 p-3 rounded-xl transition-all duration-150 cursor-pointer group card"
-                  onClick={() => handleParticipantClick(participant)}
-                  onKeyDown={(e) => handleKeyDown(e, participant)}
-                  tabIndex={0}
-                  role="button"
-                  aria-label={`View profile of ${participant.username}`}
+                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-[#eee] transition"
                 >
                   <div className="relative">
                     {renderAvatar(participant, "sm")}
@@ -147,11 +202,10 @@ const ConversationInfoPanel: React.FC<ConversationInfoPanelProps> = ({
                       className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
                         isOnline ? "bg-green-500" : isIdle ? "bg-amber-500" : "bg-slate-400"
                       }`}
-                      aria-hidden="true"
                     />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate transition-colors" style={{ color: "var(--tavern-dark)" }}>
+                  <div>
+                    <p className="font-medium text-sm" style={{ color: "var(--tavern-dark)" }}>
                       {participant.username}
                       {participant.id === currentUser.id && (
                         <span className="text-xs ml-2" style={{ color: "var(--tavern-purple)" }}>
@@ -159,83 +213,66 @@ const ConversationInfoPanel: React.FC<ConversationInfoPanelProps> = ({
                         </span>
                       )}
                     </p>
-                    <div className="flex items-center gap-2 text-xs">
-                      <span
-                        className={`${isOnline ? "text-green-600" : isIdle ? "text-amber-600" : ""}`}
-                        style={{ color: isOnline ? "#4caf50" : isIdle ? "#ff9800" : "var(--tavern-purple)" }}
-                      >
-                        {isOnline ? "Online" : isIdle ? "Idle" : "Offline"}
-                      </span>
-                      {participant.level && (
-                        <>
-                          <span style={{ color: "var(--tavern-purple)" }}>•</span>
-                          <span className="level-badge">Lv. {participant.level}</span>
-                        </>
-                      )}
-                    </div>
+                    <p className="text-xs" style={{ color: isOnline ? "#4caf50" : isIdle ? "#ff9800" : "gray" }}>
+                      {isOnline ? "Online" : isIdle ? "Idle" : "Offline"}
+                    </p>
                   </div>
-                </motion.div>
-              )
+                </div>
+              );
             })}
           </div>
-        </motion.section>
+        </Section>
 
-        {/* Conversation Details */}
-        <motion.section
-          aria-labelledby="details-heading"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <Shield className="w-5 h-5" style={{ color: "var(--tavern-purple)" }} />
-            <h4 id="details-heading" className="font-semibold" style={{ color: "var(--tavern-dark)" }}>
-              Details
-            </h4>
+        {attachments.length > 0 && (
+          <Section title="Attachments" icon={<Paperclip className="w-5 h-5 text-purple-700" />}>
+            <ul className="text-sm mt-2 space-y-1">
+              {attachments.map((file) => (
+                <li key={file.id} className="truncate">
+                  <a
+                    href={file.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    {file.filename}
+                  </a>{" "}
+                  <span className="text-gray-500 text-xs">({(file.file_size / 1024).toFixed(1)} KB)</span>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {sharedLinks.length > 0 && (
+          <Section title="Shared Links" icon={<LinkIcon className="w-5 h-5 text-purple-700" />}>
+            <ul className="text-sm mt-2 space-y-1">
+              {sharedLinks.map((link, i) => (
+                <li key={i} className="break-words">
+                  <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    {link}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        <Section title="Actions" icon={<Settings className="w-5 h-5 text-purple-700" />}>
+          <div className="space-y-2 mt-2">
+            {!conversation.is_group ? (
+              <>
+                <button className="w-full btn-secondary">Block User</button>
+                <button className="w-full btn-secondary">Report User</button>
+              </>
+            ) : (
+              <button className="w-full btn-secondary">Leave Group</button>
+            )}
+            <button className="w-full btn-secondary">Delete Conversation</button>
           </div>
-          <div className="space-y-4 text-sm">
-            {conversation.created_at && (
-              <div className="flex items-start gap-3">
-                <Calendar className="w-4 h-4 mt-0.5" style={{ color: "var(--tavern-gold)" }} />
-                <div>
-                  <span className="block font-medium" style={{ color: "var(--tavern-purple)" }}>
-                    Created
-                  </span>
-                  <p style={{ color: "var(--tavern-dark)" }}>
-                    {new Date(conversation.created_at).toLocaleDateString(undefined, {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {conversation.guildId && (
-              <div className="flex items-start gap-3">
-                <Shield className="w-4 h-4 mt-0.5" style={{ color: "var(--tavern-gold)" }} />
-                <div>
-                  <span className="block font-medium" style={{ color: "var(--tavern-purple)" }}>
-                    Guild Conversation
-                  </span>
-                  <p style={{ color: "var(--tavern-purple)" }}>This is a guild-related conversation.</p>
-                </div>
-              </div>
-            )}
-
-            {!conversation.created_at && !conversation.guildId && (
-              <p className="italic text-center py-4" style={{ color: "var(--tavern-purple)", opacity: 0.7 }}>
-                No additional details available.
-              </p>
-            )}
-          </div>
-        </motion.section>
+        </Section>
       </div>
     </aside>
-  )
-}
+  );
+};
 
-export default ConversationInfoPanel
+export default React.memo(ConversationInfoPanel);

@@ -195,7 +195,7 @@ export default function ConversationList({
                       whileTap={{ scale: 0.98 }}
                       layout
                     >
-                      {renderAvatar({ ...user, isOnline }, "md")}
+                      renderAvatar(user, "md")
                       <div className="ml-3 flex-1">
                         <p className="font-semibold transition-colors" style={{ color: "#2c1a1d" }}>
                           ⚔️ {user.username}
@@ -311,19 +311,17 @@ export default function ConversationList({
                       )}
 
                       <div className="relative ml-2">
-                        {displayUser ? (
-                          renderAvatar(
-                            displayUser,
-                            "md"
-                          )
-                        ) : (
+                        {conv.is_group ? (
                           <div
                             className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-yellow-600"
                             style={{ backgroundColor: "#8b75aa" }}
                           >
                             <Shield className="w-5 h-5" style={{ color: "#f4f0e6" }} />
                           </div>
+                        ) : (
+                          displayUser && renderAvatar(displayUser, "md")
                         )}
+
                         {/* Online status dot with label - always render, color by presence */}
                         {displayUser && (
                           <span

@@ -77,10 +77,46 @@ def create_message(conversation_id, sender_id, content, message_type="text"):
     )
 
 @database_sync_to_async
+def create_message_with_attachment(conversation_id, sender_id, content, message_type, attachment_data):
+    """
+    Create a message and attach a file (image or generic file).
+    `attachment_data` should include:
+        - file_url: path or full URL of uploaded file (already handled by frontend HTTP)
+        - filename
+        - file_size
+        - content_type
+    """
+    from messaging.models import MessageAttachment
+
+    conversation = Conversation.objects.get(id=conversation_id)
+    recipient = conversation.participants.exclude(id=sender_id).first()
+    if not recipient:
+        return None
+
+    message = Message.objects.create(
+        conversation=conversation,
+        sender_id=sender_id,
+        recipient_id=recipient.id,
+        content=content or "",
+        message_type=message_type,
+    )
+
+    # Attach file metadata
+    MessageAttachment.objects.create(
+        message=message,
+        file=attachment_data["file_url"],
+        filename=attachment_data["filename"],
+        file_size=attachment_data["file_size"],
+        content_type=attachment_data["content_type"],
+    )
+
+    return message
+
+@database_sync_to_async
 def mark_message_read(message_id):
     msg = Message.objects.get(id=message_id)
     msg.mark_as_read()
-    return True
+    return msg
 
 @database_sync_to_async
 def fetch_initial_messages(conversation_id, limit=50):
@@ -152,6 +188,15 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                         "is_online": online,
                     },
                 )
+        # ✅ Also send own presence status to self
+        await self.channel_layer.group_send(
+            f"user_{user.id}",
+            {
+                "type": "presence_update",
+                "user_id": str(user.id),
+                "is_online": True,
+            },
+        )
 
 
 
@@ -217,21 +262,41 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         try:
             user = self.scope["user"]
             content = data.get("content", "").strip()
-            temp_id = data.get("temp_id")  # Get temp_id from frontend
-            
-            if not content:
+            temp_id = data.get("temp_id")
+            message_type = data.get("message_type", "text")
+
+            # Optional: for image/file
+            attachment_data = data.get("attachment")
+
+            if message_type == "text" and not content:
                 return
 
-            # create & persist the message
-            msg = await create_message(self.conversation_id, str(user.id), content)
+            if message_type in ("image", "file") and not attachment_data:
+                return  # malformed
+
+            # Choose message creation path
+            if message_type in ("image", "file"):
+                msg = await create_message_with_attachment(
+                    self.conversation_id,
+                    str(user.id),
+                    content,
+                    message_type,
+                    attachment_data
+                )
+            else:
+                msg = await create_message(
+                    self.conversation_id,
+                    str(user.id),
+                    content,
+                    message_type,
+                )
+
             if not msg:
                 return
 
-
-            # serialize in a thread
             serialized = await serialize_message(msg)
 
-            # broadcast new_message with temp_id to all participants (including sender)
+            # Broadcast
             await self.channel_layer.group_send(
                 self.room_group,
                 {
@@ -241,7 +306,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 },
             )
 
-            # update each user's conversation preview
+            # Update conversation preview for all participants
             pids = await get_participant_ids(self.conversation_id)
             for pid in pids:
                 await self.channel_layer.group_send(
@@ -253,7 +318,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                     },
                 )
 
-            # ✅ Send status=sent to sender only
+            # Send message status to sender
             await self.channel_layer.group_send(
                 f"user_{user.id}",
                 {
@@ -264,8 +329,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             )
         except Exception as e:
             logger.error(f"Exception in handle_chat_message: {e}", exc_info=True)
-            # Optionally, send error to client or just log
-            # await self.send_json({"type": "error", "detail": str(e)})
+
 
 
     async def handle_typing(self, data):
@@ -276,17 +340,25 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 "type": "typing.indicator",
                 "user_id": str(user.id),
                 "username": user.username,
+                "sender_channel_name": self.channel_name,
             },
         )
 
+
     async def handle_read_receipt(self, data):
         mid = data.get("message_id")
-        success = await mark_message_read(mid)
-        if success:
+        msg = await mark_message_read(mid)
+        if msg:
+            sender_id = str(msg.sender.id)
             await self.channel_layer.group_send(
-                self.room_group,
-                {"type": "message.read", "message_id": mid},
+                f"user_{sender_id}",
+                {
+                    "type": "message.status",
+                    "message_id": mid,
+                    "status": "read",
+                },
             )
+
 
     # — Event handlers for group_send —
 
@@ -301,6 +373,16 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             updated_msg = await mark_message_delivered(message_data["id"])
             message_data = await serialize_message(updated_msg)
 
+        await self.channel_layer.group_send(
+            f"user_{message_data['sender']['id']}",
+            {
+                "type": "message.status",
+                "message_id": message_data["id"],
+                "status": "delivered",
+            },
+        )
+
+
         response_data = {
             "type": "new_message",
             "message": message_data
@@ -313,16 +395,23 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
 
     async def presence_update(self, event):
-        if str(event["user_id"]) != str(self.scope["user"].id):
-            await self.send_json(
-                {"type": "presence_update", "user_id": event["user_id"], "is_online": event["is_online"]}
-            )
+        await self.send_json({
+            "type": "presence_update",
+            "user_id": event["user_id"],
+            "is_online": event["is_online"]
+        })
 
     async def typing_indicator(self, event):
-        if str(event["user_id"]) != str(self.scope["user"].id):
-            await self.send_json(
-                {"type": "typing", "user_id": event["user_id"], "username": event["username"]}
-            )
+        # 👇 This line is crucial — make sure it's here:
+        if self.channel_name != event.get("sender_channel_name"):
+            await self.send_json({
+                "type": "typing",
+                "user_id": event["user_id"],
+                "username": event["username"],
+            })
+
+
+
 
     async def conversation_update(self, event):
         await self.send_json(
@@ -333,9 +422,6 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             }
         )
 
-    async def message_read(self, event):
-        await self.send_json({"type": "message_read_update", "message_id": event["message_id"]})
-    
     async def message_status(self, event):
         await self.send_json({
             "type": "message_status",

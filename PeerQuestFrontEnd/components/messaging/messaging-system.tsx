@@ -15,6 +15,7 @@ import ConversationList from "./conversation-list"
 import ChatWindow from "./chat-window"
 import ConversationInfoPanel from "./conversation-info-panel"
 import debounce from "lodash.debounce"
+import TypingIndicator from "./typing-indicator"
 
 interface MessagingSystemProps {
   token: string
@@ -43,9 +44,7 @@ export default function MessagingSystem({
     return null
   })
   const [messages, setMessages] = useState<Message[]>([])
-  const [typingUsers, setTypingUsers] = useState<
-    Pick<TypingUser, "user_id" | "username">[]
-  >([])
+  const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
   const [onlineMap, setOnlineMap] = useState<Map<string, UserStatus>>(
     onlineUsers
   )
@@ -84,6 +83,16 @@ export default function MessagingSystem({
   const [isSearchingUsers, setIsSearchingUsers] = useState(false)
   const [showUserSearch, setShowUserSearch] = useState(false)
   const typingTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const attachments = useMemo(() => {
+    return messages
+      .flatMap((m) => m.attachments || [])
+      .filter((a) => a && a.filename && (a.file_url || a.url))
+      .map((a) => ({
+        ...a,
+        file_url: a.file_url ?? a.url ?? "", // ✅ Ensure it's a string
+      }));
+  }, [messages]);
+
 
   useEffect(() => {
     return () => {
@@ -173,26 +182,61 @@ export default function MessagingSystem({
   const messageIdSet = useRef<Set<string>>(new Set());
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
   const hasReceivedInitialMessages = useRef(false);
+  const [infoSearchQuery, setInfoSearchQuery] = useState("");
 
 
   const mergeOrAppendMessage = useCallback(
     (prev: Message[], incoming: Message, tempId?: string): Message[] => {
-      const updated = prev.map((m) =>
-        tempId && m.id.startsWith("temp") && m.id === tempId
-          ? { ...incoming, status: "sent" as MessageStatus }
-          : m.id === incoming.id
-          ? { ...m, ...incoming }
-          : m
-      )
-      if (!messageIdSet.current.has(incoming.id)) {
-        messageIdSet.current.add(incoming.id);
-        updated.push(incoming);
-      }
+      // Attempt to find the matching temp message
+      const updated = prev.map((m) => {
+        const isMatchingFileMessage =
+          m.id.startsWith("temp") &&
+          m.sender.id === incoming.sender.id &&
+          m.message_type === "file" &&
+          incoming.message_type === "file" &&
+          m.attachments?.length === incoming.attachments?.length &&
+          m.attachments?.every((a, idx) => {
+            const incomingA = incoming.attachments?.[idx];
+            return (
+              incomingA &&
+              a.filename === incomingA.filename &&
+              a.content_type === incomingA.content_type
+            );
+          });
 
-      return updated
+        if (tempId && m.id === tempId) {
+          return { ...incoming, status: "sent" as MessageStatus };
+        }
+
+        if (isMatchingFileMessage) {
+          return { ...incoming, status: "sent" as MessageStatus };
+        }
+
+        if (m.id === incoming.id) {
+          return {
+            ...m,
+            ...incoming,
+            status: incoming.status ?? m.status, // 🔥 only upgrade if status is present
+          };
+        }
+
+
+        return m;
+      });
+
+      // If it's already included, skip
+      if (updated.some((m) => m.id === incoming.id)) return updated;
+
+      return [...updated, { ...incoming, status: incoming.status ?? "sent" }].sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
     },
     []
-  )
+  );
+
+
+
 
   // Render avatar with online status indicator
   const renderAvatar = useCallback(
@@ -287,23 +331,30 @@ export default function MessagingSystem({
   )
 
   const onTyping = () => {
-    if (newMessage.trim()) debouncedTyping()
-  }
+    if (!newMessage.trim()) return; // ✅ Guard against empty typing
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return;
+    debouncedTyping();
+  };
+
 
   const onSendMessage = useCallback(
     async (content: string, files?: File[]) => {
+      if (!content.trim() && (!files || files.length === 0)) {
+        return; // ✅ Prevent sending empty messages or attachments
+      }
+
       try {
         const textOnly = content.trim().length > 0 && (!files || files.length === 0);
-        let sentViaWS = false;
 
+        let sentViaWS = false;
         // If only text and WebSocket is open, send via WS
-        if (textOnly && activeId && wsRef.current?.readyState === WebSocket.OPEN) {
+        if (activeId && wsRef.current?.readyState === WebSocket.OPEN && textOnly) {
           const tempId = `temp-${Date.now()}-${Math.random()}`;
           const msg: Message = {
             id: tempId,
             conversation_id: activeId,
             sender: { ...currentUser, username: currentUser.username || "Unknown" },
-            content,
+            content: content.trim(),
             timestamp: new Date().toISOString(),
             created_at: new Date().toISOString(),
             read: false,
@@ -313,76 +364,129 @@ export default function MessagingSystem({
           };
           pendingMessagesRef.current.add(tempId);
           setMessages((prev) => [...prev, msg]);
-          wsRef.current.send(
-            JSON.stringify({ type: "send_message", content, temp_id: tempId })
-          );
-          sentViaWS = true;
+
+          try {
+              wsRef.current.send(
+                JSON.stringify({
+                  type: "send_message",
+                  content: content.trim(),
+                  conversation_id: activeId,
+                  temp_id: tempId,
+                })
+              );
+              sentViaWS = true;
+
+              debouncedTyping.cancel();
+
+              setNewMessage("");
+          } catch (err) {
+            console.warn("WebSocket send failed", err);
+            showToast?.("⚠️ WebSocket error", "warning");
+          }
         }
 
-        // Always send via REST if not sent via WS, or if files are attached
-        if ((!sentViaWS || (files && files.length > 0)) && activeId) {
+        // Send via REST if WS failed or if files are present
+        if (files && files.length > 0 && activeId) {
           setIsSending(true);
-          const fd = new FormData();
-          fd.append("content", content);
-          fd.append("conversation_id", activeId);
-          // Attach each file as its own field (backend expects 'files' as array)
-          if (files && files.length > 0) {
-            files.forEach((f) => fd.append("files", f));
-          }
 
-          const { data } = await API.post(
-            "/messages/send/",
-            fd,
-            { headers: { "Content-Type": "multipart/form-data" } }
-          );
-          setNewMessage("");
-          setSelectedFiles([]);
+          const tempId = `temp-${Date.now()}-${Math.random()}`;
+          const tempMsg: Message = {
+            id: tempId,
+            conversation_id: activeId,
+            sender: { ...currentUser, username: currentUser.username || "Unknown" },
+            content: content.trim(),
+            timestamp: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+            read: false,
+            message_type: files?.length ? "file" : "text",
+            attachments:
+              files?.map((f) => ({
+                id: `temp-${Date.now()}-${Math.random()}`,
+                filename: f.name,
+                file_size: f.size,
+                content_type: f.type || "application/octet-stream",
+                url: URL.createObjectURL(f),
+              })) || [],
+            status: "sending",
+          };
 
-          // If WebSocket is not connected, fetch latest messages
-          if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-            try {
-              const res = await API.get<Message[]>(`/conversations/${activeId}/messages/`);
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === tempId)) return prev;
 
-              const realMessages = (res.data || []).map((m: Message): Message => ({
-                ...m,
-                status: (m.read ? "read" : "sent") as MessageStatus,
-              }));
-
-              setMessages((existing) => {
-                const temp = existing.filter(
-                  (m) =>
-                    m.id.startsWith("temp") &&
-                    pendingMessagesRef.current.has(m.id) &&
-                    !realMessages.some(
-                      (real) =>
-                        real.content === m.content &&
-                        real.sender.id === m.sender.id &&
-                        real.message_type === m.message_type
-                    )
-                );
-
-                return [...realMessages, ...temp].sort((a, b) =>
-                  new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-                );
-              });
-            } catch (e) {
-              // ignore
+            // Avoid pushing if there's a temp message already with the same filename
+            if (tempMsg.attachments && tempMsg.attachments.length > 0) {
+              const fname = tempMsg.attachments[0].filename;
+              const exists = prev.some((m) =>
+                m.attachments?.[0]?.filename === fname &&
+                m.sender.id === tempMsg.sender.id &&
+                m.message_type === "file"
+              );
+              if (exists) return prev;
             }
-          } else {
-            // If WebSocket is connected, only update conversation list for last message
-            handleConversationUpdate(activeId, data);
-            // Do NOT add the REST response to messages; let the WebSocket event handle it
+
+            return [...prev, tempMsg];
+          });
+
+
+          try {
+            const fd = new FormData();
+            fd.append("content", content);
+            fd.append("conversation_id", activeId);
+            files?.forEach((f) => fd.append("files", f));
+
+            const { data } = await API.post("/messages/send/", fd, {
+              headers: { "Content-Type": "multipart/form-data" },
+            });
+
+            setNewMessage("");
+            setSelectedFiles([]);
+
+            if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+              try {
+                const res = await API.get<Message[]>(`/conversations/${activeId}/messages/`);
+
+                const realMessages = (res.data || []).map((m) => ({
+                  ...m,
+                  status: (m.read ? "read" : "sent") as MessageStatus,
+                }));
+
+                setMessages((existing) => {
+                  const temp = existing.filter(
+                    (m) =>
+                      m.id.startsWith("temp") &&
+                      pendingMessagesRef.current.has(m.id) &&
+                        !realMessages.some(
+                          (real) =>
+                            real.content === m.content &&
+                            real.sender.id === m.sender.id &&
+                            real.message_type === m.message_type &&
+                            (real.attachments?.[0]?.filename ?? "") === (m.attachments?.[0]?.filename ?? "")
+                        )
+                  );
+
+                  return [...realMessages, ...temp].sort(
+                    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+                  );
+                });
+              } catch (e) {
+                console.warn("Fallback REST fetch failed", e);
+              }
+            }
+          } catch (err) {
+            console.error("send error", err);
+            showToast?.("⚠️ Failed to send message", "error");
+          } finally {
+            setIsSending(false);
           }
         }
       } catch (err) {
-        console.error("send error", err);
-        showToast?.("⚠️ Failed to send message", "error");
-      } finally {
-        setIsSending(false);
+        console.error("Unexpected error in sendMessage", err);
+        showToast?.("❌ Unexpected error", "error");
       }
     },
     [API, activeId, currentUser, handleConversationUpdate, showToast]
-  )
+  );
+
 
   // Memoize handleWsMessage with stable reference
   const handleWsMessage = useCallback(
@@ -463,34 +567,37 @@ export default function MessagingSystem({
 
         case "message_status":
           setMessages((prev) =>
-            prev.map((m) =>
-              m.id === data.message_id && m.sender.id === currentUser.id
-                ? { ...m, status: data.status as MessageStatus }
-                : m
-            )
+            prev.map((m) => {
+              const isTarget =
+                (m.id === data.message_id ||
+                  (m.id.startsWith("temp") && data.sender_id === currentUser.id)) &&
+                m.sender.id === currentUser.id;
+
+              return isTarget ? { ...m, status: data.status as MessageStatus } : m;
+            })
           )
-          return
+
 
         case "typing":
-          setTypingUsers((prev) => {
-            if (prev.some((u) => u.user_id === data.user_id)) return prev;
-            return [...prev, { user_id: data.user_id, username: data.username }];
-          });
+          if (data.user_id === currentUser.id) return;
 
-          // Clear existing timeout if present
+          setIsOtherUserTyping(true);
+
+          // Clear previous timeout
           if (typingTimeouts.current.has(data.user_id)) {
             clearTimeout(typingTimeouts.current.get(data.user_id));
           }
 
           const timeout = setTimeout(() => {
-            setTypingUsers((prev) =>
-              prev.filter((u) => u.user_id !== data.user_id)
-            );
+            setIsOtherUserTyping(false);
             typingTimeouts.current.delete(data.user_id);
           }, 3000);
 
           typingTimeouts.current.set(data.user_id, timeout);
           return;
+
+
+
 
         case "message_read_update":
           setMessages((prev) =>
@@ -504,14 +611,12 @@ export default function MessagingSystem({
 
         case "presence_update":
           console.log("📡 Presence update received:", data)
-          if (data.user_id !== currentUser.id) {
-            setOnlineMap((prev) =>
-              new Map(prev).set(
-                data.user_id,
-                data.is_online ? "online" : "offline"
-              )
+          setOnlineMap((prev) =>
+            new Map(prev).set(
+              data.user_id,
+              data.is_online ? "online" : "offline"
             )
-          }
+          )
           return
       }
     },
@@ -718,9 +823,17 @@ export default function MessagingSystem({
 
   // sync external onlineUsers updates
   useEffect(() => {
-    console.log("🔍 onlineUsers prop received:", onlineUsers)
-    setOnlineMap(new Map(onlineUsers))
-  }, [onlineUsers])
+    if (onlineUsers && onlineUsers.size > 0) {
+      setOnlineMap((prev) => {
+        const updated = new Map(prev);
+        for (const [id, status] of onlineUsers.entries()) {
+          updated.set(id, status);
+        }
+        return updated;
+      });
+    }
+  }, [onlineUsers]);
+
 
   const unreadConversations = useMemo(
     () =>
@@ -817,22 +930,20 @@ export default function MessagingSystem({
               currentUser={currentUser}
               onSendMessage={onSendMessage}
               onTyping={onTyping}
-              typingUsers={typingUsers}
+              isOtherUserTyping={isOtherUserTyping}
               wsConnected={wsStatus === "connected"}
               wsError={wsStatus === "disconnected" ? "Disconnected" : undefined}
               newMessage={newMessage}
               setNewMessage={setNewMessage}
               renderAvatar={renderAvatar}
               handleFileSelect={(e) => {
-                const fs = e.target.files;
-                e.target.value = "";
+                const fs = e.target.files
+                e.target.value = ""
                 if (fs && fs.length > 0) {
-                  setSelectedFiles(Array.from(fs));
+                  setSelectedFiles(Array.from(fs))
                 }
-              }}
-              removeFile={(i) =>
-                setSelectedFiles((prev) => prev.filter((_, idx) => idx !== i))
-              }
+              } }
+              removeFile={(i) => setSelectedFiles((prev) => prev.filter((_, idx) => idx !== i))}
               selectedFiles={selectedFiles}
               onToggleInfo={() => setInfoOpen((v) => !v)}
               onlineUsers={onlineMap}
@@ -841,8 +952,7 @@ export default function MessagingSystem({
               activeConversation={activeConv}
               conversations={conversations}
               getOtherParticipant={getOtherParticipant}
-              isLoading={isLoadingMessages}
-            />
+              isLoading={isLoadingMessages} typingUsers={[]}            />
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center p-8">
@@ -877,6 +987,10 @@ export default function MessagingSystem({
                 renderAvatar={renderAvatar}
                 onClose={() => setInfoOpen(false)}
                 currentUser={currentUser}
+                attachments={attachments}
+                infoSearchQuery={infoSearchQuery}
+                setInfoSearchQuery={setInfoSearchQuery}
+                messages={messages}
               />
             </motion.div>
           </>
