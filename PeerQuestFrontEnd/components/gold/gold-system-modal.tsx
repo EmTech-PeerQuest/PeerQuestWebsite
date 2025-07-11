@@ -521,19 +521,16 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
     switch (cashoutMethod) {
       case "gcash":
         return JSON.stringify({
-          method: "gcash",
           mobile_number: paymentDetails.gcash_number,
           account_name: paymentDetails.gcash_name
         })
       case "paymaya":
         return JSON.stringify({
-          method: "paymaya",
           mobile_number: paymentDetails.paymaya_number,
           account_name: paymentDetails.paymaya_name
         })
       case "bank":
         return JSON.stringify({
-          method: "bank",
           bank_name: paymentDetails.bank_name,
           account_number: paymentDetails.account_number,
           account_name: paymentDetails.account_name,
