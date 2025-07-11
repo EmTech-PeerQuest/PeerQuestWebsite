@@ -1,34 +1,116 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type { User, Quest, Guild } from "@/lib/types"
 import { ChevronDown } from "lucide-react"
 import { formatJoinDate } from "@/lib/date-utils"
 
-interface IntegratedProfileProps {
-  currentUser: User
-  quests: Quest[]
-  guilds: Guild[]
-  navigateToSection?: (section: string) => void
-  defaultTab?: "overview" | "quests" | "guilds" | "achievements"
-}
+// Type for props
+type IntegratedProfileProps = {
+  currentUser: User;
+  quests: Quest[];
+  guilds: Guild[];
+  navigateToSection?: (section: string) => void;
+  defaultTab?: "overview" | "quests" | "guilds" | "achievements";
+};
+
+// Import API for fetching user skills
+import { skillsApi } from "@/lib/api"
 
 export function IntegratedProfile({ currentUser, quests, guilds, navigateToSection, defaultTab = "overview" }: IntegratedProfileProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "quests" | "guilds" | "achievements">(defaultTab)
-  const [showMobileMenu, setShowMobileMenu] = useState(false)
-  const [avatarError, setAvatarError] = useState(false)
+  const [activeTab, setActiveTab] = useState<"overview" | "quests" | "guilds" | "achievements">(defaultTab);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+  const [userSkills, setUserSkills] = useState<any[]>([]);
+  const [skillsLoading, setSkillsLoading] = useState(false);
+  const [skillsError, setSkillsError] = useState<string | null>(null);
 
-  // Filter quests by status
-  const activeQuests = quests.filter((q) => q.status === "in_progress" && q.applicants?.some(app => app.userId === currentUser.id && app.status === "accepted"))
-  const createdQuests = quests.filter((q) => q.poster.id === currentUser.id)
-  const completedQuests = quests.filter((q) => q.status === "completed" && q.applicants?.some(app => app.userId === currentUser.id && app.status === "accepted"))
+  // Fetch user skills on mount
+  useEffect(() => {
+    const fetchSkills = async () => {
+      setSkillsLoading(true);
+      setSkillsError(null);
+      try {
+        const res = await skillsApi.getUserSkills();
+        if (res && res.success && Array.isArray(res.skills)) {
+          setUserSkills(res.skills);
+        } else {
+          setUserSkills([]);
+        }
+      } catch (err) {
+        setSkillsError("Could not load skills.");
+        setUserSkills([]);
+      } finally {
+        setSkillsLoading(false);
+      }
+    };
+    fetchSkills();
+  }, [currentUser?.id]);
 
-  // Get user's guilds - for now, empty array since we don't have guild membership info
-  const userGuilds = [] // TODO: Implement guild membership filtering when backend supports it
 
-  // Calculate XP progress
-  const xpForNextLevel = 1000 // Example value
-  const xpProgress = currentUser.xp ? ((currentUser.xp % xpForNextLevel) / xpForNextLevel) * 100 : 0
+  // Filter quests by status (robust fallback)
+  const activeQuests = Array.isArray(quests)
+    ? quests.filter((q) => q.status === "in_progress" && Array.isArray(q.applicants) && q.applicants.some(app => app.userId === currentUser.id && app.status === "accepted"))
+    : [];
+  const createdQuests = Array.isArray(quests)
+    ? quests.filter((q) => q.poster && q.poster.id === currentUser.id)
+    : [];
+  const completedQuests = Array.isArray(quests)
+    ? quests.filter((q) => q.status === "completed" && Array.isArray(q.applicants) && q.applicants.some(app => app.userId === currentUser.id && app.status === "accepted"))
+    : [];
+
+  // Get user's guilds from currentUser.guilds or fallback to prop
+  let userGuilds: Guild[] = [];
+  if (Array.isArray(currentUser.guilds) && currentUser.guilds.length > 0) {
+    // If currentUser.guilds is an array of guild objects or ids
+    if (typeof currentUser.guilds[0] === 'object') {
+      userGuilds = currentUser.guilds as Guild[];
+    } else if (typeof currentUser.guilds[0] === 'number' || typeof currentUser.guilds[0] === 'string') {
+      userGuilds = guilds.filter(g =>
+        Array.isArray(currentUser.guilds) &&
+        currentUser.guilds.some((id: any) => id === g.id)
+      );
+    }
+  } else if (Array.isArray(guilds)) {
+    // fallback: show all guilds if userGuilds is not available
+    userGuilds = guilds;
+  }
+
+  // Robustly get avatar and join date from all possible backend fields
+  const getAvatar = (u: any) => {
+    let avatar = u?.avatar || u?.avatar_url;
+    if (!avatar && typeof u?.avatar_data === 'string' && u.avatar_data.startsWith('data:')) {
+      avatar = u.avatar_data;
+    }
+    if (typeof avatar !== 'string' || !(avatar.startsWith('http') || avatar.startsWith('data:'))) {
+      avatar = '/default-avatar.png';
+    }
+    return avatar;
+  };
+  const getJoinDate = (u: any) => {
+    let dateRaw = u.createdAt || u.dateJoined || u.date_joined;
+    if (dateRaw && dateRaw !== 'null' && dateRaw !== 'undefined') {
+      let dateStr = typeof dateRaw === 'string' ? dateRaw : String(dateRaw);
+      try {
+        const parsed = new Date(dateStr);
+        if (!isNaN(parsed.getTime())) {
+          return parsed.toLocaleDateString();
+        }
+        return formatJoinDate(dateStr, { capitalizeFirst: true });
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  };
+  const avatar = getAvatar(currentUser);
+  const joinDate = getJoinDate(currentUser);
+  // Calculate Level and XP Progress
+  const xpForNextLevel = 1000; // XP required per level (adjust as needed)
+  const userXp = typeof currentUser.xp === 'number' && currentUser.xp > 0 ? currentUser.xp : 0;
+  const userLevel = Math.floor(userXp / xpForNextLevel) + 1;
+  const xpThisLevel = userXp % xpForNextLevel;
+  const xpProgress = (xpThisLevel / xpForNextLevel) * 100;
 
   const tabs = [
     { id: "overview", label: "Overview" },
@@ -45,18 +127,16 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
             {/* Avatar */}
             <div className="w-20 h-20 sm:w-24 sm:h-24 bg-[#CDAA7D] rounded-full flex items-center justify-center text-2xl sm:text-3xl font-bold flex-shrink-0 overflow-hidden relative">
-              {currentUser.avatar && 
-               (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('data:')) && 
-               !avatarError ? (
-                <img 
-                  src={currentUser.avatar} 
+              {avatar && (avatar.startsWith('http') || avatar.startsWith('data:')) && !avatarError ? (
+                <img
+                  src={avatar}
                   alt={`${currentUser.username}'s avatar`}
                   className="w-full h-full object-cover absolute inset-0"
                   onError={() => setAvatarError(true)}
                 />
               ) : (
                 <span className="text-[#2C1A1D] select-none text-center">
-                  {currentUser.username?.[0]?.toUpperCase() || "H"}
+                  {currentUser.username?.[0]?.toUpperCase() || "👤"}
                 </span>
               )}
             </div>
@@ -69,11 +149,11 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
               {/* Level Bar */}
               <div className="mt-4 max-w-md mx-auto sm:mx-0">
                 <div className="flex justify-between text-sm mb-1">
-                  <span>Level</span>
-                  <span>{currentUser.xp} XP</span>
+                  <span>Level {userLevel}</span>
+                  <span>{xpThisLevel} / {xpForNextLevel} XP</span>
                 </div>
                 <div className="w-full bg-[#2C1A1D] rounded-full h-2">
-                  <div className="bg-[#CDAA7D] h-2 rounded-full" style={{ width: `${xpProgress}%` }}></div>
+                  <div className="bg-[#CDAA7D] h-2 rounded-full transition-all duration-300" style={{ width: `${xpProgress}%` }}></div>
                 </div>
               </div>
             </div>
@@ -82,10 +162,7 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
             <div className="text-center sm:text-right">
               <div className="text-sm">Member since</div>
               <div>
-                {formatJoinDate(
-                  currentUser.createdAt || currentUser.dateJoined,
-                  { capitalizeFirst: true }
-                )}
+                {joinDate ? joinDate : <span className="text-gray-400">Unknown</span>}
               </div>
             </div>
           </div>
@@ -153,19 +230,27 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span>Quests Completed:</span>
-                  <span className="font-medium">{currentUser.completedQuests || 1}</span>
+                  <span className="font-medium">{
+                    Array.isArray(completedQuests) ? completedQuests.length : 0
+                  }</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Quests Created:</span>
-                  <span className="font-medium">{createdQuests.length || 0}</span>
+                  <span className="font-medium">{
+                    Array.isArray(createdQuests) ? createdQuests.length : 0
+                  }</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Guilds Joined:</span>
-                  <span className="font-medium">{userGuilds.length || 3}</span>
+                  <span className="font-medium">{
+                    Array.isArray(userGuilds) ? userGuilds.length : 0
+                  }</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Gold:</span>
-                  <span className="font-medium text-[#CDAA7D]">{currentUser.gold || 1200}</span>
+                  <span className="font-medium text-[#CDAA7D]">{
+                    typeof currentUser.gold === 'number' ? currentUser.gold : 0
+                  }</span>
                 </div>
               </div>
             </div>
@@ -181,7 +266,25 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
             {/* Skills */}
             <div className="bg-white rounded-lg p-4 sm:p-6 border border-[#CDAA7D]">
               <h3 className="font-medium mb-4">Skills</h3>
-              <p className="text-gray-500 text-sm">No skills listed yet.</p>
+              {skillsLoading ? (
+                <p className="text-gray-500 text-sm">Loading skills...</p>
+              ) : skillsError ? (
+                <p className="text-red-500 text-sm">{skillsError}</p>
+              ) : userSkills.length === 0 ? (
+                <p className="text-gray-500 text-sm">No skills listed yet.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {userSkills.map((skill: any) => (
+                    <span
+                      key={skill.skill_id || skill.id}
+                      className="px-2 py-1 bg-[#8B75AA] text-white rounded text-sm"
+                      title={skill.proficiency_level ? `Proficiency: ${skill.proficiency_level}, Years: ${skill.years_experience}` : undefined}
+                    >
+                      {skill.name || skill.skill_name || skill.skill?.name || skill.skill_id}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Recent Activity */}
@@ -206,7 +309,7 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
                       <p className="text-sm text-gray-600 mb-2">{quest.description}</p>
                       <div className="flex flex-col sm:flex-row sm:justify-between gap-2 text-sm">
                         <span>Reward: {quest.reward} Gold</span>
-                        <span>Due: {new Date(quest.deadline).toLocaleDateString()}</span>
+                        <span>Due: {quest.deadline ? new Date(quest.deadline).toLocaleDateString() : 'N/A'}</span>
                       </div>
                     </div>
                   ))}
@@ -259,21 +362,7 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
                   ))}
                 </div>
               ) : (
-                <div>
-                  <div className="border-b border-[#CDAA7D] pb-4 mb-4">
-                    <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
-                      <h4 className="font-medium">WRITE TAVERN LORE</h4>
-                      <span className="text-[#8B75AA] font-medium">250 XP</span>
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      Looking for a skilled writer to create lore and stories about the PeerQuest Tavern's history.
-                    </p>
-                    <div className="flex flex-col sm:flex-row sm:justify-between gap-2 text-sm">
-                      <span>Reward: 400 Gold</span>
-                      <span>Completed: 6/3/2025</span>
-                    </div>
-                  </div>
-                </div>
+                <p className="text-gray-500 text-sm">No completed quests.</p>
               )}
             </div>
           </div>

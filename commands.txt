@@ -1,3 +1,17 @@
+////////// Docker Command Setup//////////
+docker-compose up --build
+docker-compose exec backend python manage.py migrate
+docker-compose exec backend python manage.py createsuperuser
+docker-compose up
+
+////////// Docker START ONLY //////////
+docker-compose up
+
+/////// IF CHANGED DEPENDENCIES /////////////////
+docker-compose build --no-cache; docker-compose up
+
+
+
 ////////// Copy-Paste Friendly Setup Commands //////////
 # Backend (Windows, PowerShell):
 py -m venv venv
@@ -5,14 +19,47 @@ py -m venv venv
 python.exe -m pip install --upgrade pip
 pip install -r requirements.txt
 
-# Database setup (Django):
 py manage.py makemigrations
 py manage.py migrate
+py manage.py collectstatic  # Collect static files for admin and static assets
 py manage.py createsuperuser  # (optional, for admin access)
-py manage.py runserver
 
-# Frontend:
+-------- For running the Backend ---------
+# py manage.py runserver  # Use this for HTTP-only development
+
+daphne -b 0.0.0.0 -p 8000 core.asgi:application  # Use this for Channels/WebSockets
+
+daphne core.asgi:application # Use this for local development
+
+############ Frontend ############
 npm install --legacy-peer-deps
+npm run dev
+
+############ Bash/Linux Setup ############
+# Backend (Linux/Bash)
+python3 -m venv venv
+source venv/bin/activate
+python3 -m pip install --upgrade pip
+pip install -r requirements.txt
+
+python3 manage.py makemigrations
+python3 manage.py migrate
+python3 manage.py collectstatic  # Collect static files for admin and static assets
+python3 manage.py createsuperuser  # (optional, for admin access)
+
+# Start Redis server (if not already running)
+redis-server &  # Start Redis in the background
+
+# For running the Backend
+# python3 manage.py runserver  # Use this for HTTP-only development
+
+daphne -b 0.0.0.0 -p 8000 core.asgi:application  # Use this for Channels/WebSockets
+
+daphne core.asgi:application # Use this for local development
+
+# Frontend (Linux/Bash)
+npm install --legacy-peer-deps
+npm install next-i18next --legacy-peer-deps
 npm run dev
 
 # To add a new Python package:
@@ -27,15 +74,28 @@ npm install <package-name>
 # Create and activate virtual environment
 py -m venv venv
 .\venv\Scripts\activate
-# Upgrade pip and install all dependencies from requirements.txt
+pip install -r requirements.txt
 python.exe -m pip install --upgrade pip
 pip install -r requirements.txt
+
 # To add new dependencies, use:
 # pip install <package-name>
+
 # Then update requirements.txt:
 # pip freeze > requirements.txt
+
+
+# Database setup (Django):
+py manage.py makemigrations
+py manage.py migrate
+py manage.py collectstatic  # Collect static files for admin and static assets
+py manage.py createsuperuser  # (optional, for admin access)
+# py manage.py runserver  # Use this for HTTP-only development
+daphne -b 0.0.0.0 -p 8000 core.asgi:application  # Use this for Channels/WebSockets
+
 # Run the Django server
-py manage.py runserver
+# py manage.py runserver  # Use this for HTTP-only development
+daphne -b 0.0.0.0 -p 8000 core.asgi:application  # Use this for Channels/WebSockets
 
 
 
@@ -71,5 +131,4 @@ git checkout your-branch
 git pull origin your-branch
 git fetch origin
 git merge origin/main
-
 

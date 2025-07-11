@@ -44,41 +44,59 @@ const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({ onLoginSuccess, onS
           console.log('🔍 Sending credential to backend...');
           console.log('🔍 Request URL:', `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"}/api/google-login-callback/`);
           
-          const res = await api.post(
-            "google-login-callback/",
-            { credential: credentialResponse.credential }
-          );
-          
+          let res;
+          try {
+            res = await api.post(
+              "google-login-callback/",
+              { credential: credentialResponse.credential }
+            );
+          } catch (error: any) {
+            // If backend returns a ban (403) or error, handle gracefully
+            const data = error?.response?.data || {};
+            if (data.banned || error?.response?.status === 403) {
+              // Try to extract the most informative ban message
+              let banMsg = data.detail || data.ban_reason || data.error || "Your account is banned.";
+              if (data.ban_expires_at) {
+                banMsg += ` (Ban expires: ${data.ban_expires_at})`;
+              }
+              alert(banMsg);
+              window.location.href = "/banned";
+              return;
+            }
+            // Other errors
+            throw error;
+          }
+
           console.log('✅ Backend response:', res.data);
-          
+
           // Save tokens and user info with new token names
           if (res.data.access) {
             localStorage.setItem("access_token", res.data.access);
             console.log('✅ Access token saved');
           }
-          
+
           if (res.data.refresh) {
             localStorage.setItem("refresh_token", res.data.refresh);
             console.log('✅ Refresh token saved');
           }
-          
+
           if (res.data.user) {
             localStorage.setItem("user", JSON.stringify(res.data.user));
             console.log('✅ User data saved');
           }
-          
+
           // Check if user needs to complete profile (no birthday or gender)
           const user = res.data.user;
           const needsProfileCompletion = !user.birthday || !user.gender;
-          
+
           console.log('🔍 Needs profile completion:', needsProfileCompletion);
-          
+
           // Call appropriate callback
           if (onLoginSuccess) {
             console.log('🔍 Calling onLoginSuccess callback');
             onLoginSuccess(res.data);
           }
-          
+
           if (needsProfileCompletion && onShowProfileCompletion) {
             console.log('🔍 Calling onShowProfileCompletion callback');
             onShowProfileCompletion();
@@ -126,6 +144,7 @@ const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({ onLoginSuccess, onS
         alert("Google login failed. Please try again.");
       }}
       useOneTap
+      use_fedcm_for_prompt={false}
     />
   );
 };

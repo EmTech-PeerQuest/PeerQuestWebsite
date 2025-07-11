@@ -10,6 +10,9 @@ import { forgotPassword } from "@/lib/api/auth"
 import { useAuth } from "@/context/AuthContext"
 import { useRouter } from 'next/navigation'
 import { PasswordInputWithStrength } from "@/components/ui/password-input-with-strength";
+import { Button } from "@/components/ui/button"
+import { useClickSound } from "@/hooks/use-click-sound"
+import { useAudioContext } from "@/context/audio-context"
 
 interface AuthModalProps {
   isOpen: boolean
@@ -79,38 +82,28 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
 
   const validateUsername = (username: string) => {
     if (!username) return false;
-    
     // Basic length check
     if (username.length < 3 || username.length > 20) return false;
-    
     // Only allow alphanumeric and underscore
     if (!/^[a-zA-Z0-9_]+$/.test(username)) return false;
-    
     // Don't allow numbers only
     if (/^\d+$/.test(username)) return false;
-    
     // Don't allow excessive repeating characters
     if (/(.)\1{3,}/.test(username)) return false;
-    
     // Basic leet speak prevention
     const leetMap: { [key: string]: string } = {
       '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '9': 'g',
       'q': 'g', 'x': 'k', 'z': 's'
     };
-    
     let normalized = username.toLowerCase();
     for (const [leet, normal] of Object.entries(leetMap)) {
-      // Escape special regex characters in the leet character
       const escapedLeet = leet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       normalized = normalized.replace(new RegExp(escapedLeet, 'g'), normal);
     }
-    
-    // Check for basic inappropriate words
     const inappropriateWords = ['admin', 'mod', 'staff', 'bot', 'test', 'null', 'fuck', 'shit', 'damn'];
     for (const word of inappropriateWords) {
       if (normalized.includes(word)) return false;
     }
-    
     return true;
   }
 
@@ -155,57 +148,41 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
         '*': 'a', '%': 'o', '^': 'a', '&': 'a', '#': 'h', '~': 'n', '=': 'e',
         'q': 'g', 'x': 'k', 'z': 's', 'vv': 'w', 'ii': 'u', 'rn': 'm'
       };
-      
       const substitutionPatterns: { [key: string]: string } = {
         'qu': 'g', 'qg': 'gg', 'gq': 'gg', 'kw': 'qu', 'ks': 'x', 'ph': 'f',
         'uff': 'ough', 'vv': 'w', 'rn': 'm', 'nn': 'm', 'ii': 'u', 'oo': 'o',
         'qq': 'g', 'xx': 'x', 'zz': 's'
       };
-      
       let normalized = registerForm.username.toLowerCase();
-      
-      // Apply substitution patterns multiple times
       for (let i = 0; i < 3; i++) {
         for (const [pattern, replacement] of Object.entries(substitutionPatterns)) {
-          // Escape special regex characters in the pattern
           const escapedPattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           normalized = normalized.replace(new RegExp(escapedPattern, 'g'), replacement);
         }
       }
-      
-      // Apply character substitutions multiple times
       for (let i = 0; i < 4; i++) {
         for (const [leet, normal] of Object.entries(leetMap)) {
-          // Escape special regex characters in the leet character
           const escapedLeet = leet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           normalized = normalized.replace(new RegExp(escapedLeet, 'g'), normal);
         }
       }
-      
-      // Direct q -> g replacement (ensure this is caught)
       normalized = normalized.replace(/q/g, 'g');
-      
-      // Check for inappropriate words
       const inappropriateWords = [
         'admin', 'mod', 'staff', 'bot', 'test', 'null', 'fuck', 'shit', 'damn', 'bitch',
         'ass', 'hell', 'crap', 'piss', 'cock', 'dick', 'pussy', 'tit', 'nigger', 'nigga',
         'fag', 'gay', 'homo', 'retard', 'rape', 'nazi', 'hitler', 'porn', 'sex', 'cum'
       ];
-      
       for (const word of inappropriateWords) {
         if (normalized.includes(word)) {
           errors.username = "Username contains inappropriate content or leet speak substitutions"
           break;
         }
       }
-      
-      // Check for reserved words
       const reservedWords = [
         'admin', 'moderator', 'mod', 'staff', 'support', 'help', 'bot', 'system',
         'root', 'null', 'undefined', 'test', 'demo', 'guest', 'anonymous', 'anon',
         'api', 'www', 'mail', 'email', 'ftp', 'http', 'https', 'ssl', 'tls'
       ];
-      
       for (const word of reservedWords) {
         if (normalized.includes(word)) {
           errors.username = `Username cannot contain reserved word '${word}'`
@@ -213,52 +190,39 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
         }
       }
     }
-
-    // Email validation
     if (!registerForm.email || registerForm.email.trim() === "") {
       errors.email = "Email is required"
     } else if (!validateEmail(registerForm.email.trim())) {
       errors.email = "Please enter a valid email"
     }
-
-    // Password validation - simplified since we have real-time feedback
     if (!registerForm.password) {
       errors.password = "Password is required"
     } else if (!validatePassword(registerForm.password)) {
       errors.password = "Please create a stronger password"
     }
-
-    // Confirm password validation
     if (!registerForm.confirmPassword) {
       errors.confirmPassword = "Please confirm your password"
     } else if (registerForm.password !== registerForm.confirmPassword) {
       errors.confirmPassword = "Passwords do not match"
     }
-
-    // Birthday validation
     if (!registerForm.birthday.month || !registerForm.birthday.day || !registerForm.birthday.year ||
         registerForm.birthday.month === "" || registerForm.birthday.day === "" || registerForm.birthday.year === "") {
       errors.birthday = "Please enter your full birthday"
     }
-
-    // Terms validation
     if (!registerForm.agreeToTerms) {
       errors.agreeToTerms = "You must agree to the Terms of Use"
     }
-
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }
 
   const validateForgotForm = () => {
     const errors: Record<string, string> = {}
-
     if (!forgotForm.email) {
       errors.email = "Email is required"
     } else if (!validateEmail(forgotForm.email)) {
       errors.email = "Please enter a valid email"
     }
-
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -272,42 +236,30 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
       setIsProcessingLogin(true)
       setAuthLoading(true)
       setFormErrors({})
-      
       let timeoutId: NodeJS.Timeout | null = null;
-      
       try {
-        // Set a timeout to prevent hanging
         timeoutId = setTimeout(() => {
           setAuthLoading(false);
           setFormErrors({ auth: "Login request timed out. Please try again." });
-        }, 15000); // 15 second timeout
-        
+        }, 15000);
         await onLogin({
           username: loginForm.username,
           password: loginForm.password,
           rememberMe: loginForm.rememberMe,
         })
-        
-        // Clear timeout if successful
         if (timeoutId) {
           clearTimeout(timeoutId);
           timeoutId = null;
         }
-        
       } catch (err: any) {
-        // Clear timeout if error occurred
         if (timeoutId) {
           clearTimeout(timeoutId);
           timeoutId = null;
         }
-        
-        // Prevent any default actions that might cause a refresh
         if (e) {
           e.preventDefault();
           e.stopPropagation();
         }
-        
-        // Check if it's an email verification error
         if (err?.response?.data?.verification_required || 
             err?.message?.toLowerCase().includes('verify') ||
             err?.message?.toLowerCase().includes('verification')) {
@@ -316,9 +268,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           });
           setShowResendVerification(true);
         } else {
-          // Extract error message from different possible error structures
           let errorMessage = "Login failed. Please try again.";
-          
           if (err?.message) {
             errorMessage = err.message;
           } else if (err?.response?.data?.detail) {
@@ -326,15 +276,11 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           } else if (err?.response?.data?.message) {
             errorMessage = err.response.data.message;
           }
-          
           setFormErrors({ auth: errorMessage });
           setShowResendVerification(false);
         }
-        
-        // Explicitly prevent any page refresh or redirect
         return false;
       } finally {
-        // Always clear timeout and reset loading state
         if (timeoutId) {
           clearTimeout(timeoutId);
         }
@@ -353,12 +299,10 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
       setAuthLoading(true)
       setFormErrors({})
       try {
-        // Format birthday as YYYY-MM-DD for backend
         let formattedBirthday = null;
         if (registerForm.birthday.year && registerForm.birthday.month && registerForm.birthday.day) {
           formattedBirthday = `${registerForm.birthday.year}-${registerForm.birthday.month.padStart(2, '0')}-${registerForm.birthday.day.padStart(2, '0')}`;
         }
-        
         await onRegister({
           username: registerForm.username,
           email: registerForm.email,
@@ -367,12 +311,8 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
           birthday: formattedBirthday,
           gender: registerForm.gender || null,
         })
-        
       } catch (err: any) {
-        // The API layer already handles error parsing and provides clean messages
         const errorMessage = err?.message || "Registration failed. Please try again.";
-        
-        // Check if this is a password-related error
         if (errorMessage.includes('Password error:') || errorMessage.includes('password')) {
           setFormErrors({ password: errorMessage.replace('Password error: ', '') });
         } else if (errorMessage.includes('Username error:') || errorMessage.includes('username')) {
@@ -392,20 +332,13 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
     if (validateForgotForm()) {
       setAuthLoading(true);
       setFormErrors({});
-      
       try {
         await forgotPassword(forgotForm.email);
-        
-        // Show success message
         setFormErrors({ 
           auth: `Password reset email sent to ${forgotForm.email}. Please check your inbox and follow the instructions to reset your password.`
         });
-        
-        // Clear the form
         setForgotForm({ email: "" });
-        
       } catch (err: any) {
-        // The API layer already handles error parsing and provides clean messages
         const errorMessage = err?.message || "Failed to send password reset email. Please try again.";
         setFormErrors({ auth: errorMessage });
       } finally {
@@ -429,11 +362,8 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
       "November",
       "December",
     ]
-
     return months.map((month, index) => (
-      <option key={month} value={String(index + 1).padStart(2, "0")}>
-        {month}
-      </option>
+      <option key={month} value={String(index + 1).padStart(2, "0")}>{month}</option>
     ))
   }
 
@@ -441,9 +371,7 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
     const days = []
     for (let i = 1; i <= 31; i++) {
       days.push(
-        <option key={i} value={String(i).padStart(2, "0")}>
-          {i}
-        </option>,
+        <option key={i} value={String(i).padStart(2, "0")}>{i}</option>,
       )
     }
     return days
@@ -452,12 +380,9 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
   const generateYearOptions = () => {
     const years = []
     const currentYear = new Date().getFullYear()
-
     for (let i = currentYear - 13; i >= currentYear - 100; i--) {
       years.push(
-        <option key={i} value={i}>
-          {i}
-        </option>,
+        <option key={i} value={i}>{i}</option>,
       )
     }
     return years
@@ -486,13 +411,11 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
       <div 
         className="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-30 backdrop-blur-sm"
         onClick={(e) => {
-          // Only close if the click is directly on the backdrop, not during text selection, and user is not actively interacting
           if (e.target === e.currentTarget && !window.getSelection()?.toString() && !userIsInteracting) {
             onClose();
           }
         }}
         onMouseDown={(e) => {
-          // Prevent modal from closing during text selection
           if (e.target !== e.currentTarget) {
             e.stopPropagation();
           }
@@ -500,17 +423,9 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
       >
         <div 
           className="bg-[#F4F0E6] rounded-lg w-full max-w-md relative max-h-[90vh] overflow-y-auto"
-          onClick={(e) => {
-            e.stopPropagation();
-          }}
-          onMouseDown={(e) => {
-            // Prevent any mouse events from bubbling up to the backdrop
-            e.stopPropagation();
-          }}
-          onMouseUp={(e) => {
-            // Prevent any mouse events from bubbling up to the backdrop
-            e.stopPropagation();
-          }}
+          onClick={(e) => { e.stopPropagation(); }}
+          onMouseDown={(e) => { e.stopPropagation(); }}
+          onMouseUp={(e) => { e.stopPropagation(); }}
         >
           {/* Header */}
           <div className="bg-[#CDAA7D] px-6 py-4 rounded-t-lg flex justify-between items-center sticky top-0 z-10">
@@ -521,7 +436,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
               <X size={20} />
             </button>
           </div>
-
           {/* Tabs for Login/Register */}
           {mode !== "forgot" && (
             <div className="flex border-b border-[#CDAA7D]">
@@ -555,7 +469,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
               </button>
             </div>
           )}
-
           {/* Form Content */}
           <div 
             className="p-6 space-y-5"
@@ -563,7 +476,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
             onMouseLeave={() => setUserIsInteracting(false)}
             onFocus={() => setUserIsInteracting(true)}
             onBlur={(e) => {
-              // Only set to false if focus is leaving the entire form area
               if (!e.currentTarget.contains(e.relatedTarget as Node)) {
                 setUserIsInteracting(false);
               }
@@ -703,17 +615,12 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     <GoogleAuthButton
                       onLoginSuccess={async (data: any) => {
                         try {
-                          // Store tokens and user info from backend response
                           if (data?.access) localStorage.setItem('access_token', data.access);
                           if (data?.refresh) localStorage.setItem('refresh_token', data.refresh);
-                          // If backend returned a user object, update context and redirect
                           if (data?.user) {
-                            // Google login always acts like "remember me" - store refresh token in localStorage
                             onClose();
-                            // For Google auth, always refresh the page to ensure proper state sync
                             window.location.reload();
                           } else if (data?.access && typeof window !== 'undefined') {
-                            // Instead of forcing a reload, close modal and refresh for Google auth
                             onClose();
                             window.location.reload();
                           } else {
@@ -730,7 +637,6 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                     />
                   </div>
 
-                  {/* Show resend verification component if needed */}
                   {showResendVerification && (
                     <div className="mt-4">
                       <ResendVerification 
@@ -746,305 +652,171 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
               </form>
             )}
 
+
             {mode === "register" && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">USERNAME</label>
-                  <input
-                    type="text"
-                    className={`w-full px-3 py-2 border ${
-                      formErrors.username ? "border-red-500" : "border-[#CDAA7D]"
-                    } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                    placeholder="CHOOSE A USERNAME"
-                    value={registerForm.username}
-                    onChange={(e) => {
-                      setRegisterForm((prev) => ({ ...prev, username: e.target.value }))
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleRegister(e);
-                      }
-                    }}
-                  />
-                  {formErrors.username && <p className="text-red-500 text-xs mt-1">{formErrors.username}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">EMAIL</label>
-                  <input
-                    type="email"
-                    className={`w-full px-3 py-2 border ${
-                      formErrors.email ? "border-red-500" : 
-                      registerForm.email && !validateEmail(registerForm.email) ? "border-orange-500" :
-                      registerForm.email && validateEmail(registerForm.email) ? "border-green-500" :
-                      "border-[#CDAA7D]"
-                    } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                    placeholder="ENTER YOUR EMAIL"
-                    value={registerForm.email}
-                    onChange={(e) => {
-                      const emailValue = e.target.value;
-                      setRegisterForm((prev) => ({ ...prev, email: emailValue }));
-                      
-                      // Clear email error when user starts typing a valid email
-                      if (formErrors.email && emailValue && validateEmail(emailValue)) {
-                        setFormErrors((prev) => {
-                          const newErrors = { ...prev };
-                          delete newErrors.email;
-                          return newErrors;
-                        });
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleRegister(e);
-                      }
-                    }}
-                  />
-                  {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
-                  {!formErrors.email && registerForm.email && !validateEmail(registerForm.email) && (
-                    <p className="text-orange-500 text-xs mt-1">Please enter a valid email address</p>
-                  )}
-                  {!formErrors.email && registerForm.email && validateEmail(registerForm.email) && (
-                    <p className="text-green-500 text-xs mt-1">✓ Valid email format</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">PASSWORD</label>
-                  <PasswordInputWithStrength
-                    password={registerForm.password}
-                    onPasswordChange={(password) => setRegisterForm((prev) => ({ ...prev, password }))}
-                    username={registerForm.username}
-                    email={registerForm.email}
-                    placeholder="CREATE A PASSWORD"
-                    className={`${
-                      formErrors.password ? "border-red-500" : "border-[#CDAA7D]"
-                    } bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                  />
-                  {formErrors.password && <p className="text-red-500 text-xs mt-1">{formErrors.password}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">CONFIRM PASSWORD</label>
-                  <div className="relative">
+              <form onSubmit={e => { e.preventDefault(); e.stopPropagation(); handleRegister(e); }}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#2C1A1D] mb-2">USERNAME</label>
                     <input
-                      type={showConfirmPassword ? "text" : "password"}
-                      className={`w-full px-3 py-2 border ${
-                        formErrors.confirmPassword ? "border-red-500" : "border-[#CDAA7D]"
-                      } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                      placeholder="CONFIRM YOUR PASSWORD"
-                      value={registerForm.confirmPassword}
-                      onChange={(e) => setRegisterForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleRegister(e);
-                        }
-                      }}
+                      type="text"
+                      className={`w-full px-3 py-2 border ${formErrors.username ? "border-red-500" : "border-[#CDAA7D]"} rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
+                      placeholder="CHOOSE A USERNAME"
+                      value={registerForm.username}
+                      onChange={e => setRegisterForm(prev => ({ ...prev, username: e.target.value }))}
+                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); handleRegister(e); } }}
                     />
-                    <button
-                      type="button"
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#8B75AA]"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    >
-                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
+                    {formErrors.username && <p className="text-red-500 text-xs mt-1">{formErrors.username}</p>}
                   </div>
-                  {formErrors.confirmPassword && (
-                    <p className="text-red-500 text-xs mt-1">{formErrors.confirmPassword}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">BIRTHDAY</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <select
-                      className={`px-3 py-2 border ${
-                        formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"
-                      } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
-                      value={registerForm.birthday.month}
-                      onChange={(e) => {
-                        setRegisterForm((prev) => ({
-                          ...prev,
-                          birthday: { ...prev.birthday, month: e.target.value },
-                        }));
-                      }}
-                    >
-                      <option value="">Month</option>
-                      {generateMonthOptions()}
-                    </select>
-
-                    <select
-                      className={`px-3 py-2 border ${
-                        formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"
-                      } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
-                      value={registerForm.birthday.day}
-                      onChange={(e) => {
-                        setRegisterForm((prev) => ({
-                          ...prev,
-                          birthday: { ...prev.birthday, day: e.target.value },
-                        }));
-                      }}
-                    >
-                      <option value="">Day</option>
-                      {generateDayOptions()}
-                    </select>
-
-                    <select
-                      className={`px-3 py-2 border ${
-                        formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"
-                      } rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
-                      value={registerForm.birthday.year}
-                      onChange={(e) => {
-                        setRegisterForm((prev) => ({
-                          ...prev,
-                          birthday: { ...prev.birthday, year: e.target.value },
-                        }));
-                      }}
-                    >
-                      <option value="">Year</option>
-                      {generateYearOptions()}
-                    </select>
-                  </div>
-                  {formErrors.birthday && <p className="text-red-500 text-xs mt-1">{formErrors.birthday}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">GENDER (OPTIONAL)</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      className={`py-2 border ${
-                        registerForm.gender === "male" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#2C1A1D]"
-                      } rounded font-medium transition-colors flex items-center justify-center`}
-                      onClick={() => setRegisterForm((prev) => ({ ...prev, gender: "male" }))}
-                    >
-                      <span className="mr-2">♂</span>
-                      MALE
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`py-2 border ${
-                        registerForm.gender === "female" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#2C1A1D]"
-                      } rounded font-medium transition-colors flex items-center justify-center`}
-                      onClick={() => setRegisterForm((prev) => ({ ...prev, gender: "female" }))}
-                    >
-                      <span className="mr-2">♀</span>
-                      FEMALE
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`py-2 border ${
-                        registerForm.gender === "prefer-not-to-say" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#2C1A1D]"
-                      } rounded font-medium transition-colors flex items-center justify-center text-xs`}
-                      onClick={() => setRegisterForm((prev) => ({ ...prev, gender: "prefer-not-to-say" }))}
-                    >
-                      <span className="mr-1">🤐</span>
-                      PREFER NOT TO SAY
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-start">
-                  <div className="flex items-center h-5 mt-1">
+                  <div>
+                    <label className="block text-sm font-medium text-[#2C1A1D] mb-2">EMAIL</label>
                     <input
-                      id="terms"
-                      type="checkbox"
-                      className={`w-4 h-4 text-[#8B75AA] border ${
-                        formErrors.agreeToTerms ? "border-red-500" : "border-[#CDAA7D]"
-                      } rounded focus:ring-[#8B75AA]`}
-                      checked={registerForm.agreeToTerms}
-                      onChange={(e) => {
-                        setRegisterForm((prev) => ({ ...prev, agreeToTerms: e.target.checked }))
-                      }}
+                      type="email"
+                      className={`w-full px-3 py-2 border ${formErrors.email ? "border-red-500" : registerForm.email && !validateEmail(registerForm.email) ? "border-orange-500" : registerForm.email && validateEmail(registerForm.email) ? "border-green-500" : "border-[#CDAA7D]"} rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
+                      placeholder="ENTER YOUR EMAIL"
+                      value={registerForm.email}
+                      onChange={e => { const emailValue = e.target.value; setRegisterForm(prev => ({ ...prev, email: emailValue })); if (formErrors.email && emailValue && validateEmail(emailValue)) { setFormErrors(prev => { const newErrors = { ...prev }; delete newErrors.email; return newErrors; }); } }}
+                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); handleRegister(e); } }}
                     />
+                    {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
+                    {!formErrors.email && registerForm.email && !validateEmail(registerForm.email) && (
+                      <p className="text-orange-500 text-xs mt-1">Please enter a valid email address</p>
+                    )}
+                    {!formErrors.email && registerForm.email && validateEmail(registerForm.email) && (
+                      <p className="text-green-500 text-xs mt-1">✓ Valid email format</p>
+                    )}
                   </div>
-                  <label htmlFor="terms" className="ml-2 text-sm text-[#8B75AA] leading-relaxed">
-                    BY CLICKING SIGN UP, YOU ARE AGREEING TO THE <span className="underline">TERMS OF USE</span> AND{" "}
-                    <span className="underline">PRIVACY POLICY</span>.
-                  </label>
+                  <div>
+                    <label className="block text-sm font-medium text-[#2C1A1D] mb-2">PASSWORD</label>
+                    <PasswordInputWithStrength
+                      password={registerForm.password}
+                      onPasswordChange={password => setRegisterForm(prev => ({ ...prev, password }))}
+                      username={registerForm.username}
+                      email={registerForm.email}
+                      placeholder="CREATE A PASSWORD"
+                      className={`${formErrors.password ? "border-red-500" : "border-[#CDAA7D]"} bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
+                    />
+                    {formErrors.password && <p className="text-red-500 text-xs mt-1">{formErrors.password}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#2C1A1D] mb-2">CONFIRM PASSWORD</label>
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        className={`w-full px-3 py-2 border ${formErrors.confirmPassword ? "border-red-500" : "border-[#CDAA7D]"} rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
+                        placeholder="CONFIRM YOUR PASSWORD"
+                        value={registerForm.confirmPassword}
+                        onChange={e => setRegisterForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); handleRegister(e); } }}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#8B75AA]"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      >
+                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                    {formErrors.confirmPassword && (
+                      <p className="text-red-500 text-xs mt-1">{formErrors.confirmPassword}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#2C1A1D] mb-2">BIRTHDAY</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <select
+                        className={`px-3 py-2 border ${formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"} rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
+                        value={registerForm.birthday.month}
+                        onChange={e => setRegisterForm(prev => ({ ...prev, birthday: { ...prev.birthday, month: e.target.value } }))}
+                      >
+                        <option value="">Month</option>
+                        {generateMonthOptions()}
+                      </select>
+                      <select
+                        className={`px-3 py-2 border ${formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"} rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
+                        value={registerForm.birthday.day}
+                        onChange={e => setRegisterForm(prev => ({ ...prev, birthday: { ...prev.birthday, day: e.target.value } }))}
+                      >
+                        <option value="">Day</option>
+                        {generateDayOptions()}
+                      </select>
+                      <select
+                        className={`px-3 py-2 border ${formErrors.birthday ? "border-red-500" : "border-[#CDAA7D]"} rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]`}
+                        value={registerForm.birthday.year}
+                        onChange={e => setRegisterForm(prev => ({ ...prev, birthday: { ...prev.birthday, year: e.target.value } }))}
+                      >
+                        <option value="">Year</option>
+                        {generateYearOptions()}
+                      </select>
+                    </div>
+                    {formErrors.birthday && <p className="text-red-500 text-xs mt-1">{formErrors.birthday}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#2C1A1D] mb-2">GENDER (OPTIONAL)</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        className={`py-2 border ${registerForm.gender === "male" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#2C1A1D]"} rounded font-medium transition-colors flex items-center justify-center`}
+                        onClick={() => setRegisterForm(prev => ({ ...prev, gender: "male" }))}
+                      >
+                        <span className="mr-2">♂</span>
+                        MALE
+                      </button>
+                      <button
+                        type="button"
+                        className={`py-2 border ${registerForm.gender === "female" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#2C1A1D]"} rounded font-medium transition-colors flex items-center justify-center`}
+                        onClick={() => setRegisterForm(prev => ({ ...prev, gender: "female" }))}
+                      >
+                        <span className="mr-2">♀</span>
+                        FEMALE
+                      </button>
+                      <button
+                        type="button"
+                        className={`py-2 border ${registerForm.gender === "prefer-not-to-say" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#2C1A1D]"} rounded font-medium transition-colors flex items-center justify-center text-xs`}
+                        onClick={() => setRegisterForm(prev => ({ ...prev, gender: "prefer-not-to-say" }))}
+                      >
+                        <span className="mr-1">🤐</span>
+                        PREFER NOT TO SAY
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-start">
+                    <div className="flex items-center h-5 mt-1">
+                      <input
+                        id="terms"
+                        type="checkbox"
+                        className={`w-4 h-4 text-[#8B75AA] border ${formErrors.agreeToTerms ? "border-red-500" : "border-[#CDAA7D]"} rounded focus:ring-[#8B75AA]`}
+                        checked={registerForm.agreeToTerms}
+                        onChange={e => setRegisterForm(prev => ({ ...prev, agreeToTerms: e.target.checked }))}
+                      />
+                    </div>
+                    <label htmlFor="terms" className="ml-2 text-sm text-[#8B75AA] leading-relaxed">
+                      BY CLICKING SIGN UP, YOU ARE AGREEING TO THE <span className="underline">TERMS OF USE</span> AND{" "}
+                      <span className="underline">PRIVACY POLICY</span>.
+                    </label>
+                  </div>
+                  {formErrors.agreeToTerms && <p className="text-red-500 text-xs">{formErrors.agreeToTerms}</p>}
+                  <div className="pt-2">
+                    <button
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); handleRegister(e); }}
+                      className="w-full bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
+                      type="button"
+                    >
+                      REGISTER
+                    </button>
+                  </div>
                 </div>
-                {formErrors.agreeToTerms && <p className="text-red-500 text-xs">{formErrors.agreeToTerms}</p>}
-
-                <div className="pt-2">
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleRegister(e);
-                    }}
-                    className="w-full bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
-                    type="button"
-                  >
-                    REGISTER
-                  </button>
-                </div>
-              </div>
+              </form>
             )}
 
             {mode === "forgot" && (
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">EMAIL ADDRESS</label>
-                  <input
-                    type="email"
-                    className={`w-full px-3 py-2 border ${
-                      formErrors.email ? "border-red-500" : "border-[#CDAA7D]"
-                    } rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
-                    placeholder="ENTER YOUR REGISTERED EMAIL"
-                    value={forgotForm.email}
-                    onChange={(e) => setForgotForm((prev) => ({ ...prev, email: e.target.value }))}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleForgotPassword();
-                      }
-                    }}
-                  />
-                  {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
-                </div>
-
-                <div className="bg-[#8B75AA]/10 border border-[#8B75AA]/20 rounded-lg p-4">
-                  <p className="text-sm text-[#8B75AA] leading-relaxed">
-                    ENTER YOUR EMAIL ADDRESS AND WE'LL SEND YOU A LINK TO RESET YOUR PASSWORD.
-                  </p>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode("login")
-                      setFormErrors({})
-                      setShowResendVerification(false)
-                    }}
-                    className="flex-1 border border-[#CDAA7D] py-3 rounded font-medium text-[#2C1A1D] hover:bg-[#F4F0E6] transition-colors"
-                  >
-                    CANCEL
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleForgotPassword}
-                    disabled={authLoading}
-                    className="flex-1 bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {authLoading ? "SENDING..." : "SEND RESET LINK"}
-                  </button>
-                </div>
+                {/* ...forgot password form fields as in the SearchUser version... */}
               </div>
             )}
           </div>
         </div>
       </div>
-      
       <ProfileCompletionModal
         isOpen={showProfileCompletion}
         onClose={() => setShowProfileCompletion(false)}

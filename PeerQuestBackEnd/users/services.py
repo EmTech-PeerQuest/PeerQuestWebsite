@@ -262,24 +262,42 @@ def create_user_and_token(user_data: Dict[str, Any], request=None) -> Dict[str, 
     
     try:
         user = User.objects.get(email=email)
-        
+        # Check if user is banned (permanent or temporary)
+        if user.is_banned:
+            from django.utils import timezone
+            if user.ban_expires_at:
+                if timezone.now() < user.ban_expires_at:
+                    raise ValidationError({
+                        'detail': f'Your account is temporarily banned until {user.ban_expires_at}. Reason: {user.ban_reason}',
+                        'banned': True,
+                        'ban_expires_at': user.ban_expires_at,
+                        'ban_reason': user.ban_reason,
+                    })
+                else:
+                    # Ban expired, auto-unban
+                    user.is_banned = False
+                    user.ban_reason = None
+                    user.ban_expires_at = None
+                    user.save()
+            else:
+                raise ValidationError({
+                    'detail': f'Your account is permanently banned. Reason: {user.ban_reason}',
+                    'banned': True,
+                    'ban_reason': user.ban_reason,
+                })
         # Check if user is active, reactivate if needed
         if not user.is_active:
             user.is_active = True
             user.email_verified = True  # Ensure Google users are verified
             user.save()
-        
     except User.DoesNotExist:
         # Double-check for any existing users with this email or username
         existing_by_email = User.objects.filter(email=email).first()
         target_username = username or email.split('@')[0]
         existing_by_username = User.objects.filter(username=target_username).first()
-        
         try:
             # Since user was deleted, create with original username
             target_username = username or email.split('@')[0]
-            
-            # Use username as the first positional argument for create_user
             user = User.objects.create_user(
                 username=target_username,
                 email=email,
@@ -292,7 +310,6 @@ def create_user_and_token(user_data: Dict[str, Any], request=None) -> Dict[str, 
                 is_active=True,
             )
         except Exception as e:
-            
             # Check for specific constraint violations
             if 'UNIQUE constraint failed' in str(e):
                 if 'username' in str(e):
@@ -301,14 +318,11 @@ def create_user_and_token(user_data: Dict[str, Any], request=None) -> Dict[str, 
                     raise ValidationError(f'Email already exists')
             elif 'NOT NULL constraint failed' in str(e):
                 raise ValidationError(f'Required field missing')
-            
             raise ValidationError(f'Failed to create user: {str(e)}')
-    
     try:
         # Generate JWT tokens using TokenManager
         # Use TokenManager to create tokens and session
         tokens = TokenManager.create_tokens_for_user(user, request)
-        
         result = {
             'access': tokens['access'],
             'refresh': tokens['refresh'],
@@ -325,8 +339,6 @@ def create_user_and_token(user_data: Dict[str, Any], request=None) -> Dict[str, 
                 'is_active': user.is_active,
             }
         }
-        
         return result
-        
     except Exception as e:
         raise ValidationError(f'Failed to generate tokens: {str(e)}')

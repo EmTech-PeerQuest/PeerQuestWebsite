@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useUserSettings } from "../auth/useUserSettings"
+import { useUserInfo } from "@/hooks/use-api-request"
 import { Eye, EyeOff, Save, AlertCircle, Shield, TrendingDown, Menu, X } from "lucide-react"
 import type { SpendingLimits } from "@/lib/types"
 import { getDailySpending, getWeeklySpending } from "@/lib/spending-utils"
@@ -13,18 +13,119 @@ import SpendingTab from "./tabs/SpendingTab"
 import PaymentTab from "./tabs/PaymentTab"
 import SubscriptionsTab from "./tabs/SubscriptionsTab"
 import AppPermissionsTab from "./tabs/AppPermissionsTab"
+import { AudioSettings } from "@/components/ui/audio-settings"
+import SkillsModal from "../skills/skills-modal"
 import { usePathname, useRouter } from "next/navigation"
 import { toast } from "@/hooks/use-toast"
+import { useClickSound } from "@/hooks/use-click-sound"
+import { useAudioContext } from "@/context/audio-context"
+import { Button } from "@/components/ui/button"
 
 export function Settings() {
-  // Use the new hook for user settings
-  const { user, updateUser, deleteUser, loading, error, success } = useUserSettings();
+  const { soundEnabled, volume } = useAudioContext()
+  const { playSound } = useClickSound({ enabled: soundEnabled, volume })
+  
+  // Use the new API hook instead of the old useUserSettings
+  const { fetchUserInfo, updateUserInfo, isLoading, error } = useUserInfo()
+  const [user, setUser] = useState<any>(null)
+  // Helper to get a robust avatar URL for the user
+  const getAvatar = (u: any) => {
+    let avatar = u?.avatar || u?.avatar_url;
+    if (!avatar && typeof u?.avatar_data === 'string' && u.avatar_data.startsWith('data:')) {
+      avatar = u.avatar_data;
+    }
+    if (typeof avatar !== 'string' || !(avatar.startsWith('http') || avatar.startsWith('data:'))) {
+      avatar = '/default-avatar.png';
+    }
+    return avatar;
+  };
+  // Create wrapper functions for compatibility
+  const updateUser = async (data: any) => {
+    try {
+      const result = await updateUserInfo(data)
+      if (result) {
+        setUser(result)
+        return true
+      }
+      return false
+    } catch (err) {
+      return false
+    }
+  }
+  const deleteUser = async () => {
+    try {
+      // You might want to implement this in the useUserInfo hook
+      // For now, just return false
+      return false
+    } catch (err) {
+      return false
+    }
+  }
   const [activeTab, setActiveTab] = useState<
-    "account" | "security" | "privacy" | "notifications" | "payment" | "subscriptions" | "app" | "spending"
+    "account" | "skills" | "security" | "privacy" | "notifications" | "payment" | "subscriptions" | "app" | "spending" | "audio"
   >("account")
   const [showMobileMenu, setShowMobileMenu] = useState(false)
+  const [isSkillsModalOpen, setIsSkillsModalOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
+
+  // Load user data only once when component mounts
+  useEffect(() => {
+    const loadUserData = async () => {
+      // First check if we have tokens
+      const accessToken = localStorage.getItem('access_token')
+      const refreshToken = localStorage.getItem('refresh_token')
+      
+      if (!accessToken && !refreshToken) {
+        alert('Please log in to access settings.')
+        // Redirect to login page
+        window.location.href = '/login'
+        return
+      }
+      
+      if (!accessToken && refreshToken) {
+        try {
+          const response = await fetch('http://localhost:8000/api/token/refresh/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh: refreshToken }),
+          })
+          
+          if (response.ok) {
+            const data = await response.json()
+            localStorage.setItem('access_token', data.access)
+            if (data.refresh) {
+              localStorage.setItem('refresh_token', data.refresh)
+            }
+            const userData = await fetchUserInfo()
+            setUser(userData)
+          } else {
+            localStorage.removeItem('access_token')
+            localStorage.removeItem('refresh_token')
+            alert('Your session has expired. Please log in again.')
+            window.location.href = '/login'
+            return
+          }
+        } catch (err) {
+          localStorage.removeItem('access_token')
+          localStorage.removeItem('refresh_token')
+          alert('Authentication error. Please log in again.')
+          window.location.href = '/login'
+          return
+        }
+      } else {
+        // We have an access token, try to load user data
+        try {
+          const userData = await fetchUserInfo()
+          setUser(userData)
+        } catch (err) {
+          alert('Failed to load user data. Please refresh the page.')
+        }
+      }
+    }
+    
+    loadUserData()
+  }, []) // Empty dependency array to run only once
 
   // Persist active tab in URL hash for refresh persistence
   useEffect(() => {
@@ -65,6 +166,7 @@ export function Settings() {
       linkedin: user?.socialLinks?.linkedin || "",
       website: user?.socialLinks?.website || "",
     },
+    avatar: getAvatar(user),
   })
 
   const [securityForm, setSecurityForm] = useState({
@@ -98,6 +200,7 @@ export function Settings() {
 
   const tabs = [
     { id: "account", label: "Account Info" },
+    { id: "skills", label: "Skills & Expertise" },
     { id: "security", label: "Security" },
     { id: "privacy", label: "Privacy" },
     { id: "notifications", label: "Notifications" },
@@ -105,6 +208,7 @@ export function Settings() {
     { id: "payment", label: "Payment Methods" },
     { id: "subscriptions", label: "Subscriptions" },
     { id: "app", label: "App Permissions" },
+    { id: "audio", label: "Audio & Sounds" },
   ]
 
   const saveAccountSettings = async () => {
@@ -133,7 +237,7 @@ export function Settings() {
     } else if (error) {
       toast({
         title: "Error",
-        description: error,
+        description: error?.message || 'An error occurred',
         variant: "destructive",
       });
     }
@@ -260,7 +364,7 @@ export function Settings() {
     } else if (error) {
       toast({
         title: "Error",
-        description: error,
+        description: error?.message || 'An error occurred',
         variant: "destructive",
       });
     }
@@ -273,25 +377,35 @@ export function Settings() {
         <p className="text-center text-[#8B75AA] mb-6 md:mb-8">CUSTOMIZE YOUR PEERQUEST TAVERN EXPERIENCE.</p>
         {/* Mobile Header */}
         <div className="md:hidden mb-4">
-          <button
-            onClick={() => setShowMobileMenu(!showMobileMenu)}
-            className="w-full bg-[#2C1A1D] text-[#F4F0E6] p-3 rounded-lg flex items-center justify-between"
+          <Button
+            onClick={() => {
+              playSound('soft')
+              setShowMobileMenu(!showMobileMenu)
+            }}
+            variant="ghost"
+            className="w-full bg-[#2C1A1D] text-[#F4F0E6] p-3 rounded-lg flex items-center justify-between hover:bg-[#3C2A2D]"
+            soundType="soft"
           >
             <span>{tabs.find((tab) => tab.id === activeTab)?.label}</span>
             {showMobileMenu ? <X size={20} /> : <Menu size={20} />}
-          </button>
+          </Button>
           {showMobileMenu && (
             <div className="mt-2 bg-[#2C1A1D] rounded-lg overflow-hidden">
               {tabs.map((tab) => (
-                <button
+                <Button
                   key={tab.id}
-                  onClick={() => handleTabChange(tab.id)}
-                  className={`w-full text-left px-4 py-3 text-[#F4F0E6] border-b border-[#CDAA7D]/20 last:border-b-0 ${
+                  onClick={() => {
+                    playSound('tab')
+                    handleTabChange(tab.id)
+                  }}
+                  variant="ghost"
+                  className={`w-full text-left px-4 py-3 text-[#F4F0E6] border-b border-[#CDAA7D]/20 last:border-b-0 rounded-none ${
                     activeTab === tab.id ? "bg-[#CDAA7D] text-[#2C1A1D]" : "hover:bg-[#CDAA7D]/20"
                   }`}
+                  soundType="tab"
                 >
                   {tab.label}
-                </button>
+                </Button>
               ))}
             </div>
           )}
@@ -304,15 +418,20 @@ export function Settings() {
             </div>
             <div className="p-2">
               {tabs.map((tab) => (
-                <button
+                <Button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`w-full text-left px-4 py-2 rounded transition-colors text-sm ${
+                  onClick={() => {
+                    playSound('tab')
+                    setActiveTab(tab.id as any)
+                  }}
+                  variant="ghost"
+                  className={`w-full justify-start text-left px-4 py-2 rounded transition-colors text-sm ${
                     activeTab === tab.id ? "bg-[#CDAA7D] text-[#2C1A1D]" : "hover:bg-[#CDAA7D]/20"
                   }`}
+                  soundType="tab"
                 >
                   {tab.label}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -326,6 +445,34 @@ export function Settings() {
                 saveAccountSettings={saveAccountSettings}
                 handleDeleteAccount={handleDeleteAccount}
               />
+            )}
+            {activeTab === "skills" && (
+              <div className="p-6">
+                <h2 className="text-xl font-bold mb-4">Skills & Expertise</h2>
+                <p className="text-[#CDAA7D] mb-6">
+                  Manage your skills to help others find you for collaborations and quests.
+                </p>
+                <div className="space-y-4">
+                  <button
+                    onClick={() => {
+                      playSound()
+                      setIsSkillsModalOpen(true)
+                    }}
+                    className="w-full bg-[#8B75AA] hover:bg-[#7A6699] text-white px-6 py-3 rounded-lg transition-colors"
+                  >
+                    🎯 Manage My Skills
+                  </button>
+                  <div className="text-sm text-[#CDAA7D] bg-[#CDAA7D]/10 p-4 rounded-lg">
+                    <h3 className="font-semibold mb-2">💡 Why add skills?</h3>
+                    <ul className="space-y-1">
+                      <li>• Get discovered by quest creators looking for your expertise</li>
+                      <li>• Receive personalized quest recommendations</li>
+                      <li>• Showcase your abilities to potential collaborators</li>
+                      <li>• Track your professional development</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
             )}
             {activeTab === "security" && (
               <SecurityTab
@@ -376,10 +523,25 @@ export function Settings() {
             {activeTab === "app" && (
               <AppPermissionsTab />
             )}
+            {activeTab === "audio" && (
+              <div className="p-6">
+                <AudioSettings showTitle={false} />
+              </div>
+            )}
             {/* ...other tabs as needed... */}
           </div>
         </div>
       </div>
+      
+      {/* Skills Modal */}
+      <SkillsModal
+        isOpen={isSkillsModalOpen}
+        onClose={() => setIsSkillsModalOpen(false)}
+        onSkillsUpdated={() => {
+          // Optionally refresh user data if needed
+          // fetchUserInfo()
+        }}
+      />
     </section>
   );
 }

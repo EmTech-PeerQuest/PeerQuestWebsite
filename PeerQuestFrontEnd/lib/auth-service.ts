@@ -1,221 +1,143 @@
 import type { User } from "./types"
 
-// Mock users for demo purposes
-const mockUsers = [
-  {
-    id: 1,
-    username: "HeroicAdventurer",
-    displayName: "HeroicAdventurer",
-    email: "hero@example.com",
-    password: "password123",
-    avatar: "H",
-    bio: "Experienced adventurer looking for challenging quests.",
-    level: 10,
-    xp: 5600,
-    gold: 1200,
-    completedQuests: 1,
-    createdQuests: 0,
-    guilds: ["Mystic Brewers Guild", "Tavern Defenders", "Creative Crafters"],
-    roles: ["user"],
-    createdAt: new Date("2023-01-15"),
-    settings: {
-      theme: "dark",
-      language: "English",
-      privacy: {
-        showEmail: false,
-        showBirthday: false,
-        showGender: false,
-      },
-      notifications: {
-        newQuests: true,
-        questApplications: true,
-        guildAnnouncements: true,
-        directMessages: true,
-        newsletter: false,
-      },
-      security: {
-        twoFactorEnabled: false,
-        twoFactorMethod: "email",
-        backupCodesGenerated: false,
-      },
-    },
-  },
-  {
-    id: 2,
-    username: "TavernKeeper",
-    displayName: "Tavern Keeper",
-    email: "admin@example.com",
-    password: "admin123",
-    avatar: "T",
-    bio: "Keeper of the PeerQuest Tavern. Administrator and moderator.",
-    level: 50,
-    xp: 25000,
-    gold: 5000,
-    completedQuests: 25,
-    createdQuests: 15,
-    guilds: ["Tavern Defenders"],
-    roles: ["user", "admin"],
-    createdAt: new Date("2022-10-01"),
-    settings: {
-      theme: "dark",
-      language: "English",
-      privacy: {
-        showEmail: true,
-        showBirthday: false,
-        showGender: true,
-      },
-      notifications: {
-        newQuests: true,
-        questApplications: true,
-        guildAnnouncements: true,
-        directMessages: true,
-        newsletter: true,
-      },
-      security: {
-        twoFactorEnabled: true,
-        twoFactorMethod: "authenticator",
-        backupCodesGenerated: true,
-      },
-    },
-  },
-]
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+
+export interface LoginCredentials {
+  username: string
+  password: string
+}
+
+export interface RegisterData {
+  username: string
+  email: string
+  password: string
+}
+
+export interface AuthResponse {
+  user: User
+  token: string
+}
 
 class AuthService {
-  private currentUser: User | null = null
+  private tokenKey = 'access_token'
+  private userKey = 'user'
 
-  constructor() {
-    // Only access localStorage in the browser environment
-    if (typeof window !== "undefined") {
-      const storedUser = localStorage.getItem("currentUser")
-      if (storedUser) {
-        try {
-          this.currentUser = JSON.parse(storedUser)
-        } catch (error) {
-          console.error("Failed to parse stored user:", error)
-          localStorage.removeItem("currentUser")
-        }
+  // Get stored token
+  getToken(): string | null {
+    if (typeof window === 'undefined') return null
+    return localStorage.getItem(this.tokenKey)
+  }
+
+  // Get stored user
+  getUser(): User | null {
+    if (typeof window === 'undefined') return null
+    const userStr = localStorage.getItem(this.userKey)
+    return userStr ? JSON.parse(userStr) : null
+  }
+
+  // Store auth data
+  private setAuthData(authResponse: AuthResponse): void {
+    localStorage.setItem(this.tokenKey, authResponse.token)
+    localStorage.setItem(this.userKey, JSON.stringify(authResponse.user))
+  }
+
+  // Clear auth data
+  private clearAuthData(): void {
+    localStorage.removeItem(this.tokenKey)
+    localStorage.removeItem(this.userKey)
+  }
+
+  // Check if user is authenticated
+  isAuthenticated(): boolean {
+    return !!this.getToken()
+  }
+
+  // Login
+  async login(credentials: LoginCredentials): Promise<AuthResponse> {
+    const response = await fetch(`${API_BASE_URL}/users/login/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(credentials),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Login failed')
+    }
+
+    const authResponse: AuthResponse = await response.json()
+    this.setAuthData(authResponse)
+    return authResponse
+  }
+
+  // Register
+  async register(data: RegisterData): Promise<AuthResponse> {
+    const response = await fetch(`${API_BASE_URL}/users/register/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Registration failed')
+    }
+
+    const authResponse: AuthResponse = await response.json()
+    this.setAuthData(authResponse)
+    return authResponse
+  }
+
+  // Logout
+  async logout(): Promise<void> {
+    const token = this.getToken()
+    
+    if (token) {
+      try {
+        await fetch(`${API_BASE_URL}/users/logout/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Token ${token}`,
+          },
+        })
+      } catch (error) {
+        console.error('Logout request failed:', error)
       }
     }
+
+    this.clearAuthData()
   }
 
-  async login(email: string, password: string): Promise<User> {
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    const user = mockUsers.find((u) => u.email === email && u.password === password)
-    if (!user) {
-      throw new Error("Invalid email or password")
+  // Get current user from API
+  async getCurrentUser(): Promise<User> {
+    const token = this.getToken()
+    
+    if (!token) {
+      throw new Error('No authentication token')
     }
 
-    // Don't include password in the returned user object
-    const { password: _, ...userWithoutPassword } = user
-    this.currentUser = userWithoutPassword as User
-
-    // Only access localStorage in the browser environment
-    if (typeof window !== "undefined") {
-      localStorage.setItem("currentUser", JSON.stringify(this.currentUser))
-    }
-
-    return this.currentUser
-  }
-
-  async register(username: string, email: string, password: string): Promise<User> {
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    // Check if user already exists
-    if (mockUsers.some((u) => u.email === email)) {
-      throw new Error("Email already in use")
-    }
-
-    // Create new user
-    const newUser = {
-      id: mockUsers.length + 1,
-      username,
-      displayName: username,
-      email,
-      password, // In a real app, this would be hashed
-      avatar: username.charAt(0).toUpperCase(),
-      bio: "",
-      level: 1,
-      xp: 0,
-      gold: 100,
-      completedQuests: 0,
-      createdQuests: 0,
-      guilds: [],
-      roles: ["user"],
-      createdAt: new Date(),
-      settings: {
-        theme: "dark",
-        language: "English",
-        privacy: {
-          showEmail: false,
-          showBirthday: false,
-          showGender: false,
-        },
-        notifications: {
-          newQuests: true,
-          questApplications: true,
-          guildAnnouncements: true,
-          directMessages: true,
-          newsletter: false,
-        },
-        security: {
-          twoFactorEnabled: false,
-          twoFactorMethod: "email",
-          backupCodesGenerated: false,
-        },
+    const response = await fetch(`${API_BASE_URL}/users/me/`, {
+      headers: {
+        'Authorization': `Token ${token}`,
       },
+    })
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        this.clearAuthData()
+        throw new Error('Session expired')
+      }
+      throw new Error('Failed to fetch user')
     }
 
-    mockUsers.push(newUser)
-
-    // Don't include password in the returned user object
-    const { password: _, ...userWithoutPassword } = newUser
-    this.currentUser = userWithoutPassword as User
-
-    // Only access localStorage in the browser environment
-    if (typeof window !== "undefined") {
-      localStorage.setItem("currentUser", JSON.stringify(this.currentUser))
-    }
-
-    return this.currentUser
-  }
-
-  async forgotPassword(email: string): Promise<void> {
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    const user = mockUsers.find((u) => u.email === email)
-    if (!user) {
-      throw new Error("No account found with this email")
-    }
-
-    // In a real app, this would send a password reset email
-    console.log(`Password reset requested for ${email}`)
-  }
-
-  logout(): void {
-    this.currentUser = null
-
-    // Only access localStorage in the browser environment
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("currentUser")
-    }
-  }
-
-  async getCurrentUser(): Promise<User | null> {
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 100))
-    return this.currentUser
-  }
-
-  isAuthenticated(): boolean {
-    return !!this.currentUser
-  }
-
-  hasRole(role: string): boolean {
-    return this.currentUser?.roles?.includes(role) || false
+    const user: User = await response.json()
+    localStorage.setItem(this.userKey, JSON.stringify(user))
+    return user
   }
 }
 

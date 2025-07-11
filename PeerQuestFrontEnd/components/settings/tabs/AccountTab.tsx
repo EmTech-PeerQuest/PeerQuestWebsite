@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/context/AuthContext";
 import { ProfilePhotoUploader } from "@/components/ui/profile-photo-uploader";
+import { DebouncedButton, SubmitButton, DangerButton } from "@/components/ui/debounced-button";
+import { useUserInfo } from "@/hooks/use-api-request";
 import axios from "axios";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -203,6 +205,9 @@ export default function AccountTab({
   const { t, ready } = useTranslation();
   const { currentLanguage, changeLanguage, availableLanguages, isReady } = useLanguage();
   
+  // Use the new API hook for better error handling and spam prevention
+  const { fetchUserInfo: fetchUserInfoAPI, isLoading: isLoadingUserInfo, error: userInfoError } = useUserInfo();
+  
   // Don't render until i18n is ready
   if (!isReady || !ready) {
     return (
@@ -214,29 +219,72 @@ export default function AccountTab({
     );
   }
   
-  // Fetch and sync user info on mount
+  // Fetch and sync user info on mount with better error handling
   useEffect(() => {
-    (async () => {
-      try {
-        const info = await fetchUserInfo();
-        
-        setAccountForm((prev: any) => {
-          const updated = { 
-            ...prev, 
-            ...info,
-            // Ensure birthday and gender are properly set
-            birthday: info.birthday || prev.birthday || "",
-            gender: info.gender || prev.gender || ""
-          };
-          return updated;
-        });
-      } catch (e) {
-        // You might want to show an error message to the user here
-        alert('Failed to load account information. Please refresh the page and try again.');
+    let isMounted = true; // Prevent state updates if component unmounts
+    
+    const loadUserInfo = async () => {
+      // Check authentication first
+      const accessToken = localStorage.getItem('access_token');
+      const refreshToken = localStorage.getItem('refresh_token');
+      
+      if (!accessToken && !refreshToken) {
+        if (isMounted) {
+          alert('Please log in to access your account information.');
+          window.location.href = '/login';
+        }
+        return;
       }
-    })();
+      
+      // Check if we're already loading to prevent duplicate calls
+      if (isLoadingUserInfo) {
+        return;
+      }
+      
+      try {
+        const info = await fetchUserInfoAPI();
+        
+        // Only update state if component is still mounted and we got data
+        if (isMounted && info) {
+          setAccountForm((prev: any) => {
+            const updated = { 
+              ...prev, 
+              ...info,
+              // Ensure birthday and gender are properly set
+              birthday: info.birthday || prev.birthday || "",
+              gender: info.gender || prev.gender || ""
+            };
+            return updated;
+          });
+        }
+      } catch (e) {
+        // Only show error if component is still mounted
+        if (isMounted) {
+          // Show a more user-friendly error message based on the error type
+          if (userInfoError?.status === 401) {
+            alert('Your session has expired. Please log in again.');
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            window.location.href = '/login';
+          } else if (userInfoError?.status === 500) {
+            alert('Server error. Please try again in a moment.');
+          } else {
+            alert('Failed to load account information. Please refresh the page and try again.');
+          }
+        }
+      }
+    };
+    
+    // Delay the API call slightly to prevent immediate calls on navigation
+    const timeoutId = setTimeout(loadUserInfo, 100);
+    
+    // Cleanup function
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // Only run once on mount
   
   const [loadingSave, setLoadingSave] = useState(false);
   const [loadingDelete, setLoadingDelete] = useState(false);
@@ -416,10 +464,10 @@ export default function AccountTab({
 
   return (
     <div className="p-4 md:p-6">
-      <h3 className="text-xl font-bold mb-6">{t('accountTab.title')}</h3>
-      <div className="space-y-6">
+      <h3 className="text-xl font-bold mb-4">{t('accountTab.title')}</h3>
+      <div className="space-y-4">
         {/* Profile Photo Section */}
-        <div>
+        <div className="bg-[#3D2A2F]/50 p-6 rounded-lg border border-[#CDAA7D]/30">
           <label className="block text-sm font-medium mb-4">{t('profilePhoto.profilePhoto')}</label>
           <ProfilePhotoUploader
             currentPhoto={accountForm.avatarUrl}
@@ -427,143 +475,198 @@ export default function AccountTab({
             className="flex justify-center"
           />
         </div>
-        
-        {/* Username */}
-        <div>
-          <label className="block text-sm font-medium mb-2">{t('accountTab.username')}</label>
-          <div className="flex items-center">
-            <input
-              type="text"
-              className={`flex-1 px-3 py-2 bg-[#3D2A2F] border rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm ${
-                accountForm.username && !validateUsernameClient(accountForm.username) 
-                  ? 'border-red-500' 
-                  : 'border-[#CDAA7D]'
-              }`}
-              value={accountForm.username || ""}
-              placeholder={t('accountTab.usernamePlaceholder')}
-              onChange={e => {
-                const value = e.target.value;
-                // Always update the form, but show visual feedback for invalid usernames
-                setAccountForm((prev: any) => ({ ...prev, username: value }));
-              }}
-            />
-          </div>
-          <div className="text-xs mt-1">
-            {accountForm.username && !validateUsernameClient(accountForm.username) ? (
-              <span className="text-red-400">
-                Username must be 3-20 characters, contain only letters/numbers/underscores, and cannot contain inappropriate content or leet speak substitutions (like 'q' for 'g').
-              </span>
-            ) : (
-              <span className="text-[#8B75AA]">
-                Username can only contain letters, numbers, and underscores. No inappropriate content or leet speak allowed.
-              </span>
-            )}
-          </div>
-        </div>
-        {/* Email */}
-        <div>
-          <label className="block text-sm font-medium mb-2">{t('accountTab.email')}</label>
-          <div className="flex items-center">
-            <input
-              type="email"
-              className="flex-1 px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
-              value={accountForm.email || ""}
-              placeholder={t('accountTab.emailPlaceholder')}
-              onChange={e => setAccountForm((prev: any) => ({ ...prev, email: e.target.value }))}
-            />
-          </div>
-          <div className="flex items-center mt-1">
-            <span className="text-xs bg-green-800 text-green-200 px-2 py-0.5 rounded">{t('accountTab.verified')}</span>
-          </div>
-        </div>
-        {/* Bio */}
-        <div>
-          <label className="block text-sm font-medium mb-2">{t('accountTab.bio')}</label>
-          <textarea
-            className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] h-20 md:h-24 resize-none text-sm"
-            value={accountForm.bio || ""}
-            placeholder={t('accountTab.bioPlaceholder')}
-            onChange={e => setAccountForm((prev: any) => ({ ...prev, bio: e.target.value }))}
-          />
-        </div>
         {/* Personal Section */}
-        <div>
+        <div className="bg-[#3D2A2F]/30 p-4 rounded-lg border border-[#CDAA7D]/20">
           <h4 className="text-lg font-bold mb-3">{t('accountTab.personal')}</h4>
           <div className="space-y-4">
+            {/* Username */}
+            <div>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.username')}</label>
+              <input
+                type="text"
+                className={`w-full px-4 py-3 bg-[#3D2A2F] border rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm ${
+                  accountForm.username && !validateUsernameClient(accountForm.username)
+                    ? 'border-red-500'
+                    : 'border-[#CDAA7D]'
+                }`}
+                value={accountForm.username || ""}
+                placeholder={t('accountTab.usernamePlaceholder')}
+                onChange={e => {
+                  const value = e.target.value;
+                  setAccountForm((prev: any) => ({ ...prev, username: value }));
+                }}
+              />
+              <div className="text-xs mt-1">
+                {accountForm.username && !validateUsernameClient(accountForm.username) ? (
+                  <span className="text-red-400">
+                    Username must be 3-20 characters, contain only letters/numbers/underscores, and cannot contain inappropriate content or leet speak substitutions (like 'q' for 'g').
+                  </span>
+                ) : (
+                  <span className="text-[#8B75AA]">
+                    Username can only contain letters, numbers, and underscores. No inappropriate content or leet speak allowed.
+                  </span>
+                )}
+              </div>
+            </div>
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.email')}</label>
+              <input
+                type="email"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                value={accountForm.email || ""}
+                placeholder={t('accountTab.emailPlaceholder')}
+                onChange={e => setAccountForm((prev: any) => ({ ...prev, email: e.target.value }))}
+              />
+              <div className="flex items-center mt-1">
+                <span className="text-xs bg-green-800 text-green-200 px-3 py-1 rounded-full">{t('accountTab.verified')}</span>
+              </div>
+            </div>
+            {/* Bio */}
+            <div>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.bio')}</label>
+              <textarea
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] h-28 md:h-32 resize-none text-sm"
+                value={accountForm.bio || ""}
+                placeholder={t('accountTab.bioPlaceholder')}
+                onChange={e => {
+                  let value = e.target.value;
+                  // Normalize: remove leet speak and common substitutions
+                  const leetMap = {
+                    '0': 'o', '1': 'i', '2': 'z', '3': 'e', '4': 'a', '5': 's', '6': 'g', '7': 't', '8': 'b', '9': 'g',
+                    '@': 'a', '$': 's', '!': 'i', '|': 'i', '+': 't', '?': 'q', '(': 'c', ')': 'c',
+                    '*': 'a', '%': 'o', '^': 'a', '&': 'a', '#': 'h', '~': 'n', '=': 'e',
+                    'q': 'g', 'x': 'k', 'z': 's', 'vv': 'w', 'ii': 'u', 'rn': 'm'
+                  };
+                  // Replace leet chars (escape leet keys)
+                  let normalized = value.toLowerCase();
+                  for (let i = 0; i < 2; i++) {
+                    for (const [leet, normal] of Object.entries(leetMap)) {
+                      // Escape special regex characters in leet
+                      const escapedLeet = leet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                      try {
+                        const regex = new RegExp(escapedLeet, 'g');
+                        normalized = normalized.replace(regex, normal);
+                      } catch (err) {
+                        // If regex fails, skip this leet pattern
+                        continue;
+                      }
+                    }
+                  }
+                  // Remove excessive repeating characters (4+)
+                  value = value.replace(/(.)\1{3,}/g, '$1$1$1');
+                  // Inappropriate words (expanded, word boundaries)
+                  const inappropriateWords = [
+                    'admin', 'mod', 'staff', 'bot', 'test', 'null', 'fuck', 'shit', 'damn', 'bitch',
+                    'ass', 'hell', 'crap', 'piss', 'cock', 'dick', 'pussy', 'tit', 'nigger', 'nigga',
+                    'fag', 'gay', 'homo', 'retard', 'rape', 'nazi', 'hitler', 'porn', 'sex', 'cum',
+                    'cunt', 'slut', 'whore', 'bastard', 'twat', 'wank', 'jerk', 'suck', 'screw', 'anal',
+                    'spank', 'orgy', 'milf', 'dildo', 'fisting', 'handjob', 'blowjob', 'ejaculate', 'sperm', 'scat', 'scum', 'meth', 'heroin', 'cocaine', 'weed', 'marijuana', 'lsd', 'crack', 'opioid', 'opium', 'molest', 'abuse', 'beastiality', 'zoophilia', 'incest', 'pedo', 'paedo', 'child', 'kill', 'murder', 'suicide', 'terror', 'bomb', 'explosive', 'shoot', 'stab', 'gun', 'knife', 'blood', 'gore', 'torture', 'lynch', 'hang', 'execute', 'overdose', 'addict', 'overkill'
+                  ];
+                  // Find the first inappropriate word present (word boundary)
+                  let foundWord = null;
+                  for (const word of inappropriateWords) {
+                    // Escape special regex characters in word
+                    const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    let regex = null;
+                    try {
+                      regex = new RegExp(`\\b${escapedWord}\\b`, 'i');
+                    } catch (err) {
+                      // If regex fails, skip this word
+                      continue;
+                    }
+                    if (regex && regex.test(normalized)) {
+                      foundWord = word;
+                      break;
+                    }
+                  }
+                  setAccountForm((prev: any) => ({ ...prev, bio: value, bioInappropriate: foundWord }));
+                }}
+              />
+              {accountForm.bioInappropriate && (
+                <div className="text-xs text-red-400 mt-1">
+                  {`The word "${accountForm.bioInappropriate}" is not allowed in your bio.`}
+                </div>
+              )}
+            </div>
+            {/* Birthday */}
             <div>
               <label className="block text-sm font-medium mb-2">{t('accountTab.birthday')}</label>
               <input
                 type="date"
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(() => {
                   const val = accountForm.birthday;
-                  
                   if (!val || val === null || val === undefined) {
                     return "";
                   }
-                  
                   if (typeof val === "string") {
-                    // If already in YYYY-MM-DD format, return as is
                     if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
                       return val;
                     }
-                    // If it's an ISO string, extract date part
                     if (val.includes('T')) {
                       const dateOnly = val.split('T')[0];
                       return dateOnly;
                     }
-                    // Try to parse other date formats
                     const date = new Date(val);
                     if (!isNaN(date.getTime())) {
                       const isoDate = date.toISOString().split('T')[0];
                       return isoDate;
                     }
                   }
-                  
-                  // Handle Date objects
                   if (val instanceof Date && !isNaN(val.getTime())) {
                     const isoDate = val.toISOString().split('T')[0];
                     return isoDate;
                   }
-                  
                   return "";
                 })()}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, birthday: e.target.value }))}
               />
               <div className="flex items-center mt-1">
-                <span className="text-xs bg-blue-800 text-blue-200 px-2 py-0.5 rounded">{t('accountTab.verified')}</span>
+                <span className="text-xs bg-blue-800 text-blue-200 px-3 py-1 rounded-full">{t('accountTab.verified')}</span>
               </div>
             </div>
+            {/* Gender */}
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.gender')}</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <button
+              <label className="block text-sm font-medium mb-1">{t('accountTab.gender')}</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <DebouncedButton
                   type="button"
-                  className={`py-2 px-4 border ${accountForm.gender === "male" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded font-medium transition-colors flex items-center justify-center text-sm`}
+                  variant={accountForm.gender === "male" ? "default" : "outline"}
+                  className={`py-3 px-4 border ${accountForm.gender === "male" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded-lg font-medium transition-colors flex items-center justify-center text-sm`}
                   onClick={() => setAccountForm((prev: any) => ({ ...prev, gender: "male" }))}
+                  soundType="soft"
+                  debounceMs={150}
                 >
                   <span className="mr-2">♂</span>{t('accountTab.male')}
-                </button>
-                <button
+                </DebouncedButton>
+                <DebouncedButton
                   type="button"
-                  className={`py-2 px-4 border ${accountForm.gender === "female" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded font-medium transition-colors flex items-center justify-center text-sm`}
+                  variant={accountForm.gender === "female" ? "default" : "outline"}
+                  className={`py-3 px-4 border ${accountForm.gender === "female" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded-lg font-medium transition-colors flex items-center justify-center text-sm`}
                   onClick={() => setAccountForm((prev: any) => ({ ...prev, gender: "female" }))}
+                  soundType="soft"
+                  debounceMs={150}
                 >
                   <span className="mr-2">♀</span>{t('accountTab.female')}
-                </button>
-                <button
+                </DebouncedButton>
+                <DebouncedButton
                   type="button"
-                  className={`py-2 px-4 border ${accountForm.gender === "prefer-not-to-say" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded font-medium transition-colors flex items-center justify-center text-sm`}
+                  variant={accountForm.gender === "prefer-not-to-say" ? "default" : "outline"}
+                  className={`py-3 px-4 border ${accountForm.gender === "prefer-not-to-say" ? "bg-[#8B75AA] text-white" : "border-[#CDAA7D] text-[#F4F0E6]"} rounded-lg font-medium transition-colors flex items-center justify-center text-sm`}
                   onClick={() => setAccountForm((prev: any) => ({ ...prev, gender: "prefer-not-to-say" }))}
+                  soundType="soft"
+                  debounceMs={150}
                 >
                   <span className="mr-2">🤐</span>Prefer not to say
-                </button>
+                </DebouncedButton>
               </div>
             </div>
+            {/* Location */}
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.location')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.location')}</label>
               <select
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={accountForm.location || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, location: e.target.value }))}
               >
@@ -612,10 +715,11 @@ export default function AccountTab({
                 <option value="Other">Other</option>
               </select>
             </div>
+            {/* Language */}
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.language')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.language')}</label>
               <select
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={currentLanguage}
                 onChange={e => handleLanguageChange(e.target.value)}
               >
@@ -629,74 +733,74 @@ export default function AccountTab({
           </div>
         </div>
         {/* Social Networks Section */}
-        <div>
+        <div className="bg-[#3D2A2F]/30 p-4 rounded-lg border border-[#CDAA7D]/20">
           <h4 className="text-lg font-bold mb-3">{t('accountTab.socialNetworks')}</h4>
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.facebook')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.facebook')}</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(accountForm.socialLinks && accountForm.socialLinks.facebook) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, facebook: e.target.value } }))}
                 placeholder={t('accountTab.facebookPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.twitter')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.twitter')}</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(accountForm.socialLinks && accountForm.socialLinks.twitter) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, twitter: e.target.value } }))}
                 placeholder={t('accountTab.twitterPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.youtube')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.youtube')}</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(accountForm.socialLinks && accountForm.socialLinks.youtube) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, youtube: e.target.value } }))}
                 placeholder={t('accountTab.youtubePlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.twitch')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.twitch')}</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(accountForm.socialLinks && accountForm.socialLinks.twitch) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, twitch: e.target.value } }))}
                 placeholder={t('accountTab.twitchPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.github')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.github')}</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(accountForm.socialLinks && accountForm.socialLinks.github) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, github: e.target.value } }))}
                 placeholder={t('accountTab.githubPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.linkedin')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.linkedin')}</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(accountForm.socialLinks && accountForm.socialLinks.linkedin) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, linkedin: e.target.value } }))}
                 placeholder={t('accountTab.linkedinPlaceholder')}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">{t('accountTab.website')}</label>
+              <label className="block text-sm font-medium mb-1">{t('accountTab.website')}</label>
               <input
                 type="text"
-                className="w-full px-3 py-2 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-[#8B75AA] text-sm"
                 value={(accountForm.socialLinks && accountForm.socialLinks.website) || ""}
                 onChange={e => setAccountForm((prev: any) => ({ ...prev, socialLinks: { ...prev.socialLinks, website: e.target.value } }))}
                 placeholder={t('accountTab.websitePlaceholder')}
@@ -705,44 +809,55 @@ export default function AccountTab({
           </div>
         </div>
         {/* Save Button */}
-        <div className="pt-4">
-          <div className="flex gap-3">
-            <button
+        <div className="pt-4 border-t border-[#CDAA7D]/30">
+          <div className="flex gap-3 justify-center sm:justify-start">
+            <SubmitButton
               onClick={handleSave}
-              disabled={loadingSave}
-              className="flex-1 sm:flex-none px-6 py-2 bg-[#8B75AA] text-white rounded font-medium hover:bg-[#7A6699] transition-colors flex items-center justify-center disabled:opacity-60"
+              disabled={loadingSave || isLoadingUserInfo}
+              className="px-8 py-3 bg-[#8B75AA] text-white rounded-lg font-medium hover:bg-[#7A6699] transition-colors flex items-center justify-center disabled:opacity-60 min-w-[160px]"
+              loadingText={t('accountTab.saving')}
+              successText={t('accountTab.saved') || 'Saved!'}
+              errorText={t('accountTab.saveError') || 'Error saving!'}
             >
               <Save size={16} className="mr-2" />
-              {loadingSave ? t('accountTab.saving') : t('accountTab.saveChanges')}
-            </button>
+              {t('accountTab.saveChanges')}
+            </SubmitButton>
           </div>
         </div>
         {/* Delete Account Section */}
-        <div className="mt-10 border-t border-[#CDAA7D]/40 pt-8">
-          <h4 className="text-lg font-bold mb-3 text-red-400">{t('accountTab.deleteAccount')}</h4>
-          <p className="mb-4 text-sm text-[#F4F0E6]/80">
-            <span className="font-semibold text-red-400">{t('accountTab.warning')}</span> {t('accountTab.deleteWarning')}
-          </p>
-          <input
-            type="text"
-            className="w-full px-3 py-2 mb-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded text-[#F4F0E6] shadow focus:outline-none focus:border-red-400 text-sm"
-            placeholder={t('accountTab.deleteConfirmPlaceholder', { username: user?.username })}
-            value={accountForm.deleteConfirm || ""}
-            onChange={e => setAccountForm((prev: any) => ({ ...prev, deleteConfirm: e.target.value }))}
-          />
-          <button
-            onClick={() => {
-              if (accountForm.deleteConfirm === user?.username) {
-                handleDelete();
-              } else {
-                alert(t('accountTab.deleteConfirmError'));
-              }
-            }}
-            disabled={loadingDelete}
-            className="w-full sm:w-auto px-6 py-2 bg-red-600 text-white rounded font-medium hover:bg-red-700 transition-colors flex items-center justify-center disabled:opacity-60"
-          >
-            {loadingDelete ? t('accountTab.deleting') : t('accountTab.deleteAccount')}
-          </button>
+        <div className="mt-8 border-t-2 border-red-400/40 pt-4">
+          <div className="bg-red-900/20 p-4 rounded-lg border border-red-400/30">
+            <h4 className="text-lg font-bold mb-4 text-red-400">{t('accountTab.deleteAccount')}</h4>
+            <p className="mb-6 text-sm text-[#F4F0E6]/80 leading-relaxed">
+              <span className="font-semibold text-red-400">{t('accountTab.warning')}</span> {t('accountTab.deleteWarning')}
+            </p>
+            
+            <div className="space-y-4">
+              <input
+                type="text"
+                className="w-full px-4 py-3 bg-[#3D2A2F] border border-[#CDAA7D] rounded-lg text-[#F4F0E6] shadow focus:outline-none focus:border-red-400 text-sm"
+                placeholder={t('accountTab.deleteConfirmPlaceholder', { username: user?.username })}
+                value={accountForm.deleteConfirm || ""}
+                onChange={e => setAccountForm((prev: any) => ({ ...prev, deleteConfirm: e.target.value }))}
+              />
+              
+              <DangerButton
+                onClick={() => {
+                  if (accountForm.deleteConfirm === user?.username) {
+                    handleDelete();
+                  } else {
+                    alert(t('accountTab.deleteConfirmError'));
+                  }
+                }}
+                disabled={loadingDelete}
+                className="w-full sm:w-auto px-6 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center disabled:opacity-60 min-w-[160px]"
+                loadingText={t('accountTab.deleting')}
+                errorText={t('accountTab.deleteError') || 'Error deleting!'}
+              >
+                {t('accountTab.deleteAccount')}
+              </DangerButton>
+            </div>
+          </div>
         </div>
       </div>
     </div>

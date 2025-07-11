@@ -134,16 +134,9 @@ export function EnhancedCreateGuildModal({
       return
     }
 
-    const GUILD_CREATION_COST = 1000
+    const GUILD_CREATION_COST = 0
 
-    // Check if user has enough gold to create a guild
-    if (currentUser.gold < GUILD_CREATION_COST) {
-      showToast?.(
-        `Insufficient gold. You need ${GUILD_CREATION_COST} gold to create a guild but only have ${currentUser.gold} gold.`,
-        "error",
-      )
-      return
-    }
+    // Guild creation is now free - no gold check needed
 
     if (!guildForm.name || !guildForm.description || !guildForm.specialization) {
       showToast?.("Please fill in all required fields", "error")
@@ -155,41 +148,36 @@ export function EnhancedCreateGuildModal({
   }
 
   const handleConfirmSubmit = () => {
-    const GUILD_CREATION_COST = 1000
+    const GUILD_CREATION_COST = 0
 
     const newGuild: Partial<Guild> = {
       name: guildForm.name,
       description: guildForm.description,
       emblem: guildForm.useCustomEmblem ? guildForm.customEmblemPreview : guildForm.emblem,
       specialization: guildForm.specialization,
-      privacy: guildForm.privacy,
-      poster: currentUser,
+      privacy: guildForm.privacy as "public" | "private",
+      poster: currentUser ? {
+        username: currentUser.username,
+        avatar: currentUser.avatar,
+        name: currentUser.display_name || currentUser.displayName
+      } : undefined,
       members: 1,
-      membersList: [currentUser.id],
-      welcomeMessage: guildForm.welcomeMessage,
-      tags: guildForm.tags,
-      socialLinks: guildForm.socialLinks,
-      settings: {
-        joinRequirements: {
-          manualApproval: guildForm.requireApproval,
-          minimumLevel: guildForm.minimumLevel,
-          requiresApplication: guildForm.requireApproval,
-        },
-        visibility: {
-          publiclyVisible: guildForm.privacy === "public",
-          showOnHomePage: guildForm.showOnHomePage,
-          allowDiscovery: guildForm.allowDiscovery,
-        },
-        permissions: {
-          whoCanPost: guildForm.whoCanPost,
-          whoCanInvite: guildForm.whoCanInvite,
-          whoCanKick: "admins",
-        },
-      },
+      membersList: currentUser ? [Number(currentUser.id)] : [],
+      welcome_message: guildForm.welcomeMessage,
+      tags: guildForm.tags.map((tag, index) => ({ 
+        id: index + 1,
+        tag: tag,
+        name: tag 
+      })),
+      social_links: guildForm.socialLinks.map((link, index) => ({
+        id: index + 1,
+        platform_name: link.platform,
+        url: link.url
+      })),
     }
 
     if (onSubmit) {
-      onSubmit({ ...newGuild, guildCreationCost: GUILD_CREATION_COST })
+      onSubmit(newGuild)
     }
 
     // Reset form
@@ -693,10 +681,9 @@ export function EnhancedCreateGuildModal({
           onClose={() => setShowConfirmation(false)}
           onConfirm={handleConfirmSubmit}
           title="Confirm Guild Creation"
-          message={`Are you sure you want to create "${guildForm.name}" guild? The creation fee will be deducted from your gold balance.`}
-          goldAmount={1000}
+          message={`Are you sure you want to create "${guildForm.name}" guild?`}
+          goldAmount={0}
           confirmText="Create Guild"
-          cancelText="Cancel"
         />
       </div>
     </div>

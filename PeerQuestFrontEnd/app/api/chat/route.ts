@@ -36,10 +36,7 @@ CAPABILITIES:
 Always stay in character and be helpful with PeerQuest Tavern related topics.`
 
     const result = await streamText({
-      model: openai("deepseek-r1", {
-        apiKey: "sk-d71540ab1ae04e7c9b3073430b2e7e07",
-        baseURL: "https://api.deepseek.com/v1",
-      }),
+      model: openai("gpt-3.5-turbo"),
       system: systemPrompt,
       messages,
       maxTokens: 300,

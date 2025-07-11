@@ -1,3 +1,188 @@
+import os
+import requests
+def ai_check_username_profanity(username):
+    """
+    Uses the Groq LLM to check if a username is appropriate.
+    Returns True if clean, False if inappropriate/profane.
+    """
+    GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+    GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+    prompt = f"Is the following username appropriate and free of profanity or offensive language? Only answer 'yes' or 'no'. Username: '{username}'"
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": "You are a moderation assistant that only answers 'yes' or 'no'."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 5,
+    }
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    try:
+        r = requests.post(GROQ_API_URL, json=payload, headers=headers, timeout=15)
+        r.raise_for_status()
+        data = r.json()
+        reply = data["choices"][0]["message"]["content"].strip().lower()
+        return reply.startswith('yes')
+    except Exception as e:
+        # If the AI check fails, default to allowing (or you can default to block)
+        return True
+# User Report API
+from .models import UserReport
+from .serializers import UserReportSerializer
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+
+class UserReportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        data = request.data.copy()
+        data['reporter'] = request.user.id
+
+        # Prevent self-reporting
+        if str(data.get('reported_user')) == str(request.user.id):
+            return Response({'success': False, 'message': 'You cannot report yourself.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if reported user is staff or superuser
+        from .models import User
+        try:
+            reported_user = User.objects.get(id=data.get('reported_user'))
+        except User.DoesNotExist:
+            return Response({'success': False, 'message': 'Reported user not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if reported_user.is_superuser or reported_user.is_staff:
+            return Response({'success': False, 'message': 'You cannot report staff or superusers.'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = UserReportSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'success': True, 'message': 'User reported successfully.'}, status=status.HTTP_201_CREATED)
+        return Response({'success': False, 'errors': serializer.errors, 'message': 'Failed to report user.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, pk=None):
+        # Mark a user report as resolved (admin only)
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        report_id = pk or request.data.get('id')
+        if not report_id:
+            return Response({'detail': 'Report ID required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            report = UserReport.objects.get(id=report_id)
+        except UserReport.DoesNotExist:
+            return Response({'detail': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+        report.status = 'resolved'
+        report.save()
+        return Response({'success': True, 'message': 'User report resolved.'}, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk=None):
+        # Allow admin to delete a user report
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        report_id = pk or request.data.get('id')
+        if not report_id:
+            return Response({'detail': 'Report ID required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            report = UserReport.objects.get(id=report_id)
+        except UserReport.DoesNotExist:
+            return Response({'detail': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+        report.delete()
+        return Response({'success': True, 'message': 'User report deleted.'}, status=status.HTTP_200_OK)
+
+# Quest Report API
+from .models import QuestReport
+from .serializers import QuestReportSerializer
+from quests.models import Quest
+
+class QuestReportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        data = request.data.copy()
+        data['reporter'] = request.user.id
+
+        # Prevent reporting own quest
+        try:
+            quest = Quest.objects.get(id=data.get('reported_quest'))
+        except Quest.DoesNotExist:
+            return Response({'success': False, 'message': 'Reported quest not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if str(quest.creator.id) == str(request.user.id):
+            return Response({'success': False, 'message': 'You cannot report your own quest.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = QuestReportSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'success': True, 'message': 'Quest reported successfully.'}, status=status.HTTP_201_CREATED)
+        return Response({'success': False, 'errors': serializer.errors, 'message': 'Failed to report quest.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, pk=None):
+        # Mark a quest report as resolved (admin only)
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        report_id = pk or request.data.get('id')
+        if not report_id:
+            return Response({'detail': 'Report ID required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            report = QuestReport.objects.get(id=report_id)
+        except QuestReport.DoesNotExist:
+            return Response({'detail': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+        report.status = 'resolved'
+        report.save()
+        return Response({'success': True, 'message': 'Quest report resolved.'}, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk=None):
+        # Allow admin to delete a quest report
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        report_id = pk or request.data.get('id')
+        if not report_id:
+            return Response({'detail': 'Report ID required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            report = QuestReport.objects.get(id=report_id)
+        except QuestReport.DoesNotExist:
+            return Response({'detail': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+        report.delete()
+        return Response({'success': True, 'message': 'Quest report deleted.'}, status=status.HTTP_200_OK)
+from django.utils import timezone
+from django.shortcuts import get_object_or_404
+from .models import BanAppeal, ActionLog
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+# --- Ban Appeal Review View for Admins ---
+class BanAppealReviewView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, appeal_id):
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        appeal = get_object_or_404(BanAppeal, id=appeal_id)
+        decision = request.data.get('decision')
+        if decision not in ['dismissed', 'lifted']:
+            return Response({'detail': 'Invalid decision'}, status=status.HTTP_400_BAD_REQUEST)
+        # Mark as reviewed
+        appeal.reviewed = True
+        appeal.reviewed_by = request.user
+        appeal.reviewed_at = timezone.now()
+        appeal.review_decision = decision
+        appeal.save()
+        # If lifting ban, unban the user
+        if decision == 'lifted':
+            user = appeal.user
+            user.is_banned = False
+            user.ban_reason = ''
+            user.ban_expires_at = None
+            user.save()
+        # Log the action
+        ActionLog.objects.create(
+            action=f"ban_{'lifted' if decision == 'lifted' else 'dismissed'}",
+            admin=request.user,
+            target_user=appeal.user,
+            details=f'Ban appeal {decision} for user {appeal.user.email} (appeal id {appeal.id})',
+        )
+        return Response({'detail': f'Appeal {decision}.'}, status=status.HTTP_200_OK)
 import traceback
 import unicodedata
 from itertools import product
@@ -12,12 +197,16 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import serializers, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .serializers import UserProfileSerializer, RegisterSerializer, UserInfoUpdateSerializer
+from django.core.exceptions import ValidationError
+from .serializers import (
+    UserProfileSerializer, RegisterSerializer, UserInfoUpdateSerializer,
+    UserSkillSerializer, SkillsManagementSerializer, UserSearchSerializer
+)
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.shortcuts import redirect
-from .models import User, UserSession, BlacklistedToken
+from .models import User, UserSession, BlacklistedToken, COLLEGE_SKILLS, Skill, UserSkill, Skill, UserSkill
 from .services import google_get_access_token, google_get_user_info, create_user_and_token, TokenManager
 from .email_utils import send_verification_email, generate_verification_token
 from google.oauth2 import id_token
@@ -193,12 +382,12 @@ class GoogleLoginCallbackView(APIView):
         # Check if Google OAuth2 settings are configured
         if not settings.GOOGLE_OAUTH2_CLIENT_ID:
             return Response({'error': 'Google OAuth2 not configured on server'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
         # Accept Google ID token from frontend
         credential = request.data.get('credential')
         if not credential:
             return Response({'error': 'Missing Google credential.'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
             # Verify the token with Google - add clock tolerance for small time differences
             idinfo = id_token.verify_oauth2_token(
@@ -207,7 +396,7 @@ class GoogleLoginCallbackView(APIView):
                 settings.GOOGLE_OAUTH2_CLIENT_ID,
                 clock_skew_in_seconds=60  # Allow up to 60 seconds clock difference
             )
-            
+
             # idinfo contains user's Google profile info
             user_data = {
                 'email': idinfo.get('email'),
@@ -216,10 +405,24 @@ class GoogleLoginCallbackView(APIView):
                 'first_name': idinfo.get('given_name', ''),
                 'last_name': idinfo.get('family_name', ''),
             }
-            
-            token_data = create_user_and_token(user_data, request)
+
+            try:
+                token_data = create_user_and_token(user_data, request)
+            except ValidationError as ve:
+                # Always return a consistent error structure for banned users
+                msg = getattr(ve, 'message', None) or getattr(ve, 'message_dict', None) or str(ve)
+                if isinstance(msg, dict) and msg.get('banned'):
+                    # Ensure all ban info fields are present
+                    ban_response = {
+                        'banned': True,
+                        'detail': msg.get('detail', 'Your account is banned.'),
+                        'ban_reason': msg.get('ban_reason'),
+                        'ban_expires_at': msg.get('ban_expires_at'),
+                    }
+                    return Response(ban_response, status=status.HTTP_403_FORBIDDEN)
+                return Response({'error': str(ve)}, status=status.HTTP_400_BAD_REQUEST)
             return Response(token_data)
-            
+
         except ValueError as e:
             return Response({'error': f'Invalid Google token: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -300,19 +503,19 @@ class RegisterView(APIView):
     def post(self, request):
         try:
             serializer = RegisterSerializer(data=request.data)
+            username = request.data.get('username', '')
+            if username and not ai_check_username_profanity(username):
+                return Response({'error': 'Username contains inappropriate language.'}, status=status.HTTP_400_BAD_REQUEST)
             if serializer.is_valid():
                 user = serializer.save()
-                
                 # Automatically verify superusers
                 if user.is_superuser:
                     user.email_verified = True
                     user.save()
-                
                 # Generate JWT tokens
                 refresh = RefreshToken.for_user(user)
                 access_token = str(refresh.access_token)
                 refresh_token = str(refresh)
-                
                 # Send verification email (skip for superusers)
                 email_sent = False
                 if not user.is_superuser:
@@ -320,9 +523,7 @@ class RegisterView(APIView):
                         send_verification_email(user)
                         email_sent = True
                     except Exception as e:
-                        # Don't fail registration if email fails
                         pass
-                
                 return Response({
                     'message': 'Registration successful',
                     'user': {
@@ -618,6 +819,31 @@ class EmailVerifiedTokenObtainPairView(TokenObtainPairView):
                 'detail': 'Invalid username or password.'
             }, status=status.HTTP_401_UNAUTHORIZED)
         
+        # Check if user is banned (permanent or temporary)
+        if user.is_banned:
+            # If ban is temporary, check expiration
+            if user.ban_expires_at:
+                if timezone.now() < user.ban_expires_at:
+                    return Response({
+                        'detail': f'Your account is temporarily banned until {user.ban_expires_at}. Reason: {user.ban_reason}',
+                        'banned': True,
+                        'ban_expires_at': user.ban_expires_at,
+                        'ban_reason': user.ban_reason,
+                    }, status=status.HTTP_403_FORBIDDEN)
+                else:
+                    # Ban expired, auto-unban
+                    user.is_banned = False
+                    user.ban_reason = None
+                    user.ban_expires_at = None
+                    user.save()
+            else:
+                # Permanent ban
+                return Response({
+                    'detail': f'Your account is permanently banned. Reason: {user.ban_reason}',
+                    'banned': True,
+                    'ban_reason': user.ban_reason,
+                }, status=status.HTTP_403_FORBIDDEN)
+
         # Check if user's email is verified (skip for superusers)
         # Superusers are exempt from email verification requirements
         if not user.email_verified and not user.is_superuser:
@@ -625,8 +851,8 @@ class EmailVerifiedTokenObtainPairView(TokenObtainPairView):
                 'detail': 'Please verify your email address before logging in. Check your inbox for the verification email.',
                 'verification_required': True
             }, status=status.HTTP_403_FORBIDDEN)
-        
-        # If user is verified, proceed with normal token generation
+
+        # If user is verified and not banned, proceed with normal token generation
         return super().post(request, *args, **kwargs)
 
 class PasswordResetView(APIView):
@@ -886,3 +1112,278 @@ class PasswordStrengthView(APIView):
                 'success': False,
                 'error': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
+
+class UserSearchView(APIView):
+    """Search for users by username, skills, or location"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            # Get search parameters
+            query = request.GET.get('q', '').strip()
+            skills = request.GET.get('skills', '').strip()
+            location = request.GET.get('location', '').strip()
+            min_level = request.GET.get('min_level', '')
+            max_level = request.GET.get('max_level', '')
+            
+            # Build the search query
+            from django.db.models import Q
+            from .models import UserSkill
+            
+            search_query = Q()
+            
+            # Search by username or display name
+            if query:
+                search_query |= Q(username__icontains=query) | Q(display_name__icontains=query)
+            
+            # Search by location
+            if location:
+                search_query &= Q(location__icontains=location)
+            
+            # Search by level range
+            if min_level:
+                try:
+                    search_query &= Q(level__gte=int(min_level))
+                except ValueError:
+                    pass
+                    
+            if max_level:
+                try:
+                    search_query &= Q(level__lte=int(max_level))
+                except ValueError:
+                    pass
+            
+            # Get base users
+            users = User.objects.filter(search_query).exclude(id=request.user.id)
+            
+            # Filter by skills if provided
+            if skills:
+                skill_list = [skill.strip() for skill in skills.split(',') if skill.strip()]
+                if skill_list:
+                    # Get users who have any of the specified skills
+                    users_with_skills = UserSkill.objects.filter(
+                        skill__name__in=skill_list
+                    ).values_list('user_id', flat=True)
+                    users = users.filter(id__in=users_with_skills)
+            
+            # Limit results and serialize
+            users = users[:50]  # Limit to 50 results
+            serializer = UserSearchSerializer(users, many=True)
+            
+            return Response({
+                'success': True,
+                'results': serializer.data,
+                'count': len(serializer.data)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+class SkillsListView(APIView):
+    """List all available skills organized by category"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        try:
+            # Get skills from database
+            skills = Skill.objects.filter(is_active=True).order_by('category', 'name')
+
+            # Organize by category
+            skills_by_category = {}
+            for skill in skills:
+                if skill.category not in skills_by_category:
+                    skills_by_category[skill.category] = []
+                skills_by_category[skill.category].append({
+                    'id': str(skill.id),
+                    'name': skill.name,
+                    'description': skill.description
+                })
+
+            # If no skills in database, return predefined skills as objects with fake UUIDs
+            import uuid
+            if not skills_by_category:
+                for cat, arr in COLLEGE_SKILLS.items():
+                    skills_by_category[cat] = [
+                        {'id': str(uuid.uuid5(uuid.NAMESPACE_DNS, name)), 'name': name, 'description': ''}
+                        for name in arr
+                    ]
+
+            return Response({
+                'success': True,
+                'skills_by_category': skills_by_category
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+class UserSkillsView(APIView):
+    """Manage user skills"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get user's current skills"""
+        try:
+            print("[DEBUG] User in request:", request.user)
+            if not request.user or not request.user.is_authenticated:
+                print("[DEBUG] User is not authenticated!")
+                return Response({
+                    'success': False,
+                    'error': 'Authentication required.'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+
+            user_skills = UserSkill.objects.filter(user=request.user).select_related('skill')
+            print(f"[DEBUG] Found {user_skills.count()} user skills for user {request.user}")
+            serializer = UserSkillSerializer(user_skills, many=True)
+            print(f"[DEBUG] Serialized data: {serializer.data}")
+            return Response({
+                'success': True,
+                'skills': serializer.data
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            import traceback
+            print("[DEBUG] Exception in UserSkillsView.get:", str(e))
+            traceback.print_exc()
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def post(self, request):
+        """Add or update user skills"""
+        try:
+            print("[DEBUG] Incoming data:", request.data)
+            serializer = SkillsManagementSerializer(data=request.data, context={'request': request})
+            if serializer.is_valid():
+                serializer.save()
+                print("[DEBUG] Skills updated successfully.")
+                return Response({
+                    'success': True,
+                    'message': 'Skills updated successfully'
+                }, status=status.HTTP_200_OK)
+            else:
+                print("[DEBUG] Serializer errors:", serializer.errors)
+                return Response({
+                    'success': False,
+                    'errors': serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            print("[DEBUG] Exception in UserSkillsView.post:", str(e))
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+# --- API endpoint: List all users for frontend user search ---
+from rest_framework.permissions import AllowAny
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from .models import User, UserSkill, Skill
+from django.db.models import Prefetch
+
+class UserListForFrontendView(APIView):
+    """
+    API endpoint to list all users in a format compatible with the frontend user search.
+    Returns: id, username, displayName, avatar, level, completedQuests, guilds, skills, bio, roleDisplay, badges, etc.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            # Optionally: add filters here (e.g., search, pagination)
+            users = User.objects.all()[:100]  # Limit to 100 users for performance
+            user_ids = [user.id for user in users]
+            # Get all user skills in one query
+            user_skills = UserSkill.objects.filter(user_id__in=user_ids).select_related('skill')
+            skills_by_user = {}
+            for us in user_skills:
+                if us.user_id not in skills_by_user:
+                    skills_by_user[us.user_id] = []
+                if us.skill:
+                    skills_by_user[us.user_id].append({
+                        'id': us.skill.id,
+                        'name': us.skill.name,
+                        'description': us.skill.description
+                    })
+            user_list = []
+            for user in users:
+                # Serialize guilds as list of objects with id and name, ensure unique ids
+                guilds = []
+                if hasattr(user, 'guilds') and hasattr(user.guilds, 'all'):
+                    seen_guild_ids = set()
+                    for g in user.guilds.all():
+                        if g.id not in seen_guild_ids:
+                            guilds.append({'id': str(g.id), 'name': g.name})
+                            seen_guild_ids.add(g.id)
+                # Serialize badges as list of objects with id and name, ensure unique ids
+                badges = []
+                if hasattr(user, 'badges') and hasattr(user.badges, 'all'):
+                    seen_badge_ids = set()
+                    for b in user.badges.all():
+                        if b.id not in seen_badge_ids:
+                            badges.append({'id': str(b.id), 'name': b.name})
+                            seen_badge_ids.add(b.id)
+                # Serialize skills as list of objects with id and name, ensure unique ids
+                skills = []
+                seen_skill_ids = set()
+                for s in skills_by_user.get(user.id, []):
+                    if s['id'] not in seen_skill_ids:
+                        skills.append({'id': str(s['id']), 'name': s['name'], 'description': s.get('description', '')})
+                        seen_skill_ids.add(s['id'])
+                user_list.append({
+                    'id': str(user.id),
+                    'username': user.username,
+                    'displayName': getattr(user, 'display_name', user.username),
+                    'avatar': getattr(user, 'avatar_url', None),
+                    'level': getattr(user, 'level', 1),
+                    'completedQuests': getattr(user, 'completed_quests', 0),
+                    'guilds': guilds,
+                    'skills': skills,
+                    'bio': getattr(user, 'bio', ''),
+                    'roleDisplay': getattr(user, 'role_display', ''),
+                    'badges': badges,
+                })
+            return Response(user_list, status=200)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+from rest_framework.response import Response
+
+class CurrentUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        # You can use a serializer if you want more fields or custom formatting
+        data = {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'first_name': getattr(user, 'first_name', ''),
+            'last_name': getattr(user, 'last_name', ''),
+            # Add more fields as needed
+        }
+        return Response(data)
+
+class UpdateProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        return Response({'message': 'UpdateProfileView placeholder'}, status=200)
+
+class PublicProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request, username=None):
+        return Response({'message': f'PublicProfileView placeholder for {username}'}, status=200)
+
+class RegisterUserView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        return Response({'message': 'RegisterUserView placeholder'}, status=200)

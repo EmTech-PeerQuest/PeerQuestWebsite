@@ -2,49 +2,64 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 from corsheaders.defaults import default_headers
+from datetime import timedelta # Moved import to top for consistency
 
 # Load environment variables from .env file
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'your-secret-key'
+SECRET_KEY = 'your-secret-key' # IMPORTANT: Change this to a strong, random key in production!
 DEBUG = True
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver', '*']  # Allow all hosts for development
 
 # Installed Apps
 INSTALLED_APPS = [
+    'daphne',  # Add Daphne at the top for WebSocket support
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    
+    # Django Channels
+    'channels', 
+
+    # OAuth2 and social auth
+    'oauth2_provider',
+    'social_django',
+    'drf_social_oauth2',
+    'quests.apps.QuestsConfig',
     'drf_yasg',
-
-    # Your apps
     'users',
-
-    # DRF and tools
+    'guilds',
+    'notifications',
+    'messaging',
+    'applications',
+    'xp',
+    'payments',
     'rest_framework',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
-
     'django_filters',
+    'transactions',
 ]
 
 # Middleware
 # Middleware order is important: Security first, then session, then CORS, then common/csrf/auth, then JWT last
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.locale.LocaleMiddleware',  # Add locale middleware for i18n
-    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'users.token_middleware.TokenBlacklistMiddleware',  # Token blacklist check
-    'users.middleware.JWTAuthMiddleware',  # <-- moved above AuthenticationMiddleware
+    'users.token_middleware.TokenBlacklistMiddleware',
+    'users.middleware.JWTAuthMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'users.email_verification_middleware.EmailVerificationMiddleware',  # Email verification check
+    'users.email_verification_middleware.EmailVerificationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -68,13 +83,51 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'core.wsgi.application'
 
-# Database (SQLite for dev)
+# Channels/ASGI Configuration
+# This specifies the entry point for Django Channels
+WSGI_APPLICATION = 'core.wsgi.application' # Standard WSGI for HTTP requests
+ASGI_APPLICATION = 'core.asgi.application'
+
+# Channel Layers for WebSocket support (using in-memory for development)
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer'
+    }
+}
+
+# For production with Redis:
+# CHANNEL_LAYERS = {
+#     'default': {
+#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
+#         'CONFIG': {
+#             "hosts": [('127.0.0.1', 6379)],
+#         },
+#     },
+# }
+
+# Channel Layers (using Redis for development)
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("redis", 6379)], 
+        },
+    },
+}
+
+# For Celery
+CELERY_BROKER_URL = "redis://redis:6379/0"
+
+# Database (SQLite for development)
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': os.environ.get('DB_NAME', 'peerquestdb'),
+        'USER': os.environ.get('DB_USER', 'peerquestuser'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'peerquestpass'),
+        'HOST': os.environ.get('DB_HOST', 'mysql'),
+        'PORT': os.environ.get('DB_PORT', '3306'),
     }
 }
 
@@ -117,12 +170,13 @@ AUTH_PASSWORD_VALIDATORS = [
             'exempt_superadmin': True,
         }
     },
-    {
-        'NAME': 'users.password_validators.CommonPasswordValidatorEnhanced',
-        'OPTIONS': {
-            'exempt_superadmin': True,
-        }
-    },
+    # {
+    #     'NAME': 'users.password_validators.CommonPasswordValidatorEnhanced',
+    #     'OPTIONS': {
+    #         'exempt_superadmin': True,
+    #         'password_list_path': str(BASE_DIR / 'users' / 'common-passwords.txt.gz'),
+    #     }
+    # },
     # Keep the original Django validators as fallback
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -143,7 +197,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'Asia/Manila'
+TIME_ZONE = 'Asia/Manila' # Correct timezone for your location
 USE_I18N = True
 USE_L10N = True
 USE_TZ = True
@@ -162,9 +216,11 @@ LOCALE_PATHS = [
     BASE_DIR / 'locale',
 ]
 
-# Static and Media
-STATIC_URL = 'static/'
-STATICFILES_DIRS = [BASE_DIR / "static"]
+# Static and Media Files Configuration
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [BASE_DIR / "static"] # Directory for collectstatic to gather static files from
+STATIC_ROOT = BASE_DIR / "staticfiles" # Where 'collectstatic' will put all static files
+
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
@@ -185,42 +241,80 @@ GOOGLE_OAUTH2_SCOPES = [
 
 # Authentication backends
 AUTHENTICATION_BACKENDS = (
-    'django.contrib.auth.backends.ModelBackend',              # Default Django
+    'django.contrib.auth.backends.ModelBackend', # Default Django ModelBackend
 )
 
-# DRF Settings
+
+# DRF Settings - Session Authentication only
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": (
-        "rest_framework.permissions.AllowAny",
+        "common.not_banned_permission.NotBannedPermission",
+    ),
+    'EXCEPTION_HANDLER': 'core.exception_handler.custom_exception_handler',
+    "DEFAULT_FILTER_BACKENDS": ( # Add if you plan to use django-filter extensively
+        "django_filters.rest_framework.DjangoFilterBackend",
     ),
 }
 
+# Custom User Model
 AUTH_USER_MODEL = "users.user"
 
-from datetime import timedelta
-
+# Django REST Framework Simple JWT Settings
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'UPDATE_LAST_LOGIN': True,
-    'USER_ID_FIELD': 'id',
-    'USER_ID_CLAIM': 'user_id',
+    'ROTATE_REFRESH_TOKENS': True, # Important for better security with refresh tokens
+    'UPDATE_LAST_LOGIN': True, # Updates last_login field on user model
+    'USER_ID_FIELD': 'id', # Your custom user model likely uses 'id' (UUID)
+    'USER_ID_CLAIM': 'user_id', # Claim name in JWT payload for user ID
+    
+    # Recommended additions for JWT (security/best practices)
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
+    'AUDIENCE': None,
+    'ISSUER': None,
+    'JWK_URL': None,
+    'LEEWAY': 0,
+
+    'AUTH_HEADER_TYPES': ('Bearer',), # Common practice
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
+
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
+
+    'JTI_CLAIM': 'jti',
+
+    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
 }
 
 
-# CORS
+# CORS Headers Configuration
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://localhost:3002",
+    "http://127.0.0.1:3002",
+    "http://localhost:3003",
+    "http://127.0.0.1:3003",
+    "http://localhost:8001",  # Add backend URL for WebSocket testing
+    "http://127.0.0.1:8001",
 ]
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'X-Requested-With',
+    'Authorization',
+    'Cache-Control',
+    'Pragma',
 ]
 CORS_ALLOW_METHODS = [
     "DELETE",
@@ -233,26 +327,35 @@ CORS_ALLOW_METHODS = [
 CORS_EXPOSE_HEADERS = [
     'Content-Type',
     'X-CSRFToken',
+    # Add any custom headers your backend might send that frontend needs to read
 ]
 
-# Add CORS_ALLOW_ALL_ORIGINS = False for explicitness
-CORS_ALLOW_ALL_ORIGINS = False
+# Explicitly disable CORS_ALLOW_ALL_ORIGINS if you are listing allowed origins
+CORS_ALLOW_ALL_ORIGINS = False 
 
-# Optional: disable token model warnings
+# Optional: disable token model warnings (if you don't use Django Rest Auth Token models)
 DJRESTAUTH_TOKEN_MODEL = None
 
-# Default primary key type
+# Default primary key type for models introduced in Django 3.2+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Add CSRF trusted origins for frontend
+# OAuth2 Provider models (fixes makemigrations error)
+OAUTH2_PROVIDER_ACCESS_TOKEN_MODEL = 'oauth2_provider.AccessToken'
+OAUTH2_PROVIDER_APPLICATION_MODEL = 'oauth2_provider.Application'
+OAUTH2_PROVIDER_ID_TOKEN_MODEL = 'oauth2_provider.IDToken'
+OAUTH2_PROVIDER_GRANT_MODEL = 'oauth2_provider.Grant'
+OAUTH2_PROVIDER_REFRESH_TOKEN_MODEL = 'oauth2_provider.RefreshToken'
+
+# CSRF Trusted Origins for frontend (useful for AJAX requests from different origins)
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
 
-# Session cookie settings for cross-origin authentication
-SESSION_COOKIE_SAMESITE = "Lax"  # Use "None" if using HTTPS and cross-site
-SESSION_COOKIE_SECURE = False     # Set to True if using HTTPS
+# Session and CSRF cookie settings for cross-origin authentication
+# IMPORTANT: Adjust SESSION_COOKIE_SECURE and CSRF_COOKIE_SECURE to True in production with HTTPS!
+SESSION_COOKIE_SAMESITE = "Lax" 
+SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SECURE = False
 
@@ -271,3 +374,70 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 
 DEFAULT_FROM_EMAIL = 'PeerQuest <noreply@peerquest.com>'
 FRONTEND_URL = 'http://localhost:3000'  # Frontend URL for verification links
+
+# Prevent Django from appending a slash to URLs that don't have one
+# This is often helpful when working with frontends that expect exact API paths.
+APPEND_SLASH = False
+
+# --- LOGGING CONFIGURATION (Added/Updated) ---
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+        'channels': { # Dedicated formatter for Channels logs
+            'format': '[{levelname}] {asctime} {pathname} {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'DEBUG', # Set to DEBUG to see all log levels in console during development
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose'
+        },
+        # Optional: File handler for persistent logs (uncomment and configure for production)
+        # 'file': {
+        #     'level': 'INFO', # Adjust level as needed for file output (INFO or WARNING in prod)
+        #     'class': 'logging.FileHandler',
+        #     'filename': os.path.join(BASE_DIR, 'logs', 'django_channels_debug.log'), # Ensure 'logs' dir exists
+        #     'formatter': 'channels',
+        # },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO', # General Django logging level
+            'propagate': False,
+        },
+        'messaging.consumers': { # IMPORTANT: Your specific consumer logger
+            'handlers': ['console'], # Add 'file' if you enabled it above
+            'level': 'DEBUG', # VERY IMPORTANT: Set this to DEBUG to see all your new consumer logs
+            'propagate': False,
+        },
+        'channels': { # Channels internal logs
+            'handlers': ['console'],
+            'level': 'INFO', # Usually INFO is sufficient for Channels itself
+            'propagate': False,
+        },
+        # You can add loggers for other apps if you want specific log levels for them
+        # 'users': {
+        #     'handlers': ['console'],
+        #     'level': 'INFO',
+        #     'propagate': False,
+        # },
+        # 'xp': {
+        #     'handlers': ['console'],
+        #     'level': 'INFO',
+        #     'propagate': False,
+        # },
+    },
+}

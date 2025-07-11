@@ -24,16 +24,18 @@ export async function fetchInitialData() {
     }
 
     // Update endpoints to match backend
-    const [userRes, questsRes, guildsRes] = await Promise.all([
+    const [userRes, questsRes, guildsRes, usersRes] = await Promise.all([
       axios.get(`${BASE_URL}/api/users/profile/`, config),
       axios.get(`${BASE_URL}/api/quests/`, config),
-      axios.get(`${BASE_URL}/api/guilds/`, config)
+      axios.get(`${BASE_URL}/api/guilds/`, config),
+      axios.get(`${BASE_URL}/api/users/search/`, config)
     ])
 
     return {
       user: userRes.data,
       quests: questsRes.data,
       guilds: guildsRes.data,
+      users: usersRes.data?.results || [],
       guildApplications: [] // update if you have this endpoint
     }
   } catch (error: any) {
@@ -48,6 +50,7 @@ export async function fetchInitialData() {
       user: null,
       quests: [],
       guilds: [],
+      users: [],
       guildApplications: []
     }
   }

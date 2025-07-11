@@ -8,12 +8,13 @@ from django.conf.urls.static import static
 from django.views.generic import TemplateView
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.http import JsonResponse
+
 from django.utils import timezone
 from users.views import GoogleLoginCallbackView, EmailVerifiedTokenObtainPairView
-
 from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
+from messaging.views import StartConversationView  # Add this import
 
 schema_view = get_schema_view(
     openapi.Info(
@@ -25,33 +26,49 @@ schema_view = get_schema_view(
     permission_classes=(permissions.AllowAny,),
 )
 
+
 def csrf(request):
     return JsonResponse({'csrfToken': request.META.get('CSRF_COOKIE', '')})
 
 urlpatterns = [
     path('', TemplateView.as_view(template_name="blog/index.html")),
     path('admin/', admin.site.urls),
-
     # JWT Auth endpoints
     path('api/token/', EmailVerifiedTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
+
     # Users app
     path('api/users/', include('users.urls')),
-    
+    # PeerQuest frontend user list endpoint (direct, not nested)
+    path('api/users/', __import__('users.views').views.UserListForFrontendView.as_view(), name='frontend-user-list'),
     # Direct Google login callback for /api/google-login-callback/
     path('api/google-login-callback/', GoogleLoginCallbackView.as_view(), name='google-login-callback'),
-    # Quests and Guilds APIs
+    
+    # Guilds API
+    path('api/guilds/', include('guilds.urls')),
+    # Applications API
+    path('api/', include('applications.urls')),
+    # Transactions API
+    path('api/transactions/', include('transactions.urls')),
+    # Payments API
+    path('api/payments/', include('payments.urls')),
+    # Quests API
     path('api/quests/', include('quests.urls')),
     path('api/guilds/', include('guilds.urls')),
-
+    # Messaging app
+    path('api/messages/', include('messaging.urls')),
+    path('api/conversations/', include('messaging.urls')),
+    # Start conversation endpoint (to match frontend expectation)
+    path('api/conversations/start/', StartConversationView.as_view(), name='start-conversation'),
     # API Docs (Swagger + Redoc)
+    path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     path('docs/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     path('schema/', schema_view.without_ui(cache_timeout=0), name='schema-json'),
-
     # CSRF protection
     path('api/csrf/', ensure_csrf_cookie(csrf)),
+    path("api/conversations/", include("messaging.urls")),
 
     # Test endpoint to verify backend is working
     path('test/', lambda request: JsonResponse({'status': 'Backend is working'}), name='test'),
@@ -62,3 +79,4 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

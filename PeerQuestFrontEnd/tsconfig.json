@@ -1,21 +1,30 @@
 {
   "compilerOptions": {
     "target": "ES6",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
+    "checkJs": false,
     "skipLibCheck": true,
     "strict": true,
+    "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
-    "moduleResolution": "node",              // ✅ FIXED for proper path aliasing
+    "moduleResolution": "node", // ✅ FIXED for proper path aliasing
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
+    "jsxImportSource": "react",
     "incremental": true,
-    "baseUrl": ".",                          // ✅ Needed for "@/..." alias
+    "baseUrl": ".", // ✅ Needed for "@/..." alias
     "paths": {
-      "@/*": ["./*"]                         // ✅ "@/lib/..." now works
+      "@/*": [
+        "./*"
+      ] // ✅ "@/lib/..." now works
     },
     "plugins": [
       {
@@ -29,5 +38,7 @@
     "**/*.tsx",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules"
+  ]
 }

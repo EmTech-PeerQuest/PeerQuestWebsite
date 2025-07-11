@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X, Coins, Clock, Target, Users } from "lucide-react"
 import type { User, Quest, Guild } from "@/lib/types"
 import { ConfirmationModal } from '@/components/modals/confirmation-modal'
@@ -18,7 +18,7 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
     title: "",
     description: "",
     category: "",
-    difficulty: 2,
+    difficulty: 1, // Default to Initiate
     reward: "",
     deadline: "",
     postAs: "individual",
@@ -27,16 +27,28 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
 
   const [showConfirmation, setShowConfirmation] = useState(false)
 
+  // Reset form when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setQuestForm({
+        title: "",
+        description: "",
+        category: "",
+        difficulty: 2,
+        reward: "",
+        deadline: "",
+        postAs: "individual",
+        selectedGuild: "",
+      })
+      setShowConfirmation(false)
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
 
   // Get guilds where user has posting permissions
-  const userGuilds = guilds.filter(
-    (guild) =>
-      guild.membersList?.includes(currentUser?.id || 0) &&
-      (guild.admins?.includes(currentUser?.id || 0) ||
-        guild.poster.id === currentUser?.id ||
-        guild.settings?.permissions?.whoCanPost === "members"),
-  )
+  // Note: Simplified guild filtering since the Guild type doesn't have detailed permission properties
+  const userGuilds = guilds.filter((guild) => guild.id && guild.name)
 
   const handleSubmit = () => {
     if (!currentUser) {
@@ -51,9 +63,9 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
 
     // Check if user has enough gold for the reward
     const rewardAmount = Number.parseInt(questForm.reward)
-    if (currentUser.gold < rewardAmount) {
+    if ((currentUser.gold || 0) < rewardAmount) {
       alert(
-        `Insufficient gold. You need ${rewardAmount} gold to post this quest but only have ${currentUser.gold} gold.`,
+        `Insufficient gold. You need ${rewardAmount} gold to post this quest but only have ${currentUser.gold || 0} gold.`,
       )
       return
     }
@@ -68,17 +80,25 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
 
     const selectedGuild =
       questForm.postAs === "guild" && questForm.selectedGuild
-        ? guilds.find((g) => g.id.toString() === questForm.selectedGuild)
+        ? guilds.find((g) => g.id?.toString() === questForm.selectedGuild)
         : null
 
-    const newQuest: Partial<Quest> = {
+    // Map difficulty slider to new fantasy tiers and XP
+    const difficultyMap = {
+      1: { key: "initiate", xp: 25 },
+      2: { key: "adventurer", xp: 50 },
+      3: { key: "champion", xp: 100 },
+      4: { key: "mythic", xp: 200 },
+    };
+    const selectedDifficulty = difficultyMap[questForm.difficulty as keyof typeof difficultyMap];
+    const newQuest: any = {
       title: questForm.title,
       description: questForm.description,
       category: questForm.category,
-      difficulty: questForm.difficulty === 1 ? "easy" : questForm.difficulty === 2 ? "medium" : "hard",
+      difficulty: selectedDifficulty.key,
       reward: Number.parseInt(questForm.reward),
-      xp: questForm.difficulty === 1 ? 50 : questForm.difficulty === 2 ? 75 : 150,
-      deadline: new Date(questForm.deadline),
+      xp: selectedDifficulty.xp,
+      deadline: questForm.deadline,
       poster: selectedGuild
         ? {
             id: selectedGuild.id,
@@ -88,13 +108,18 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
           }
         : currentUser,
       isGuildQuest: questForm.postAs === "guild",
-      guildId: selectedGuild?.id,
+      guildId: selectedGuild?.id ? Number(selectedGuild.id) : undefined,
+      questCost,
     }
 
     if (onSubmit) {
-      onSubmit({ ...newQuest, questCost })
+      onSubmit(newQuest)
     }
 
+    // Close confirmation modal and reset form
+    // Note: Form reset happens regardless of success/failure since onSubmit doesn't return a promise
+    // This matches the expected behavior where the modal closes after submission attempt
+    setShowConfirmation(false)
     setQuestForm({
       title: "",
       description: "",
@@ -105,19 +130,21 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
       postAs: "individual",
       selectedGuild: "",
     })
-    setShowConfirmation(false)
   }
 
+  // Fantasy tier colors and labels
   const difficultyColors = {
-    1: "from-green-400 to-green-600",
-    2: "from-yellow-400 to-orange-500",
-    3: "from-red-400 to-red-600",
+    1: "from-green-200 to-green-400",      // Initiate
+    2: "from-blue-200 to-blue-400",       // Adventurer
+    3: "from-yellow-300 to-orange-400",   // Champion
+    4: "from-purple-400 to-pink-300",     // Mythic
   }
 
   const difficultyLabels = {
-    1: { name: "EASY", xp: "50 XP", desc: "Perfect for beginners" },
-    2: { name: "MEDIUM", xp: "75 XP", desc: "Moderate challenge" },
-    3: { name: "HARD", xp: "150 XP", desc: "Expert level required" },
+    1: { name: "Initiate Tier", icon: "📜", xp: "25 XP", desc: "Perfect for beginners" },
+    2: { name: "Adventurer Tier", icon: "🧭", xp: "50 XP", desc: "A true adventure" },
+    3: { name: "Champion Tier", icon: "⚔️", xp: "100 XP", desc: "Expert level required" },
+    4: { name: "Mythic Tier", icon: "👑", xp: "200 XP", desc: "Legendary challenge for the bravest!" },
   }
 
   return (
@@ -132,6 +159,7 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
             </div>
             <button
               onClick={onClose}
+              aria-label="Close modal"
               className="text-white hover:text-[#F4F0E6] transition-colors p-2 hover:bg-white/10 rounded-lg"
             >
               <X size={24} />
@@ -176,6 +204,7 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
             <div className="space-y-2">
               <label className="block text-sm font-bold text-[#2C1A1D] uppercase tracking-wide">Category</label>
               <select
+                aria-label="Select quest category"
                 className="w-full px-4 py-3 border-2 border-[#CDAA7D] rounded-lg bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] focus:ring-2 focus:ring-[#8B75AA]/20 transition-all"
                 value={questForm.category}
                 onChange={(e) => setQuestForm((prev) => ({ ...prev, category: e.target.value }))}
@@ -212,17 +241,15 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
           <div className="space-y-4">
             <label className="block text-sm font-bold text-[#2C1A1D] uppercase tracking-wide">Difficulty Level</label>
             <div className="space-y-3">
-              <input
-                type="range"
-                min="1"
-                max="3"
-                value={questForm.difficulty}
-                onChange={(e) => setQuestForm((prev) => ({ ...prev, difficulty: Number.parseInt(e.target.value) }))}
-                className="w-full h-3 rounded-lg appearance-none cursor-pointer"
-                style={{
-                  background: `linear-gradient(to right, ${questForm.difficulty === 1 ? "#10b981" : questForm.difficulty === 2 ? "#f59e0b" : "#ef4444"} 0%, ${questForm.difficulty === 1 ? "#059669" : questForm.difficulty === 2 ? "#d97706" : "#dc2626"} 100%)`,
-                }}
-              />
+            <input
+              type="range"
+              min="1"
+              max="4"
+              value={questForm.difficulty}
+              onChange={(e) => setQuestForm((prev) => ({ ...prev, difficulty: Number.parseInt(e.target.value) }))}
+              aria-label="Difficulty level slider"
+              className="w-full h-3 rounded-lg appearance-none cursor-pointer bg-gradient-to-r from-green-400 to-purple-400"
+            />
               <div
                 className={`p-4 rounded-lg bg-gradient-to-r ${difficultyColors[questForm.difficulty as keyof typeof difficultyColors]} text-white`}
               >
@@ -254,6 +281,7 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
             </label>
             <input
               type="date"
+              aria-label="Quest deadline date"
               className="w-full px-4 py-3 border-2 border-[#CDAA7D] rounded-lg bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] focus:ring-2 focus:ring-[#8B75AA]/20 transition-all"
               value={questForm.deadline}
               onChange={(e) => setQuestForm((prev) => ({ ...prev, deadline: e.target.value }))}
@@ -288,44 +316,27 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
                 </div>
               </label>
 
-              {/* Guild Options */}
-              {userGuilds.length > 0 && (
-                <label className="flex items-start gap-3 p-4 border-2 border-[#CDAA7D] rounded-lg cursor-pointer hover:bg-white/50 transition-all">
+              {/* Guild Options - Coming Soon */}
+              <div className="relative">
+                <label className="flex items-start gap-3 p-4 border-2 border-dashed border-[#CDAA7D] rounded-lg opacity-50 cursor-not-allowed">
                   <input
                     type="radio"
                     name="postAs"
                     value="guild"
-                    checked={questForm.postAs === "guild"}
-                    onChange={(e) => setQuestForm((prev) => ({ ...prev, postAs: e.target.value }))}
-                    className="w-4 h-4 text-[#8B75AA] mt-1"
+                    disabled
+                    className="w-4 h-4 text-[#8B75AA] mt-1 opacity-50 cursor-not-allowed"
                   />
                   <div className="flex-1">
-                    <div className="font-medium text-[#2C1A1D] mb-2">Guild Representative</div>
-                    <div className="text-sm text-[#8B75AA] mb-3">Post on behalf of a guild</div>
-
-                    {questForm.postAs === "guild" && (
-                      <select
-                        className="w-full px-3 py-2 border border-[#CDAA7D] rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]"
-                        value={questForm.selectedGuild}
-                        onChange={(e) => setQuestForm((prev) => ({ ...prev, selectedGuild: e.target.value }))}
-                      >
-                        <option value="">Select a guild...</option>
-                        {userGuilds.map((guild) => (
-                          <option key={guild.id} value={guild.id.toString()}>
-                            {guild.emblem} {guild.name}
-                          </option>
-                        ))}
-                      </select>
-                    )}
+                    <div className="font-medium text-[#2C1A1D] mb-2 flex items-center gap-2">
+                      Guild Representative
+                      <span className="bg-[#8B75AA] text-white text-xs px-2 py-1 rounded-full font-bold">
+                        COMING SOON
+                      </span>
+                    </div>
+                    <div className="text-sm text-[#8B75AA] mb-3">Post on behalf of a guild (Feature in development)</div>
                   </div>
                 </label>
-              )}
-
-              {userGuilds.length === 0 && (
-                <div className="p-4 border-2 border-dashed border-[#CDAA7D] rounded-lg text-center">
-                  <p className="text-[#8B75AA] text-sm">Join a guild to post quests on their behalf</p>
-                </div>
-              )}
+              </div>
             </div>
           </div>
 
@@ -354,7 +365,6 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
           message={`Are you sure you want to post this quest? The reward amount will be deducted from your gold balance.`}
           goldAmount={Number.parseInt(questForm.reward) || 0}
           confirmText="Post Quest"
-          cancelText="Cancel"
         />
       </div>
     </div>

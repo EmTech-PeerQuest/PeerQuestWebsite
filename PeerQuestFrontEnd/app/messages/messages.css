@@ -1,0 +1,70 @@
+/* Essential Tavern Messages Styles */
+.tavern-messages-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--tavern-cream);
+}
+
+/* Optional: in case you use scrollable message lists */
+.tavern-messages-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.tavern-loading-screen {
+  display: flex;
+  height: 100vh;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--tavern-cream);
+}
+
+.tavern-connection-status {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  border: 2px solid;
+  pointer-events: none;
+}
+
+.tavern-connection-status.connected {
+  background-color: #4caf50;
+  color: white;
+  border-color: #45a049;
+}
+
+.tavern-connection-status.disconnected {
+  background-color: #f44336;
+  color: white;
+  border-color: #d32f2f;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

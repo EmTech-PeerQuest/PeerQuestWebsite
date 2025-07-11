@@ -1,16 +1,41 @@
+// --- fetchWithAuth utility for authenticated fetch requests ---
+export async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  
+  const headers = {
+    ...(options.headers || {}),
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+  };
+  
+  const response = await fetch(url, { ...options, headers });
+  
+  // Handle authentication errors
+  if (response.status === 401) {
+    // Try to parse error details
+    let errorDetail = '';
+    try {
+      const data = await response.json();
+      errorDetail = data?.detail || '';
+    } catch {}
+    
+    if (errorDetail.includes('token') || errorDetail.includes('authentication')) {
+      // Remove invalid tokens and redirect to login ONLY if a token was present
+      if (token && typeof window !== 'undefined') {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        window.location.href = '/';
+        throw new TokenInvalidError(errorDetail || 'Token not valid');
+      }
+    }
+  }
+  
+  return response;
+}
 import axios from "axios";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
-// Custom error for invalid/expired JWT
-export class TokenInvalidError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "TokenInvalidError";
-  }
-}
-
-// JWT login
+// Login: Obtain JWT tokens
 export const login = async (username: string, password: string) => {
   console.log('🔍 API login called with username:', username);
   try {
@@ -246,8 +271,8 @@ export const resendVerificationEmail = async (email: string) => {
   }
 };
 
-// Fetch user profile (JWT required)
-export const fetchUser = async (token: string) => {
+// Fetch user profile by token
+export const fetchUser = async (token: string): Promise<User> => {
   try {
     const response = await axios.get(`${API_BASE}/api/users/profile/`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -257,15 +282,19 @@ export const fetchUser = async (token: string) => {
     
     return response;
   } catch (error: any) {
-    // Detect JWT errors
-    const detail = error?.response?.data?.detail || "";
+    console.error("Fetch user API error:", error.response?.data)
+
+    const detail = error?.response?.data?.detail || ""
     if (
       error?.response?.status === 401 &&
-      (detail.includes("token not valid") || detail.includes("token has expired") || detail.includes("credentials were not provided"))
+      (detail.includes("token not valid") ||
+        detail.includes("token has expired") ||
+        detail.includes("credentials were not provided"))
     ) {
-      throw new TokenInvalidError(detail || "Token not valid");
+      throw new TokenInvalidError(detail || "Token not valid")
     }
-    throw error;
+
+    throw new Error("Failed to fetch user")
   }
 };
 
@@ -299,12 +328,31 @@ export const refreshToken = async () => {
   }
 };
 
-// Axios interceptor for automatic token refresh
+// Axios interceptor for automatic token refresh and ban enforcement
 axios.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    
+    // Ban enforcement: if 403 and ban info, redirect to /banned
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.ban_reason
+    ) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('ban_info', JSON.stringify({
+          reason: error.response.data.ban_reason,
+          expiresAt: error.response.data.ban_expires_at || null,
+        }));
+        // Remove user and tokens
+        localStorage.removeItem('user');
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        sessionStorage.removeItem('refresh_token');
+        // Redirect to ban page
+        window.location.href = '/banned';
+      }
+      return Promise.reject(error);
+    }
     // Don't handle 401 errors from login endpoints - let them bubble up
     if (error.response?.status === 401 && 
         (originalRequest.url?.includes('/api/token/') || 
@@ -312,30 +360,20 @@ axios.interceptors.response.use(
          originalRequest.url?.includes('/auth/google'))) {
       return Promise.reject(error);
     }
-    
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      
       try {
         const refreshData = await refreshToken();
-        
-        // Update the access token
         localStorage.setItem('access_token', refreshData.access);
-        
-        // Update the authorization header for the failed request
         originalRequest.headers.Authorization = `Bearer ${refreshData.access}`;
-        
-        // Retry the original request
         return axios(originalRequest);
       } catch (refreshError) {
-        // Token refresh failed, redirect to login only if not already on login page
         if (typeof window !== 'undefined' && !window.location.pathname.includes('login')) {
           window.location.href = '/';
         }
         return Promise.reject(refreshError);
       }
     }
-    
     return Promise.reject(error);
   }
 );
@@ -449,3 +487,10 @@ export const checkPasswordStrength = async (password: string, username?: string,
     throw error;
   }
 };
+
+export class TokenInvalidError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TokenInvalidError";
+  }
+}
