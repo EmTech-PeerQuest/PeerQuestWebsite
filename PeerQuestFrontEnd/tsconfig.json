@@ -10,6 +10,7 @@
     "checkJs": false,
     "skipLibCheck": true,
     "strict": true,
+    "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
@@ -18,12 +19,6 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "jsxImportSource": "react",
-    "types": [
-      "node",
-      "react",
-      "react-dom",
-      "next"
-    ],
     "incremental": true,
     "baseUrl": ".", // ✅ Needed for "@/..." alias
     "paths": {

@@ -6,31 +6,29 @@ import { Hero } from '@/components/ui/hero'
 import { QuestBoard } from '@/components/quests/quest-board-clean'
 import { QuestManagement } from '@/components/quests/quest-management'
 import { GuildHall } from '@/components/guilds/guild-hall'
-import { UserSearch } from '@/components/search/user-search';
-import MessagingSystem from '@/components/messaging/messaging-system';
-import { AdminPanel } from '@/components/admin/admin-panel';
-import { EnhancedGuildManagement } from '@/components/guilds/enhanced-guild-management';
+import { UserSearch } from '@/components/search/user-search'
+import MessagingSystem from '@/components/messaging/messaging-system'
+import AdminPanel from '@/components/admin/admin-panel'
+import { EnhancedGuildManagement } from '@/components/guilds/enhanced-guild-management'
 import { About } from "@/components/about"
 import { Footer } from '@/components/ui/footer'
 import { ToastProvider } from '@/components/ui/toast'
 import { useToast } from "@/hooks/use-toast"
-import { useAuth } from "@/context/AuthContext";
-import { useGoldBalance } from "@/context/GoldBalanceContext";
-import { AIChatbot } from '@/components/ai/ai-chatbot';
-import { AuthModal } from '@/components/auth/auth-modal';
-import { Settings } from '@/components/settings/settings';
-import { GoldSystemModal } from '@/components/gold/gold-system-modal';
-import { useRouter } from 'next/navigation';
-import Spinner from '@/components/ui/spinner';
-import LoadingModal from '@/components/ui/loading-modal';
-import { IntegratedProfile } from '@/components/profile/integrated-profile';
-import { UserSearch } from '@/components/search/user-search';
+import { useAuth } from "@/context/AuthContext"
+import { useGoldBalance } from "@/context/GoldBalanceContext"
+import { AIChatbot } from '@/components/ai/ai-chatbot'
+import { AuthModal } from '@/components/auth/auth-modal'
+import { Settings } from '@/components/settings/settings'
+import { GoldSystemModal } from '@/components/gold/gold-system-modal'
+import { useRouter } from 'next/navigation'
+import Spinner from '@/components/ui/spinner'
+import LoadingModal from '@/components/ui/loading-modal'
+import { IntegratedProfile } from '@/components/profile/integrated-profile'
 import type { User, Quest, Guild, GuildJoinRequest, CreateGuildData } from "@/lib/types"
 import { fetchInitialData } from '@/lib/api/init-data'
 import { SimpleGuildManagement } from '@/components/guilds/simple-guild-management'
 import { GuildOverviewModal } from '@/components/guilds/guild-overview-modal'
 import { EnhancedCreateGuildModal } from '@/components/guilds/enhanced-create-guild-modal'
-import AdminPanel from '@/components/admin/admin-panel'
 import { addSpendingRecord } from "@/lib/spending-utils"
 import { useGuilds, useGuildActions } from "@/hooks/useGuilds"
 import dynamic from 'next/dynamic'

@@ -16,7 +16,7 @@ export { Toast } from '@/components/ui/toast'
 export { Footer } from '@/components/ui/footer'
 export { EnhancedProfile } from '@/components/auth/enhanced-profile'
 // export { UserSearch } from "./user-search"  // Missing component
-export { MessagingSystem } from '@/components/messaging/messaging-system'
+export { default as MessagingSystem } from '@/components/messaging/messaging-system'
 export { QuestManagement } from '@/components/quests/quest-management'
 export { GuildManagement } from '@/components/guilds/guild-management'
 export { default as AdminPanel } from '@/components/admin/admin-panel'
