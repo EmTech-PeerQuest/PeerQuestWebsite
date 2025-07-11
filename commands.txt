@@ -1,8 +1,19 @@
 ////////// Docker Command Setup//////////
 docker-compose up --build
+docker-compose exec backend python manage.py makemigrations
 docker-compose exec backend python manage.py migrate
 docker-compose exec backend python manage.py createsuperuser
 docker-compose up
+
+//////////To handle the Backend//////////
+Create a separate terminal
+
+To stop:
+docker-compose stop backend
+
+To start again: (Just type)
+docker-compose up backend
+
 
 ////////// Docker START ONLY //////////
 docker-compose up

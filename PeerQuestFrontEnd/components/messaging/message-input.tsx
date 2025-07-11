@@ -163,7 +163,7 @@ export default function MessageInput({
       {/* Input area */}
       <form onSubmit={handleSubmit}>
         <div
-          className="flex items-center gap-3 p-3 rounded-2xl transition-all focus-within:shadow-lg"
+          className="flex items-center gap- p-3 rounded-2xl transition-all focus-within:shadow-lg"
           style={{
             background: "white",
             border: "2px solid #cdaa7d",
@@ -243,6 +243,7 @@ export default function MessageInput({
             disabled={isDisabled}
             className="p-2 rounded-full transition-all flex items-center justify-center"
             style={{
+              marginRight: "100px",
               background: isDisabled ? "#9e9e9e" : "linear-gradient(135deg, #cdaa7d 0%, #e6c78a 100%)",
               color: "#2c1a1d",
               border: "2px solid #8b75aa",

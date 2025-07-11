@@ -1,9 +1,16 @@
-import React from "react";
+import React, { useCallback, useState } from "react";
 
 // Messenger-style image preview (like Facebook Messenger)
-export function MessengerImage({ url, filename }: { url: string, filename?: string }) {
-  const [open, setOpen] = React.useState(false);
-  const handleDownload = async (e: React.MouseEvent) => {
+export function MessengerImage({
+  url,
+  filename,
+}: {
+  url: string;
+  filename?: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const handleDownload = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
       const response = await fetch(url, { mode: "cors" });
@@ -16,16 +23,17 @@ export function MessengerImage({ url, filename }: { url: string, filename?: stri
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 500);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
     } catch (err) {
-      window.open(url, "_blank");
+      window.open(url, "_blank", "noopener,noreferrer");
     }
-  };
+  }, [url, filename]);
+
   return (
     <>
       <img
         src={url}
-        alt={filename || "image"}
+        alt={filename || "User uploaded image"}
         style={{
           maxWidth: 180,
           maxHeight: 180,
@@ -36,11 +44,14 @@ export function MessengerImage({ url, filename }: { url: string, filename?: stri
           cursor: "pointer",
           boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
           margin: 2,
-          display: "block"
+          display: "block",
         }}
         onClick={() => setOpen(true)}
         title="Click to enlarge"
-        onError={e => { e.currentTarget.style.display = 'none'; }}
+        onError={(e) => {
+          e.currentTarget.onerror = null;
+          e.currentTarget.src = "/fallback-image.png"; // optional fallback
+        }}
       />
       {open && (
         <div
@@ -56,20 +67,20 @@ export function MessengerImage({ url, filename }: { url: string, filename?: stri
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            cursor: "zoom-out"
+            cursor: "zoom-out",
           }}
         >
           <img
             src={url}
-            alt={filename || "image"}
+            alt={filename || "Full image"}
             style={{
               maxWidth: "90vw",
               maxHeight: "90vh",
               borderRadius: 16,
               boxShadow: "0 4px 32px rgba(0,0,0,0.25)",
-              background: "#fff"
+              background: "#fff",
             }}
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           />
           <button
             onClick={handleDownload}
@@ -86,7 +97,7 @@ export function MessengerImage({ url, filename }: { url: string, filename?: stri
               border: "1px solid var(--tavern-purple)",
               textDecoration: "none",
               boxShadow: "0 2px 8px rgba(0,0,0,0.10)",
-              cursor: "pointer"
+              cursor: "pointer",
             }}
             title="Download image"
           >
@@ -94,41 +105,67 @@ export function MessengerImage({ url, filename }: { url: string, filename?: stri
           </button>
         </div>
       )}
-      <div style={{ fontSize: 12, color: "var(--tavern-dark)", marginTop: 2, textAlign: "center", wordBreak: "break-all" }}>{filename}</div>
+      <div
+        style={{
+          fontSize: 12,
+          color: "var(--tavern-dark)",
+          marginTop: 2,
+          textAlign: "center",
+          wordBreak: "break-all",
+        }}
+      >
+        {filename}
+      </div>
     </>
   );
 }
 
 // Messenger-style file download link
-export function MessengerFile({ url, filename }: { url: string, filename?: string }) {
-  const handleDownload = async (e: React.MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault();
-    try {
-      const response = await fetch(url, { mode: "cors" });
-      if (!response.ok) throw new Error("Network error");
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = filename || "file";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 500);
-    } catch (err) {
-      window.open(url, "_blank");
-    }
-  };
+export function MessengerFile({
+  url,
+  filename,
+}: {
+  url: string;
+  filename?: string;
+}) {
+  const handleDownload = useCallback(
+    async (e: React.MouseEvent<HTMLAnchorElement>) => {
+      e.preventDefault();
+      try {
+        const response = await fetch(url, { mode: "cors" });
+        if (!response.ok) throw new Error("Network error");
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = filename || "file";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+      } catch (err) {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+    },
+    [url, filename]
+  );
+
   return (
     <a
       href={url}
       className="underline font-medium hover:opacity-80"
-      style={{ color: "var(--tavern-purple)", position: "relative", display: "inline-block", cursor: "pointer", wordBreak: "break-all" }}
+      style={{
+        color: "var(--tavern-purple)",
+        position: "relative",
+        display: "inline-block",
+        cursor: "pointer",
+        wordBreak: "break-all",
+      }}
       title="Click to download file"
       onClick={handleDownload}
       rel="noopener noreferrer"
     >
-      {filename || 'Download'}
+      {filename || "Download"}
     </a>
   );
 }

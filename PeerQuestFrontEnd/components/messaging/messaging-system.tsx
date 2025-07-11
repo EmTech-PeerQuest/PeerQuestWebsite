@@ -70,10 +70,20 @@ export default function MessagingSystem({
   const reconnectingRef = useRef(false)
   const [mounted, setMounted] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+
+  const userMap = useMemo(() => {
+  const m = new Map<string, User>([[currentUser.id, currentUser]])
+  conversations.forEach((c) =>
+    c.participants.forEach((u) => m.set(u.id, u))
+  )
+  return m
+}, [conversations, currentUser])
+
   const [userSearchQuery, setUserSearchQuery] = useState("")
   const [userSearchResults, setUserSearchResults] = useState<User[]>([])
   const [isSearchingUsers, setIsSearchingUsers] = useState(false)
   const [showUserSearch, setShowUserSearch] = useState(false)
+  const typingTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   const API = useMemo(
     () =>
@@ -100,6 +110,10 @@ export default function MessagingSystem({
           res = await API.get(`/users/`);
           let users = Array.isArray(res.data.users) ? res.data.users : res.data;
           if (!Array.isArray(users)) users = [];
+
+          // 🔥 Filter out current user here
+          users = users.filter((u: any) => u.id !== currentUser.id);
+
           if (userSearchQuery.trim()) {
             const q = userSearchQuery.trim().toLowerCase();
             users = users.filter((u: any) =>
@@ -116,6 +130,10 @@ export default function MessagingSystem({
           res = await API.get(`/api/users`);
           let users = Array.isArray(res.data.users) ? res.data.users : res.data;
           if (!Array.isArray(users)) users = [];
+
+          // 🔥 Filter out current user here as well
+          users = users.filter((u: any) => u.id !== currentUser.id);
+
           if (userSearchQuery.trim()) {
             const q = userSearchQuery.trim().toLowerCase();
             users = users.filter((u: any) =>
@@ -139,11 +157,15 @@ export default function MessagingSystem({
     return () => { cancelled = true };
   }, [userSearchQuery, showUserSearch, API]);
 
+
   // Ensure fileInputRef is stable and not recreated on every render
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const pendingMessagesRef = useRef<Set<string>>(new Set())
+  const messageIdSet = useRef<Set<string>>(new Set());
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
+  const hasReceivedInitialMessages = useRef(false);
+
 
   const mergeOrAppendMessage = useCallback(
     (prev: Message[], incoming: Message, tempId?: string): Message[] => {
@@ -154,7 +176,11 @@ export default function MessagingSystem({
           ? { ...m, ...incoming }
           : m
       )
-      if (!updated.some((m) => m.id === incoming.id)) updated.push(incoming)
+      if (!messageIdSet.current.has(incoming.id)) {
+        messageIdSet.current.add(incoming.id);
+        updated.push(incoming);
+      }
+
       return updated
     },
     []
@@ -210,6 +236,7 @@ export default function MessagingSystem({
   const handleSelectConversation = useCallback(
     (conv: Conversation) => {
       setActiveId(conv.id)
+      localStorage.setItem("activeConversationId", conv.id);
       setInfoOpen(false)
       if (
         conv.last_message &&
@@ -285,7 +312,7 @@ export default function MessagingSystem({
         }
 
         // Always send via REST if not sent via WS, or if files are attached
-        if (((!sentViaWS && textOnly) || (files?.length || content.trim())) && activeId) {
+        if ((!sentViaWS || (files && files.length > 0)) && activeId) {
           setIsSending(true);
           const fd = new FormData();
           fd.append("content", content);
@@ -307,18 +334,27 @@ export default function MessagingSystem({
           if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
             try {
               const res = await API.get<Message[]>(`/conversations/${activeId}/messages/`);
+
+              const realMessages = (res.data || []).map((m: Message): Message => ({
+                ...m,
+                status: (m.read ? "read" : "sent") as MessageStatus,
+              }));
+
               setMessages((existing) => {
-                const temp = existing.filter((m) =>
-                  m.id.startsWith("temp") && pendingMessagesRef.current.has(m.id)
+                const temp = existing.filter(
+                  (m) =>
+                    m.id.startsWith("temp") &&
+                    pendingMessagesRef.current.has(m.id) &&
+                    !realMessages.some(
+                      (real) =>
+                        real.content === m.content &&
+                        real.sender.id === m.sender.id &&
+                        real.message_type === m.message_type
+                    )
                 );
-                const real = res.data.map((m) => ({
-                  ...m,
-                  status: (m.read ? "read" : "sent") as MessageStatus,
-                }));
-                return [...real, ...temp].sort(
-                  (a, b) =>
-                    new Date(a.timestamp).getTime() -
-                    new Date(b.timestamp).getTime()
+
+                return [...realMessages, ...temp].sort((a, b) =>
+                  new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
                 );
               });
             } catch (e) {
@@ -344,40 +380,58 @@ export default function MessagingSystem({
   const handleWsMessage = useCallback(
     (data: any) => {
       switch (data.type) {
-        case "initial_messages":
-          setMessages((prev) =>
-            prev.length === 0
-              ? (data.messages || []).map((m: Message) => ({
-                  ...m,
-                  status: (m.read ? "read" : "sent") as MessageStatus,
-                }))
-              : prev
-          )
-          setIsLoadingMessages(false)
-          return
+          case "initial_messages":
+            if (hasReceivedInitialMessages.current) return; // ✅ Skip if already handled
+            hasReceivedInitialMessages.current = true;      // ✅ Mark as handled
+
+            if (!Array.isArray(data.messages)) return;
+
+            const realMessages = (data.messages || []).map((m: Message) => ({
+              ...m,
+              status: (m.read ? "read" : "sent") as MessageStatus,
+            }));
+
+            setMessages((existing) => {
+              const temp = existing.filter(
+                (m) =>
+                  m.id.startsWith("temp") &&
+                  pendingMessagesRef.current.has(m.id) &&
+                  !realMessages.some(
+                    (real: Message) =>
+                      real.content === m.content &&
+                      real.sender.id === m.sender.id &&
+                      real.message_type === m.message_type
+                  )
+              );
+
+              return [...realMessages, ...temp].sort(
+                (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+              );
+            });
+
+
+
+            setIsLoadingMessages(false);
+            return;
+
 
         case "new_message": {
+          // Patch sender with full info if available
+          if (data?.message?.sender?.id && userMap.has(data.message.sender.id)) {
+            const fullSender = userMap.get(data.message.sender.id)
+            data.message.sender = { ...data.message.sender, ...fullSender }
+          }
+
+          if (messageIdSet.current.has(data.message.id)) return;
+          messageIdSet.current.add(data.message.id);
+
+
           setMessages((prev) => {
-            // If temp_id is present, use mergeOrAppendMessage
-            if (data.temp_id) {
+            if (data.temp_id && data.message.sender.id === currentUser.id) {
               pendingMessagesRef.current.delete(data.temp_id)
               return mergeOrAppendMessage(prev, data.message, data.temp_id)
             }
-            // If the message is from the current user, remove ALL temp messages for self in this conversation
-            if (data.message.sender.id === currentUser.id) {
-              const filtered = prev.filter(
-                (m) =>
-                  !(
-                    m.id.startsWith("temp") &&
-                    m.sender.id === currentUser.id &&
-                    m.conversation_id === data.message.conversation_id
-                  )
-              )
-              // Only add if not already present
-              if (filtered.some((m) => m.id === data.message.id)) return filtered
-              return [...filtered, { ...data.message, status: "sent" as MessageStatus }]
-            }
-            // If no temp_id and not from current user, try to match by content, sender, and status 'sending'
+
             const idx = prev.findIndex(
               (m) =>
                 m.id.startsWith("temp") &&
@@ -386,18 +440,18 @@ export default function MessagingSystem({
                 m.status === "sending"
             )
             if (idx !== -1) {
-              // Replace temp message with real one
               const updated = [...prev]
               updated[idx] = { ...data.message, status: "sent" as MessageStatus }
               return updated
             }
-            // Otherwise, only add if not already present
             if (prev.some((m) => m.id === data.message.id)) return prev
             return [...prev, data.message]
           })
+
           handleConversationUpdate(data.conversation_id, data.message)
           return
         }
+
 
         case "message_status":
           setMessages((prev) =>
@@ -410,19 +464,25 @@ export default function MessagingSystem({
           return
 
         case "typing":
-          setTypingUsers((prev) =>
-            prev.some((u) => u.user_id === data.user_id)
-              ? prev
-              : [...prev, { user_id: data.user_id, username: data.username }]
-          )
-          setTimeout(
-            () =>
-              setTypingUsers((prev) =>
-                prev.filter((u) => u.user_id !== data.user_id)
-              ),
-            3000
-          )
-          return
+          setTypingUsers((prev) => {
+            if (prev.some((u) => u.user_id === data.user_id)) return prev;
+            return [...prev, { user_id: data.user_id, username: data.username }];
+          });
+
+          // Clear existing timeout if present
+          if (typingTimeouts.current.has(data.user_id)) {
+            clearTimeout(typingTimeouts.current.get(data.user_id));
+          }
+
+          const timeout = setTimeout(() => {
+            setTypingUsers((prev) =>
+              prev.filter((u) => u.user_id !== data.user_id)
+            );
+            typingTimeouts.current.delete(data.user_id);
+          }, 3000);
+
+          typingTimeouts.current.set(data.user_id, timeout);
+          return;
 
         case "message_read_update":
           setMessages((prev) =>
@@ -458,30 +518,61 @@ export default function MessagingSystem({
 
   // load latest messages whenever activeId changes
   useEffect(() => {
-    if (!activeId) return
-    setIsLoadingMessages(true)
-    setMessages([])
+    hasReceivedInitialMessages.current = false; // ✅ Reset guard
+    messageIdSet.current = new Set();
+
+    if (!activeId) return;
+
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log("⏳ Waiting for WebSocket initial_messages...");
+      if (!hasReceivedInitialMessages.current && messages.length === 0) {
+        setMessages([]); // ✅ Only clear if empty
+      }
+      return;
+    }
+
+
+
+    setIsLoadingMessages(true);
+
+    const tempIds = Array.from(messageIdSet.current).filter((id) => id.startsWith("temp"));
+    messageIdSet.current = new Set(tempIds);
+
+    // Clean up pendingMessagesRef too (keep only temp ids)
+    pendingMessagesRef.current = new Set(
+      [...pendingMessagesRef.current].filter((id) => id.startsWith("temp"))
+    );
+
 
     API.get<Message[]>(`/conversations/${activeId}/messages/`)
       .then((res) => {
+        const realMessages = (res.data || []).map((m: Message) => ({
+          ...m,
+          status: (m.read ? "read" : "sent") as MessageStatus,
+        }));
+
         setMessages((existing) => {
-          const temp = existing.filter((m) =>
-            m.id.startsWith("temp") && pendingMessagesRef.current.has(m.id)
-          )
-          const real = res.data.map((m) => ({
-            ...m,
-            status: (m.read ? "read" : "sent") as MessageStatus,
-          }))
-          return [...real, ...temp].sort(
-            (a, b) =>
-              new Date(a.timestamp).getTime() -
-              new Date(b.timestamp).getTime()
-          )
-        })
+          const temp = existing.filter(
+            (m) =>
+              m.id.startsWith("temp") &&
+              pendingMessagesRef.current.has(m.id) &&
+              !realMessages.some(
+                (real) =>
+                  real.content === m.content &&
+                  real.sender.id === m.sender.id &&
+                  real.message_type === m.message_type
+              )
+          );
+
+          return [...realMessages, ...temp].sort((a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+          );
+        });
       })
       .catch(() => showToast?.("⚠️ Failed to fetch messages", "error"))
-      .finally(() => setIsLoadingMessages(false))
-  }, [activeId, API, showToast])
+      .finally(() => setIsLoadingMessages(false));
+  }, [activeId, API, showToast, userMap]);
+
 
   // WebSocket lifecycle with improved reconnect UI
   useEffect(() => {
@@ -492,14 +583,28 @@ export default function MessagingSystem({
     // Memoize wsUrl so effect only runs when necessary
     const wsUrl = `ws://localhost:8000/ws/chat/${activeId}/?token=${token}`
 
-    // Only create the connect function once per effect run
     function connect() {
       setWsStatus(reconnectAttempt > 0 ? "reconnecting" : "connecting")
-      // If a socket is already open, close it before opening a new one
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.onclose = null;
-        wsRef.current.close();
+
+      // 🔥 Force cleanup of any existing WebSocket
+      if (wsRef.current) {
+        try {
+          wsRef.current.onopen = null;
+          wsRef.current.onmessage = null;
+          wsRef.current.onerror = null;
+          wsRef.current.onclose = null;
+          if (
+            wsRef.current.readyState === WebSocket.OPEN ||
+            wsRef.current.readyState === WebSocket.CONNECTING
+          ) {
+            wsRef.current.close();
+          }
+        } catch (e) {
+          console.warn("Error cleaning up old WebSocket", e);
+        }
+        wsRef.current = null;
       }
+
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws
       ws.onopen = () => {
@@ -534,14 +639,29 @@ export default function MessagingSystem({
       }
     }
     connect()
-    return () => {
-      shouldReconnect = false
-      if (reconnectTimeout) clearTimeout(reconnectTimeout)
-      if (wsRef.current) {
-        wsRef.current.onclose = null;
-        wsRef.current.close();
-      }
-    }
+      return () => {
+        shouldReconnect = false;
+
+        if (reconnectTimeout) clearTimeout(reconnectTimeout);
+
+        if (wsRef.current) {
+          // 🧹 Properly cleanup
+          wsRef.current.onopen = null;
+          wsRef.current.onmessage = null;
+          wsRef.current.onerror = null;
+          wsRef.current.onclose = null;
+
+          if (
+            wsRef.current.readyState === WebSocket.OPEN ||
+            wsRef.current.readyState === WebSocket.CONNECTING
+          ) {
+            wsRef.current.close();
+          }
+
+          wsRef.current = null;
+        }
+      };
+
     // Only rerun if wsUrl, mounted, or reconnectAttempt changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, token, mounted, reconnectAttempt])
@@ -558,34 +678,39 @@ export default function MessagingSystem({
     return () => wsRef.current?.close()
   }, [])
 
-  // load conversation list once mounted
   useEffect(() => {
-    if (!mounted) return
+    if (!mounted) return;
     API.get<Conversation[]>("/conversations/")
       .then((res) => {
-        setConversations(res.data)
-        setApiError(null)
+        setConversations(res.data);
+        setApiError(null);
+
+        const storedId = localStorage.getItem("activeConversationId");
+
+        if (
+          storedId &&
+          res.data.some((c) => c.id === storedId)
+        ) {
+          setActiveId(storedId);
+        } else {
+          // 🔥 Invalid or missing
+          localStorage.removeItem("activeConversationId");
+          setActiveId(null);
+        }
       })
       .catch((err) => {
         setApiError(
           err?.response?.data?.detail || err?.message || "Unknown API error"
-        )
-        showToast?.("⚠️ Failed to load conversations", "error")
-      })
-  }, [API, mounted, showToast])
+        );
+        showToast?.("⚠️ Failed to load conversations", "error");
+      });
+  }, [API, mounted, showToast]);
+
 
   // sync external onlineUsers updates
   useEffect(() => {
     setOnlineMap(new Map(onlineUsers))
   }, [onlineUsers])
-
-  const userMap = useMemo(() => {
-    const m = new Map<string, User>([[currentUser.id, currentUser]])
-    conversations.forEach((c) =>
-      c.participants.forEach((u) => m.set(u.id, u))
-    )
-    return m
-  }, [conversations, currentUser])
 
   const unreadConversations = useMemo(
     () =>

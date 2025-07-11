@@ -22,7 +22,7 @@ export interface ActionLogEntry {
 }
 export interface User {
   id: string;
-  email: string;
+  email?: string;
   email_verified?: boolean;
   username?: string;
   avatar?: string;

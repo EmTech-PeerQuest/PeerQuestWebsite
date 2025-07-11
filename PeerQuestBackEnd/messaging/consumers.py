@@ -13,7 +13,6 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.contrib.auth.models import AnonymousUser
 from messaging.models import Message, Conversation, UserPresence
 from messaging.serializers import MessageSerializer
-from xp.utils import award_xp
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -48,7 +47,19 @@ def mark_user_offline(user):
 
 @database_sync_to_async
 def get_participant_ids(conversation_id):
-    return list(Conversation.objects.get(id=conversation_id).participants.values_list("id", flat=True))
+    try:
+        # Ensure UUID instance
+        if isinstance(conversation_id, str):
+            conversation_id = uuid.UUID(conversation_id)
+        conv = Conversation.objects.get(id=conversation_id)
+        return list(conv.participants.values_list("id", flat=True))
+    except Conversation.DoesNotExist:
+        logger.error(f"Conversation {conversation_id} does not exist.")
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error in get_participant_ids: {e}")
+        raise
+
 
 @database_sync_to_async
 def create_message(conversation_id, sender_id, content, message_type="text"):
@@ -77,10 +88,6 @@ def fetch_initial_messages(conversation_id, limit=50):
     return MessageSerializer(msgs, many=True).data
 
 @database_sync_to_async
-def award_xp_sync(user, amount, reason):
-    award_xp(user, amount=amount, reason=reason)
-
-@database_sync_to_async
 def serialize_message(message):
     # <— this moves DRF serialization off the async loop
     return MessageSerializer(message).data
@@ -95,19 +102,14 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             await self.close(code=4001)
             return
 
-        user = self.scope["user"]
-        if not (user and user.is_authenticated):
-            await self.close(code=4001)
-            return
-
         self.conversation_id = self.scope["url_route"]["kwargs"]["conversation_id"]
-        # check membership
+        self.room_group = f"chat_{self.conversation_id}"  # ✅ define early
+
         if not await user_in_conversation(user.id, self.conversation_id):
             await self.close(code=4003)
             return
 
         await mark_user_online(user)
-        self.room_group = f"chat_{self.conversation_id}"
         await self.channel_layer.group_add(self.room_group, self.channel_name)
         await self.accept()
 
@@ -124,20 +126,44 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                     {"type": "presence_update", "user_id": str(user.id), "is_online": True},
                 )
 
+
     async def disconnect(self, code):
         user = self.scope["user"]
-        logger.warning(f"WebSocket disconnect: user={getattr(user, 'username', None)}, code={code}, conversation_id={getattr(self, 'conversation_id', None)}")
-        if user and user.is_authenticated:
-            await mark_user_offline(user)
+        conv_id = getattr(self, "conversation_id", None)
+
+        logger.warning(f"WebSocket disconnect: user={getattr(user, 'username', None)}, code={code}, conversation_id={conv_id}")
+
+        if not user or not user.is_authenticated or not conv_id:
+            logger.warning("Disconnect skipped: no user or conversation_id set.")
+            return
+
+        try:
+            # Leave room group
             await self.channel_layer.group_discard(self.room_group, self.channel_name)
 
-            pids = await get_participant_ids(self.conversation_id)
+            # Mark offline
+            await mark_user_offline(user)
+
+            # Try fetching participant IDs safely
+            try:
+                pids = await get_participant_ids(conv_id)
+            except Exception as e:
+                logger.error(f"Failed to get participants for conversation {conv_id}: {e}")
+                return
+
             for pid in pids:
                 if str(pid) != str(user.id):
                     await self.channel_layer.group_send(
                         f"user_{pid}",
-                        {"type": "presence_update", "user_id": str(user.id), "is_online": False},
+                        {
+                            "type": "presence_update",
+                            "user_id": str(user.id),
+                            "is_online": False,
+                        },
                     )
+
+        except Exception as e:
+            logger.exception(f"Error in disconnect handler: {e}")
 
     async def receive(self, text_data):
         try:
@@ -169,8 +195,6 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             if not msg:
                 return
 
-            # award XP
-            await award_xp_sync(user, amount=10, reason="chat message")
 
             # serialize in a thread
             serialized = await serialize_message(msg)
