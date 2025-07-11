@@ -105,8 +105,12 @@ CELERY_BROKER_URL = "redis://redis:6379/0"
 # Database (SQLite for development)
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': os.environ.get('DB_NAME', 'peerquestdb'),
+        'USER': os.environ.get('DB_USER', 'peerquestuser'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'peerquestpass'),
+        'HOST': os.environ.get('DB_HOST', 'mysql'),
+        'PORT': os.environ.get('DB_PORT', '3306'),
     }
 }
 

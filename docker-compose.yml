@@ -18,6 +18,37 @@ services:
       - "8000:8000"
     depends_on:
       - redis
+    env_file:
+      - /PeerQuestBackEnd/.env
     environment:
       - DJANGO_SETTINGS_MODULE=core.settings
       # Add any other env vars you need
+  frontend:
+    build:
+      context: ./PeerQuestFrontEnd
+    container_name: peerquest-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    env_file:
+      - ./PeerQuestFrontEnd/.env.local
+    # For development, set NODE_ENV to development or remove it (Next.js defaults to dev mode)
+    environment:
+      - NODE_ENV=development
+
+  mysql:
+    image: mysql:8
+    container_name: peerquest-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: peerquestdb
+      MYSQL_USER: peerquestuser
+      MYSQL_PASSWORD: peerquestpass
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:
