@@ -85,6 +85,14 @@ export default function MessagingSystem({
   const [showUserSearch, setShowUserSearch] = useState(false)
   const typingTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
+  useEffect(() => {
+    return () => {
+      typingTimeouts.current.forEach((timeout) => clearTimeout(timeout));
+      typingTimeouts.current.clear();
+    };
+  }, []);
+
+
   const API = useMemo(
     () =>
       axios.create({
@@ -495,6 +503,7 @@ export default function MessagingSystem({
           return
 
         case "presence_update":
+          console.log("📡 Presence update received:", data)
           if (data.user_id !== currentUser.id) {
             setOnlineMap((prev) =>
               new Map(prev).set(
@@ -709,6 +718,7 @@ export default function MessagingSystem({
 
   // sync external onlineUsers updates
   useEffect(() => {
+    console.log("🔍 onlineUsers prop received:", onlineUsers)
     setOnlineMap(new Map(onlineUsers))
   }, [onlineUsers])
 
@@ -824,7 +834,6 @@ export default function MessagingSystem({
                 setSelectedFiles((prev) => prev.filter((_, idx) => idx !== i))
               }
               selectedFiles={selectedFiles}
-              // getAttachedFileNamesDisplay is not needed in ChatWindow, remove this prop
               onToggleInfo={() => setInfoOpen((v) => !v)}
               onlineUsers={onlineMap}
               isSending={isSending}

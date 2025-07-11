@@ -262,7 +262,7 @@ export default function ConversationList({
                   const displayUser = !conv.is_group ? otherParticipant : null
                   const preview = getMessagePreview(conv)
                   // Only use onlineStatusMap for conversation list (no fallback)
-                  const presence = displayUser ? onlineStatusMap.get(displayUser.id) : undefined;
+                  const presence = displayUser ? onlineStatusMap.get(displayUser.id) ?? "offline" : undefined;
                   // Always show Online if presence is online, never show Offline if user is online
                   const isOnline = presence === "online";
                   const isIdle = presence === "idle";
@@ -327,10 +327,11 @@ export default function ConversationList({
                         {/* Online status dot with label - always render, color by presence */}
                         {displayUser && (
                           <span
-                            className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white z-10 ${
-                              isOnline ? "bg-green-500" : isIdle ? "bg-amber-400" : "bg-gray-300"
+                            className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ring-2 ring-white z-10 ${
+                              isOnline ? "bg-green-600" : isIdle ? "bg-yellow-400" : "bg-gray-300"
                             }`}
                             title={dotLabel}
+                            aria-label={`User is ${dotLabel.toLowerCase()}`}
                           />
                         )}
                       </div>

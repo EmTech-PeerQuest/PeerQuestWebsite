@@ -92,6 +92,14 @@ def serialize_message(message):
     # <— this moves DRF serialization off the async loop
     return MessageSerializer(message).data
 
+@database_sync_to_async
+def is_user_online(user_id):
+    try:
+        return UserPresence.objects.get(user_id=user_id).is_online
+    except UserPresence.DoesNotExist:
+        return False
+
+
 
 # --- Consumer —----------------------------------------
 
@@ -103,21 +111,27 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             return
 
         self.conversation_id = self.scope["url_route"]["kwargs"]["conversation_id"]
-        self.room_group = f"chat_{self.conversation_id}"  # ✅ define early
+        self.room_group = f"chat_{self.conversation_id}"
 
         if not await user_in_conversation(user.id, self.conversation_id):
             await self.close(code=4003)
             return
 
         await mark_user_online(user)
+
+        # ✅ Join personal user group (needed for presence updates)
+        await self.channel_layer.group_add(f"user_{user.id}", self.channel_name)
+
+        # ✅ Join conversation group
         await self.channel_layer.group_add(self.room_group, self.channel_name)
+
         await self.accept()
 
-        # send initial messages
+        # Fetch and send initial messages
         initial = await fetch_initial_messages(self.conversation_id)
         await self.send_json({"type": "initial_messages", "messages": initial})
 
-        # broadcast presence to other participants
+        # Broadcast presence to others
         pids = await get_participant_ids(self.conversation_id)
         for pid in pids:
             if str(pid) != str(user.id):
@@ -125,6 +139,21 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                     f"user_{pid}",
                     {"type": "presence_update", "user_id": str(user.id), "is_online": True},
                 )
+        
+        # Notify current user about others' presence
+        for pid in pids:
+            if str(pid) != str(user.id):
+                online = await is_user_online(pid)
+                await self.channel_layer.group_send(
+                    f"user_{user.id}",  # Send presence info to yourself
+                    {
+                        "type": "presence_update",
+                        "user_id": str(pid),
+                        "is_online": online,
+                    },
+                )
+
+
 
 
     async def disconnect(self, code):
@@ -138,13 +167,16 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             return
 
         try:
+            # ✅ Leave personal group
+            await self.channel_layer.group_discard(f"user_{user.id}", self.channel_name)
+
             # Leave room group
             await self.channel_layer.group_discard(self.room_group, self.channel_name)
 
             # Mark offline
             await mark_user_offline(user)
 
-            # Try fetching participant IDs safely
+            # Send presence update to others
             try:
                 pids = await get_participant_ids(conv_id)
             except Exception as e:

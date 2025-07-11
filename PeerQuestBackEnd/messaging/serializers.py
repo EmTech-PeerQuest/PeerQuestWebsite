@@ -34,10 +34,17 @@ class MessageAttachmentSerializer(serializers.ModelSerializer):
         fields = ['id', 'filename', 'file_size_human', 'content_type', 'file_url', 'thumbnail_url', 'is_image']
     
     def get_file_url(self, obj):
-        return obj.file.url if obj.file else None
-    
+        request = self.context.get('request')
+        if obj.file and request:
+            return request.build_absolute_uri(obj.file.url)
+        return None
+
     def get_thumbnail_url(self, obj):
-        return obj.thumbnail.url if obj.thumbnail else None
+        request = self.context.get('request')
+        if obj.thumbnail and request:
+            return request.build_absolute_uri(obj.thumbnail.url)
+        return None
+
 
 class MessageSerializer(serializers.ModelSerializer):
     sender = UserSerializer(read_only=True)
