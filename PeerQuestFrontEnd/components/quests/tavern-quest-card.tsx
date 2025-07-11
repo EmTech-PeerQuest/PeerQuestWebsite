@@ -117,33 +117,52 @@ export function TavernQuestCard({
     return "Overdue"
   }
 
-  const canReportQuest = currentUser && quest.creator.id !== currentUser.id;
+  const canReportQuest = currentUser && !isCreator && !isParticipant && currentUser.id !== quest.creator.id
+  
   return (
-    <div
-      className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer group focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
-      tabIndex={0}
-      onClick={() => onViewDetails(quest)}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onViewDetails(quest) }}
-      role="button"
-      aria-label={`View details for quest ${quest.title}`}
-    >
-      {/* Header Section with Brown Background */}
-      <div className="bg-gradient-to-br from-[#CDAA7D] to-[#B8956D] p-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-12 translate-x-12"></div>
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h3 className="font-bold text-white text-lg leading-tight flex-1 mr-3 font-serif group-hover:text-[#F4F0E6] transition-colors mb-2">
-              {quest.title}
-            </h3>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
-                🎨 {quest.category.name.toUpperCase()}
-              </span>
+    <div className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group focus:outline-none focus:ring-2 focus:ring-[#8B75AA] relative">
+      {/* Report Button - Positioned absolutely to avoid nesting */}
+      {canReportQuest && onReportQuest && (
+        <button
+          className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors text-xs font-medium"
+          onClick={(e) => { 
+            e.stopPropagation(); 
+            e.preventDefault(); 
+            onReportQuest(quest); 
+          }}
+          title="Report this quest"
+        >
+          <Flag size={14} /> Report
+        </button>
+      )}
+
+      {/* Main clickable area */}
+      <div
+        className="cursor-pointer"
+        tabIndex={0}
+        onClick={() => onViewDetails(quest)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onViewDetails(quest) }}
+        role="button"
+        aria-label={`View details for quest ${quest.title}`}
+      >
+        {/* Header Section with Brown Background */}
+        <div className="bg-gradient-to-br from-[#CDAA7D] to-[#B8956D] p-6 relative overflow-hidden">
+          {/* Decorative element */}
+          <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-12 translate-x-12"></div>
+          
+          <div className="flex items-start justify-between relative z-10">
+            <div className="flex-1">
+              <h3 className="font-bold text-white text-lg leading-tight mr-3 font-serif group-hover:text-[#F4F0E6] transition-colors">
+                {quest.title}
+              </h3>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
+                  🎨 {quest.category.name.toUpperCase()}
+                </span>
+              </div>
             </div>
-          </div>
-          {/* Right side badges */}
-          <div className="ml-3 flex flex-col gap-2 items-end">
-            {/* Tier Badge - Top Right */}
+            
+            {/* Difficulty Badge */}
             {(() => {
               const tier = getTierInfo(quest.difficulty);
               return (
@@ -153,100 +172,97 @@ export function TavernQuestCard({
                 </span>
               );
             })()}
-            {/* Status Badge - Below Difficulty */}
-            <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
-              {quest.status.replace('-', '-').toUpperCase()}
+          </div>
+        </div>
+        
+        {/* White Body Section */}
+        <div className="p-4">
+          {/* Quest Status Badge */}
+          <div className="mb-3">
+            <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getStatusColor(quest.status)}`}>
+              {quest.status.replace('-', ' ').toUpperCase()}
             </span>
           </div>
-        </div>
-      </div>
-      {/* White Body Section */}
-      <div className="p-4">
-        {canReportQuest && onReportQuest && (
-          <button
-            className="mb-2 flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors text-xs font-medium"
-            onClick={e => { e.stopPropagation(); onReportQuest(quest); }}
-            title="Report this quest"
-          >
-            <Flag size={14} /> Report
-          </button>
-        )}
-        {/* Reward Section */}
-        <div className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-lg p-3 mb-4">
-          <div className="flex items-center justify-center gap-8">
-            {/* Gold Reward */}
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-sm">G</span>
+          
+          {/* Reward Section */}
+          <div className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-lg p-3 mb-4">
+            <div className="flex items-center justify-center gap-8">
+              {/* Gold Reward */}
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">G</span>
+                </div>
+                <div>
+                  {quest.gold_reward && quest.gold_reward > 0 ? (
+                    <div className="text-lg font-bold text-amber-700">{quest.gold_reward}</div>
+                  ) : (
+                    <div className="text-lg font-bold text-gray-500">0</div>
+                  )}
+                  <div className="text-xs font-medium text-amber-700 uppercase">GOLD</div>
+                </div>
               </div>
-              <div>
-                {quest.gold_reward && quest.gold_reward > 0 ? (
-                  <div className="text-lg font-bold text-amber-700">{quest.gold_reward}</div>
-                ) : (
-                  <div className="text-lg font-bold text-gray-500">0</div>
-                )}
-                <div className="text-xs font-medium text-amber-700 uppercase">GOLD</div>
-              </div>
-            </div>
-            {/* XP Reward */}
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
-                <Star className="w-4 h-4 text-white" />
-              </div>
-              <div>
-                <div className="text-lg font-bold text-purple-900">{quest.xp_reward}</div>
-                <div className="text-xs font-medium text-purple-700 uppercase">XP</div>
+              {/* XP Reward */}
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
+                  <Star className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-purple-900">{quest.xp_reward}</div>
+                  <div className="text-xs font-medium text-purple-700 uppercase">XP</div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        {/* Description */}
-        <div className="mb-4">
-          <p className="text-gray-700 text-sm leading-relaxed">
-            {truncateDescription(quest.description)}
-          </p>
-          {quest.description.length > 150 && (
-            <p className="text-xs text-[#8B75AA] mt-1 italic">
-              Click "View Details" to read the full description
+          
+          {/* Description */}
+          <div className="mb-4">
+            <p className="text-gray-700 text-sm leading-relaxed">
+              {truncateDescription(quest.description)}
             </p>
-          )}
-        </div>
-        {/* Quest Details */}
-        <div className="space-y-3 mb-4">
-          {/* Deadline */}
-          {quest.due_date && (
-            <div className="flex items-center gap-2 text-gray-600">
-              <Clock className="w-4 h-4 text-[#8B75AA]" />
-              <span className="text-sm">
-                <span className="font-medium text-[#8B75AA]">Deadline:</span> <span className="text-[#8B75AA] font-bold">{formatDeadline(quest.due_date)}</span>
-              </span>
-            </div>
-          )}
-          {/* Posted by */}
-          <div className="flex items-center gap-2 text-gray-600">
-            {(quest.creator as any).avatar ? (
-              <img 
-                src={(quest.creator as any).avatar} 
-                alt={quest.creator.username}
-                className="w-4 h-4 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-4 h-4 bg-purple-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-[10px] font-bold">
-                  {quest.creator.username.charAt(0).toUpperCase()}
+            {quest.description.length > 150 && (
+              <p className="text-xs text-[#8B75AA] mt-1 italic">
+                Click "View Details" to read the full description
+              </p>
+            )}
+          </div>
+          
+          {/* Quest Details */}
+          <div className="space-y-3">
+            {/* Deadline */}
+            {quest.due_date && (
+              <div className="flex items-center gap-2 text-gray-600">
+                <Clock className="w-4 h-4 text-[#8B75AA]" />
+                <span className="text-sm">
+                  <span className="font-medium text-[#8B75AA]">Deadline:</span> <span className="text-[#8B75AA] font-bold">{formatDeadline(quest.due_date)}</span>
                 </span>
               </div>
             )}
-            <span className="text-sm">
-              <span className="font-medium">Posted by</span> {quest.creator.username}
-            </span>
-          </div>
-          {/* Applications */}
-          <div className="flex items-center gap-2 text-gray-600">
-            <Users className="w-4 h-4 text-gray-500" />
-            <span className="text-sm">
-              <span className="font-medium">{applicationCount} Application{applicationCount !== 1 ? 's' : ''}</span>
-            </span>
+            {/* Posted by */}
+            <div className="flex items-center gap-2 text-gray-600">
+              {(quest.creator as any).avatar ? (
+                <img 
+                  src={(quest.creator as any).avatar} 
+                  alt={quest.creator.username}
+                  className="w-4 h-4 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-4 h-4 bg-purple-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-[10px] font-bold">
+                    {quest.creator.username.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
+              <span className="text-sm">
+                <span className="font-medium">Posted by</span> {quest.creator.username}
+              </span>
+            </div>
+            {/* Applications */}
+            <div className="flex items-center gap-2 text-gray-600">
+              <Users className="w-4 h-4 text-gray-500" />
+              <span className="text-sm">
+                <span className="font-medium">{applicationCount} Application{applicationCount !== 1 ? 's' : ''}</span>
+              </span>
+            </div>
           </div>
         </div>
       </div>

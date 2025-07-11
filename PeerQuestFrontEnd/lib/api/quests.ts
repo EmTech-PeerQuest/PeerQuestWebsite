@@ -107,26 +107,47 @@ export const QuestAPI = {
     files?: File[];
   }): Promise<QuestSubmission> {
     const { questSlug, questParticipantId, applicationId, description, link, files = [] } = params;
+    
+    console.log('submitQuestWork called with params:', params);
+    
     if (!questSlug || typeof questSlug !== 'string' || !questSlug.trim()) {
       throw new Error('Quest slug is missing or invalid. Please contact support.');
     }
     const formData = new FormData();
     // Only send one of quest_participant, application, or quest_slug
     if (questParticipantId) {
+      console.log('Adding quest_participant:', questParticipantId);
       formData.append("quest_participant", String(questParticipantId));
     } else if (applicationId) {
+      console.log('Adding application:', applicationId);
       formData.append("application", String(applicationId));
     } else {
+      console.log('Adding quest_slug fallback:', questSlug);
       formData.append("quest_slug", questSlug);
     }
-    if (description) {
-      formData.append("description", description);
+    
+    // Always add description - it's required
+    if (description && description.trim()) {
+      formData.append("description", description.trim());
+    } else {
+      throw new Error('Description is required for submission.');
     }
-    if (link) {
-      formData.append("link", link);
+    
+    if (link && link.trim()) {
+      formData.append("link", link.trim());
     }
     files.forEach((file) => formData.append("files", file));
+    
+    // Debug: Log what's in the FormData
+    console.log('FormData contents:');
+    for (let [key, value] of formData.entries()) {
+      console.log(key, ':', value instanceof File ? `File: ${value.name}` : value);
+    }
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    
+    console.log('Making API request to:', `${API_BASE_URL}/quests/quests/${questSlug}/submissions/`);
+    console.log('Request headers:', token ? { Authorization: `Bearer ${token}` } : 'No auth token');
+    
     const response = await fetchWithAuth(
       `${API_BASE_URL}/quests/quests/${questSlug}/submissions/`,
       {

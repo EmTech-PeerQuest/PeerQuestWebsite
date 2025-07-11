@@ -108,8 +108,8 @@ export function ConfirmationModal({
         <div className="flex gap-3">
           <Button
             onClick={onClose}
-            variant="outline"
-            className="flex-1"
+            variant="secondary"
+            className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold border-2 border-gray-300 hover:border-gray-400 transition-all duration-200 shadow-sm hover:shadow-md"
             soundType="soft"
           >
             Cancel
@@ -118,9 +118,9 @@ export function ConfirmationModal({
             onClick={handleConfirm}
             disabled={!spendingCheck.canSpend}
             variant="default"
-            className={`flex-1 ${
+            className={`flex-1 font-semibold shadow-sm hover:shadow-md transition-all duration-200 ${
               spendingCheck.canSpend
-                ? "bg-orange-500 hover:bg-orange-600"
+                ? "bg-orange-500 hover:bg-orange-600 border-2 border-orange-500 hover:border-orange-600"
                 : ""
             }`}
             soundType={spendingCheck.canSpend ? "success" : "error"}

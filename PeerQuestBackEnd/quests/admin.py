@@ -67,6 +67,11 @@ class QuestCategoryAdmin(admin.ModelAdmin):
         """, total_quests, open_quests, in_progress_quests, completed_quests)
     category_stats.short_description = 'Category Statistics'
 
+    def has_delete_permission(self, request, obj=None):
+        if request.user.is_superuser:
+            return True
+        return super().has_delete_permission(request, obj)
+
 
 @admin.register(Quest)
 class QuestAdmin(admin.ModelAdmin):

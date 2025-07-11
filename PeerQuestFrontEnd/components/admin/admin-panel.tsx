@@ -1282,6 +1282,7 @@ function AdminPanel({
                       className="border border-gray-300 rounded px-2 py-1 text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]"
                       value={reportTypeFilter}
                       onChange={e => setReportTypeFilter(e.target.value)}
+                      aria-label="Filter reports by type"
                     >
                       <option value="all">All</option>
                       <option value="user">User Reports</option>
@@ -1482,11 +1483,13 @@ function AdminPanel({
                       value={banDuration.amount}
                       onChange={(e) => setBanDuration({...banDuration, amount: parseInt(e.target.value)})}
                       className="w-20 border border-[#CDAA7D] rounded px-2 py-1 text-[#2C1A1D]"
+                      aria-label="Ban duration amount"
                     />
                     <select
                       value={banDuration.unit}
                       onChange={(e) => setBanDuration({...banDuration, unit: e.target.value})}
                       className="border border-[#CDAA7D] rounded px-2 py-1 text-[#2C1A1D]"
+                      aria-label="Ban duration unit"
                     >
                       <option value="hours">Hours</option>
                       <option value="days">Days</option>
@@ -1501,6 +1504,7 @@ function AdminPanel({
                 value={banReason}
                 onChange={(e) => setBanReason(e.target.value)}
                 className="w-full border border-[#CDAA7D] rounded px-3 py-2 text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] mb-2"
+                aria-label="Select ban reason"
               >
                 <option value="">Select a reason...</option>
                 <option value="Inappropriate behavior">Inappropriate behavior</option>
@@ -1610,7 +1614,11 @@ function AdminPanel({
           <div className="bg-white rounded-2xl w-full max-w-2xl p-0 shadow-2xl relative">
             <div className="relative h-40 bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] rounded-t-2xl flex items-end justify-center">
               <div className="absolute top-4 right-4">
-                <button onClick={() => setSelectedUserDetails(null)} className="text-white bg-black bg-opacity-30 hover:bg-opacity-60 rounded-full p-2 transition-colors">
+                <button 
+                  onClick={() => setSelectedUserDetails(null)} 
+                  className="text-white bg-black bg-opacity-30 hover:bg-opacity-60 rounded-full p-2 transition-colors"
+                  aria-label="Close user details modal"
+                >
                   <X size={22} />
                 </button>
               </div>
@@ -1703,7 +1711,11 @@ function AdminPanel({
           <div className="bg-white rounded-lg w-full max-w-2xl p-6">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-[#2C1A1D]">Quest Details</h3>
-              <button onClick={() => setSelectedQuestDetails(null)} className="text-gray-400 hover:text-gray-600">
+              <button 
+                onClick={() => setSelectedQuestDetails(null)} 
+                className="text-gray-400 hover:text-gray-600"
+                aria-label="Close quest details modal"
+              >
                 <X size={20} />
               </button>
             </div>
@@ -1771,7 +1783,11 @@ function AdminPanel({
           <div className="bg-white rounded-lg w-full max-w-md p-6">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-[#2C1A1D]">Guild Details</h3>
-              <button onClick={() => setSelectedGuildDetails(null)} className="text-gray-400 hover:text-gray-600">
+              <button 
+                onClick={() => setSelectedGuildDetails(null)} 
+                className="text-gray-400 hover:text-gray-600"
+                aria-label="Close guild details modal"
+              >
                 <X size={20} />
               </button>
             </div>
@@ -1802,8 +1818,8 @@ function AdminPanel({
                   <div>
                     <label className="text-sm font-medium text-gray-600">Created</label>
                     <p className="text-[#2C1A1D]">
-                      {selectedGuildDetails.createdAt
-                        ? new Date(selectedGuildDetails.createdAt).toLocaleDateString()
+                      {selectedGuildDetails.created_at
+                        ? new Date(selectedGuildDetails.created_at).toLocaleDateString()
                         : "N/A"}
                     </p>
                   </div>
@@ -1855,6 +1871,7 @@ function AdminPanel({
                 value={deleteQuestReason}
                 onChange={(e) => setDeleteQuestReason(e.target.value)}
                 className="w-full border border-[#CDAA7D] rounded px-3 py-2 text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] mb-2"
+                aria-label="Select quest deletion reason"
               >
                 <option value="">Select a reason...</option>
                 <option value="Inappropriate content">Inappropriate content</option>
@@ -1914,6 +1931,7 @@ function AdminPanel({
                 value={deleteGuildReason}
                 onChange={(e) => setDeleteGuildReason(e.target.value)}
                 className="w-full border border-[#CDAA7D] rounded px-3 py-2 text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] mb-2"
+                aria-label="Select guild deletion reason"
               >
                 <option value="">Select a reason...</option>
                 <option value="Inappropriate content">Inappropriate content</option>

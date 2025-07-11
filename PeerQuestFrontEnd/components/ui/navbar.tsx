@@ -194,6 +194,7 @@ export function Navbar({
                       setNotificationsOpen(false)
                     }}
                     className="w-8 h-8 bg-[#CDAA7D] rounded-full flex items-center justify-center text-[#2C1A1D] hover:bg-[#B89A6D] transition-colors"
+                    aria-label="Open quick actions menu"
                   >
                     <Plus size={18} />
                   </button>
@@ -224,6 +225,7 @@ export function Navbar({
                 <button
                   onClick={() => handleNavigation("search")}
                   className="text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors"
+                  aria-label="Search"
                 >
                   <Search size={20} />
                 </button>
