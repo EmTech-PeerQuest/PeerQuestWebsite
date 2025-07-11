@@ -1,3 +1,7 @@
+////////// Docker Command //////////
+docker-compose build --no-cache; docker-compose up
+
+
 ////////// Copy-Paste Friendly Setup Commands //////////
 # Backend (Windows, PowerShell):
 py -m venv venv
