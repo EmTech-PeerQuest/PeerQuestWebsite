@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from .models import PaymentProof
+from .models import PaymentProof, GoldPackage
 
 User = get_user_model()
 
@@ -14,29 +14,48 @@ class PaymentProofAdmin(admin.ModelAdmin):
     list_display = [
         'payment_reference', 
         'user', 
+        'gold_package',
+        'receipt_preview',  # Move receipt preview earlier for visibility
         'package_price', 
         'package_amount', 
         'total_gold_display',
         'status',
         'approval_type_display',
         'batch_info_display',
-        'created_at',
-        'receipt_preview'
+        'created_at'
     ]
-    list_filter = ['status', 'scheduled_batch', 'created_at', 'package_price', 'batch_id']
-    search_fields = ['payment_reference', 'user__username', 'user__email']
-    readonly_fields = ['payment_reference', 'created_at', 'verified_at', 'processed_at', 'receipt_preview_large', 'batch_id', 'next_processing_time']
+    list_filter = ['status', 'scheduled_batch', 'created_at', 'gold_package', 'batch_id']
+    search_fields = ['payment_reference', 'user__username', 'user__email', 'gold_package__name']
+    readonly_fields = [
+        'payment_reference', 
+        'package_amount',  # Auto-filled from gold_package
+        'package_price',   # Auto-filled from gold_package
+        'bonus',           # Auto-filled from gold_package
+        'created_at', 
+        'verified_at', 
+        'processed_at', 
+        'receipt_preview_large', 
+        'batch_id', 
+        'next_processing_time'
+    ]
     
     fieldsets = [
-        ('Payment Information', {
+        ('Package Selection', {
             'fields': [
                 'user', 
                 'payment_reference', 
-                'package_amount', 
-                'package_price', 
-                'bonus',
+                'gold_package',  # Main field for selecting package
                 'created_at'
             ]
+        }),
+        ('Package Details (Auto-filled)', {
+            'fields': [
+                'package_amount', 
+                'package_price', 
+                'bonus'
+            ],
+            'classes': ['collapse'],
+            'description': 'These fields are automatically filled based on the selected gold package.'
         }),
         ('Batch Processing', {
             'fields': [
@@ -130,11 +149,11 @@ class PaymentProofAdmin(admin.ModelAdmin):
     def receipt_preview(self, obj):
         if obj.receipt_image:
             return format_html(
-                '<img src="{}" style="width: 50px; height: 50px; object-fit: cover;" />',
+                '<img src="{}" style="width: 60px; height: 60px; object-fit: cover; border: 1px solid #ddd; border-radius: 4px;" title="Click to view full size" />',
                 obj.receipt_image.url
             )
-        return "No image"
-    receipt_preview.short_description = 'Receipt'
+        return format_html('<span style="color: #999; font-style: italic;">No image</span>')
+    receipt_preview.short_description = '📄 Receipt'
 
     def receipt_preview_large(self, obj):
         if obj.receipt_image:
@@ -206,7 +225,14 @@ class PaymentProofAdmin(admin.ModelAdmin):
     reject_payments.short_description = "Reject selected payments"
 
     def save_model(self, request, obj, form, change):
-        """Auto-set verified_by and verified_at when status changes"""
+        """Auto-set verified_by, verified_at when status changes, and sync package details"""
+        
+        # Auto-fill package details when gold_package is selected
+        if obj.gold_package:
+            obj.package_amount = obj.gold_package.gold_amount
+            obj.package_price = obj.gold_package.price_php
+            obj.bonus = obj.gold_package.bonus_gold
+        
         if change and 'status' in form.changed_data:
             if obj.status in ['verified', 'rejected'] and not obj.verified_by:
                 obj.verified_by = request.user
@@ -216,23 +242,30 @@ class PaymentProofAdmin(admin.ModelAdmin):
                 if obj.status == 'verified':
                     try:
                         user = obj.user
-                        if hasattr(user, 'profile'):
+                        if hasattr(user, 'profile') and hasattr(user.profile, 'gold'):
+                            # If using a profile model with gold field
                             profile = user.profile
                             profile.gold = (profile.gold or 0) + obj.total_gold_with_bonus
                             profile.save()
-                        else:
+                        elif hasattr(user, 'gold_balance'):
+                            # If gold is stored as gold_balance on User model
+                            user.gold_balance = (user.gold_balance or 0) + obj.total_gold_with_bonus
+                            user.save()
+                        elif hasattr(user, 'gold'):
+                            # If gold is stored as gold on User model
                             user.gold = getattr(user, 'gold', 0) + obj.total_gold_with_bonus
                             user.save()
+                        else:
+                            raise Exception("No gold field found on user model")
                         
                         # Create transaction record
                         try:
-                            from transactions.models import Transaction
+                            from transactions.models import Transaction, TransactionType
                             Transaction.objects.create(
                                 user=user,
-                                transaction_type='PURCHASE',
+                                type=TransactionType.PURCHASE,
                                 amount=obj.total_gold_with_bonus,
-                                description=f"Gold Package Purchase - {obj.package_amount} coins (₱{obj.package_price}){' + bonus' if obj.bonus else ''}",
-                                reference=obj.payment_reference
+                                description=f"Gold Package Purchase - {obj.package_amount} coins (₱{obj.package_price}){' + bonus' if obj.bonus else ''} - Ref: {obj.payment_reference}"
                             )
                         except ImportError:
                             pass
@@ -273,3 +306,65 @@ class PaymentProofAdmin(admin.ModelAdmin):
             messages.info(request, "No payments were assigned to batch.")
     
     assign_to_next_batch.short_description = "Assign to next batch"
+
+
+@admin.register(GoldPackage)
+class GoldPackageAdmin(admin.ModelAdmin):
+    list_display = [
+        'name',
+        'gold_amount',
+        'bonus_gold',
+        'total_gold_display',
+        'price_php',
+        'price_per_gold_display',
+        'is_active',
+        'created_at'
+    ]
+    list_filter = ['is_active', 'created_at']
+    search_fields = ['name', 'gold_amount']
+    readonly_fields = ['created_at', 'total_gold_display', 'price_per_gold_display']
+    
+    fieldsets = [
+        ('Package Details', {
+            'fields': [
+                'name',
+                'gold_amount',
+                'bonus_gold',
+                'bonus_description',
+                'price_php',
+                'is_active'
+            ]
+        }),
+        ('Calculated Fields', {
+            'fields': ['total_gold_display', 'price_per_gold_display', 'created_at'],
+            'classes': ['collapse']
+        })
+    ]
+    
+    def total_gold_display(self, obj):
+        """Display total gold including bonus"""
+        return f"{obj.total_gold:,} gold"
+    total_gold_display.short_description = "Total Gold (with bonus)"
+    
+    def price_per_gold_display(self, obj):
+        """Display price per gold coin"""
+        if obj.total_gold > 0:
+            price_per_gold = float(obj.price_php) / obj.total_gold
+            return f"₱{price_per_gold:.4f} per gold"
+        return "N/A"
+    price_per_gold_display.short_description = "Price per Gold"
+    
+    # Add some useful actions
+    actions = ['activate_packages', 'deactivate_packages']
+    
+    def activate_packages(self, request, queryset):
+        """Activate selected packages"""
+        updated = queryset.update(is_active=True)
+        messages.success(request, f"Activated {updated} package(s).")
+    activate_packages.short_description = "Activate selected packages"
+    
+    def deactivate_packages(self, request, queryset):
+        """Deactivate selected packages"""
+        updated = queryset.update(is_active=False)
+        messages.success(request, f"Deactivated {updated} package(s).")
+    deactivate_packages.short_description = "Deactivate selected packages"

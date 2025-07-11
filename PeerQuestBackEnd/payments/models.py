@@ -2,6 +2,38 @@ from django.db import models
 from django.conf import settings
 
 
+class GoldPackage(models.Model):
+    """Predefined gold packages with fixed pricing"""
+    name = models.CharField(max_length=100)  # e.g., "Starter Pack", "Premium Pack"
+    gold_amount = models.IntegerField()  # Base gold coins
+    price_php = models.DecimalField(max_digits=10, decimal_places=2)  # Fixed price in PHP
+    bonus_gold = models.IntegerField(default=0)  # Bonus gold coins
+    bonus_description = models.CharField(max_length=100, blank=True, null=True)  # e.g., "+300 bonus coins"
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['price_php']
+        verbose_name = 'Gold Package'
+        verbose_name_plural = 'Gold Packages'
+    
+    def __str__(self):
+        bonus_text = f" + {self.bonus_gold} bonus" if self.bonus_gold > 0 else ""
+        return f"{self.name}: {self.gold_amount}{bonus_text} gold for ₱{self.price_php}"
+    
+    @property
+    def total_gold(self):
+        """Total gold including bonus"""
+        return self.gold_amount + self.bonus_gold
+    
+    @property
+    def formatted_bonus(self):
+        """Formatted bonus description"""
+        if self.bonus_gold > 0:
+            return f"+{self.bonus_gold} bonus coins"
+        return ""
+
+
 class PaymentProof(models.Model):
     STATUS_CHOICES = [
         ('queued', 'Queued'),
@@ -19,9 +51,21 @@ class PaymentProof(models.Model):
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     payment_reference = models.CharField(max_length=50, unique=True)
-    package_amount = models.IntegerField()  # Gold coins
-    package_price = models.DecimalField(max_digits=10, decimal_places=2)  # PHP
-    bonus = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Link to predefined gold package
+    gold_package = models.ForeignKey(
+        GoldPackage, 
+        on_delete=models.CASCADE,
+        help_text="Selected gold package with fixed pricing",
+        null=True,  # Allow null for existing records
+        blank=True
+    )
+    
+    # These fields are now derived from the gold_package but stored for historical record
+    package_amount = models.IntegerField(help_text="Gold coins from package (for record keeping)")
+    package_price = models.DecimalField(max_digits=10, decimal_places=2, help_text="Price paid in PHP (for record keeping)")
+    bonus = models.CharField(max_length=100, blank=True, null=True, help_text="Bonus description (for record keeping)")
+    
     receipt_image = models.ImageField(upload_to='payment_receipts/')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='queued')
     
@@ -157,18 +201,20 @@ class PaymentProof(models.Model):
     @property
     def total_gold_with_bonus(self):
         """Calculate total gold including bonus"""
-        base_amount = self.package_amount
-        
-        # Parse bonus amount from string like "+300 bonus coins"
-        if self.bonus:
-            try:
-                bonus_text = self.bonus.replace('+', '').replace('bonus coins', '').replace('bonus coin', '').strip()
-                bonus_amount = int(bonus_text) if bonus_text.isdigit() else 0
-                return base_amount + bonus_amount
-            except (ValueError, AttributeError):
-                return base_amount
-        
-        return base_amount
+        # Use the gold_package if available, otherwise fall back to stored values
+        if self.gold_package:
+            return self.gold_package.total_gold
+        else:
+            # Fallback for legacy records
+            base_amount = self.package_amount
+            if self.bonus:
+                try:
+                    bonus_text = self.bonus.replace('+', '').replace('bonus coins', '').replace('bonus coin', '').strip()
+                    bonus_amount = int(bonus_text) if bonus_text.isdigit() else 0
+                    return base_amount + bonus_amount
+                except (ValueError, AttributeError):
+                    return base_amount
+            return base_amount
     
     def is_eligible_for_auto_approval(self):
         """Check if payment can be auto-approved - DISABLED for manual batch processing"""
@@ -184,15 +230,24 @@ class PaymentProof(models.Model):
         """Add gold to user account"""
         try:
             user = self.user
-            if hasattr(user, 'profile'):
-                # If using a profile model
+            if hasattr(user, 'profile') and hasattr(user.profile, 'gold'):
+                # If using a profile model with gold field
                 profile = user.profile
                 profile.gold = (profile.gold or 0) + self.total_gold_with_bonus
                 profile.save()
-            else:
-                # If gold is stored directly on User model
+            elif hasattr(user, 'gold_balance'):
+                # If gold is stored as gold_balance on User model
+                user.gold_balance = (user.gold_balance or 0) + self.total_gold_with_bonus
+                user.save()
+            elif hasattr(user, 'gold'):
+                # If gold is stored as gold on User model
                 user.gold = getattr(user, 'gold', 0) + self.total_gold_with_bonus
                 user.save()
+            else:
+                # No gold field found
+                import logging
+                logging.error(f"No gold field found on user {self.user.username}")
+                return False
             return True
         except Exception as e:
             import logging
@@ -202,13 +257,12 @@ class PaymentProof(models.Model):
     def create_transaction_record(self):
         """Create transaction record for the payment"""
         try:
-            from transactions.models import Transaction
+            from transactions.models import Transaction, TransactionType
             Transaction.objects.create(
                 user=self.user,
-                transaction_type='PURCHASE',
+                type=TransactionType.PURCHASE,
                 amount=self.total_gold_with_bonus,
-                description=f"Gold Package Purchase - {self.package_amount} coins (₱{self.package_price}){' + bonus' if self.bonus else ''}",
-                reference=self.payment_reference
+                description=f"Gold Package Purchase - {self.package_amount} coins (₱{self.package_price}){' + bonus' if self.bonus else ''} - Ref: {self.payment_reference}"
             )
             return True
         except ImportError:
@@ -218,3 +272,15 @@ class PaymentProof(models.Model):
             import logging
             logging.error(f"Error creating transaction record: {str(e)}")
             return False
+    
+    def save(self, *args, **kwargs):
+        """Override save to automatically assign to batch on creation"""
+        # If this is a new receipt (no primary key yet), assign to next batch
+        is_new = self.pk is None
+        
+        # Call the original save method first
+        super().save(*args, **kwargs)
+        
+        # If this was a new receipt, assign it to the next batch
+        if is_new and not self.batch_id:
+            self.assign_to_next_batch()

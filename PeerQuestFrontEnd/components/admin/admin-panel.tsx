@@ -76,7 +76,7 @@ function AdminPanel({
   setGuilds,
   showToast,
 }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "users" | "quests" | "guilds" | "reports" | "appeals" | "actionlog" | "transactions">("overview")
+  const [activeTab, setActiveTab] = useState<"overview" | "users" | "quests" | "guilds" | "reports" | "appeals" | "actionlog" | "transactions" | "receipts">("overview")
   
   // Action Log State
   const [actionLogs, setActionLogs] = useState<ActionLogEntry[]>([]);
@@ -99,6 +99,18 @@ function AdminPanel({
   const [reportSearch, setReportSearch] = useState("");
   const [reportsLoading, setReportsLoading] = useState(false);
   const [reportsError, setReportsError] = useState("");
+
+  // Receipts State
+  const [receipts, setReceipts] = useState<any[]>([]);
+  const [receiptsLoading, setReceiptsLoading] = useState(false);
+  const [receiptsError, setReceiptsError] = useState("");
+  const [receiptStatusFilter, setReceiptStatusFilter] = useState<string>("all");
+  const [receiptBatchFilter, setReceiptBatchFilter] = useState<string>("all");
+  const [receiptSearch, setReceiptSearch] = useState("");
+  const [selectedReceipts, setSelectedReceipts] = useState<number[]>([]);
+  const [receiptStats, setReceiptStats] = useState<any>({});
+  const [batchInfo, setBatchInfo] = useState<any>({});
+  const [selectedReceiptImage, setSelectedReceiptImage] = useState<string | null>(null);
 
   // Filter and search reports
   const filteredReports = useMemo(() => {
@@ -138,6 +150,28 @@ function AdminPanel({
     }
     return filtered;
   }, [transactions, transactionTypeFilter, transactionSearch]);
+
+  // Filter and search receipts
+  const filteredReceipts = useMemo(() => {
+    let filtered = receipts;
+    if (receiptStatusFilter !== "all") {
+      filtered = filtered.filter((r) => r.status === receiptStatusFilter);
+    }
+    if (receiptBatchFilter !== "all") {
+      filtered = filtered.filter((r) => r.scheduled_batch === receiptBatchFilter);
+    }
+    if (receiptSearch.trim()) {
+      const q = receiptSearch.trim().toLowerCase();
+      filtered = filtered.filter((r) => {
+        return (
+          (r.user?.username?.toLowerCase?.().includes(q)) ||
+          (r.payment_reference?.toLowerCase?.().includes(q)) ||
+          (r.batch_id?.toLowerCase?.().includes(q))
+        );
+      });
+    }
+    return filtered;
+  }, [receipts, receiptStatusFilter, receiptBatchFilter, receiptSearch]);
 
   // Fetch quests for admin panel
   const fetchQuestsForAdmin = async () => {
@@ -230,20 +264,6 @@ function AdminPanel({
         transactionData = [];
       }
       
-      // Debug log to see what commission_fee data we're getting
-      console.log("=== TRANSACTIONS API DEBUG ===");
-      console.log("Raw API response:", data);
-      console.log("Transaction data:", transactionData);
-      transactionData.slice(0, 3).forEach((t: any, i: number) => {
-        console.log(`Transaction ${i + 1}:`, {
-          id: t.transaction_id,
-          commission_fee: t.commission_fee,
-          commission_type: typeof t.commission_fee,
-          all_fields: Object.keys(t)
-        });
-      });
-      console.log("=== END DEBUG ===");
-      
       setTransactions(transactionData);
     } catch (err: any) {
       setTransactionsError("Error fetching transactions: " + (err?.message || err));
@@ -252,16 +272,122 @@ function AdminPanel({
     setTransactionsLoading(false);
   };
 
+  // Fetch receipts from backend
+  const fetchReceipts = async () => {
+    setReceiptsLoading(true);
+    setReceiptsError("");
+    try {
+      const API_BASE = "http://localhost:8000";
+      const params = new URLSearchParams();
+      if (receiptStatusFilter !== "all") params.append("status", receiptStatusFilter);
+      if (receiptBatchFilter !== "all") params.append("batch", receiptBatchFilter);
+      if (receiptSearch.trim()) params.append("search", receiptSearch.trim());
+      
+      const url = `${API_BASE}/api/payments/admin/receipts/${params.toString() ? '?' + params.toString() : ''}`;
+      const res = await fetchWithAuth(url);
+      
+      if (!res.ok) {
+        const err = await res.text();
+        setReceiptsError(err);
+        setReceipts([]);
+        setReceiptsLoading(false);
+        return;
+      }
+      
+      const data = await res.json();
+      if (data.success) {
+        setReceipts(data.receipts || []);
+        setReceiptStats(data.statistics || {});
+        setBatchInfo(data.batch_info || {});
+        
+        // Debug: Log the first receipt to check receipt_image data
+        if (data.receipts && data.receipts.length > 0) {
+          console.log('Sample receipt data:', {
+            id: data.receipts[0].id,
+            receipt_image: data.receipts[0].receipt_image,
+            user: data.receipts[0].user?.username
+          });
+        }
+      } else {
+        setReceiptsError(data.message || "Failed to fetch receipts");
+        setReceipts([]);
+      }
+    } catch (err: any) {
+      setReceiptsError("Error fetching receipts: " + (err?.message || err));
+      setReceipts([]);
+    }
+    setReceiptsLoading(false);
+  };
+
+  // Handle individual receipt actions
+  const handleReceiptAction = async (receiptId: number, action: string, notes: string = '') => {
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/payments/admin/receipts/${receiptId}/action/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, notes })
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message, "success");
+        fetchReceipts(); // Refresh the list
+      } else {
+        showToast(data.message || "Failed to perform action", "error");
+      }
+    } catch (err: any) {
+      showToast("Error performing action: " + (err?.message || err), "error");
+    }
+  };
+
+  // Handle batch receipt actions
+  const handleBatchAction = async (action: string, notes: string = '') => {
+    if (selectedReceipts.length === 0) {
+      showToast("Please select receipts to process", "error");
+      return;
+    }
+    
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/payments/admin/receipts/batch-action/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          action, 
+          receipt_ids: selectedReceipts,
+          notes 
+        })
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message, "success");
+        setSelectedReceipts([]); // Clear selection
+        fetchReceipts(); // Refresh the list
+      } else {
+        showToast(data.message || "Failed to perform batch action", "error");
+      }
+    } catch (err: any) {
+      showToast("Error performing batch action: " + (err?.message || err), "error");
+    }
+  };
+
   useEffect(() => {
     if (activeTab === "actionlog") fetchActionLogs();
     if (activeTab === "reports") fetchReports();
     if (activeTab === "quests") fetchQuestsForAdmin();
     if (activeTab === "transactions") fetchTransactions();
-  }, [activeTab]);
+    if (activeTab === "receipts") fetchReceipts();
+  }, [activeTab, receiptStatusFilter, receiptBatchFilter, receiptSearch]);
 
   // Also fetch quests on mount (for overview stats)
   useEffect(() => {
     fetchQuestsForAdmin();
+    // Also fetch receipt stats for overview
+    if (receipts.length === 0) {
+      fetchReceipts();
+    }
   }, []);
 
   // Basic state variables
@@ -439,13 +565,24 @@ function AdminPanel({
                 <ArrowUpDown size={18} className="mr-2" />
                 Transactions
               </button>
+              <button
+                onClick={() => setActiveTab("receipts")}
+                className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
+                  activeTab === "receipts"
+                    ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
+                    : "text-gray-500 hover:text-[#8B75AA]"
+                }`}
+              >
+                <FileText size={18} className="mr-2" />
+                Receipts
+              </button>
             </div>
           </div>
 
           {/* Overview Tab */}
           {activeTab === "overview" && (
             <div className="rounded-b-lg p-6 bg-white">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-6 sm:mb-8">
                 <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-bold text-[#2C1A1D]">Total Users</h3>
@@ -489,6 +626,18 @@ function AdminPanel({
                   <div className="text-3xl font-bold text-[#2C1A1D]">{transactions.length}</div>
                   <div className="text-sm text-[#8B75AA] mt-2">
                     <span className="font-medium">All time</span>
+                  </div>
+                </div>
+
+                <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-bold text-[#2C1A1D]">Receipts</h3>
+                    <FileText size={18} className="text-[#8B75AA]" />
+                  </div>
+                  <div className="text-3xl font-bold text-[#2C1A1D]">{receiptStats.total || 0}</div>
+                  <div className="text-sm text-[#8B75AA] mt-2">
+                    <span className="font-medium text-yellow-600">{(receiptStats.queued_ready || 0) + (receiptStats.queued_future || 0)} total queued</span> •{" "}
+                    <span className="font-medium text-green-600">{receiptStats.verified || 0} verified</span>
                   </div>
                 </div>
               </div>
@@ -604,16 +753,6 @@ function AdminPanel({
                               {(() => {
                                 // Handle commission fee - API returns string values like "5.00"
                                 const commissionFee = transaction.commission_fee;
-                                console.log(`Commission debug for transaction ${transaction.transaction_id}:`, {
-                                  raw_commission_fee: commissionFee,
-                                  type: typeof commissionFee,
-                                  is_truthy: !!commissionFee,
-                                  not_zero_string: commissionFee !== '0.00',
-                                  not_zero: commissionFee !== '0',
-                                  parsed: parseFloat(commissionFee || '0'),
-                                  is_valid_number: !isNaN(parseFloat(commissionFee || '0'))
-                                });
-                                
                                 if (commissionFee && commissionFee !== '0.00' && commissionFee !== '0') {
                                   const commissionValue = parseFloat(commissionFee);
                                   if (!isNaN(commissionValue) && commissionValue > 0) {
@@ -676,8 +815,297 @@ function AdminPanel({
             </div>
           )}
 
+          {/* Receipts Tab */}
+          {activeTab === "receipts" && (
+            <div className="rounded-b-lg p-6 bg-white">
+              <h3 className="text-xl font-bold text-[#2C1A1D] mb-8 text-center">Gold Purchase Receipt Management</h3>
+              
+              {/* Statistics Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-yellow-800">{receiptStats.queued_ready || 0}</div>
+                  <div className="text-sm text-yellow-600">Ready for Review</div>
+                </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-gray-800">{receiptStats.queued_future || 0}</div>
+                  <div className="text-sm text-gray-600">Waiting for Batch</div>
+                </div>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-green-800">{receiptStats.verified || 0}</div>
+                  <div className="text-sm text-green-600">Verified</div>
+                </div>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-red-800">{receiptStats.rejected || 0}</div>
+                  <div className="text-sm text-red-600">Rejected</div>
+                </div>
+              </div>
+
+              {/* Batch Info */}
+              {batchInfo.next_batch_time && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="font-semibold text-blue-800">Next Batch Processing</h4>
+                      <p className="text-blue-600 text-sm">
+                        {new Date(batchInfo.next_batch_time).toLocaleString()} ({batchInfo.next_batch_name})
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-blue-800">{receiptStats.queued_ready || 0}</div>
+                      <div className="text-sm text-blue-600">Ready to Process</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Filters and Actions */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="flex flex-col lg:flex-row gap-4">
+                  {/* Filters */}
+                  <div className="flex flex-col sm:flex-row gap-4 flex-1">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                      <select
+                        value={receiptStatusFilter}
+                        onChange={(e) => setReceiptStatusFilter(e.target.value)}
+                        aria-label="Filter receipts by status"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                      >
+                        <option value="all">All Status</option>
+                        <option value="queued">Queued</option>
+                        <option value="processing">Processing</option>
+                        <option value="verified">Verified</option>
+                        <option value="rejected">Rejected</option>
+                      </select>
+                    </div>
+                    
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Batch</label>
+                      <select
+                        value={receiptBatchFilter}
+                        onChange={(e) => setReceiptBatchFilter(e.target.value)}
+                        aria-label="Filter receipts by batch"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                      >
+                        <option value="all">All Batches</option>
+                        <option value="morning">Morning</option>
+                        <option value="afternoon">Afternoon</option>
+                        <option value="evening">Evening</option>
+                        <option value="late_night">Late Night</option>
+                      </select>
+                    </div>
+                    
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                        <input
+                          type="text"
+                          placeholder="Search user, reference..."
+                          value={receiptSearch}
+                          onChange={(e) => setReceiptSearch(e.target.value)}
+                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Batch Actions */}
+                  {selectedReceipts.length > 0 && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleBatchAction('approve_batch')}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                      >
+                        Approve Selected ({selectedReceipts.length})
+                      </button>
+                      <button
+                        onClick={() => handleBatchAction('reject_batch')}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+                      >
+                        Reject Selected
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Loading State */}
+              {receiptsLoading && (
+                <div className="flex flex-col items-center justify-center min-h-[200px]">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#8B75AA]"></div>
+                  <span className="text-gray-500 mt-2">Loading receipts...</span>
+                </div>
+              )}
+
+              {/* Error State */}
+              {receiptsError && (
+                <div className="flex flex-col items-center justify-center min-h-[200px]">
+                  <AlertTriangle className="h-8 w-8 text-red-500 mb-2" />
+                  <span className="text-red-500 text-center">{receiptsError}</span>
+                </div>
+              )}
+
+              {/* No Receipts */}
+              {!receiptsLoading && !receiptsError && filteredReceipts.length === 0 && (
+                <div className="flex flex-col items-center justify-center min-h-[200px]">
+                  <span className="text-gray-500 text-base">No receipts found.</span>
+                  <span className="text-xs text-gray-400 mt-1">No receipts match your current filters.</span>
+                </div>
+              )}
+
+              {/* Receipts Table */}
+              {!receiptsLoading && !receiptsError && filteredReceipts.length > 0 && (
+                <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full bg-white">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="py-3 px-4 border-b text-left">
+                            <input
+                              type="checkbox"
+                              checked={selectedReceipts.length === filteredReceipts.length}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedReceipts(filteredReceipts.map(r => r.id));
+                                } else {
+                                  setSelectedReceipts([]);
+                                }
+                              }}
+                              aria-label="Select all receipts"
+                              className="rounded"
+                            />
+                          </th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">User</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Reference</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Package</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Status</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Batch</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Receipt</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Date</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredReceipts.map((receipt) => (
+                          <tr key={receipt.id} className="hover:bg-gray-50">
+                            <td className="py-3 px-4 border-b">
+                              <input
+                                type="checkbox"
+                                checked={selectedReceipts.includes(receipt.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedReceipts([...selectedReceipts, receipt.id]);
+                                  } else {
+                                    setSelectedReceipts(selectedReceipts.filter(id => id !== receipt.id));
+                                  }
+                                }}
+                                aria-label={`Select receipt ${receipt.payment_reference}`}
+                                className="rounded"
+                              />
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="font-medium text-gray-900">{receipt.user?.username || 'Unknown'}</div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="text-sm font-mono text-blue-600">{receipt.payment_reference}</div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="text-sm">
+                                <div className="font-medium">{receipt.package_amount} Gold</div>
+                                <div className="text-gray-500">₱{receipt.package_price}</div>
+                                {receipt.bonus && (
+                                  <div className="text-green-600 text-xs">{receipt.bonus}</div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                receipt.status === 'queued' ? 'bg-yellow-100 text-yellow-800' :
+                                receipt.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                                receipt.status === 'verified' ? 'bg-green-100 text-green-800' :
+                                receipt.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {receipt.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="text-sm">
+                                {receipt.scheduled_batch && (
+                                  <div className="capitalize">{receipt.scheduled_batch.replace('_', ' ')}</div>
+                                )}
+                                {receipt.next_processing_time && (
+                                  <div className="text-gray-500 text-xs">
+                                    {new Date(receipt.next_processing_time).toLocaleString()}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              {receipt.receipt_image ? (
+                                <button
+                                  onClick={() => {
+                                    // Handle both relative and absolute URLs
+                                    const imageUrl = receipt.receipt_image.startsWith('http') 
+                                      ? receipt.receipt_image 
+                                      : `http://localhost:8000${receipt.receipt_image}`;
+                                    setSelectedReceiptImage(imageUrl);
+                                  }}
+                                  className="text-blue-600 hover:text-blue-800 text-sm underline"
+                                >
+                                  View Receipt
+                                </button>
+                              ) : (
+                                <span className="text-gray-400 text-sm">No image</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="text-gray-600 text-sm">
+                                {new Date(receipt.created_at).toLocaleString()}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="flex gap-1">
+                                {receipt.status === 'queued' || receipt.status === 'processing' ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleReceiptAction(receipt.id, 'approve')}
+                                      className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      onClick={() => handleReceiptAction(receipt.id, 'reject')}
+                                      className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+                                    >
+                                      Reject
+                                    </button>
+                                  </>
+                                ) : receipt.status === 'rejected' ? (
+                                  <button
+                                    onClick={() => handleReceiptAction(receipt.id, 'requeue')}
+                                    className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                                  >
+                                    Requeue
+                                  </button>
+                                ) : (
+                                  <span className="text-gray-400 text-xs">No actions</span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Other tabs placeholder */}
-          {activeTab !== "overview" && activeTab !== "transactions" && (
+          {activeTab !== "overview" && activeTab !== "transactions" && activeTab !== "receipts" && (
             <div className="rounded-b-lg p-6 bg-white">
               <div className="text-center py-16">
                 <h3 className="text-xl font-bold text-[#2C1A1D] mb-4">{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Management</h3>
@@ -698,6 +1126,31 @@ function AdminPanel({
           onResolve={() => {}}
           showToast={showToast}
         />
+      )}
+
+      {/* Receipt Image Modal */}
+      {selectedReceiptImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl max-h-full overflow-auto">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="text-lg font-semibold">Receipt Image</h3>
+              <button
+                onClick={() => setSelectedReceiptImage(null)}
+                className="text-gray-500 hover:text-gray-700"
+                aria-label="Close receipt image"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-4">
+              <img
+                src={selectedReceiptImage}
+                alt="Payment Receipt"
+                className="max-w-full h-auto rounded-lg shadow-lg max-h-[70vh]"
+              />
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

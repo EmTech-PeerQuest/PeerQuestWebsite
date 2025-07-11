@@ -92,7 +92,7 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
 
   // Purchase flow state
   const [showPurchaseModal, setShowPurchaseModal] = useState(false)
-  const [selectedPackage, setSelectedPackage] = useState<{amount: number, price: number, bonus?: string} | null>(null)
+  const [selectedPackage, setSelectedPackage] = useState<{id: number | null, amount: number, price: number, bonus?: string} | null>(null)
   const [purchaseStep, setPurchaseStep] = useState<"confirm" | "payment" | "upload" | "success">("confirm")
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("")
   const [paymentReference, setPaymentReference] = useState<string>("")
@@ -215,16 +215,62 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
     prev.purchaseCount > current.purchaseCount ? prev : current
   ).amount
 
-  const goldPackages = [
-    { amount: 500, price: 70, usd: 1.25, rate: 0.14, popular: mostPopularAmount === 500, bonus: "", label: "" },
-    { amount: 2800, price: 350, usd: 6.25, rate: 0.125, popular: mostPopularAmount === 2800, bonus: "+300 bonus coins", label: "Most Popular" },
-    { amount: 6500, price: 700, usd: 12.50, rate: 0.108, popular: mostPopularAmount === 6500, bonus: "+1000 bonus coins", label: "Best Value" },
-    { amount: 14500, price: 1500, usd: 26.79, rate: 0.103, popular: mostPopularAmount === 14500, bonus: "+2500 bonus coins", label: "Max" },
-  ]
+  // State for gold packages from API
+  const [goldPackages, setGoldPackages] = useState<any[]>([])
+  const [packagesLoading, setPackagesLoading] = useState(true)
 
-  const purchaseGold = (amount: number, price: number, bonus?: string) => {
+  // Fetch gold packages from API
+  useEffect(() => {
+    const fetchGoldPackages = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/payments/packages/')
+        const data = await response.json()
+        
+        if (data.success && data.packages) {
+          // Transform API data to include frontend-specific fields
+          const transformedPackages = data.packages.map((pkg: any) => ({
+            id: pkg.id, // Include the database ID
+            amount: pkg.gold_amount,
+            price: pkg.price_php,
+            bonus: pkg.formatted_bonus || "",
+            label: pkg.name.includes("Popular") ? "Most Popular" : 
+                   pkg.name.includes("Value") ? "Best Value" : 
+                   pkg.name.includes("Premium") ? "Max" : "",
+            popular: pkg.name.includes("Popular"), // You can customize this logic
+            rate: pkg.price_php / pkg.total_gold, // Calculate rate
+            usd: pkg.price_php / 56 // Approximate USD conversion
+          }))
+          setGoldPackages(transformedPackages)
+        } else {
+          console.error('Failed to fetch gold packages:', data)
+          // Fallback to hardcoded packages if API fails
+          setGoldPackages([
+            { id: null, amount: 500, price: 70, usd: 1.25, rate: 0.14, popular: mostPopularAmount === 500, bonus: "", label: "" },
+            { id: null, amount: 2800, price: 350, usd: 6.25, rate: 0.125, popular: mostPopularAmount === 2800, bonus: "+300 bonus coins", label: "Most Popular" },
+            { id: null, amount: 6500, price: 700, usd: 12.50, rate: 0.108, popular: mostPopularAmount === 6500, bonus: "+1000 bonus coins", label: "Best Value" },
+            { id: null, amount: 14500, price: 1500, usd: 26.79, rate: 0.103, popular: mostPopularAmount === 14500, bonus: "+2500 bonus coins", label: "Max" },
+          ])
+        }
+      } catch (error) {
+        console.error('Error fetching gold packages:', error)
+        // Fallback to hardcoded packages
+        setGoldPackages([
+          { id: null, amount: 500, price: 70, usd: 1.25, rate: 0.14, popular: mostPopularAmount === 500, bonus: "", label: "" },
+          { id: null, amount: 2800, price: 350, usd: 6.25, rate: 0.125, popular: mostPopularAmount === 2800, bonus: "+300 bonus coins", label: "Most Popular" },
+          { id: null, amount: 6500, price: 700, usd: 12.50, rate: 0.108, popular: mostPopularAmount === 6500, bonus: "+1000 bonus coins", label: "Best Value" },
+          { id: null, amount: 14500, price: 1500, usd: 26.79, rate: 0.103, popular: mostPopularAmount === 14500, bonus: "+2500 bonus coins", label: "Max" },
+        ])
+      } finally {
+        setPackagesLoading(false)
+      }
+    }
+
+    fetchGoldPackages()
+  }, [])
+
+  const purchaseGold = (id: number | null, amount: number, price: number, bonus?: string) => {
     // Open the purchase modal instead of direct purchase
-    setSelectedPackage({ amount, price, bonus })
+    setSelectedPackage({ id, amount, price, bonus })
     setShowPurchaseModal(true)
     setPurchaseStep("confirm")
   }
@@ -379,14 +425,19 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
       return
     }
 
+    if (!selectedPackage.id) {
+      if (showToast) {
+        showToast('Invalid package selected. Please try again.', 'error')
+      }
+      return
+    }
+
     setUploading(true)
 
     try {
       const result = await PaymentAPI.submitPaymentProof({
         payment_reference: paymentReference,
-        package_amount: selectedPackage.amount,
-        package_price: selectedPackage.price,
-        bonus: selectedPackage.bonus || '',
+        gold_package: selectedPackage.id,
         receipt: receiptImage
       })
       
@@ -824,7 +875,7 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                     }`}
                     onClick={() => {
                       playSound('button')
-                      purchaseGold(pkg.amount, pkg.price, pkg.bonus)
+                      purchaseGold(pkg.id, pkg.amount, pkg.price, pkg.bonus)
                     }}
                   >
                     {pkg.popular && (
