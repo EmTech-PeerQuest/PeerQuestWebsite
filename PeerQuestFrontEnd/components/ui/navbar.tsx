@@ -34,6 +34,19 @@ export function Navbar({
   onQuestCreated,
 }: Omit<NavbarProps, 'currentUser'>) {
   const { user: currentUser } = useAuth(); // Use context directly
+  
+  // Debug: Log user admin fields whenever user changes
+  useEffect(() => {
+    if (currentUser) {
+      console.log('[Navbar] Current user admin fields:', JSON.stringify({
+        is_staff: currentUser.is_staff,
+        is_superuser: currentUser.is_superuser,
+        isSuperuser: currentUser.isSuperuser,
+        showAdminButton: !!(currentUser.is_staff || currentUser.isSuperuser || currentUser.is_superuser),
+        userKeys: Object.keys(currentUser)
+      }, null, 2));
+    }
+  }, [currentUser]);
   const { t } = useTranslation();
   const router = useRouter();
   const { soundEnabled, volume } = useAudioContext();
@@ -63,17 +76,18 @@ export function Navbar({
     // Play navigation sound
     playSound('nav');
 
-    // Use section-based navigation for profile, settings, and quest-management
-    if (section === "profile" || section === "settings" || section === "quest-management") {
+    // Use section-based navigation for profile, settings, quest-management, and admin
+    if (
+      section === "profile" ||
+      section === "settings" ||
+      section === "quest-management" ||
+      section === "admin"
+    ) {
       setActiveSection(section);
     } else if (section === "messages") {
       router.push("/messages");
     } else if (section === "search") {
       setActiveSection("search");
-    } else if (section === "guild-management") {
-      router.push("/guilds");
-    } else if (section === "admin") {
-      router.push("/admin");
     } else {
       // For sections that are handled by the main page
       setActiveSection(section);
@@ -172,6 +186,7 @@ export function Navbar({
                       setNotificationsOpen(false)
                     }}
                     className="w-8 h-8 bg-[#CDAA7D] rounded-full flex items-center justify-center text-[#2C1A1D] hover:bg-[#B89A6D] transition-colors"
+                    aria-label="Open quick actions menu"
                   >
                     <Plus size={18} />
                   </button>
@@ -202,12 +217,14 @@ export function Navbar({
                 <button
                   onClick={() => handleNavigation("search")}
                   className="text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors"
+                  aria-label="Search"
                 >
                   <Search size={20} />
                 </button>
                 <button
                   onClick={() => handleNavigation("messages")}
                   className="text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors relative"
+                  aria-label="Messages"
                 >
                   <MessageSquare size={20} />
                   {unreadMessages > 0 && (
@@ -305,7 +322,8 @@ export function Navbar({
                         <Settings size={16} className="mr-2" />
                         {t('navbar.settings')}
                       </button>
-                      {(currentUser as any).roles && (currentUser as any).roles.includes("admin") && (
+                      {/* Debug box removed */}
+                      {currentUser && (currentUser.is_staff || currentUser.isSuperuser || currentUser.is_superuser) && (
                         <button
                           onClick={() => {
                             handleNavigation("admin")
@@ -347,11 +365,21 @@ export function Navbar({
           {/* Mobile menu button */}
           <div className="md:hidden flex items-center space-x-2">
             <LanguageSwitcher />
-            {currentUser && (
-              <div className="flex items-center mr-4">
+          {/* Hide gold button for banned users (user should never be set if banned, but double check) */}
+          {currentUser && !currentUser.isBanned && (
+            <div className="flex items-center mr-4">
+              <div className="bg-[#CDAA7D]/10 px-2 py-1 rounded-full flex items-center">
+                <span className="text-[#CDAA7D] text-sm font-medium">{(currentUser as any).gold || 0}</span>
                 <GoldBalance openGoldPurchaseModal={openGoldPurchaseModal} />
+                <button
+                  onClick={openGoldPurchaseModal}
+                  className="ml-1 text-xs bg-[#CDAA7D] text-white px-1.5 py-0.5 rounded hover:bg-[#B89A6D] transition-colors"
+                >
+                  +
+                </button>
               </div>
-            )}
+            </div>
+          )}
             <button
               onClick={() => {
                 setMobileMenuOpen(!mobileMenuOpen)
@@ -480,7 +508,7 @@ export function Navbar({
                     <Settings size={16} className="mr-2" />
                     {t('navbar.settings')}
                   </button>
-                  {(currentUser as any).roles && (currentUser as any).roles.includes("admin") && (
+                  {currentUser && (currentUser.is_staff || currentUser.isSuperuser || currentUser.is_superuser) && (
                     <button
                       onClick={() => handleNavigation("admin")}
                       className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"

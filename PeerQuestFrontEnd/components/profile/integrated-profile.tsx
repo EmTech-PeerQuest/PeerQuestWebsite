@@ -105,11 +105,12 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
   };
   const avatar = getAvatar(currentUser);
   const joinDate = getJoinDate(currentUser);
-  // Calculate XP progress
-  const xpForNextLevel = 1000; // Example value
-  const xpProgress = typeof currentUser.xp === 'number' && currentUser.xp > 0
-    ? ((currentUser.xp % xpForNextLevel) / xpForNextLevel) * 100
-    : 0;
+  // Calculate Level and XP Progress
+  const xpForNextLevel = 1000; // XP required per level (adjust as needed)
+  const userXp = typeof currentUser.xp === 'number' && currentUser.xp > 0 ? currentUser.xp : 0;
+  const userLevel = Math.floor(userXp / xpForNextLevel) + 1;
+  const xpThisLevel = userXp % xpForNextLevel;
+  const xpProgress = (xpThisLevel / xpForNextLevel) * 100;
 
   const tabs = [
     { id: "overview", label: "Overview" },
@@ -148,11 +149,11 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
               {/* Level Bar */}
               <div className="mt-4 max-w-md mx-auto sm:mx-0">
                 <div className="flex justify-between text-sm mb-1">
-                  <span>Level</span>
-                  <span>{currentUser.xp} XP</span>
+                  <span>Level {userLevel}</span>
+                  <span>{xpThisLevel} / {xpForNextLevel} XP</span>
                 </div>
                 <div className="w-full bg-[#2C1A1D] rounded-full h-2">
-                  <div className="bg-[#CDAA7D] h-2 rounded-full" style={{ width: `${xpProgress}%` }}></div>
+                  <div className="bg-[#CDAA7D] h-2 rounded-full transition-all duration-300" style={{ width: `${xpProgress}%` }}></div>
                 </div>
               </div>
             </div>
@@ -361,21 +362,7 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
                   ))}
                 </div>
               ) : (
-                <div>
-                  <div className="border-b border-[#CDAA7D] pb-4 mb-4">
-                    <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
-                      <h4 className="font-medium">WRITE TAVERN LORE</h4>
-                      <span className="text-[#8B75AA] font-medium">250 XP</span>
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      Looking for a skilled writer to create lore and stories about the PeerQuest Tavern's history.
-                    </p>
-                    <div className="flex flex-col sm:flex-row sm:justify-between gap-2 text-sm">
-                      <span>Reward: 400 Gold</span>
-                      <span>Completed: 6/3/2025</span>
-                    </div>
-                  </div>
-                </div>
+                <p className="text-gray-500 text-sm">No completed quests.</p>
               )}
             </div>
           </div>

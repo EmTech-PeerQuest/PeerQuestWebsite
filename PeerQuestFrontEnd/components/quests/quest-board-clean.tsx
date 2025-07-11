@@ -6,7 +6,7 @@ import type { Quest } from "@/lib/types"
 import { QuestAPI, QuestCategory, QuestFilters } from "@/lib/api/quests"
 import TavernQuestCard from "./tavern-quest-card"
 import QuestForm from "./quest-form"
-import { QuestDetailsModal } from "./quest-details-modal"
+import QuestDetailsModal from "./quest-details-modal"
 import { ApplicationsModal } from "@/components/modals/applications-modal"
 
 interface QuestBoardProps {
@@ -299,7 +299,7 @@ export function QuestBoard({
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-3xl sm:text-4xl font-bold text-amber-900 font-serif">Quest Board</h2>
-                  <p className="mt-2 font-medium" style={{color: '#8C74AC'}}>
+                  <p className="mt-2 font-medium text-purple-600">
                     Discover opportunities to showcase your skills and collaborate
                   </p>
                 </div>
@@ -311,10 +311,7 @@ export function QuestBoard({
                         setEditingQuest(null)
                         setShowQuestForm(true)
                       }}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md transition-colors"
-                      style={{backgroundColor: '#8C74AC'}}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#7A6699'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#8C74AC'}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md transition-colors bg-purple-600 hover:bg-purple-700"
                     >
                       <Edit className="w-4 h-4" />
                       Post a Quest
@@ -351,6 +348,7 @@ export function QuestBoard({
                 value={filters.category || ""}
                 onChange={(e) => handleFilterChange("category", e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-sm text-gray-900"
+                aria-label="Filter by category"
               >
                 <option value="">All Categories</option>
                 {categories.map(category => (
@@ -367,6 +365,7 @@ export function QuestBoard({
                 value={filters.difficulty || ""}
                 onChange={(e) => handleFilterChange("difficulty", e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-sm text-gray-900"
+                aria-label="Filter by difficulty"
               >
                 <option value="">All Difficulties</option>
                 <option value="initiate">Initiate Tier</option>
@@ -382,6 +381,7 @@ export function QuestBoard({
                 value={filters.status || ""}
                 onChange={(e) => handleFilterChange("status", e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white text-sm text-gray-900"
+                aria-label="Filter by status"
               >
                 <option value="">All Statuses</option>
                 <option value="open">Open</option>
@@ -419,17 +419,13 @@ export function QuestBoard({
           </div>
           <h3 className="text-xl font-bold text-gray-900 mb-2">No quests found</h3>
           <p className="text-gray-600 mb-6">Try adjusting your search criteria or filters</p>
-          {currentUser && (
-            <button
-              onClick={() => {
-                setEditingQuest(null)
-                setShowQuestForm(true)
-              }}
-              className="text-white px-6 py-3 rounded-lg transition-colors font-medium"
-              style={{backgroundColor: '#8C74AC'}}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#7A6699'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#8C74AC'}
-            >
+          {currentUser && (              <button
+                onClick={() => {
+                  setEditingQuest(null)
+                  setShowQuestForm(true)
+                }}
+                className="text-white px-6 py-3 rounded-lg transition-colors font-medium bg-purple-600 hover:bg-purple-700"
+              >
               Create the First Quest
             </button>
           )}

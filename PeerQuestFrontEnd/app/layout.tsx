@@ -7,6 +7,7 @@ import { LanguageProvider } from '@/context/LanguageContext';
 import { AudioProvider } from '@/context/audio-context';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { UserProfileModalProvider } from './UserProfileModalProvider';
+import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
   title: 'PeerQuest',
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <GoldBalanceProvider>
                   <UserProfileModalProvider>
                     {children}
+                    <Toaster />
                   </UserProfileModalProvider>
                 </GoldBalanceProvider>
               </AuthProvider>

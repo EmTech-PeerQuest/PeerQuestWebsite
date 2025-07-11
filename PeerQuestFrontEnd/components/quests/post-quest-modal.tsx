@@ -80,7 +80,7 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
 
     const selectedGuild =
       questForm.postAs === "guild" && questForm.selectedGuild
-        ? guilds.find((g) => g.id.toString() === questForm.selectedGuild)
+        ? guilds.find((g) => g.id?.toString() === questForm.selectedGuild)
         : null
 
     // Map difficulty slider to new fantasy tiers and XP
@@ -159,6 +159,7 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
             </div>
             <button
               onClick={onClose}
+              aria-label="Close modal"
               className="text-white hover:text-[#F4F0E6] transition-colors p-2 hover:bg-white/10 rounded-lg"
             >
               <X size={24} />
@@ -203,6 +204,7 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
             <div className="space-y-2">
               <label className="block text-sm font-bold text-[#2C1A1D] uppercase tracking-wide">Category</label>
               <select
+                aria-label="Select quest category"
                 className="w-full px-4 py-3 border-2 border-[#CDAA7D] rounded-lg bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] focus:ring-2 focus:ring-[#8B75AA]/20 transition-all"
                 value={questForm.category}
                 onChange={(e) => setQuestForm((prev) => ({ ...prev, category: e.target.value }))}
@@ -245,10 +247,8 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
               max="4"
               value={questForm.difficulty}
               onChange={(e) => setQuestForm((prev) => ({ ...prev, difficulty: Number.parseInt(e.target.value) }))}
-              className="w-full h-3 rounded-lg appearance-none cursor-pointer"
-              style={{
-                background: `linear-gradient(to right, #10b981 0%, #3b82f6 33%, #f59e42 66%, #a21caf 100%)`,
-              }}
+              aria-label="Difficulty level slider"
+              className="w-full h-3 rounded-lg appearance-none cursor-pointer bg-gradient-to-r from-green-400 to-purple-400"
             />
               <div
                 className={`p-4 rounded-lg bg-gradient-to-r ${difficultyColors[questForm.difficulty as keyof typeof difficultyColors]} text-white`}
@@ -281,6 +281,7 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
             </label>
             <input
               type="date"
+              aria-label="Quest deadline date"
               className="w-full px-4 py-3 border-2 border-[#CDAA7D] rounded-lg bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] focus:ring-2 focus:ring-[#8B75AA]/20 transition-all"
               value={questForm.deadline}
               onChange={(e) => setQuestForm((prev) => ({ ...prev, deadline: e.target.value }))}

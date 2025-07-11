@@ -1,3 +1,25 @@
+
+export interface QuestReport {
+  id: number;
+  reported_quest: string;
+  reporter: string;
+  reason: string;
+  message?: string;
+  created_at: string;
+  resolved: boolean;
+  resolved_by?: string;
+  resolved_at?: string;
+  reporter_username?: string;
+  reported_quest_title?: string;
+}
+export interface ActionLogEntry {
+  id: number;
+  action: string;
+  admin: string | null;
+  target_user: string | null;
+  details: string;
+  created_at: string;
+}
 export interface User {
   id: string;
   email: string;
@@ -7,6 +29,7 @@ export interface User {
   isBanned?: boolean;
   banned?: boolean; // Alternative naming
   banReason?: string;
+  banExpiration?: Date | string | null;
   roles?: string[];
   role?: string; // User role (quest_maker, adventurer, moderator, admin)
   roleDisplay?: string; // Human-readable role display
@@ -37,6 +60,9 @@ export interface User {
   skills?: { id: string; name: string; description?: string }[];
   guilds?: Guild[];
   badges?: { id: string; name: string; icon?: string; description?: string; rarity?: 'common' | 'rare' | 'epic' | 'legendary'; earnedAt?: string }[];
+  is_staff?: boolean;
+  isSuperuser?: boolean;
+  is_superuser?: boolean;
   socialLinks?: {
     facebook?: string;
     twitter?: string;
@@ -142,13 +168,13 @@ export interface Quest {
   completed_at?: string
   completedAt?: string // Alternative naming
   createdAt?: string // Alternative naming
-  requirements?: string
   resources?: string
   slug: string
   participant_count: number
   applications_count: number
   can_accept_participants: boolean
   is_completed: boolean
+  reports_count?: number
   participants_detail?: Array<{
     id: number
     user: {
@@ -173,21 +199,41 @@ export interface Quest {
   guildId?: number
   guildReward?: number
   assignedTo?: number // Missing property found in components
+  requirements?: string[]
 }
 
 
 
 
 export interface Guild {
-  id: string | number;
+  guild_id: string;
   name: string;
-  description?: string;
+  description: string;
+  specialization: string;
+  welcome_message?: string;
+  custom_emblem?: string | null;
+  preset_emblem?: string;
+  privacy: 'public' | 'private';
+  require_approval: boolean;
+  minimum_level: number;
+  allow_discovery: boolean;
+  show_on_home_page: boolean;
+  who_can_post_quests: 'all_members' | 'admins_only' | 'owner_only';
+  who_can_invite_members: 'all_members' | 'admins_only' | 'owner_only';
+  owner: User;
+  created_at: string;
+  updated_at: string;
+  member_count: number;
+  tags?: GuildTag[];
+  social_links?: GuildSocialLink[];
+  
+  // Backward compatibility
+  id?: string | number;
   requirements?: string[];
-  createdAt?: string;
   emblem?: string;
-  specialization?: string;
   members?: number;
   funds?: number;
+  membersList?: number[];
   poster?: {
     id?: number; // Added missing id property
     username?: string;
@@ -195,36 +241,88 @@ export interface Guild {
     name?: string;
   };
   // Missing properties found in components
-  membersList?: number[];
   admins?: number[];
   username?: string; // Alternative naming
-  category?: string;
-  settings?: {
-    joinRequirements?: {
-      manualApproval?: boolean;
-    };
-  };
   shout?: {
     content: string;
     authorName: string;
     createdAt: string;
   };
-  socialLinks?: Array<{
-    platform: string;
-    url: string;
-    name?: string;
-  }>;
-  applications?: GuildApplication[];
+  
+  // Additional fields for overview modal
+  category?: string;
+  announcements?: GuildAnnouncement[];
+  settings?: {
+    joinRequirements?: {
+      manualApproval: boolean;
+    };
+  };
+  socialLinks?: string[]; // For backward compatibility
 }
 
-export interface GuildApplication {
-  id: number
-  userId: number
-  username: string
-  avatar?: string
-  message: string
-  status: 'pending' | 'accepted' | 'rejected'
-  appliedAt: Date
+export interface GuildTag {
+  id: number;
+  tag: string;
+}
+
+export interface GuildSocialLink {
+  id: number;
+  platform_name: string;
+  url: string;
+}
+
+export interface GuildAnnouncement {
+  id: number;
+  title: string;
+  content: string;
+  author: User;
+  created_at: string;
+  is_pinned?: boolean;
+}
+
+export interface GuildMembership {
+  id: number;
+  user: User;
+  guild: Guild;
+  role: 'owner' | 'admin' | 'member';
+  status: 'pending' | 'approved' | 'rejected' | 'left' | 'kicked';
+  is_active: boolean;
+  joined_at: string;
+  approved_at?: string;
+  left_at?: string;
+  approved_by?: User;
+}
+
+export interface GuildJoinRequest {
+  id: number;
+  guild: Guild;
+  user: User;
+  message: string;
+  created_at: string;
+  processed_at?: string;
+  processed_by?: User;
+  is_approved?: boolean | null; // null = pending, true = approved, false = rejected
+}
+
+export interface CreateGuildData {
+  name: string;
+  description: string;
+  specialization: string;
+  welcome_message?: string;
+  custom_emblem?: File | null;
+  preset_emblem?: string;
+  privacy: 'public' | 'private';
+  require_approval: boolean;
+  minimum_level: number;
+  allow_discovery: boolean;
+  show_on_home_page: boolean;
+  who_can_post_quests: 'all_members' | 'admins_only' | 'owner_only';
+  who_can_invite_members: 'all_members' | 'admins_only' | 'owner_only';
+  tags?: string[];
+  social_links?: Array<{
+    platform_name: string;
+    url: string;
+  }>;
   guildId?: string | number // Missing property
 }
 

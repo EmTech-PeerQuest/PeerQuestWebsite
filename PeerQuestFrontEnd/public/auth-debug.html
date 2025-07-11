@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auth Debug</title>
+</head>
+<body>
+    <h1>Authentication Debug</h1>
+    <div id="output"></div>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        // Check localStorage and sessionStorage
+        const accessToken = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+        
+        output.innerHTML += `<p><strong>Access Token:</strong> ${accessToken ? 'Found' : 'Not Found'}</p>`;
+        
+        if (accessToken) {
+            output.innerHTML += `<p><strong>Token Value:</strong> ${accessToken.substring(0, 50)}...</p>`;
+            
+            // Test API call
+            fetch('http://localhost:8000/api/auth/user/', {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                output.innerHTML += `<p><strong>User API Status:</strong> ${response.status}</p>`;
+                return response.json();
+            })
+            .then(data => {
+                output.innerHTML += `<p><strong>User Data:</strong> ${JSON.stringify(data, null, 2)}</p>`;
+            })
+            .catch(error => {
+                output.innerHTML += `<p><strong>API Error:</strong> ${error.message}</p>`;
+            });
+            
+            // Test guild join API
+            fetch('http://localhost:8000/api/guilds/99d7c20d-ed3e-41ef-b057-ee1cddc0d966/join/', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ message: 'Test from debug page' })
+            })
+            .then(response => {
+                output.innerHTML += `<p><strong>Guild Join API Status:</strong> ${response.status}</p>`;
+                return response.json();
+            })
+            .then(data => {
+                output.innerHTML += `<p><strong>Guild Join Response:</strong> ${JSON.stringify(data, null, 2)}</p>`;
+            })
+            .catch(error => {
+                output.innerHTML += `<p><strong>Guild Join Error:</strong> ${error.message}</p>`;
+            });
+        }
+    </script>
+</body>
+</html>

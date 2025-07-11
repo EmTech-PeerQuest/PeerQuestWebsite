@@ -1,7 +1,38 @@
+
+
+# User Report Serializer
+from rest_framework import serializers
+from .models import UserReport, QuestReport
+
+class UserReportSerializer(serializers.ModelSerializer):
+    reporter_username = serializers.CharField(source='reporter.username', read_only=True)
+    reported_user_username = serializers.CharField(source='reported_user.username', read_only=True)
+
+    class Meta:
+        model = UserReport
+        fields = [
+            'id', 'reported_user', 'reporter', 'reason', 'message', 'created_at',
+            'resolved', 'resolved_by', 'resolved_at',
+            'reporter_username', 'reported_user_username',
+        ]
+        read_only_fields = ['id', 'created_at', 'resolved', 'resolved_by', 'resolved_at', 'reporter_username', 'reported_user_username']
+
+# Quest Report Serializer
+class QuestReportSerializer(serializers.ModelSerializer):
+    reporter_username = serializers.CharField(source='reporter.username', read_only=True)
+    reported_quest_title = serializers.CharField(source='reported_quest.title', read_only=True)
+
+    class Meta:
+        model = QuestReport
+        fields = [
+            'id', 'reported_quest', 'reporter', 'reason', 'message', 'created_at',
+            'resolved', 'resolved_by', 'resolved_at',
+            'reporter_username', 'reported_quest_title',
+        ]
+        read_only_fields = ['id', 'created_at', 'resolved', 'resolved_by', 'resolved_at', 'reporter_username', 'reported_quest_title']
 from .validators import PROFANITY_LIST, LEET_MAP, levenshtein, normalize_username
 from itertools import product
 import unicodedata
-from rest_framework import serializers
 from .models import User, UserRole, COLLEGE_SKILLS, Skill, UserSkill
 from django.contrib.auth.password_validation import validate_password
 
@@ -43,6 +74,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source='get_role_display_name', read_only=True)
     role_level = serializers.IntegerField(read_only=True)
     gold_balance = serializers.SerializerMethodField()
+    is_staff = serializers.BooleanField(read_only=True)
+    is_superuser = serializers.BooleanField(read_only=True)
     
     def get_gold_balance(self, obj):
         """Get gold balance from UserBalance model (source of truth)"""
@@ -64,9 +97,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "level", "experience_points", "gold_balance", "role", "role_display", "role_level",
             "preferred_language", "timezone", "notification_preferences", "privacy_settings",
             "two_factor_enabled", "two_factor_method", "backup_codes_generated", "spending_limits",
-            "last_password_change", "date_joined"
+            "last_password_change", "date_joined",
+            "is_staff", "is_superuser"
         ]
-        read_only_fields = ["id", "email", "email_verified", "level", "experience_points", "gold_balance", "last_password_change", "date_joined"]
+        read_only_fields = ["id", "email", "email_verified", "level", "experience_points", "gold_balance", "last_password_change", "date_joined", "is_staff", "is_superuser"]
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)

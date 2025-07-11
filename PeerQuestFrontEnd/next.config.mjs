@@ -9,6 +9,18 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  async rewrites() {
+    return [
+      {
+        source: '/api/users/ai-chat',
+        destination: 'http://localhost:8000/api/users/ai-chat/',
+      },
+      {
+        source: '/api/users/ai-chat/',
+        destination: 'http://localhost:8000/api/users/ai-chat/',
+      },
+    ];
+  },
 }
 
 export default nextConfig

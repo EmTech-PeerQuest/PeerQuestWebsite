@@ -1,3 +1,188 @@
+import os
+import requests
+def ai_check_username_profanity(username):
+    """
+    Uses the Groq LLM to check if a username is appropriate.
+    Returns True if clean, False if inappropriate/profane.
+    """
+    GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+    GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+    prompt = f"Is the following username appropriate and free of profanity or offensive language? Only answer 'yes' or 'no'. Username: '{username}'"
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": "You are a moderation assistant that only answers 'yes' or 'no'."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 5,
+    }
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    try:
+        r = requests.post(GROQ_API_URL, json=payload, headers=headers, timeout=15)
+        r.raise_for_status()
+        data = r.json()
+        reply = data["choices"][0]["message"]["content"].strip().lower()
+        return reply.startswith('yes')
+    except Exception as e:
+        # If the AI check fails, default to allowing (or you can default to block)
+        return True
+# User Report API
+from .models import UserReport
+from .serializers import UserReportSerializer
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+
+class UserReportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        data = request.data.copy()
+        data['reporter'] = request.user.id
+
+        # Prevent self-reporting
+        if str(data.get('reported_user')) == str(request.user.id):
+            return Response({'success': False, 'message': 'You cannot report yourself.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if reported user is staff or superuser
+        from .models import User
+        try:
+            reported_user = User.objects.get(id=data.get('reported_user'))
+        except User.DoesNotExist:
+            return Response({'success': False, 'message': 'Reported user not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if reported_user.is_superuser or reported_user.is_staff:
+            return Response({'success': False, 'message': 'You cannot report staff or superusers.'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = UserReportSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'success': True, 'message': 'User reported successfully.'}, status=status.HTTP_201_CREATED)
+        return Response({'success': False, 'errors': serializer.errors, 'message': 'Failed to report user.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, pk=None):
+        # Mark a user report as resolved (admin only)
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        report_id = pk or request.data.get('id')
+        if not report_id:
+            return Response({'detail': 'Report ID required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            report = UserReport.objects.get(id=report_id)
+        except UserReport.DoesNotExist:
+            return Response({'detail': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+        report.status = 'resolved'
+        report.save()
+        return Response({'success': True, 'message': 'User report resolved.'}, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk=None):
+        # Allow admin to delete a user report
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        report_id = pk or request.data.get('id')
+        if not report_id:
+            return Response({'detail': 'Report ID required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            report = UserReport.objects.get(id=report_id)
+        except UserReport.DoesNotExist:
+            return Response({'detail': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+        report.delete()
+        return Response({'success': True, 'message': 'User report deleted.'}, status=status.HTTP_200_OK)
+
+# Quest Report API
+from .models import QuestReport
+from .serializers import QuestReportSerializer
+from quests.models import Quest
+
+class QuestReportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        data = request.data.copy()
+        data['reporter'] = request.user.id
+
+        # Prevent reporting own quest
+        try:
+            quest = Quest.objects.get(id=data.get('reported_quest'))
+        except Quest.DoesNotExist:
+            return Response({'success': False, 'message': 'Reported quest not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if str(quest.creator.id) == str(request.user.id):
+            return Response({'success': False, 'message': 'You cannot report your own quest.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = QuestReportSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'success': True, 'message': 'Quest reported successfully.'}, status=status.HTTP_201_CREATED)
+        return Response({'success': False, 'errors': serializer.errors, 'message': 'Failed to report quest.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, pk=None):
+        # Mark a quest report as resolved (admin only)
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        report_id = pk or request.data.get('id')
+        if not report_id:
+            return Response({'detail': 'Report ID required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            report = QuestReport.objects.get(id=report_id)
+        except QuestReport.DoesNotExist:
+            return Response({'detail': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+        report.status = 'resolved'
+        report.save()
+        return Response({'success': True, 'message': 'Quest report resolved.'}, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk=None):
+        # Allow admin to delete a quest report
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        report_id = pk or request.data.get('id')
+        if not report_id:
+            return Response({'detail': 'Report ID required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            report = QuestReport.objects.get(id=report_id)
+        except QuestReport.DoesNotExist:
+            return Response({'detail': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+        report.delete()
+        return Response({'success': True, 'message': 'Quest report deleted.'}, status=status.HTTP_200_OK)
+from django.utils import timezone
+from django.shortcuts import get_object_or_404
+from .models import BanAppeal, ActionLog
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+# --- Ban Appeal Review View for Admins ---
+class BanAppealReviewView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, appeal_id):
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        appeal = get_object_or_404(BanAppeal, id=appeal_id)
+        decision = request.data.get('decision')
+        if decision not in ['dismissed', 'lifted']:
+            return Response({'detail': 'Invalid decision'}, status=status.HTTP_400_BAD_REQUEST)
+        # Mark as reviewed
+        appeal.reviewed = True
+        appeal.reviewed_by = request.user
+        appeal.reviewed_at = timezone.now()
+        appeal.review_decision = decision
+        appeal.save()
+        # If lifting ban, unban the user
+        if decision == 'lifted':
+            user = appeal.user
+            user.is_banned = False
+            user.ban_reason = ''
+            user.ban_expires_at = None
+            user.save()
+        # Log the action
+        ActionLog.objects.create(
+            action=f"ban_{'lifted' if decision == 'lifted' else 'dismissed'}",
+            admin=request.user,
+            target_user=appeal.user,
+            details=f'Ban appeal {decision} for user {appeal.user.email} (appeal id {appeal.id})',
+        )
+        return Response({'detail': f'Appeal {decision}.'}, status=status.HTTP_200_OK)
 import traceback
 import unicodedata
 from itertools import product
@@ -12,7 +197,11 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import serializers, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .serializers import UserProfileSerializer, RegisterSerializer, UserInfoUpdateSerializer, UserSearchSerializer, UserSkillSerializer, SkillsManagementSerializer
+from django.core.exceptions import ValidationError
+from .serializers import (
+    UserProfileSerializer, RegisterSerializer, UserInfoUpdateSerializer,
+    UserSkillSerializer, SkillsManagementSerializer, UserSearchSerializer
+)
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
@@ -193,12 +382,12 @@ class GoogleLoginCallbackView(APIView):
         # Check if Google OAuth2 settings are configured
         if not settings.GOOGLE_OAUTH2_CLIENT_ID:
             return Response({'error': 'Google OAuth2 not configured on server'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
         # Accept Google ID token from frontend
         credential = request.data.get('credential')
         if not credential:
             return Response({'error': 'Missing Google credential.'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
             # Verify the token with Google - add clock tolerance for small time differences
             idinfo = id_token.verify_oauth2_token(
@@ -207,7 +396,7 @@ class GoogleLoginCallbackView(APIView):
                 settings.GOOGLE_OAUTH2_CLIENT_ID,
                 clock_skew_in_seconds=60  # Allow up to 60 seconds clock difference
             )
-            
+
             # idinfo contains user's Google profile info
             user_data = {
                 'email': idinfo.get('email'),
@@ -216,10 +405,24 @@ class GoogleLoginCallbackView(APIView):
                 'first_name': idinfo.get('given_name', ''),
                 'last_name': idinfo.get('family_name', ''),
             }
-            
-            token_data = create_user_and_token(user_data, request)
+
+            try:
+                token_data = create_user_and_token(user_data, request)
+            except ValidationError as ve:
+                # Always return a consistent error structure for banned users
+                msg = getattr(ve, 'message', None) or getattr(ve, 'message_dict', None) or str(ve)
+                if isinstance(msg, dict) and msg.get('banned'):
+                    # Ensure all ban info fields are present
+                    ban_response = {
+                        'banned': True,
+                        'detail': msg.get('detail', 'Your account is banned.'),
+                        'ban_reason': msg.get('ban_reason'),
+                        'ban_expires_at': msg.get('ban_expires_at'),
+                    }
+                    return Response(ban_response, status=status.HTTP_403_FORBIDDEN)
+                return Response({'error': str(ve)}, status=status.HTTP_400_BAD_REQUEST)
             return Response(token_data)
-            
+
         except ValueError as e:
             return Response({'error': f'Invalid Google token: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -300,19 +503,19 @@ class RegisterView(APIView):
     def post(self, request):
         try:
             serializer = RegisterSerializer(data=request.data)
+            username = request.data.get('username', '')
+            if username and not ai_check_username_profanity(username):
+                return Response({'error': 'Username contains inappropriate language.'}, status=status.HTTP_400_BAD_REQUEST)
             if serializer.is_valid():
                 user = serializer.save()
-                
                 # Automatically verify superusers
                 if user.is_superuser:
                     user.email_verified = True
                     user.save()
-                
                 # Generate JWT tokens
                 refresh = RefreshToken.for_user(user)
                 access_token = str(refresh.access_token)
                 refresh_token = str(refresh)
-                
                 # Send verification email (skip for superusers)
                 email_sent = False
                 if not user.is_superuser:
@@ -320,9 +523,7 @@ class RegisterView(APIView):
                         send_verification_email(user)
                         email_sent = True
                     except Exception as e:
-                        # Don't fail registration if email fails
                         pass
-                
                 return Response({
                     'message': 'Registration successful',
                     'user': {
@@ -618,6 +819,31 @@ class EmailVerifiedTokenObtainPairView(TokenObtainPairView):
                 'detail': 'Invalid username or password.'
             }, status=status.HTTP_401_UNAUTHORIZED)
         
+        # Check if user is banned (permanent or temporary)
+        if user.is_banned:
+            # If ban is temporary, check expiration
+            if user.ban_expires_at:
+                if timezone.now() < user.ban_expires_at:
+                    return Response({
+                        'detail': f'Your account is temporarily banned until {user.ban_expires_at}. Reason: {user.ban_reason}',
+                        'banned': True,
+                        'ban_expires_at': user.ban_expires_at,
+                        'ban_reason': user.ban_reason,
+                    }, status=status.HTTP_403_FORBIDDEN)
+                else:
+                    # Ban expired, auto-unban
+                    user.is_banned = False
+                    user.ban_reason = None
+                    user.ban_expires_at = None
+                    user.save()
+            else:
+                # Permanent ban
+                return Response({
+                    'detail': f'Your account is permanently banned. Reason: {user.ban_reason}',
+                    'banned': True,
+                    'ban_reason': user.ban_reason,
+                }, status=status.HTTP_403_FORBIDDEN)
+
         # Check if user's email is verified (skip for superusers)
         # Superusers are exempt from email verification requirements
         if not user.email_verified and not user.is_superuser:
@@ -625,8 +851,8 @@ class EmailVerifiedTokenObtainPairView(TokenObtainPairView):
                 'detail': 'Please verify your email address before logging in. Check your inbox for the verification email.',
                 'verification_required': True
             }, status=status.HTTP_403_FORBIDDEN)
-        
-        # If user is verified, proceed with normal token generation
+
+        # If user is verified and not banned, proceed with normal token generation
         return super().post(request, *args, **kwargs)
 
 class PasswordResetView(APIView):
@@ -1003,15 +1229,26 @@ class UserSkillsView(APIView):
     def get(self, request):
         """Get user's current skills"""
         try:
+            print("[DEBUG] User in request:", request.user)
+            if not request.user or not request.user.is_authenticated:
+                print("[DEBUG] User is not authenticated!")
+                return Response({
+                    'success': False,
+                    'error': 'Authentication required.'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+
             user_skills = UserSkill.objects.filter(user=request.user).select_related('skill')
+            print(f"[DEBUG] Found {user_skills.count()} user skills for user {request.user}")
             serializer = UserSkillSerializer(user_skills, many=True)
-            
+            print(f"[DEBUG] Serialized data: {serializer.data}")
             return Response({
                 'success': True,
                 'skills': serializer.data
             }, status=status.HTTP_200_OK)
-            
         except Exception as e:
+            import traceback
+            print("[DEBUG] Exception in UserSkillsView.get:", str(e))
+            traceback.print_exc()
             return Response({
                 'success': False,
                 'error': str(e)

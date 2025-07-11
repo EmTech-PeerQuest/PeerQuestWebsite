@@ -1,4 +1,5 @@
 from rest_framework import permissions
+from rest_framework.permissions import BasePermission
 
 class IsOwnerOrAdmin(permissions.BasePermission):
     """
@@ -31,3 +32,8 @@ class IsAdminUser(permissions.BasePermission):
     """
     def has_permission(self, request, view):
         return request.user.is_staff
+
+class IsSuperUser(BasePermission):
+    """Allows access only to superusers."""
+    def has_permission(self, request, view):
+        return bool(request.user and getattr(request.user, 'is_superuser', False))

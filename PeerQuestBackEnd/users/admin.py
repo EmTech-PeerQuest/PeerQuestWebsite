@@ -1,7 +1,35 @@
+# ...existing imports...
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
-from .models import User
+from .models import User, BanAppeal, UserReport, QuestReport
+# UserReport admin registration
+@admin.register(UserReport)
+class UserReportAdmin(admin.ModelAdmin):
+    list_display = ('id', 'reported_user', 'reporter', 'reason', 'created_at', 'resolved', 'resolved_by', 'resolved_at')
+    list_filter = ('resolved', 'reason', 'created_at')
+    search_fields = ('reported_user__username', 'reporter__username', 'reason', 'message')
+    date_hierarchy = 'created_at'
+    readonly_fields = ('created_at',)
+
+# QuestReport admin registration
+@admin.register(QuestReport)
+class QuestReportAdmin(admin.ModelAdmin):
+    list_display = ('id', 'reported_quest', 'reporter', 'reason', 'created_at', 'resolved', 'resolved_by', 'resolved_at')
+    list_filter = ('resolved', 'reason', 'created_at')
+    search_fields = ('reported_quest__id', 'reporter__username', 'reason', 'message')
+    date_hierarchy = 'created_at'
+    readonly_fields = ('created_at',)
+# BanAppeal admin registration
+@admin.register(BanAppeal)
+class BanAppealAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'created_at', 'reviewed', 'review_decision', 'reviewed_by', 'reviewed_at')
+    list_filter = ('reviewed', 'review_decision', 'created_at')
+    search_fields = ('user__username', 'user__email', 'message')
+    date_hierarchy = 'created_at'
+    readonly_fields = ('created_at',)
+
+# Note: BanAppealFile model not present, registration removed
 from django.contrib import messages
 
 @admin.register(User)
@@ -9,7 +37,7 @@ class CustomUserAdmin(UserAdmin):
     model = User
     list_display = [
         'id', 'email', 'username', 'first_name', 'last_name', 'is_staff', 
-        'is_active', 'level', 'experience_points', 
+        'is_active', 'is_banned', 'ban_reason', 'ban_expires_at','level', 'experience_points', 
         'date_joined', 'last_login'
     ]
     list_filter = [
@@ -44,7 +72,8 @@ class CustomUserAdmin(UserAdmin):
         ('Participation Statistics', {
             'fields': ('participation_statistics',),
             'classes': ('collapse',)
-        })
+        }),
+        ('Ban Info', {'fields': ('is_banned', 'ban_reason', 'ban_expires_at')}),
     )
 
     add_fieldsets = (

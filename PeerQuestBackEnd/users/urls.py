@@ -5,8 +5,12 @@ from .views import (
     ResendVerificationView, PasswordResetView, PasswordResetConfirmView,
     LogoutView, LogoutAllView, UserSessionsView, RevokeSessionView,
     PasswordStrengthCheckView, UserSearchView, SkillsListView,
-    UserSkillsView, UserListForFrontendView
+    UserSkillsView, UserListForFrontendView, UserReportView, QuestReportView
 )
+from .admin_views import AdminUserListView, AdminUserBanView, AdminUserUnbanView, AdminUserDeleteView, AdminReportsListView
+from .ban_appeal_views import BanAppealSubmitView, BanAppealListView, BanAppealReviewView
+from .action_log_views import ActionLogListView
+from .ai_chatbot_proxy import AIChatbotProxyView
 
 urlpatterns = [
     path("register/", RegisterView.as_view(), name="register"),
@@ -20,12 +24,12 @@ urlpatterns = [
     path("password-reset-confirm/", PasswordResetConfirmView.as_view(), name="password-reset-confirm"),
     path("password-strength-check/", PasswordStrengthCheckView.as_view(), name="password-strength-check"),
     path("search/", UserSearchView.as_view(), name="user-search"),
-    
+
     # Skills management
     path("skills/", SkillsListView.as_view(), name="skills-list"),
     path("skills/my-skills/", UserSkillsView.as_view(), name="user-skills"),
     # path("skills/recommendations/", SkillRecommendationsView.as_view(), name="skill-recommendations"),
-    
+
     # Token/Session management
     path("logout/", LogoutView.as_view(), name="logout"),
     path("logout-all/", LogoutAllView.as_view(), name="logout-all"),
@@ -34,4 +38,23 @@ urlpatterns = [
 
     # PeerQuest frontend user list endpoint
     path("api/users/", UserListForFrontendView.as_view(), name="frontend-user-list"),
+    # User Report API
+    path("user-report/", UserReportView.as_view(), name="user-report"),
+    path("quest-report/", QuestReportView.as_view(), name="quest-report"),
+    # Admin Panel API
+    path("admin/users/", AdminUserListView.as_view(), name="admin-user-list"),
+    path("admin/users/<uuid:user_id>/ban/", AdminUserBanView.as_view(), name="admin-user-ban"),
+    path("admin/users/<uuid:user_id>/unban/", AdminUserUnbanView.as_view(), name="admin-user-unban"),
+    path("admin/users/<uuid:user_id>/delete/", AdminUserDeleteView.as_view(), name="admin-user-delete"),
+    path("admin/reports/", AdminReportsListView.as_view(), name="admin-reports-list"),
+    path("admin/reports/<int:report_id>/resolve/", AdminReportsListView.as_view(), name="admin-report-resolve"),
+    # Ban Appeal API
+    path("ban-appeal/submit/", BanAppealSubmitView.as_view(), name="ban-appeal-submit"),
+    path("ban-appeal/list/", BanAppealListView.as_view(), name="ban-appeal-list"),
+    path("ban-appeals/", BanAppealListView.as_view(), name="ban-appeals-list-alias"),
+    path("ban-appeal/<int:appeal_id>/review/", BanAppealReviewView.as_view(), name="ban-appeal-review"),
+    # Action Log API
+    path("action-log/", ActionLogListView.as_view(), name="action-log-list"),
+    # AI Chatbot API (Proxy)
+    path("ai-chat/", AIChatbotProxyView.as_view(), name="ai-chatbot-proxy"),
 ]

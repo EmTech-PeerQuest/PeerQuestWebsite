@@ -31,44 +31,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('user');
-      const user = stored ? JSON.parse(stored) : null;
-      console.log('🔍 Initial user from localStorage:', user);
-      return user;
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          // Re-validate avatar field in case validation logic changed
+          if (parsed.avatar_url || parsed.avatar_data) {
+            const avatarUrl = parsed.avatar_url || parsed.avatar_data;
+            if (avatarUrl && (avatarUrl.startsWith('http') || avatarUrl.startsWith('data:'))) {
+              parsed.avatar = avatarUrl;
+            }
+          }
+          return parsed;
+        } catch (e) {
+          console.error('[AuthContext] Failed to parse stored user:', e);
+          localStorage.removeItem('user');
+        }
+      }
     }
     return null;
   });
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
-
-  // Loads user profile from API and sets user state
-  const loadUser = async (token: string, isFromLogin: boolean = false) => {
-    try {
-      const res = await fetchUserApi(token);
-      const userData = {
-        ...res.data,
-        gold: res.data.gold_balance ?? 0
-      };
-      setUser(userData);
-      localStorage.setItem('user', JSON.stringify(userData));
-      return userData;
-    } catch (err) {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      setUser(null);
-      if (err instanceof TokenInvalidError) {
-        toast({
-          title: 'Session expired',
-          description: 'Your session has expired. Please log in again.',
-          variant: 'destructive',
-        });
-        router.push('/');
-        if (isFromLogin) throw new Error('Session expired. Please log in again.');
-      } else {
-        if (isFromLogin) throw new Error('Failed to load user profile. Please try again.');
-      }
-    }
-  };
 
 
   // Google login
@@ -83,6 +64,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (res.ok && data.access) {
         localStorage.setItem("access_token", data.access);
         await loadUser(data.access, true);
+        // After loading user, check if banned and enforce ban UX
+        const storedUser = localStorage.getItem('user');
+        let parsedUser = null;
+        if (storedUser) {
+          try {
+            parsedUser = JSON.parse(storedUser);
+          } catch (e) {
+            parsedUser = null;
+          }
+        }
+        if (parsedUser && parsedUser.isBanned) {
+          // Remove tokens and user state, redirect to /banned
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
+          setUser(null);
+          toast({
+            title: 'Account Banned',
+            description: parsedUser.banReason || 'You are banned from PeerQuest.',
+            variant: 'destructive',
+          });
+          window.location.href = '/banned';
+          return;
+        }
       } else {
         throw new Error(data?.error || data?.detail || "Google login failed");
       }
@@ -91,8 +96,114 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       throw err;
     }
   };
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
-  // Standard login
+  const loadUser = async (token: string, isFromLogin: boolean = false) => {
+    try {
+      const res = await fetchUserApi(token);
+      // ...existing code...
+      const avatarUrl = res.data.avatar_url || res.data.avatar_data;
+      let finalAvatar = undefined;
+      if (avatarUrl && (avatarUrl.startsWith('http') || avatarUrl.startsWith('data:'))) {
+        if (avatarUrl.startsWith('data:')) {
+          if (avatarUrl.length < 15000000) {
+            finalAvatar = avatarUrl;
+          } else {
+            console.warn('[AuthContext] Avatar data too large, skipping');
+          }
+        } else {
+          if (avatarUrl.length < 2000) {
+            finalAvatar = avatarUrl;
+          } else {
+            console.warn('[AuthContext] Avatar URL too long, skipping');
+          }
+        }
+      }
+      const transformedUser = {
+        ...res.data,
+        avatar: finalAvatar,
+        dateJoined: res.data.date_joined || res.data.dateJoined,
+        createdAt: res.data.created_at || res.data.createdAt || res.data.date_joined,
+        displayName: res.data.display_name || res.data.displayName,
+        lastPasswordChange: res.data.last_password_change || res.data.lastPasswordChange,
+        birthday: res.data.birthday,
+        gender: res.data.gender,
+        xp: res.data.experience_points || res.data.xp || 0,
+        gold: res.data.gold_balance || res.data.gold || 0,
+        is_staff: res.data.is_staff,
+        is_superuser: res.data.is_superuser,
+        isSuperuser: res.data.is_superuser,
+        // Ban fields
+        isBanned: res.data.is_banned,
+        banReason: res.data.ban_reason,
+        banExpiration: res.data.ban_expires_at,
+      };
+      transformedUser.is_staff = !!(res.data.is_staff);
+      transformedUser.isSuperuser = !!(res.data.is_superuser || res.data.isSuperuser);
+      // If banned, clear state and redirect before setting user
+      if (transformedUser.isBanned) {
+        toast({
+          title: 'Account Banned',
+          description: transformedUser.banReason || 'You are banned from PeerQuest.',
+          variant: 'destructive',
+        });
+        window.location.href = '/banned';
+        // Do NOT clear tokens or user state, so banned users can submit appeals
+        // Optionally, you may want to setUser(transformedUser) here to keep user info in context
+        setUser(transformedUser);
+        localStorage.setItem('user', JSON.stringify(transformedUser));
+        return;
+      }
+      setUser(transformedUser);
+      localStorage.setItem('user', JSON.stringify(transformedUser));
+    } catch (err: any) {
+      // Handle ban enforcement (403 Forbidden)
+      if (err?.response?.status === 403 && err?.response?.data?.ban_reason) {
+        // Store ban info in localStorage for ban screen
+        const banInfo = {
+          reason: err.response.data.ban_reason,
+          expiresAt: err.response.data.ban_expires_at || null,
+        };
+        localStorage.setItem('ban_info', JSON.stringify(banInfo));
+        // Do NOT remove access_token here, so banned users can submit appeals
+        setUser(null);
+        localStorage.removeItem('user');
+        toast({
+          title: 'Account Banned',
+          description: err.response.data.ban_reason,
+          variant: 'destructive',
+        });
+        router.push('/banned');
+        return;
+      }
+      if (err instanceof TokenInvalidError) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('user');
+        setUser(null);
+        toast({
+          title: 'Session expired',
+          description: 'Your session has expired. Please log in again.',
+          variant: 'destructive',
+        });
+        router.push('/');
+        if (isFromLogin) {
+          throw new Error('Session expired. Please log in again.');
+        }
+      } else {
+        setUser(null);
+        localStorage.removeItem('user');
+        if (isFromLogin) {
+          throw new Error('Failed to load user profile. Please try again.');
+        }
+      }
+    } finally {
+      if (isFromLogin) {
+        // Don't set loading state for login - let parent handle it
+      }
+    }
+  };
+
   const login = async (credentials: { username: string; password: string; rememberMe?: boolean }) => {
     try {
       const res = await apiLogin(credentials.username, credentials.password);
@@ -174,7 +285,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
     localStorage.removeItem('jwt');
+    localStorage.removeItem('authToken'); // Clear old authToken key as well
+    localStorage.removeItem('currentUser'); // Clear mock auth user
+    
+    // Clear any other cached data
     sessionStorage.clear();
+    // Clear cookies
+    document.cookie.split(';').forEach((c) => {
+      const eqPos = c.indexOf('=');
+      const name = eqPos > -1 ? c.substr(0, eqPos) : c;
+      document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+      document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=localhost';
+    });
     setUser(null);
     router.push('/');
   };

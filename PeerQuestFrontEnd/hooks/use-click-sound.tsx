@@ -96,16 +96,25 @@ export function useClickSound(config: ClickSoundConfig = {}): UseClickSoundRetur
 
   const playSound = useCallback((type: ClickSoundType = soundType) => {
     if (!isEnabled) return
-
     const soundKey = customSound ? 'custom' : type
     const audio = audioInstancesRef.current.get(soundKey)
-    
     if (audio) {
-      // Reset audio to beginning and play
-      audio.currentTime = 0
-      audio.play().catch((error) => {
-        console.warn(`Failed to play ${type} sound:`, error)
-      })
+      try {
+        audio.pause()
+        audio.currentTime = 0
+        const playPromise = audio.play()
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch((error) => {
+            if (error.name !== 'AbortError') {
+              console.warn(`Failed to play ${type} sound:`, error)
+            }
+          })
+        }
+      } catch (error: any) {
+        if (error?.name !== 'AbortError') {
+          console.warn(`Failed to play ${type} sound:`, error)
+        }
+      }
     }
   }, [isEnabled, soundType, customSound])
 
@@ -133,9 +142,22 @@ export function createClickSoundHandler(type: ClickSoundType = 'button', volume:
     if (typeof window !== 'undefined') {
       const audio = new Audio(SOUND_MAP[type])
       audio.volume = volume
-      audio.play().catch((error) => {
-        console.warn(`Failed to play ${type} sound:`, error)
-      })
+      try {
+        audio.pause()
+        audio.currentTime = 0
+        const playPromise = audio.play()
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch((error) => {
+            if (error.name !== 'AbortError') {
+              console.warn(`Failed to play ${type} sound:`, error)
+            }
+          })
+        }
+      } catch (error: any) {
+        if (error?.name !== 'AbortError') {
+          console.warn(`Failed to play ${type} sound:`, error)
+        }
+      }
     }
     callback?.()
   }

@@ -23,7 +23,7 @@ import {
 import type { Quest, User as UserType, Application } from "@/lib/types"
 import { QuestAPI } from "@/lib/api/quests"
 import { getApplicationsToMyQuests, getMyApplications, approveApplication, rejectApplication, kickParticipant } from "@/lib/api/applications"
-import { QuestDetailsModal } from "./quest-details-modal"
+import QuestDetailsModal from "./quest-details-modal"
 import QuestSubmitWorkModal from "./quest-submit-work-modal"
 import QuestForm from "./quest-form"
 import { QuestManagementApplicationsModal } from "@/components/modals/quest-management-applications-modal"
@@ -1434,8 +1434,8 @@ export function QuestManagement({
           quest={submissionsQuest}
           currentUser={currentUser}
           showToast={showToast}
-          // Only pass onMarkComplete if user is the quest creator (viewing created quests tab)
-          onMarkComplete={activeTab === "created" ? async () => {
+          // Only pass onMarkComplete if user is the quest creator (viewing created quests tab) AND quest is not already completed
+          onMarkComplete={activeTab === "created" && submissionsQuest.status !== "completed" ? async () => {
             await handleCompleteQuest(submissionsQuest.slug);
             setShowSubmissionsModal(false);
           } : undefined}
