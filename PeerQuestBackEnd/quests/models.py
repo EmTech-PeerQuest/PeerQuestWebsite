@@ -65,8 +65,8 @@ class Quest(models.Model):
     xp_reward = models.PositiveIntegerField(choices=XP_REWARD_CHOICES, default=25, help_text="XP points awarded upon completion")
     gold_reward = models.PositiveIntegerField(
         default=0, 
-        validators=[MinValueValidator(0), MaxValueValidator(999)],
-        help_text="Gold coins awarded upon completion (0-999)"
+        validators=[MinValueValidator(0)],
+        help_text="Gold coins awarded upon completion"
     )
     commission_fee = models.PositiveIntegerField(
         default=0,

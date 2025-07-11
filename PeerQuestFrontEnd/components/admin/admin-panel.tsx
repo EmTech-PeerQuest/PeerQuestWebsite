@@ -104,9 +104,8 @@ function AdminPanel({
   const [receipts, setReceipts] = useState<any[]>([]);
   const [receiptsLoading, setReceiptsLoading] = useState(false);
   const [receiptsError, setReceiptsError] = useState("");
-  const [receiptStatusFilter, setReceiptStatusFilter] = useState<string>("all");
-  const [receiptBatchFilter, setReceiptBatchFilter] = useState<string>("all");
   const [receiptSearch, setReceiptSearch] = useState("");
+  const [showFutureReceipts, setShowFutureReceipts] = useState<boolean>(false);
   const [selectedReceipts, setSelectedReceipts] = useState<number[]>([]);
   const [receiptStats, setReceiptStats] = useState<any>({});
   const [batchInfo, setBatchInfo] = useState<any>({});
@@ -154,12 +153,6 @@ function AdminPanel({
   // Filter and search receipts
   const filteredReceipts = useMemo(() => {
     let filtered = receipts;
-    if (receiptStatusFilter !== "all") {
-      filtered = filtered.filter((r) => r.status === receiptStatusFilter);
-    }
-    if (receiptBatchFilter !== "all") {
-      filtered = filtered.filter((r) => r.scheduled_batch === receiptBatchFilter);
-    }
     if (receiptSearch.trim()) {
       const q = receiptSearch.trim().toLowerCase();
       filtered = filtered.filter((r) => {
@@ -171,7 +164,7 @@ function AdminPanel({
       });
     }
     return filtered;
-  }, [receipts, receiptStatusFilter, receiptBatchFilter, receiptSearch]);
+  }, [receipts, receiptSearch]);
 
   // Fetch quests for admin panel
   const fetchQuestsForAdmin = async () => {
@@ -279,9 +272,8 @@ function AdminPanel({
     try {
       const API_BASE = "http://localhost:8000";
       const params = new URLSearchParams();
-      if (receiptStatusFilter !== "all") params.append("status", receiptStatusFilter);
-      if (receiptBatchFilter !== "all") params.append("batch", receiptBatchFilter);
       if (receiptSearch.trim()) params.append("search", receiptSearch.trim());
+      if (showFutureReceipts) params.append("show_future", "true");
       
       const url = `${API_BASE}/api/payments/admin/receipts/${params.toString() ? '?' + params.toString() : ''}`;
       const res = await fetchWithAuth(url);
@@ -379,7 +371,7 @@ function AdminPanel({
     if (activeTab === "quests") fetchQuestsForAdmin();
     if (activeTab === "transactions") fetchTransactions();
     if (activeTab === "receipts") fetchReceipts();
-  }, [activeTab, receiptStatusFilter, receiptBatchFilter, receiptSearch]);
+  }, [activeTab, receiptSearch, showFutureReceipts]);
 
   // Also fetch quests on mount (for overview stats)
   useEffect(() => {
@@ -858,56 +850,35 @@ function AdminPanel({
                 </div>
               )}
               
-              {/* Filters and Actions */}
+              {/* Search and Actions */}
               <div className="bg-gray-50 rounded-lg p-4 mb-6">
                 <div className="flex flex-col lg:flex-row gap-4">
-                  {/* Filters */}
-                  <div className="flex flex-col sm:flex-row gap-4 flex-1">
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                      <select
-                        value={receiptStatusFilter}
-                        onChange={(e) => setReceiptStatusFilter(e.target.value)}
-                        aria-label="Filter receipts by status"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
-                      >
-                        <option value="all">All Status</option>
-                        <option value="queued">Queued</option>
-                        <option value="processing">Processing</option>
-                        <option value="verified">Verified</option>
-                        <option value="rejected">Rejected</option>
-                      </select>
+                  {/* Search */}
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                      <input
+                        type="text"
+                        placeholder="Search by reference, user, batch ID..."
+                        value={receiptSearch}
+                        onChange={(e) => setReceiptSearch(e.target.value)}
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                      />
                     </div>
-                    
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Batch</label>
-                      <select
-                        value={receiptBatchFilter}
-                        onChange={(e) => setReceiptBatchFilter(e.target.value)}
-                        aria-label="Filter receipts by batch"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
-                      >
-                        <option value="all">All Batches</option>
-                        <option value="morning">Morning</option>
-                        <option value="afternoon">Afternoon</option>
-                        <option value="evening">Evening</option>
-                        <option value="late_night">Late Night</option>
-                      </select>
-                    </div>
-                    
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-                        <input
-                          type="text"
-                          placeholder="Search user, reference..."
-                          value={receiptSearch}
-                          onChange={(e) => setReceiptSearch(e.target.value)}
-                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
-                        />
-                      </div>
-                    </div>
+                  </div>
+                  
+                  {/* Admin Debug Toggle */}
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 text-sm text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={showFutureReceipts}
+                        onChange={(e) => setShowFutureReceipts(e.target.checked)}
+                        className="rounded"
+                      />
+                      Show future receipts (Debug)
+                    </label>
                   </div>
                   
                   {/* Batch Actions */}

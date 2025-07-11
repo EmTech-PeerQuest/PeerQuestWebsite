@@ -196,6 +196,10 @@ export function QuestManagement({
         const isInParticipants = quest.participants_detail && 
           quest.participants_detail.some((p: any) => String(p.user?.id) === String(currentUser?.id))
         
+        // Check if user is assigned to this quest (newer single assignment system)
+        const isAssignedTo = quest.assigned_to && 
+          String(quest.assigned_to.id) === String(currentUser?.id)
+        
         // Check if user has an approved application for this quest
         const hasApprovedApplication = userApplications.some(app => 
           app.quest.id === quest.id && app.status === 'approved'
@@ -207,21 +211,23 @@ export function QuestManagement({
         )
 
         // DEBUG: Log each quest evaluation
-        if ((isInParticipants || hasApprovedApplication) && !hasBeenKicked) {
+        if ((isInParticipants || isAssignedTo || hasApprovedApplication) && !hasBeenKicked) {
           console.log('🔍 Quest Management Debug - Quest included in participating:', {
             questId: quest.id,
             questTitle: quest.title,
             isInParticipants,
+            isAssignedTo,
             hasApprovedApplication,
             hasBeenKicked,
             participantsCount: quest.participants_detail?.length || 0,
-            participants: quest.participants_detail?.map(p => ({ userId: p.user?.id, username: p.user?.username }))
+            participants: quest.participants_detail?.map(p => ({ userId: p.user?.id, username: p.user?.username })),
+            assignedTo: quest.assigned_to ? { userId: quest.assigned_to.id, username: quest.assigned_to.username } : null
           })
         }
         
-        // Include if user is participating AND has not been kicked OR has an active approved application
+        // Include if user is participating (either in participants_detail, assigned_to, or has approved application) AND has not been kicked
         // Note: Kicked users who re-apply and get approved should show up again
-        return (isInParticipants || hasApprovedApplication) && !hasBeenKicked
+        return (isInParticipants || isAssignedTo || hasApprovedApplication) && !hasBeenKicked
       })
 
       // DEBUG: Log final results

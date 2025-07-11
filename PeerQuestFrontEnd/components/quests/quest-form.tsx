@@ -410,8 +410,8 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
         const totalGoldNeeded = goldBudget
         
         if (goldBudget > 0 && totalGoldNeeded > userGoldBalance) {
-          const maxAffordableBudget = calculateMaxAffordableBudget(userGoldBalance);
-          throw new Error(`Insufficient gold balance. You need ${totalGoldNeeded} gold but only have ${userGoldBalance} gold. Maximum affordable budget: ${maxAffordableBudget} gold.`);
+          const maxAffordable = calculateMaxAffordableBudget(userGoldBalance);
+          throw new Error(`Insufficient gold balance. You need ${totalGoldNeeded} gold but only have ${userGoldBalance} gold. Maximum affordable budget: ${maxAffordable} gold.`);
         }
         
         console.log('✨ Creating quest with data:', createData)
@@ -845,7 +845,20 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                     const difficultyMap: DifficultyTier[] = ['initiate', 'adventurer', 'champion', 'mythic']
                     const newDifficulty = difficultyMap[parseInt(e.target.value)]
                     setFormData(prev => ({ ...prev, difficulty: newDifficulty }))
-                    setGoldBudget(getGoldBudgetRangeForDifficulty(newDifficulty).min)
+                    
+                    // Set gold budget to minimum required for this difficulty, but ensure user can afford it
+                    const range = getGoldBudgetRangeForDifficulty(newDifficulty)
+                    const maxAffordable = calculateMaxAffordableBudget(userGoldBalance)
+                    
+                    if (maxAffordable < range.min) {
+                      // User can't afford this difficulty level's minimum requirement
+                      console.warn(`User cannot afford ${newDifficulty} difficulty. Required: ${range.min}, Available: ${userGoldBalance}`)
+                      // Keep the current budget and let validation show the error
+                      setGoldBudget(Math.min(goldBudget, userGoldBalance))
+                    } else {
+                      // User can afford this difficulty, set to minimum
+                      setGoldBudget(range.min)
+                    }
                   }}
                   disabled={isEditing && !!quest}
                   className={`w-full h-3 rounded-lg appearance-none ${
@@ -1285,6 +1298,56 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                 {(formData.resources || '').length}/1000 characters
               </span>
             </div>
+          </div>
+
+          {/* Difficulty Affordability Warning */}
+          {(() => {
+            const range = getGoldBudgetRangeForDifficulty(formData.difficulty)
+            const maxAffordable = calculateMaxAffordableBudget(userGoldBalance)
+            
+            if (maxAffordable < range.min) {
+              return (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+                  <div className="flex items-center text-sm text-red-700">
+                    <span className="mr-2">⚠️</span>
+                    <span>
+                      <strong>Insufficient Gold:</strong> {formData.difficulty.charAt(0).toUpperCase() + formData.difficulty.slice(1)} difficulty requires at least {range.min} gold, but you only have {userGoldBalance} gold available. 
+                      {userGoldBalance >= 100 && (
+                        <span className="block mt-1">
+                          Consider selecting a lower difficulty level or purchase more gold.
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              )
+            }
+            return null
+          })()}
+          
+          <div className={`text-white px-4 py-3 rounded-lg shadow-md ${
+            formData.difficulty === 'initiate' ? 'bg-gradient-to-r from-green-500 to-green-600' :
+            formData.difficulty === 'adventurer' ? 'bg-gradient-to-r from-blue-400 to-blue-600' :
+            formData.difficulty === 'champion' ? 'bg-gradient-to-r from-yellow-400 to-orange-500' :
+            'bg-gradient-to-r from-purple-500 to-pink-500'
+          } ${isEditing && quest ? 'opacity-75' : ''}`}>
+            <div className="flex items-center justify-between">
+              <span className="font-bold uppercase text-lg">
+                {formData.difficulty === 'initiate' && '🌱 Initiate'}
+                {formData.difficulty === 'adventurer' && '⚔️ Adventurer'}
+                {formData.difficulty === 'champion' && '🏆 Champion'}
+                {formData.difficulty === 'mythic' && '🐉 Mythic'}
+              </span>
+              <span className="font-bold text-lg">
+                {getXPReward(formData.difficulty)} XP
+              </span>
+            </div>
+            <p className="text-sm opacity-90 mt-1">
+              {formData.difficulty === 'initiate' && 'Perfect for beginners - Learn the basics'}
+              {formData.difficulty === 'adventurer' && 'A true adventure - Moderate challenge'}
+              {formData.difficulty === 'champion' && 'Expert level required - High difficulty'}
+              {formData.difficulty === 'mythic' && 'Legendary challenge for the bravest - Ultimate test!'}
+            </p>
           </div>
 
           {/* Action Buttons */}

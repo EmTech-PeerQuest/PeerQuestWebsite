@@ -234,26 +234,21 @@ class AdminReceiptManagementView(APIView):
         """Get all receipt submissions with filtering"""
         try:
             # Get query parameters
-            status_filter = request.query_params.get('status', 'all')
-            batch_filter = request.query_params.get('batch', 'all')
             search_query = request.query_params.get('search', '')
+            show_future = request.query_params.get('show_future', 'false').lower() == 'true'
             
-            # Start with only receipts that are ready for review (from past batches)
+            # Start with receipts based on admin preference
             from django.utils import timezone
             now = timezone.now()
             
-            # Only show receipts whose batch time has arrived (ready for admin review)
-            queryset = PaymentProof.objects.filter(
-                next_processing_time__lte=now  # Only past batch times
-            ).order_by('-created_at')
-            
-            # Apply status filter
-            if status_filter != 'all':
-                queryset = queryset.filter(status=status_filter)
-            
-            # Apply batch filter
-            if batch_filter != 'all':
-                queryset = queryset.filter(scheduled_batch=batch_filter)
+            if show_future:
+                # Debug mode: show all receipts
+                queryset = PaymentProof.objects.all().order_by('-created_at')
+            else:
+                # Normal mode: only show receipts that are ready for review (from past batches)
+                queryset = PaymentProof.objects.filter(
+                    next_processing_time__lte=now  # Only past batch times
+                ).order_by('-created_at')
             
             # Apply search filter
             if search_query:

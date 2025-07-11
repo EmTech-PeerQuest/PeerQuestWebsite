@@ -84,16 +84,21 @@ function QuestDetailsModal({
     (p) => String(p.user.id) === String(currentUser?.id)
   );
 
-  // Check if user is already a participant (either through participants_detail or approved application)
+  // Check if user is assigned to this quest (newer single assignment system)
+  const isAssignedTo = quest?.assigned_to && 
+    String(quest.assigned_to.id) === String(currentUser?.id);
+
+  // Check if user is already a participant (either through participants_detail, assigned_to, or approved application)
   // BUT exclude kicked users - they should no longer be considered participants
   const isAlreadyParticipant = !hasBeenKicked && (
     (quest?.participants_detail?.some((p) => String(p.user.id) === String(currentUser?.id)) || false) || 
+    isAssignedTo ||
     hasApprovedApplication
   )
 
-  // Only allow submit if user is a participant (either in participants_detail or has approved application) 
+  // Only allow submit if user is a participant (either in participants_detail, assigned_to, or has approved application) 
   // and the quest is in-progress AND user hasn't been kicked
-  const canSubmitWork = (!!myParticipant || hasApprovedApplication) && 
+  const canSubmitWork = (!!myParticipant || isAssignedTo || hasApprovedApplication) && 
     (quest?.status === "in-progress" || quest?.status === "in_progress") && 
     !hasBeenKicked;
 
@@ -105,6 +110,8 @@ function QuestDetailsModal({
       questStatusType: typeof quest.status,
       currentUserId: currentUser.id,
       myParticipant: myParticipant ? { id: myParticipant.id, userId: myParticipant.user?.id } : null,
+      isAssignedTo,
+      assignedTo: quest.assigned_to ? { id: quest.assigned_to.id, username: quest.assigned_to.username } : null,
       hasApprovedApplication,
       hasBeenKicked,
       isAlreadyParticipant,
@@ -626,16 +633,6 @@ function QuestDetailsModal({
                         )}
                       </div>
                     )}
-                    
-                    {/* Submit Completed Work Button for active participants */}
-                    {canSubmitWork && (latestSubmissionStatus !== 'approved') && (
-                      <button
-                        className="mt-4 px-5 py-2 bg-gradient-to-r from-purple-500 to-amber-500 text-white rounded-lg font-semibold shadow hover:from-purple-600 hover:to-amber-600 transition-colors"
-                        onClick={() => setShowSubmitWorkModal(true)}
-                      >
-                        {latestSubmissionStatus === 'needs_revision' ? 'Submit Revised Work' : 'Submit Completed Work'}
-                      </button>
-                    )}
                   </div>
                 )}
 
@@ -788,25 +785,40 @@ function QuestDetailsModal({
                 </button>
               </div>
             ) : isAuthenticated ? (
-              <button
-                onClick={() => applyForQuest(quest.id)}
-                className={`px-6 py-2 rounded-lg font-medium shadow-md transition-colors ${
-                  !applicationEligibility.canApply || isLoadingApplications
-                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
-                    : 'bg-[#8B75AA] text-white hover:bg-[#7A6699]'
-                }`}
-                disabled={!applicationEligibility.canApply || isLoadingApplications || isLoadingAttempts}
-              >
-                {isLoadingApplications || isLoadingAttempts
-                  ? "Loading..."
-                  : !applicationEligibility.canApply
-                    ? applicationEligibility.reason
-                    : attemptInfo && attemptInfo.attempt_count > 0
-                      ? attemptInfo.last_application_status === 'kicked'
-                        ? "Re-apply to Quest"
-                        : "Apply Again"
-                      : "Apply for Quest"}
-              </button>
+              <div className="flex gap-3">
+                {/* Submit Work Button for approved participants */}
+                {canSubmitWork && (latestSubmissionStatus !== 'approved') && (
+                  <button
+                    onClick={() => setShowSubmitWorkModal(true)}
+                    className="px-6 py-2 bg-gradient-to-r from-purple-500 to-amber-500 text-white rounded-lg hover:from-purple-600 hover:to-amber-600 transition-colors font-medium shadow-md"
+                  >
+                    {latestSubmissionStatus === 'needs_revision' ? 'Submit Revised Work' : 'Submit Completed Work'}
+                  </button>
+                )}
+                
+                {/* Apply for Quest Button (only show if can't submit work) */}
+                {!canSubmitWork && (
+                  <button
+                    onClick={() => applyForQuest(quest.id)}
+                    className={`px-6 py-2 rounded-lg font-medium shadow-md transition-colors ${
+                      !applicationEligibility.canApply || isLoadingApplications
+                        ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
+                        : 'bg-[#8B75AA] text-white hover:bg-[#7A6699]'
+                    }`}
+                    disabled={!applicationEligibility.canApply || isLoadingApplications || isLoadingAttempts}
+                  >
+                    {isLoadingApplications || isLoadingAttempts
+                      ? "Loading..."
+                      : !applicationEligibility.canApply
+                        ? applicationEligibility.reason
+                        : attemptInfo && attemptInfo.attempt_count > 0
+                          ? attemptInfo.last_application_status === 'kicked'
+                            ? "Re-apply to Quest"
+                            : "Apply Again"
+                          : "Apply for Quest"}
+                  </button>
+                )}
+              </div>
             ) : (
               <button
                 onClick={() => setAuthModalOpen(true)}

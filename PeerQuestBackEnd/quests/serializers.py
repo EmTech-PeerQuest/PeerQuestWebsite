@@ -174,6 +174,7 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
         
         # Validate gold_reward
         gold_reward = data.get('gold_reward')
+        
         if gold_reward is not None:
             print(f"🔍 Gold reward validation: {gold_reward} (type: {type(gold_reward)})")
             try:
@@ -181,9 +182,7 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
                 if gold_value < 0:
                     print(f"❌ Gold reward negative")
                     raise serializers.ValidationError({'gold_reward': 'Gold reward cannot be negative.'})
-                if gold_value > 999:
-                    print(f"❌ Gold reward too high")
-                    raise serializers.ValidationError({'gold_reward': 'Gold reward cannot exceed 999.'})
+                    
             except (ValueError, TypeError) as e:
                 print(f"❌ Gold reward conversion error: {e}")
                 raise serializers.ValidationError({'gold_reward': f'Gold reward must be a valid number. Received: {gold_reward} ({type(gold_reward)})'})
@@ -350,8 +349,6 @@ class QuestCreateUpdateSerializer(serializers.ModelSerializer):
     def validate_gold_reward(self, value):
         if value < 0:
             raise serializers.ValidationError("Gold reward cannot be negative.")
-        if value > 999:
-            raise serializers.ValidationError("Gold reward cannot exceed 999.")
         
         # Check if this is an update operation for a quest that's in-progress
         instance = getattr(self, 'instance', None)
