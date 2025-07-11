@@ -3,35 +3,35 @@
 import { useState, useEffect } from "react"
 import { Navbar } from '@/components/ui/navbar'
 import { Hero } from '@/components/ui/hero'
-import { QuestBoard } from '@/components/quests/quest-board'
+import { QuestBoard } from '@/components/quests/quest-board-clean'
 import { QuestManagement } from '@/components/quests/quest-management'
 import { GuildHall } from '@/components/guilds/guild-hall'
-import { UserSearch } from '@/components/search/user-search';
-import MessagingSystem from '@/components/messaging/messaging-system';
-import { AdminPanel } from '@/components/admin/admin-panel';
-import { EnhancedGuildManagement } from '@/components/guilds/enhanced-guild-management';
+import { UserSearch } from '@/components/search/user-search'
+import MessagingSystem from '@/components/messaging/messaging-system'
+import AdminPanel from '@/components/admin/admin-panel'
+import { EnhancedGuildManagement } from '@/components/guilds/enhanced-guild-management'
 import { About } from "@/components/about"
 import { Footer } from '@/components/ui/footer'
 import { ToastProvider } from '@/components/ui/toast'
 import { useToast } from "@/hooks/use-toast"
-import { useAuth } from "@/context/AuthContext";
-import { useGoldBalance } from "@/context/GoldBalanceContext";
-import { AIChatbot } from '@/components/ai/ai-chatbot';
-import { AuthModal } from '@/components/auth/auth-modal';
-import { Settings } from '@/components/settings/settings';
-import { GoldSystemModal } from '@/components/gold/gold-system-modal';
-import { useRouter } from 'next/navigation';
-import Spinner from '@/components/ui/spinner';
-import LoadingModal from '@/components/ui/loading-modal';
-import { IntegratedProfile } from '@/components/profile/integrated-profile';
-
-import type { User, Quest, Guild, GuildJoinRequest } from "@/lib/types"
+import { useAuth } from "@/context/AuthContext"
+import { useGoldBalance } from "@/context/GoldBalanceContext"
+import { AIChatbot } from '@/components/ai/ai-chatbot'
+import { AuthModal } from '@/components/auth/auth-modal'
+import { Settings } from '@/components/settings/settings'
+import { GoldSystemModal } from '@/components/gold/gold-system-modal'
+import { useRouter } from 'next/navigation'
+import Spinner from '@/components/ui/spinner'
+import LoadingModal from '@/components/ui/loading-modal'
+import { IntegratedProfile } from '@/components/profile/integrated-profile'
+import type { User, Quest, Guild, GuildJoinRequest, CreateGuildData } from "@/lib/types"
 import { fetchInitialData } from '@/lib/api/init-data'
 import { SimpleGuildManagement } from '@/components/guilds/simple-guild-management'
 import { GuildOverviewModal } from '@/components/guilds/guild-overview-modal'
 import { EnhancedCreateGuildModal } from '@/components/guilds/enhanced-create-guild-modal'
 import { addSpendingRecord } from "@/lib/spending-utils"
 import { useGuilds, useGuildActions } from "@/hooks/useGuilds"
+import dynamic from 'next/dynamic'
 
 declare global {
   interface Window {
@@ -46,8 +46,7 @@ declare global {
 }
 import { userSearchApi } from '@/lib/api'
 
-import dynamic from 'next/dynamic';
-const AdminPanel = dynamic(() => import('@/components/admin/admin-panel'), { ssr: false });
+const AdminPanelDynamic = dynamic(() => import('@/components/admin/admin-panel'), { ssr: false });
 
 // Helper to check admin status (same logic as AdminPanel)
 const isAdmin = (user: any) => {
@@ -96,6 +95,43 @@ export default function Home() {
   const { user: currentUser, login, register, logout } = useAuth()
   const { toast } = useToast()
   const router = useRouter()
+
+  // Add global error handlers to catch any issues that might cause refresh
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      console.error('🚨 Global error caught:', event.error);
+      event.preventDefault(); // Prevent default error handling that might cause refresh
+    };
+    
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      console.error('🚨 Unhandled promise rejection caught:', event.reason);
+      event.preventDefault(); // Prevent default rejection handling
+    };
+    
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
+
+  // Global event listeners to debug page reloads
+  useEffect(() => {
+    const clickLogger = (e: Event) => {
+      sessionStorage.setItem('globalClickLog', `Global click at ${new Date().toISOString()} on ${(e.target as HTMLElement)?.outerHTML}`);
+    };
+    const beforeUnloadLogger = (e: BeforeUnloadEvent) => {
+      sessionStorage.setItem('beforeUnloadLog', `Page reload at ${new Date().toISOString()}`);
+    };
+    document.addEventListener('click', clickLogger, true);
+    window.addEventListener('beforeunload', beforeUnloadLogger);
+    return () => {
+      document.removeEventListener('click', clickLogger, true);
+      window.removeEventListener('beforeunload', beforeUnloadLogger);
+    };
+  }, []);
 
   // Use guild hooks for backend integration
   const { guilds: guildData, loading: guildsLoading, error: guildsError, refetch: refetchGuilds } = useGuilds({ autoFetch: true })
@@ -213,28 +249,29 @@ export default function Home() {
       id: Date.now(),
       title: questData.title || "Untitled Quest",
       description: questData.description || "",
-      category: typeof questData.category === "object" && questData.category && "id" in questData.category
-        ? questData.category
-        : defaultCategory,
-      difficulty: difficulty as Quest["difficulty"],
+      category: typeof questData.category === 'string' 
+        ? { id: 1, name: questData.category } 
+        : questData.category || { id: 1, name: "misc" },
+      difficulty: questData.difficulty || "adventurer",
       status: "open",
-      xp_reward: questData.xp_reward || questData.xp || 50,
-      gold_reward: questData.gold_reward || questData.reward || 100,
+      xp_reward: questData.xp || 50,
+      gold_reward: questData.reward || 100,
       creator: {
-        id: typeof currentUser.id === 'string' ? parseInt(currentUser.id, 10) : currentUser.id,
-        username: currentUser.username || "",
-        email: currentUser.email,
-        level: currentUser.level,
-        xp: currentUser.xp,
+        id: currentUser.id ? parseInt(currentUser.id) : 0,
+        username: currentUser.username || currentUser.email || "Unknown",
+        email: currentUser.email || "",
+        level: currentUser.level || 1,
+        xp: currentUser.xp || 0
       },
-      created_at: now.toISOString(),
-      updated_at: now.toISOString(),
-      slug: (questData.title || "untitled-quest").toLowerCase().replace(/\s+/g, "-"),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      due_date: questData.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      slug: `quest-${Date.now()}`,
       participant_count: 0,
       applications_count: 0,
       can_accept_participants: true,
       is_completed: false,
-      // Legacy/compat fields
+      // Legacy fields for compatibility
       reward: questData.reward || 100,
       xp: questData.xp || 50,
       poster: currentUser,
@@ -487,13 +524,17 @@ export default function Home() {
           handleLogout={logout}
           openAuthModal={() => setShowAuthModal(true)}
           openGoldPurchaseModal={() => {
+            console.log('🏆 openGoldPurchaseModal called in main page - SIMPLIFIED');
+            
             if (!currentUser) {
+              console.log('❌ No current user, showing auth modal');
               toast({ 
                 title: "Please log in to access the Gold Treasury", 
                 variant: "destructive" 
               });
               setShowAuthModal(true);
             } else {
+              console.log('✅ User found, setting Gold System Modal to true');
               setShowGoldSystemModal(true);
             }
           }}
@@ -513,17 +554,10 @@ export default function Home() {
         )}
 
         {activeSection === "quest-board" && (
-          !questsLoaded ? (
-            <div className="flex flex-col items-center justify-center py-16">
-              <Spinner />
-              <div className="mt-4 text-[#8B75AA] text-lg font-medium">Loading quests...</div>
-            </div>
-          ) : (
-            <QuestBoard
-              currentUser={currentUser}
-              refreshTrigger={refreshQuestBoard}
-            />
-          )
+          <QuestBoard
+            currentUser={currentUser}
+            refreshTrigger={refreshQuestBoard}
+          />
         )}
 
         {activeSection === "guild-hall" && (
@@ -570,25 +604,18 @@ export default function Home() {
         )}
 
         {activeSection === "quest-management" && currentUser && (
-          !questsLoaded ? (
-            <div className="flex flex-col items-center justify-center py-16">
-              <Spinner />
-              <div className="mt-4 text-[#8B75AA] text-lg font-medium">Loading your quests...</div>
-            </div>
-          ) : (
-            <QuestManagement
-              currentUser={currentUser}
-              setQuests={setQuests}
-              onQuestStatusChange={(questId, newStatus) => {
-                setQuests(prev => prev.map(q => 
-                  q.id === questId ? { ...q, status: newStatus as Quest['status'] } : q
-                ));
-              }}
-              showToast={(message: string, type?: string) => {
-                toast({ title: message, variant: type === "error" ? "destructive" : "default" });
-              }}
-            />
-          )
+          <QuestManagement
+            currentUser={currentUser}
+            setQuests={setQuests}
+            onQuestStatusChange={(questId, newStatus) => {
+              setQuests(prev => prev.map(q => 
+                q.id === questId ? { ...q, status: newStatus as Quest['status'] } : q
+              ));
+            }}
+            showToast={(message: string, type?: string) => {
+              toast({ title: message, variant: type === "error" ? "destructive" : "default" });
+            }}
+          />
         )}
 
         {activeSection === "guild-management" && currentUser && (
@@ -666,7 +693,7 @@ export default function Home() {
                   <h2 className="text-2xl font-bold text-[#2C1A1D] mb-4">Admin Login Required</h2>
                   <p className="text-gray-600 mb-6">You must be logged in as an admin to access the admin panel.</p>
                   {process.env.NODE_ENV !== "production" && (
-                    <div style={{ background: '#fffbe6', color: '#8B75AA', padding: 12, marginTop: 24, border: '1px solid #CDAA7D', borderRadius: 8 }}>
+                    <div className="bg-amber-50 text-purple-600 p-3 mt-6 border border-amber-300 rounded-lg">
                       <strong>DEBUG:</strong> currentUser = {JSON.stringify(currentUser)}<br />
                       access_token = {token || 'n/a'}
                     </div>
@@ -680,7 +707,7 @@ export default function Home() {
                   <h2 className="text-2xl font-bold text-[#2C1A1D] mb-4">Access Denied</h2>
                   <p className="text-gray-600 mb-6">You do not have permission to access the admin panel.</p>
                   {process.env.NODE_ENV !== "production" && (
-                    <div style={{ background: '#fffbe6', color: '#8B75AA', padding: 12, marginTop: 24, border: '1px solid #CDAA7D', borderRadius: 8 }}>
+                    <div className="bg-amber-50 text-purple-600 p-3 mt-6 border border-amber-300 rounded-lg">
                       <strong>DEBUG:</strong> currentUser = {JSON.stringify(currentUser)}<br />
                       access_token = {token || 'n/a'}
                     </div>
@@ -689,7 +716,7 @@ export default function Home() {
               );
             }
             return (
-              <AdminPanel
+              <AdminPanelDynamic
                 currentUser={currentUser}
                 users={users}
                 quests={quests}
@@ -723,7 +750,13 @@ export default function Home() {
             isOpen={showGoldSystemModal}
             onClose={() => setShowGoldSystemModal(false)}
             currentUser={currentUser}
-            refreshUser={async () => { window.location.reload(); }}
+            refreshUser={async () => { 
+              console.log('🔃 refreshUser called in GoldSystemModal');
+              console.log('🔃 About to call refreshBalance()');
+              // Refresh user balance using the gold balance context
+              refreshBalance();
+              console.log('🔃 refreshBalance() completed');
+            }}
             showToast={(message: string, type?: string) => {
               toast({ title: message, variant: type === "error" ? "destructive" : "default" });
             }}

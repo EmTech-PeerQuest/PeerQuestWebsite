@@ -28,6 +28,10 @@ services:
     container_name: peerquest-frontend
     ports:
       - "3000:3000"
+    volumes:
+      - ./PeerQuestFrontEnd:/app
+      - /app/node_modules
+      - /app/.next
     depends_on:
       - backend
     env_file:

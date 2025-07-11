@@ -1,10 +1,33 @@
 from django.db.models.signals import post_save, pre_save, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
-from .models import Quest, QuestParticipant
+from datetime import datetime
+from .models import Quest, QuestParticipant, QuestSubmission
+from applications.models import Application
 from xp.utils import award_xp
 from transactions.transaction_utils import award_gold
 from transactions.models import TransactionType
+import logging
+
+# WebSocket imports
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+
+logger = logging.getLogger(__name__)
+channel_layer = get_channel_layer()
+
+
+def send_to_group(group_name, message):
+    """Helper function to send message to WebSocket group."""
+    try:
+        if channel_layer:
+            logger.info(f"Attempting to send WebSocket message to group '{group_name}': {message}")
+            async_to_sync(channel_layer.group_send)(group_name, message)
+            logger.info(f"Successfully sent WebSocket message to group '{group_name}': {message['type']}")
+        else:
+            logger.warning("Channel layer not available for WebSocket message")
+    except Exception as e:
+        logger.error(f"Error sending WebSocket message to group '{group_name}': {e}")
 
 
 @receiver(pre_save, sender=Quest)
@@ -125,3 +148,80 @@ def handle_assignment_on_participant_delete(sender, instance, **kwargs):
         quest.status = 'open'
         quest.save()
         print(f"Quest '{quest.title}' set to 'open' as no participants remain.")
+
+# WebSocket Signal Handlers for Real-time Updates
+
+@receiver(post_save, sender=Quest)
+def quest_status_websocket_update(sender, instance, created, **kwargs):
+    """Send WebSocket update when quest status changes."""
+    if not created:  # Only for updates, not creation
+        message = {
+            'type': 'quest_status_changed',
+            'quest_id': instance.id,
+            'status': instance.status,
+            'timestamp': datetime.now().isoformat()
+        }
+        send_to_group('quest_updates', message)
+
+
+@receiver(post_save, sender=Application)
+def application_status_websocket_update(sender, instance, created, **kwargs):
+    """Send WebSocket updates when application status changes."""
+    # Send to user-specific group for application status
+    user_group = f'user_applications_{instance.applicant.id}'
+    message = {
+        'type': 'application_status_changed',
+        'application_id': instance.id,
+        'quest_id': instance.quest.id,
+        'status': instance.status,
+        'timestamp': datetime.now().isoformat()
+    }
+    send_to_group(user_group, message)
+    
+    # Also update quest application count
+    application_count = Application.objects.filter(quest=instance.quest).count()
+    quest_message = {
+        'type': 'quest_application_count_changed',
+        'quest_id': instance.quest.id,
+        'application_count': application_count,
+        'timestamp': datetime.now().isoformat()
+    }
+    send_to_group('quest_updates', quest_message)
+
+
+@receiver(post_delete, sender=Application)
+def application_deleted_websocket_update(sender, instance, **kwargs):
+    """Send WebSocket update when application is deleted."""
+    # Update quest application count
+    application_count = Application.objects.filter(quest=instance.quest).count()
+    message = {
+        'type': 'quest_application_count_changed',
+        'quest_id': instance.quest.id,
+        'application_count': application_count,
+        'timestamp': datetime.now().isoformat()
+    }
+    send_to_group('quest_updates', message)
+
+
+@receiver(post_save, sender=QuestSubmission)
+def quest_submission_websocket_update(sender, instance, created, **kwargs):
+    """Send WebSocket update when quest submission is created or updated."""
+    message = {
+        'type': 'quest_submission_updated',
+        'quest_id': instance.quest_participant.quest.id,
+        'submission_id': instance.id,
+        'status': instance.status,
+        'timestamp': datetime.now().isoformat()
+    }
+    send_to_group('quest_updates', message)
+    
+    # Also send to quest creator
+    creator_group = f'user_notifications_{instance.quest_participant.quest.creator.id}'
+    notification_message = {
+        'type': 'notification_created',
+        'notification_id': f'submission_{instance.id}',
+        'title': 'New Quest Submission',
+        'message': f'New submission received for quest: {instance.quest_participant.quest.title}',
+        'timestamp': datetime.now().isoformat()
+    }
+    send_to_group(creator_group, notification_message)

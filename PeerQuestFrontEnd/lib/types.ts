@@ -162,6 +162,13 @@ export interface Quest {
     level?: number
     xp?: number
   }
+  assigned_to?: {
+    id: string | number
+    username: string
+    email: string
+    level?: number
+    xp?: number
+  }
   created_at: string
   updated_at: string
   due_date?: string

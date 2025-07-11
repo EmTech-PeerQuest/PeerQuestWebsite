@@ -11,16 +11,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'your-secret-key' # IMPORTANT: Change this to a strong, random key in production!
 DEBUG = True
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver', '*']  # Allow all hosts for development
 
 # Installed Apps
 INSTALLED_APPS = [
+    'daphne',  # Add Daphne at the top for WebSocket support
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    
     # Django Channels
     'channels', 
 
@@ -28,7 +30,6 @@ INSTALLED_APPS = [
     'oauth2_provider',
     'social_django',
     'drf_social_oauth2',
-    
     'quests.apps.QuestsConfig',
     'drf_yasg',
     'users',
@@ -53,7 +54,6 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'users.token_middleware.TokenBlacklistMiddleware',
@@ -86,8 +86,25 @@ TEMPLATES = [
 
 # Channels/ASGI Configuration
 # This specifies the entry point for Django Channels
-ASGI_APPLICATION = 'core.asgi.application' 
 WSGI_APPLICATION = 'core.wsgi.application' # Standard WSGI for HTTP requests
+ASGI_APPLICATION = 'core.asgi.application'
+
+# Channel Layers for WebSocket support (using in-memory for development)
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer'
+    }
+}
+
+# For production with Redis:
+# CHANNEL_LAYERS = {
+#     'default': {
+#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
+#         'CONFIG': {
+#             "hosts": [('127.0.0.1', 6379)],
+#         },
+#     },
+# }
 
 # Channel Layers (using Redis for development)
 CHANNEL_LAYERS = {
@@ -291,6 +308,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3002",
     "http://localhost:3003",
     "http://127.0.0.1:3003",
+    "http://localhost:8001",  # Add backend URL for WebSocket testing
+    "http://127.0.0.1:8001",
 ]
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'X-Requested-With',
@@ -328,13 +347,6 @@ OAUTH2_PROVIDER_ID_TOKEN_MODEL = 'oauth2_provider.IDToken'
 OAUTH2_PROVIDER_GRANT_MODEL = 'oauth2_provider.Grant'
 OAUTH2_PROVIDER_REFRESH_TOKEN_MODEL = 'oauth2_provider.RefreshToken'
 
-# OAuth2 Provider models (fixes makemigrations error)
-OAUTH2_PROVIDER_ACCESS_TOKEN_MODEL = 'oauth2_provider.AccessToken'
-OAUTH2_PROVIDER_APPLICATION_MODEL = 'oauth2_provider.Application'
-OAUTH2_PROVIDER_ID_TOKEN_MODEL = 'oauth2_provider.IDToken'
-OAUTH2_PROVIDER_GRANT_MODEL = 'oauth2_provider.Grant'
-OAUTH2_PROVIDER_REFRESH_TOKEN_MODEL = 'oauth2_provider.RefreshToken'
-
 # CSRF Trusted Origins for frontend (useful for AJAX requests from different origins)
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
@@ -347,22 +359,6 @@ SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SECURE = False
-
-# Email settings - Use environment variables for flexibility
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() == 'true'
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
-
-# Development alternatives (uncomment one if needed):
-# EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'  # Saves emails to files
-# EMAIL_FILE_PATH = BASE_DIR / 'sent_emails'  # Directory to save emails
-# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # Shows emails in console
-
-DEFAULT_FROM_EMAIL = 'PeerQuest <noreply@peerquest.com>'
-FRONTEND_URL = 'http://localhost:3000'  # Frontend URL for verification links
 
 # Email settings - Use environment variables for flexibility
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')

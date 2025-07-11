@@ -108,29 +108,72 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
         
         {/* Scrollable Content Area - This entire section scrolls */}
         <div className="flex-1 overflow-y-auto p-6">
-          {/* Compact submission review notice */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-3 text-xs text-blue-700">
-            <div className="flex items-center gap-1 mb-1">
-              <AlertCircle className="w-3 h-3 text-blue-500 flex-shrink-0" />
-              <span className="font-semibold text-blue-800">Review Guidelines (Quest Creators Only):</span>
-            </div>
-            <div className="text-blue-600 leading-tight">
-              All pending submissions are actionable • <strong>Approve</strong> = complete quest & award rewards • <strong>Needs Revision</strong> = allow participant to resubmit
-            </div>
-          </div>
-          
-          {/* Quest completion button (only visible to quest creators) */}
-          {onMarkComplete && (
-            <div className="flex justify-end gap-3 mb-6">
-              <button
-                onClick={onMarkComplete}
-                className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-semibold"
-              >
-                <CheckCircle2 size={18} />
-                <span>Complete Quest</span>
-              </button>
+          {/* Quest Status Indicator */}
+          {quest.status === 'completed' && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+              <div className="flex items-center gap-2 text-green-800">
+                <CheckCircle2 className="w-5 h-5 text-green-600" />
+                <span className="font-semibold">Quest Completed</span>
+              </div>
+              <p className="text-sm text-green-700 mt-1">
+                This quest has been marked as completed. Participants have been awarded their rewards.
+              </p>
             </div>
           )}
+          
+          {/* Compact submission review notice - only show for non-completed quests */}
+          {quest.status !== 'completed' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-3 text-xs text-blue-700">
+              <div className="flex items-center gap-1 mb-1">
+                <AlertCircle className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                <span className="font-semibold text-blue-800">Review Guidelines (Quest Creators Only):</span>
+              </div>
+              <div className="text-blue-600 leading-tight">
+                All pending submissions must be reviewed before completing the quest • <strong>Approve</strong> = complete quest & award rewards • <strong>Needs Revision</strong> = allow participant to resubmit
+              </div>
+            </div>
+          )}
+          
+          {/* Quest completion button (only visible to quest creators) */}
+          {onMarkComplete && (() => {
+            const pendingSubmissions = submissions.filter(sub => sub.status === 'pending');
+            const hasPendingSubmissions = pendingSubmissions.length > 0;
+            
+            return (
+              <div className="flex flex-col gap-3 mb-6">
+                {/* Show warning if there are pending submissions */}
+                {hasPendingSubmissions && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-amber-800">
+                      <AlertCircle className="w-4 h-4 text-amber-500" />
+                      <span className="text-sm font-medium">
+                        You have {pendingSubmissions.length} pending submission{pendingSubmissions.length > 1 ? 's' : ''} that must be reviewed before completing this quest.
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-700 mt-1">
+                      Please approve or mark all submissions as needing revision first.
+                    </p>
+                  </div>
+                )}
+                
+                <div className="flex justify-end">
+                  <button
+                    onClick={hasPendingSubmissions ? undefined : onMarkComplete}
+                    disabled={hasPendingSubmissions}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors font-semibold ${
+                      hasPendingSubmissions
+                        ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                        : 'bg-green-500 text-white hover:bg-green-600'
+                    }`}
+                    title={hasPendingSubmissions ? 'Review all submissions before completing quest' : 'Complete quest and award rewards'}
+                  >
+                    <CheckCircle2 size={18} />
+                    <span>Complete Quest</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
           
           {/* Submissions Content */}
           <div>
@@ -145,10 +188,48 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
                 <span className="text-red-500 font-medium">{error}</span>
               </div>
             ) : submissions.length > 0 ? (
+              <div>
+                {/* Submissions summary */}
+                {(() => {
+                  const pendingCount = submissions.filter(sub => sub.status === 'pending').length;
+                  const approvedCount = submissions.filter(sub => sub.status === 'approved').length;
+                  const revisionCount = submissions.filter(sub => sub.status === 'needs_revision').length;
+                  
+                  return (
+                    <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-3">Submissions Summary</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                          <span className="text-sm">
+                            <span className="font-bold">{pendingCount}</span> Pending Review
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                          <span className="text-sm">
+                            <span className="font-bold">{approvedCount}</span> Approved
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
+                          <span className="text-sm">
+                            <span className="font-bold">{revisionCount}</span> Needs Revision
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+                
             <ul className="space-y-6">
               {submissions.map((submission, index) => {
                 return (
-                <li key={submission.id} className="bg-gray-50 rounded-xl p-5 border border-gray-200 flex flex-col sm:flex-row gap-4 shadow-sm hover:shadow-md transition-shadow">
+                <li key={submission.id} className={`rounded-xl p-5 border flex flex-col sm:flex-row gap-4 shadow-sm hover:shadow-md transition-shadow ${
+                  submission.status === 'pending' 
+                    ? 'bg-amber-50 border-amber-200 border-2' 
+                    : 'bg-gray-50 border-gray-200'
+                }`}>
                   {/* Avatar and user info */}
                   <div className="flex flex-col items-center justify-center min-w-[110px] py-2 px-1 bg-gradient-to-b from-[#f3e8ff] to-[#fef3c7] rounded-xl shadow-inner border border-[#e9d5ff]/60">
                     <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#8B75AA] to-[#7A6699] flex items-center justify-center text-white text-2xl font-bold mb-2 shadow-lg border-4 border-white">
@@ -283,6 +364,7 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
               );
               })}
             </ul>
+            </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-16">
                 <UserCircle2 className="w-10 h-10 text-gray-300 mb-2" />

@@ -4,9 +4,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/a
 
 export interface PaymentProofData {
   payment_reference: string
-  package_amount: number
-  package_price: number
-  bonus?: string
+  gold_package: number
   receipt: File
 }
 
@@ -38,16 +36,21 @@ export const PaymentAPI = {
       
       const formData = new FormData()
       formData.append('payment_reference', data.payment_reference)
-      formData.append('package_amount', data.package_amount.toString())
-      formData.append('package_price', data.package_price.toString())
-      formData.append('bonus', data.bonus || '')
+      formData.append('gold_package', data.gold_package.toString())
       formData.append('receipt', data.receipt)
 
-      const result = await fetchWithAuth(`${API_BASE_URL}/payments/submit-proof/`, {
+      const response = await fetchWithAuth(`${API_BASE_URL}/payments/submit-proof/`, {
         method: 'POST',
         body: formData,
         // Note: Don't set Content-Type for FormData - browser will set it with boundary
       })
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Failed to submit payment proof: ${response.status} ${errorText}`)
+      }
+      
+      const result = await response.json()
       console.log('✅ Payment proof submitted successfully');
       return result;
     } catch (error: any) {

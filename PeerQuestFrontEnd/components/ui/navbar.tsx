@@ -48,7 +48,8 @@ export function Navbar({
     }
   }, [currentUser]);
   const { t } = useTranslation();
-  const router = useRouter();
+  // TEMPORARILY DISABLE ROUTER FOR DEBUGGING
+  // const router = useRouter();
   const { soundEnabled, volume } = useAudioContext();
   const { playSound } = useClickSound({ enabled: soundEnabled, volume });
   
@@ -215,7 +216,12 @@ export function Navbar({
           {currentUser ? (
             <>
               <div className="hidden md:flex items-center space-x-2 mr-4">
-                <GoldBalance openGoldPurchaseModal={openGoldPurchaseModal} />
+                <div onClick={(e) => {
+                  // Prevent any event bubbling from GoldBalance to navbar
+                  e.stopPropagation();
+                }}>
+                  <GoldBalance openGoldPurchaseModal={openGoldPurchaseModal} />
+                </div>
               </div>
 
               <div className="hidden md:flex items-center space-x-4">
@@ -229,6 +235,7 @@ export function Navbar({
                       setNotificationsOpen(false)
                     }}
                     className="w-8 h-8 bg-[#CDAA7D] rounded-full flex items-center justify-center text-[#2C1A1D] hover:bg-[#B89A6D] transition-colors"
+                    aria-label="Open quick actions menu"
                   >
                     <Plus size={18} />
                   </button>
@@ -264,6 +271,7 @@ export function Navbar({
                 <button
                   onClick={() => handleNavigation("search")}
                   className="text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors"
+                  aria-label="Search"
                 >
                   <Search size={20} />
                 </button>
@@ -418,16 +426,7 @@ export function Navbar({
           {/* Hide gold button for banned users (user should never be set if banned, but double check) */}
           {currentUser && !currentUser.isBanned && (
             <div className="flex items-center mr-4">
-              <div className="bg-[#CDAA7D]/10 px-2 py-1 rounded-full flex items-center">
-                <span className="text-[#CDAA7D] text-sm font-medium">{(currentUser as any).gold || 0}</span>
-                <GoldBalance openGoldPurchaseModal={openGoldPurchaseModal} />
-                <button
-                  onClick={openGoldPurchaseModal}
-                  className="ml-1 text-xs bg-[#CDAA7D] text-white px-1.5 py-0.5 rounded hover:bg-[#B89A6D] transition-colors"
-                >
-                  +
-                </button>
-              </div>
+              <GoldBalance openGoldPurchaseModal={openGoldPurchaseModal} />
             </div>
           )}
             <button

@@ -372,6 +372,15 @@ class QuestSubmissionListCreateView(generics.ListCreateAPIView):
         if self.request.method == 'POST':
             return [MultiPartParser, FormParser, JSONParser]
         return super().get_parser_classes()
+    
+    def create(self, request, *args, **kwargs):
+        print(f"\n===== QuestSubmissionListCreateView.create =====")
+        print(f"User: {request.user}")
+        print(f"Quest slug: {kwargs.get('quest_slug')}")
+        print(f"Request data: {request.data}")
+        print(f"Request FILES: {request.FILES}")
+        print("===============================================\n")
+        return super().create(request, *args, **kwargs)
 
     def get_queryset(self):
         quest_slug = self.kwargs.get('quest_slug')

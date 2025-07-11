@@ -9,6 +9,7 @@ import { KYCVerificationModal } from '@/components/auth/kyc-verification-modal'
 import { TransactionAPI, Transaction } from '@/lib/api/transactions'
 import { PaymentAPI } from '@/lib/api/payments'
 import { generateGCashQRData, getGCashConfig, validateGCashQR } from '@/lib/payment/gcash-qr'
+import QRCode from 'qrcode'
 
 interface GoldSystemModalProps {
   isOpen: boolean
@@ -50,7 +51,21 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
   const { soundEnabled, volume } = useAudioContext()
   const { playSound } = useClickSound({ enabled: soundEnabled, volume })
   // Defensive fallback for refreshUser if not provided
-  const safeRefreshUser = typeof refreshUser === 'function' ? refreshUser : async () => {};
+  const safeRefreshUser = async () => {
+    console.log('🔄 safeRefreshUser called');
+    if (typeof refreshUser === 'function') {
+      try {
+        console.log('🔄 Calling refreshUser function');
+        await refreshUser();
+        console.log('🔄 refreshUser completed successfully');
+      } catch (error) {
+        console.error('🔄 Error in refreshUser:', error);
+        // Don't rethrow - just log the error
+      }
+    } else {
+      console.log('⚠️ safeRefreshUser called but refreshUser is not a function');
+    }
+  };
   
   const [activeTab, setActiveTab] = useState<"purchase" | "transactions" | "goldex">("transactions")
   const [transactionFilter, setTransactionFilter] = useState("all")
@@ -77,7 +92,7 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
 
   // Purchase flow state
   const [showPurchaseModal, setShowPurchaseModal] = useState(false)
-  const [selectedPackage, setSelectedPackage] = useState<{amount: number, price: number, bonus?: string} | null>(null)
+  const [selectedPackage, setSelectedPackage] = useState<{id: number | null, amount: number, price: number, bonus?: string} | null>(null)
   const [purchaseStep, setPurchaseStep] = useState<"confirm" | "payment" | "upload" | "success">("confirm")
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("")
   const [paymentReference, setPaymentReference] = useState<string>("")
@@ -92,6 +107,7 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
   // SECURITY: This endpoint ensures all users (adventurers, quest makers, moderators, admins)
   // can only see their own transactions, preventing unauthorized access to other users' data
   const fetchTransactions = async () => {
+    console.log('🔄 fetchTransactions called');
     if (!currentUser?.id) {
       setError('Please log in to view transactions')
       return
@@ -100,13 +116,22 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
     setLoading(true)
     setError(null)
     try {
+      console.log('🔄 About to call TransactionAPI.getMyTransactions()');
       // Use the existing TransactionAPI which handles authentication properly
       const transactionsData = await TransactionAPI.getMyTransactions()
+      console.log('🔄 TransactionAPI.getMyTransactions() completed');
       setTransactions(transactionsData || [])
       setError(null) // Clear any previous errors on success
 
       // Refresh user balance to ensure it's in sync
-      await safeRefreshUser()
+      console.log('🔄 About to call safeRefreshUser()');
+      try {
+        await safeRefreshUser()
+        console.log('🔄 safeRefreshUser() completed');
+      } catch (refreshError) {
+        console.error('🔄 Error in safeRefreshUser:', refreshError);
+        // Don't throw - just log the error
+      }
     } catch (error) {
       console.error('Error fetching transactions:', error)
 
@@ -145,8 +170,15 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
 
   // Fetch transactions when modal opens or user changes
   useEffect(() => {
+    console.log('🎯 GoldSystemModal useEffect triggered:', { isOpen, userId: currentUser?.id });
     if (isOpen && currentUser?.id) {
-      fetchTransactions()
+      console.log('🎯 Modal opened - fetching transactions');
+      const timer = setTimeout(() => {
+        console.log('🎯 Now calling fetchTransactions after delay');
+        fetchTransactions()
+      }, 100);
+      
+      return () => clearTimeout(timer);
     }
   }, [isOpen, currentUser?.id])
 
@@ -183,16 +215,62 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
     prev.purchaseCount > current.purchaseCount ? prev : current
   ).amount
 
-  const goldPackages = [
-    { amount: 500, price: 70, usd: 1.25, rate: 0.14, popular: mostPopularAmount === 500, bonus: "", label: "" },
-    { amount: 2800, price: 350, usd: 6.25, rate: 0.125, popular: mostPopularAmount === 2800, bonus: "+300 bonus coins", label: "Most Popular" },
-    { amount: 6500, price: 700, usd: 12.50, rate: 0.108, popular: mostPopularAmount === 6500, bonus: "+1000 bonus coins", label: "Best Value" },
-    { amount: 14500, price: 1500, usd: 26.79, rate: 0.103, popular: mostPopularAmount === 14500, bonus: "+2500 bonus coins", label: "Max" },
-  ]
+  // State for gold packages from API
+  const [goldPackages, setGoldPackages] = useState<any[]>([])
+  const [packagesLoading, setPackagesLoading] = useState(true)
 
-  const purchaseGold = (amount: number, price: number, bonus?: string) => {
+  // Fetch gold packages from API
+  useEffect(() => {
+    const fetchGoldPackages = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/payments/packages/')
+        const data = await response.json()
+        
+        if (data.success && data.packages) {
+          // Transform API data to include frontend-specific fields
+          const transformedPackages = data.packages.map((pkg: any) => ({
+            id: pkg.id, // Include the database ID
+            amount: pkg.gold_amount,
+            price: pkg.price_php,
+            bonus: pkg.formatted_bonus || "",
+            label: pkg.name.includes("Popular") ? "Most Popular" : 
+                   pkg.name.includes("Value") ? "Best Value" : 
+                   pkg.name.includes("Premium") ? "Max" : "",
+            popular: pkg.name.includes("Popular"), // You can customize this logic
+            rate: pkg.price_php / pkg.total_gold, // Calculate rate
+            usd: pkg.price_php / 56 // Approximate USD conversion
+          }))
+          setGoldPackages(transformedPackages)
+        } else {
+          console.error('Failed to fetch gold packages:', data)
+          // Fallback to hardcoded packages if API fails
+          setGoldPackages([
+            { id: null, amount: 500, price: 70, usd: 1.25, rate: 0.14, popular: mostPopularAmount === 500, bonus: "", label: "" },
+            { id: null, amount: 2800, price: 350, usd: 6.25, rate: 0.125, popular: mostPopularAmount === 2800, bonus: "+300 bonus coins", label: "Most Popular" },
+            { id: null, amount: 6500, price: 700, usd: 12.50, rate: 0.108, popular: mostPopularAmount === 6500, bonus: "+1000 bonus coins", label: "Best Value" },
+            { id: null, amount: 14500, price: 1500, usd: 26.79, rate: 0.103, popular: mostPopularAmount === 14500, bonus: "+2500 bonus coins", label: "Max" },
+          ])
+        }
+      } catch (error) {
+        console.error('Error fetching gold packages:', error)
+        // Fallback to hardcoded packages
+        setGoldPackages([
+          { id: null, amount: 500, price: 70, usd: 1.25, rate: 0.14, popular: mostPopularAmount === 500, bonus: "", label: "" },
+          { id: null, amount: 2800, price: 350, usd: 6.25, rate: 0.125, popular: mostPopularAmount === 2800, bonus: "+300 bonus coins", label: "Most Popular" },
+          { id: null, amount: 6500, price: 700, usd: 12.50, rate: 0.108, popular: mostPopularAmount === 6500, bonus: "+1000 bonus coins", label: "Best Value" },
+          { id: null, amount: 14500, price: 1500, usd: 26.79, rate: 0.103, popular: mostPopularAmount === 14500, bonus: "+2500 bonus coins", label: "Max" },
+        ])
+      } finally {
+        setPackagesLoading(false)
+      }
+    }
+
+    fetchGoldPackages()
+  }, [])
+
+  const purchaseGold = (id: number | null, amount: number, price: number, bonus?: string) => {
     // Open the purchase modal instead of direct purchase
-    setSelectedPackage({ amount, price, bonus })
+    setSelectedPackage({ id, amount, price, bonus })
     setShowPurchaseModal(true)
     setPurchaseStep("confirm")
   }
@@ -347,14 +425,19 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
       return
     }
 
+    if (!selectedPackage.id) {
+      if (showToast) {
+        showToast('Invalid package selected. Please try again.', 'error')
+      }
+      return
+    }
+
     setUploading(true)
 
     try {
       const result = await PaymentAPI.submitPaymentProof({
         payment_reference: paymentReference,
-        package_amount: selectedPackage.amount,
-        package_price: selectedPackage.price,
-        bonus: selectedPackage.bonus || '',
+        gold_package: selectedPackage.id,
         receipt: receiptImage
       })
       
@@ -601,37 +684,41 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
   
   const filteredTransactions = dateFilteredTransactions.filter((transaction) => {
     if (transactionFilter === "all") {
-      // "All Transactions" should only show transactions with real gold flow
-      // Excludes internal/system-only transactions that don't represent actual gold movement
-      return REAL_GOLD_FLOW_TYPES.includes(transaction.type)
+      // Show all transactions with real gold flow
+      return REAL_GOLD_FLOW_TYPES.includes(transaction.type);
     }
     
     // Filter by incoming/outgoing gold direction
     if (transactionFilter === "incoming") {
-      return REAL_GOLD_FLOW_TYPES.includes(transaction.type) && getTransactionType(transaction) === "incoming"
+      const isRealGoldFlow = REAL_GOLD_FLOW_TYPES.includes(transaction.type);
+      const isIncoming = getTransactionType(transaction) === "incoming";
+      return isRealGoldFlow && isIncoming;
     }
     
     if (transactionFilter === "outgoing") {
-      return REAL_GOLD_FLOW_TYPES.includes(transaction.type) && getTransactionType(transaction) === "outgoing"
+      const isRealGoldFlow = REAL_GOLD_FLOW_TYPES.includes(transaction.type);
+      const isOutgoing = getTransactionType(transaction) === "outgoing";
+      return isRealGoldFlow && isOutgoing;
     }
     
     // Filter by specific transaction type
     if (transactionFilter === "PURCHASE") {
-      // Only show actual gold package purchases from the "BUY GOLD" tab
-      // These should be PURCHASE type AND have descriptions indicating they're gold purchases
-      return transaction.type === "PURCHASE" && 
-             (transaction.description?.includes("Gold Package") || 
-              transaction.description?.includes("Purchased") ||
-              transaction.description?.includes("gold addition") ||
-              transaction.description?.toLowerCase().includes("purchase"))
+      // Show actual gold package purchases
+      const isPurchaseType = transaction.type === "PURCHASE";
+      const isGoldPurchase = transaction.description?.includes("Gold Package") || 
+                            transaction.description?.includes("Purchased") ||
+                            transaction.description?.includes("gold addition") ||
+                            transaction.description?.toLowerCase().includes("purchase");
+      return isPurchaseType && isGoldPurchase;
     }
     
     if (transactionFilter === "REWARD") {
       // Show all REWARD transactions (quest creation and quest completion)
-      return transaction.type === "REWARD"
+      return transaction.type === "REWARD";
     }
     
-    return transaction.type === transactionFilter
+    // Default: exact type match
+    return transaction.type === transactionFilter;
   })
 
   // Calculate totals based on currently applied filters (date + type)
@@ -718,7 +805,7 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
           <button onClick={() => {
             playSound('modal');
             onClose();
-          }} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
+          }} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors" title="Close Gold Treasury">
             <X size={20} />
           </button>
         </div>
@@ -740,7 +827,10 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
             BUY GOLD
           </button>
           <button
-            onClick={() => setActiveTab("transactions")}
+            onClick={() => {
+              playSound('tab');
+              setActiveTab("transactions");
+            }}
             className={`flex-1 py-3 px-4 text-center font-medium transition-colors ${
               activeTab === "transactions"
                 ? "text-[#2C1A1D] border-b-2 border-[#2C1A1D] bg-[#CDAA7D]/20"
@@ -751,7 +841,10 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
             MY TRANSACTIONS
           </button>
           <button
-            onClick={() => setActiveTab("goldex")}
+            onClick={() => {
+              playSound('tab');
+              setActiveTab("goldex");
+            }}
             className={`flex-1 py-3 px-4 text-center font-medium transition-colors ${
               activeTab === "goldex"
                 ? "text-[#2C1A1D] border-b-2 border-[#2C1A1D] bg-[#CDAA7D]/20"
@@ -780,7 +873,10 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                     className={`relative border-2 rounded-lg p-6 cursor-pointer transition-all hover:shadow-lg ${
                       pkg.popular ? "border-[#8B75AA] bg-[#8B75AA]/5" : "border-[#CDAA7D] hover:border-[#8B75AA]/50"
                     }`}
-                    onClick={() => purchaseGold(pkg.amount, pkg.price, pkg.bonus)}
+                    onClick={() => {
+                      playSound('button')
+                      purchaseGold(pkg.id, pkg.amount, pkg.price, pkg.bonus)
+                    }}
                   >
                     {pkg.popular && (
                       <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-[#8B75AA] text-white px-3 py-1 rounded-full text-xs font-bold">
@@ -823,29 +919,40 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                 </div>
 
                 {/* Filters */}
-                <div className="flex gap-4 mb-6">
+                <div className="flex gap-4 mb-6 flex-wrap">
                   <select
                     className="px-3 py-2 border border-[#CDAA7D] rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]"
                     value={transactionFilter}
                     onChange={(e) => setTransactionFilter(e.target.value)}
+                    aria-label="Filter transactions by type"
                   >
-                    <option value="all">All Transactions (Real Gold Flow)</option>
-                    <option value="incoming">Incoming Gold (Purchases & Refunds Only)</option>
-                    <option value="outgoing">Outgoing Gold (Quest Creation & Transfers Only)</option>
-                    <option value="PURCHASE">Gold Package Purchases Only (From Buy Gold Tab)</option>
-                    <option value="REWARD">Quest Transactions Only (Creation & Completion)</option>
-                    <option value="TRANSFER">Transfers Only</option>
-                    <option value="REFUND">Refunds Only</option>
+                    <option value="all">All Transactions</option>
+                    <option value="incoming">Incoming Gold</option>
+                    <option value="outgoing">Outgoing Gold</option>
+                    <option value="PURCHASE">Gold Purchases</option>
+                    <option value="REWARD">Quest Rewards</option>
                   </select>
                   <select
                     className="px-3 py-2 border border-[#CDAA7D] rounded bg-white text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]"
                     value={dateRange}
                     onChange={(e) => setDateRange(e.target.value)}
+                    aria-label="Filter transactions by date range"
                   >
                     <option value="past-30-days">Past 30 Days</option>
                     <option value="past-90-days">Past 90 Days</option>
                     <option value="all-time">All Time</option>
                   </select>
+                  <button
+                    onClick={() => {
+                      playSound('button')
+                      fetchTransactions()
+                    }}
+                    className="px-4 py-2 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699] transition-colors flex items-center gap-2"
+                    disabled={loading}
+                  >
+                    <ArrowUpDown size={16} />
+                    {loading ? 'Loading...' : 'Refresh'}
+                  </button>
                 </div>
               </div>
 
@@ -910,7 +1017,10 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                 <div className="text-center py-8">
                   <div className="text-red-600">{error}</div>
                   <button 
-                    onClick={fetchTransactions}
+                    onClick={() => {
+                      playSound('button')
+                      fetchTransactions()
+                    }}
                     className="mt-2 text-[#8B75AA] hover:text-[#2C1A1D] underline"
                   >
                     Retry
@@ -1130,8 +1240,9 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-[#2C1A1D] mb-2">Payment Method</label>
+                      <label htmlFor="cashout-method" className="block text-sm font-medium text-[#2C1A1D] mb-2">Payment Method</label>
                       <select
+                        id="cashout-method"
                         value={cashoutMethod}
                         onChange={(e) => {
                           setCashoutMethod(e.target.value)
@@ -1330,10 +1441,11 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                         </div>
                         
                         <div>
-                          <label className="block text-sm font-medium text-[#2C1A1D] mb-1">
+                          <label htmlFor="bank-name" className="block text-sm font-medium text-[#2C1A1D] mb-1">
                             Bank Name <span className="text-red-500">*</span>
                           </label>
                           <select
+                            id="bank-name"
                             value={paymentDetails.bank_name}
                             onChange={(e) => setPaymentDetails(prev => ({
                               ...prev,
@@ -1500,7 +1612,10 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                     </div>
 
                     <button
-                      onClick={handleCashOut}
+                      onClick={() => {
+                        playSound('button')
+                        handleCashOut()
+                      }}
                       disabled={
                         loading ||
                         !cashoutAmount ||
@@ -1560,9 +1675,6 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                         )}
                         <div className="font-medium">{preset.gold.toLocaleString()} Gold</div>
                         <div className="text-xs">₱{preset.php}</div>
-                        {preset.label !== "Min" && (
-                          <div className="text-xs opacity-75">{preset.label}</div>
-                        )}
                       </button>
                     ))}
                   </div>
@@ -1623,7 +1735,10 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                 {/* Header - Fixed */}
                 <div className="bg-[#CDAA7D] px-6 py-4 flex justify-between items-center flex-shrink-0">
                   <h2 className="text-xl font-bold text-[#2C1A1D]">Confirm Purchase</h2>
-                  <button onClick={handlePurchaseCancel} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
+                  <button onClick={() => {
+                    playSound('button')
+                    handlePurchaseCancel()
+                  }} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors" title="Close purchase dialog">
                     <X size={20} />
                   </button>
                 </div>
@@ -1671,7 +1786,10 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                       Cancel
                     </button>
                     <button
-                      onClick={handlePurchaseConfirm}
+                      onClick={() => {
+                        playSound('button')
+                        handlePurchaseConfirm()
+                      }}
                       className="flex-1 py-3 px-4 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699] transition-colors font-semibold"
                     >
                       Continue to Payment
@@ -1687,12 +1805,18 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                 {/* Header - Fixed */}
                 <div className="bg-[#CDAA7D] px-6 py-4 flex justify-between items-center flex-shrink-0">
                   <div className="flex items-center gap-3">
-                    <button onClick={handlePurchaseCancel} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
+                    <button onClick={() => {
+                      playSound('button')
+                      handlePurchaseCancel()
+                    }} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors" title="Go back">
                       <ArrowLeft size={20} />
                     </button>
                     <h2 className="text-xl font-bold text-[#2C1A1D]">GCash Payment</h2>
                   </div>
-                  <button onClick={handlePurchaseCancel} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
+                  <button onClick={() => {
+                    playSound('button')
+                    handlePurchaseCancel()
+                  }} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors" title="Cancel purchase">
                     <X size={20} />
                   </button>
                 </div>
@@ -1771,7 +1895,10 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                     </div>
 
                     <button
-                      onClick={proceedToUpload}
+                      onClick={() => {
+                        playSound('button')
+                        proceedToUpload()
+                      }}
                       className="w-full py-3 px-4 bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-semibold mb-2"
                     >
                       I've Completed Payment - Upload Receipt
@@ -1794,12 +1921,18 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                 {/* Header - Fixed */}
                 <div className="bg-[#CDAA7D] px-6 py-4 flex justify-between items-center flex-shrink-0">
                   <div className="flex items-center gap-3">
-                    <button onClick={() => setPurchaseStep("payment")} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
+                    <button onClick={() => {
+                      playSound('button')
+                      setPurchaseStep("payment")
+                    }} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors" title="Go back to payment">
                       <ArrowLeft size={20} />
                     </button>
                     <h2 className="text-xl font-bold text-[#2C1A1D]">Upload Payment Receipt</h2>
                   </div>
-                  <button onClick={handlePurchaseCancel} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
+                  <button onClick={() => {
+                    playSound('button')
+                    handlePurchaseCancel()
+                  }} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors" title="Cancel purchase">
                     <X size={20} />
                   </button>
                 </div>
@@ -1823,7 +1956,11 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                         
                         <div className="space-y-4">
                           <div>
+                            <label htmlFor="receipt-upload" className="block text-sm font-medium text-[#2C1A1D] mb-2">
+                              Upload Payment Receipt
+                            </label>
                             <input
+                              id="receipt-upload"
                               type="file"
                               accept="image/*"
                               onChange={handleReceiptUpload}

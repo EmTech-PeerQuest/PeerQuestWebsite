@@ -23,7 +23,7 @@ import {
 import type { Quest, User as UserType, Application } from "@/lib/types"
 import { QuestAPI } from "@/lib/api/quests"
 import { getApplicationsToMyQuests, getMyApplications, approveApplication, rejectApplication, kickParticipant } from "@/lib/api/applications"
-import { QuestDetailsModal } from "./quest-details-modal"
+import QuestDetailsModal from "./quest-details-modal"
 import QuestSubmitWorkModal from "./quest-submit-work-modal"
 import QuestForm from "./quest-form"
 import { QuestManagementApplicationsModal } from "@/components/modals/quest-management-applications-modal"
@@ -196,6 +196,10 @@ export function QuestManagement({
         const isInParticipants = quest.participants_detail && 
           quest.participants_detail.some((p: any) => String(p.user?.id) === String(currentUser?.id))
         
+        // Check if user is assigned to this quest (newer single assignment system)
+        const isAssignedTo = quest.assigned_to && 
+          String(quest.assigned_to.id) === String(currentUser?.id)
+        
         // Check if user has an approved application for this quest
         const hasApprovedApplication = userApplications.some(app => 
           app.quest.id === quest.id && app.status === 'approved'
@@ -207,21 +211,23 @@ export function QuestManagement({
         )
 
         // DEBUG: Log each quest evaluation
-        if ((isInParticipants || hasApprovedApplication) && !hasBeenKicked) {
+        if ((isInParticipants || isAssignedTo || hasApprovedApplication) && !hasBeenKicked) {
           console.log('🔍 Quest Management Debug - Quest included in participating:', {
             questId: quest.id,
             questTitle: quest.title,
             isInParticipants,
+            isAssignedTo,
             hasApprovedApplication,
             hasBeenKicked,
             participantsCount: quest.participants_detail?.length || 0,
-            participants: quest.participants_detail?.map(p => ({ userId: p.user?.id, username: p.user?.username }))
+            participants: quest.participants_detail?.map(p => ({ userId: p.user?.id, username: p.user?.username })),
+            assignedTo: quest.assigned_to ? { userId: quest.assigned_to.id, username: quest.assigned_to.username } : null
           })
         }
         
-        // Include if user is participating AND has not been kicked OR has an active approved application
+        // Include if user is participating (either in participants_detail, assigned_to, or has approved application) AND has not been kicked
         // Note: Kicked users who re-apply and get approved should show up again
-        return (isInParticipants || hasApprovedApplication) && !hasBeenKicked
+        return (isInParticipants || isAssignedTo || hasApprovedApplication) && !hasBeenKicked
       })
 
       // DEBUG: Log final results
@@ -819,7 +825,9 @@ export function QuestManagement({
                             }`}
                             title={
                               quest.status !== 'open'
-                                ? `Cannot edit a quest that is ${quest.status}`
+                                ? quest.status === 'completed'
+                                  ? 'Cannot edit a completed quest'
+                                  : `Cannot edit a quest that is ${quest.status}`
                                 : (questApplications[quest.id] && questApplications[quest.id].some(app => app.status === 'approved'))
                                 ? 'Cannot edit a quest with active participants (kick participants first)'
                                 : 'Edit this quest'
@@ -988,7 +996,7 @@ export function QuestManagement({
                                   </div>
                                 )}
 
-                                {(application.status === 'approved' || application.status === 'pending') && (
+                                {application.status === 'approved' && quest.status !== 'completed' && (
                                   <div className="flex flex-col gap-2 items-center mt-2">
                                     {removalTarget === application.id ? (
                                       <div className="flex flex-col sm:flex-row gap-2 items-center w-full max-w-md">
@@ -1037,6 +1045,17 @@ export function QuestManagement({
                                         </button>
                                       </div>
                                     )}
+                                  </div>
+                                )}
+
+                                {/* Show message for completed quests */}
+                                {application.status === 'approved' && quest.status === 'completed' && (
+                                  <div className="flex flex-col gap-2 items-center mt-2">
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 w-full">
+                                      <p className="text-green-800 text-sm font-medium text-center">
+                                        ✅ Quest completed!
+                                      </p>
+                                    </div>
                                   </div>
                                 )}
 
@@ -1169,7 +1188,7 @@ export function QuestManagement({
                           })()}
                         </div>
 
-                        {quest.status === "in-progress" && (() => {
+                        {(() => {
                           // Find participant record for current user
                           const myParticipant = quest.participants_detail?.find(
                             (p: any) => String(p.user.id) === String(currentUser.id)
@@ -1182,31 +1201,61 @@ export function QuestManagement({
                           const hasBeenKicked = userApplications.some(
                             (app) => app.quest.id === quest.id && app.status === "kicked"
                           );
-                          // Only show submit buttons if user is participant AND not kicked
-                          return (myParticipant || hasApprovedApp) && !hasBeenKicked ? (
+                          
+                          // Show buttons based on quest status and user participation
+                          const isParticipant = (myParticipant || hasApprovedApp) && !hasBeenKicked;
+                          const canSubmitWork = (quest.status === "in-progress" || quest.status === "in_progress") && isParticipant;
+                          const canViewSubmissions = ((quest.status === "in-progress" || quest.status === "in_progress") || quest.status === "completed") && isParticipant;
+                          
+                          // Debug logging for quest management submit button
+                          console.log('🔍 Quest Management - Submit Button Debug:', {
+                            questTitle: quest.title,
+                            questStatus: quest.status,
+                            questStatusType: typeof quest.status,
+                            myParticipant: !!myParticipant,
+                            hasApprovedApp,
+                            hasBeenKicked,
+                            isParticipant,
+                            canSubmitWork,
+                            canViewSubmissions,
+                            statusCheck: {
+                              isInProgress: quest.status === "in-progress",
+                              isInProgressAlt: quest.status === "in_progress",
+                              actualStatus: quest.status
+                            }
+                          });
+                          
+                          if (!canSubmitWork && !canViewSubmissions) return null;
+                          
+                          return (
                             <div className="flex flex-col sm:flex-row gap-3 w-full">
-                              <button
-                                onClick={() => {
-                                  setSubmitWorkQuest(quest);
-                                  setShowSubmitWorkModal(true);
-                                }}
-                                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-[#8B75AA] text-white rounded-xl hover:bg-[#7A6699] transition-colors font-semibold"
-                              >
-                                <CheckCircle size={20} />
-                                <span>Submit Completed Work</span>
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setSubmissionsQuest(quest);
-                                  setShowSubmissionsModal(true);
-                                }}
-                                className="flex items-center gap-2 px-6 py-3 bg-[#8B75AA] text-white rounded-xl hover:bg-[#7A6699] transition-colors font-semibold"
-                              >
-                                <Eye size={20} />
-                                <span>View Submitted Work</span>
-                              </button>
+                              {canSubmitWork && (
+                                <button
+                                  onClick={() => {
+                                    console.log('Submit Work button clicked for quest:', quest.title, 'slug:', quest.slug);
+                                    setSubmitWorkQuest(quest);
+                                    setShowSubmitWorkModal(true);
+                                  }}
+                                  className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-[#8B75AA] text-white rounded-xl hover:bg-[#7A6699] transition-colors font-semibold"
+                                >
+                                  <CheckCircle size={20} />
+                                  <span>Submit Completed Work</span>
+                                </button>
+                              )}
+                              {canViewSubmissions && (
+                                <button
+                                  onClick={() => {
+                                    setSubmissionsQuest(quest);
+                                    setShowSubmissionsModal(true);
+                                  }}
+                                  className="flex items-center gap-2 px-6 py-3 bg-[#8B75AA] text-white rounded-xl hover:bg-[#7A6699] transition-colors font-semibold"
+                                >
+                                  <Eye size={20} />
+                                  <span>View Submitted Work</span>
+                                </button>
+                              )}
                             </div>
-                          ) : null;
+                          );
                         })()}
       {/* Quest Submit Work Modal */}
       {showSubmitWorkModal && submitWorkQuest && (() => {
@@ -1222,8 +1271,33 @@ export function QuestManagement({
         const hasBeenKicked = userApplications.some(
           (app) => app.quest.id === submitWorkQuest.id && app.status === "kicked"
         );
+        
+        // Debug logging
+        console.log('Modal data for quest:', submitWorkQuest.title, {
+          participants_detail: submitWorkQuest.participants_detail,
+          myParticipant,
+          myApprovedApp,
+          hasBeenKicked,
+          currentUserId: currentUser.id,
+          userApplications: userApplications.filter(app => app.quest.id === submitWorkQuest.id),
+          participantIds: submitWorkQuest.participants_detail?.map(p => ({ id: p.id, userId: p.user.id, username: p.user.username }))
+        });
+        
         // Don't show modal if user doesn't have access or has been kicked
-        if ((!myParticipant && !myApprovedApp) || hasBeenKicked) return null;
+        if ((!myParticipant && !myApprovedApp) || hasBeenKicked) {
+          console.log('Modal access denied:', { 
+            myParticipant: !!myParticipant, 
+            myApprovedApp: !!myApprovedApp, 
+            hasBeenKicked,
+            reason: !myParticipant && !myApprovedApp ? 'No participant or approved app' : 'User kicked'
+          });
+          return (
+            <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-red-500" />
+              <span>You cannot submit work for this quest. Please apply and wait for approval.</span>
+            </div>
+          );
+        }
         return (
           <div>
             <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-3 mb-4 flex items-center gap-2 justify-center">
@@ -1366,8 +1440,8 @@ export function QuestManagement({
           quest={submissionsQuest}
           currentUser={currentUser}
           showToast={showToast}
-          // Only pass onMarkComplete if user is the quest creator (viewing created quests tab)
-          onMarkComplete={activeTab === "created" ? async () => {
+          // Only pass onMarkComplete if user is the quest creator (viewing created quests tab) AND quest is not already completed
+          onMarkComplete={activeTab === "created" && submissionsQuest.status !== "completed" ? async () => {
             await handleCompleteQuest(submissionsQuest.slug);
             setShowSubmissionsModal(false);
           } : undefined}

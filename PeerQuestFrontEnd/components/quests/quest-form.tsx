@@ -60,8 +60,10 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
   }
 
   const calculateMaxAffordableBudget = (availableBalance: number): number => {
-    // Maximum budget is simply the available balance
-    return Math.min(999, availableBalance)
+    // Maximum budget is the minimum of available balance and difficulty max
+    const difficultyMax = getGoldBudgetRangeForDifficulty(formData.difficulty).max
+    // Ensure we never return a negative or 0 value
+    return Math.max(1, Math.min(difficultyMax, availableBalance))
   }
 
   // Calculate maximum budget for quest editing
@@ -69,8 +71,12 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     if (isEditing && quest) {
       const oldGoldReward = quest.gold_reward || 0
       const oldBudget = oldGoldReward > 0 ? Math.ceil(oldGoldReward / 0.95) : 0
-      // User can increase budget by their available balance
-      return Math.min(999, oldBudget + userGoldBalance)
+      // User can increase budget by their available balance, but within difficulty limits
+      const difficultyMax = getGoldBudgetRangeForDifficulty(formData.difficulty).max
+      const maxPossible = Math.min(difficultyMax, oldBudget + userGoldBalance)
+      // Ensure we never return a value less than the minimum for the difficulty
+      const difficultyMin = getGoldBudgetRangeForDifficulty(formData.difficulty).min
+      return Math.max(difficultyMin, maxPossible)
     }
     return calculateMaxAffordableBudget(userGoldBalance)
   }
@@ -178,17 +184,9 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
           description: quest.description,
           category: quest.category.id,
           difficulty: quest.difficulty as DifficultyTier,
-          due_date: typeof quest.due_date === "string"
-            ? quest.due_date.split("T")[0]
-            : Array.isArray(quest.due_date)
-            ? (quest.due_date[0] ? String(quest.due_date[0]) : "")
-            : "",
-          requirements: Array.isArray(quest.requirements)
-            ? (quest.requirements[0] ? String(quest.requirements[0]) : "")
-            : (quest.requirements || ""),
-          resources: Array.isArray(quest.resources)
-            ? (quest.resources[0] ? String(quest.resources[0]) : "")
-            : (quest.resources || ""),
+          due_date: quest.due_date ? quest.due_date.split('T')[0] : "",
+          requirements: Array.isArray(quest.requirements) ? quest.requirements.join('\n') : (quest.requirements || ""),
+          resources: Array.isArray(quest.resources) ? quest.resources.join('\n') : (quest.resources || ""),
         })
         // Calculate budget from existing quest reward (reverse calculation)
         const existingReward = quest.gold_reward || 0;
@@ -311,38 +309,40 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     
     // For quest editing, validate based on additional gold needed
     if (isEditing && quest) {
-      // Check if quest is in-progress - gold rewards cannot be changed
-      if (quest.status === 'in-progress' && goldBudget !== (quest.gold_reward || 0) ? Math.ceil((quest.gold_reward || 0) / 0.95) : 0) {
-        validationErrors.goldBudget = 'Cannot modify gold reward for a quest that is already in progress. Participants have already committed based on the current reward amount.'
+      // Check if quest is in-progress or completed - gold rewards cannot be changed
+      if (
+        (quest.status === 'in-progress' || quest.status === 'in_progress' || quest.status === 'completed') &&
+        goldBudget !== (quest.gold_reward ? Math.ceil(quest.gold_reward / 0.95) : 0)
+      ) {
+        validationErrors.goldBudget = 'Cannot modify gold reward for a quest that is already in progress or completed. Participants have already committed based on the current reward amount.'
       } else {
         const oldGoldReward = quest.gold_reward || 0
         const oldBudget = oldGoldReward > 0 ? Math.ceil(oldGoldReward / 0.95) : 0
         const additionalGoldNeeded = Math.max(0, goldBudget - oldBudget)
+        const range = getGoldBudgetRangeForDifficulty(formData.difficulty);
         
-        if (additionalGoldNeeded > userGoldBalance) {
+        if (goldBudget < range.min || goldBudget > range.max) {
+          validationErrors.goldBudget = `Gold budget must be between ${range.min} and ${range.max} for ${formData.difficulty} difficulty.`
+        } else if (additionalGoldNeeded > userGoldBalance) {
           validationErrors.goldBudget = `You need ${additionalGoldNeeded} additional gold to increase the quest reward, but you only have ${userGoldBalance} gold available.`
         } else if (goldBudget < 0) {
           validationErrors.goldBudget = 'Budget cannot be negative'
-        } else if (goldBudget > 999) {
-          validationErrors.goldBudget = 'Budget cannot exceed 999 gold'
         }
       }
     } else {
-      // For new quest creation, validate against total budget
-      if (goldBudget > userGoldBalance) {
+      // For new quest creation, validate against total budget and difficulty range
+      const range = getGoldBudgetRangeForDifficulty(formData.difficulty);
+      
+      if (goldBudget < range.min || goldBudget > range.max) {
+        validationErrors.goldBudget = `Gold budget must be between ${range.min} and ${range.max} for ${formData.difficulty} difficulty.`
+      } else if (goldBudget > userGoldBalance) {
         validationErrors.goldBudget = `Total budget (${goldBudget} gold) exceeds your available balance of ${userGoldBalance} gold.`
       } else if (goldBudget < 0) {
         validationErrors.goldBudget = 'Budget cannot be negative'
-      } else if (goldBudget > 999) {
-        validationErrors.goldBudget = 'Budget cannot exceed 999 gold'
       }
     }
     
-    // Gold budget range validation based on difficulty
-    const range = getGoldBudgetRangeForDifficulty(formData.difficulty);
-    if (goldBudget < range.min || goldBudget > range.max) {
-      validationErrors.goldBudget = `Gold budget must be between ${range.min} and ${range.max} for ${formData.difficulty.charAt(0).toUpperCase() + formData.difficulty.slice(1)} difficulty.`;
-    }
+    // Remove the additional validation section as it's now handled above
     
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors)
@@ -410,8 +410,8 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
         const totalGoldNeeded = goldBudget
         
         if (goldBudget > 0 && totalGoldNeeded > userGoldBalance) {
-          const maxAffordableBudget = calculateMaxAffordableBudget(userGoldBalance);
-          throw new Error(`Insufficient gold balance. You need ${totalGoldNeeded} gold but only have ${userGoldBalance} gold. Maximum affordable budget: ${maxAffordableBudget} gold.`);
+          const maxAffordable = calculateMaxAffordableBudget(userGoldBalance);
+          throw new Error(`Insufficient gold balance. You need ${totalGoldNeeded} gold but only have ${userGoldBalance} gold. Maximum affordable budget: ${maxAffordable} gold.`);
         }
         
         console.log('✨ Creating quest with data:', createData)
@@ -666,8 +666,8 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
     </div>
   );
 
-  // Lock gold budget if quest is not a draft (i.e., if it's open, in-progress, or completed)
-  const isGoldBudgetLocked = isEditing && quest && ["open", "in-progress", "in_progress", "completed"].includes(quest.status)
+  // Lock gold budget when editing any existing quest (for fairness)
+  const isGoldBudgetLocked = isEditing && !!quest
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
@@ -835,6 +835,8 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                   type="range"
                   min="0"
                   max="3"
+                  aria-label="Select quest difficulty level"
+                  title="Difficulty level selector"
                   value={['initiate', 'adventurer', 'champion', 'mythic'].indexOf(formData.difficulty)}
                   onChange={(e) => {
                     // Prevent changes when editing
@@ -843,17 +845,27 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                     const difficultyMap: DifficultyTier[] = ['initiate', 'adventurer', 'champion', 'mythic']
                     const newDifficulty = difficultyMap[parseInt(e.target.value)]
                     setFormData(prev => ({ ...prev, difficulty: newDifficulty }))
-                    setGoldBudget(getGoldBudgetRangeForDifficulty(newDifficulty).min)
+                    
+                    // Set gold budget to minimum required for this difficulty, but ensure user can afford it
+                    const range = getGoldBudgetRangeForDifficulty(newDifficulty)
+                    const maxAffordable = calculateMaxAffordableBudget(userGoldBalance)
+                    
+                    if (maxAffordable < range.min) {
+                      // User can't afford this difficulty level's minimum requirement
+                      console.warn(`User cannot afford ${newDifficulty} difficulty. Required: ${range.min}, Available: ${userGoldBalance}`)
+                      // Keep the current budget and let validation show the error
+                      setGoldBudget(Math.min(goldBudget, userGoldBalance))
+                    } else {
+                      // User can afford this difficulty, set to minimum
+                      setGoldBudget(range.min)
+                    }
                   }}
                   disabled={isEditing && !!quest}
                   className={`w-full h-3 rounded-lg appearance-none ${
-                    isEditing && quest ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                    isEditing && quest 
+                      ? 'cursor-not-allowed opacity-50 bg-gray-300' 
+                      : 'cursor-pointer bg-gradient-to-r from-green-500 via-blue-500 to-purple-600'
                   }`}
-                  style={{
-                    background: isEditing && quest 
-                      ? '#e5e7eb' 
-                      : 'linear-gradient(to right, #22c55e, #3b82f6, #fbbf24, #a21caf)',
-                  }}
                 />
                 {/* Difficulty level indicators */}
                 <div className="flex justify-between mt-2 px-1">
@@ -904,7 +916,7 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                 type="date"
                 id="due_date"
                 name="due_date"
-                value={Array.isArray(formData.due_date) ? (formData.due_date.length > 0 ? formData.due_date[0] : "") : (formData.due_date || "")}
+                value={formData.due_date}
                 onChange={handleChange}
                 min={new Date().toISOString().split('T')[0]} // Prevent past dates
                 max={new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]} // Max 1 year
@@ -936,9 +948,9 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                   <span className="text-white text-xs">🪙</span>
                 </div>
                 GOLD BUDGET *
-                {isEditing && quest && quest.status === 'in-progress' && (
+                {isGoldBudgetLocked && (
                   <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                    🔒 Locked (In Progress)
+                    🔒 Locked (Cannot Edit)
                   </span>
                 )}
               </label>
@@ -949,6 +961,8 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                   pattern="[0-9]*"
                   id="budget"
                   name="budget"
+                  aria-label="Gold budget"
+                  title="Enter the total gold budget for this quest"
                   value={goldBudget === 0 ? '' : goldBudget}
                   onChange={(e) => {
                     if (isGoldBudgetLocked) return;
@@ -968,34 +982,140 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                   placeholder={`Enter gold (${getGoldBudgetRangeForDifficulty(formData.difficulty).min}-${getGoldBudgetRangeForDifficulty(formData.difficulty).max})`}
                 />
                 {/* Show error if out of range */}
-                {goldBudget !== 0 && (goldBudget < getGoldBudgetRangeForDifficulty(formData.difficulty).min || goldBudget > Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())) && (
-                  <span className="text-xs text-red-500 mt-1">Gold budget must be between {getGoldBudgetRangeForDifficulty(formData.difficulty).min} and {Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())}.</span>
-                )}
+                {goldBudget !== 0 && (() => {
+                  const range = getGoldBudgetRangeForDifficulty(formData.difficulty);
+                  const maxAffordable = calculateMaxBudgetForEditing();
+                  const isOutOfDifficultyRange = goldBudget < range.min || goldBudget > range.max;
+                  const isOverAffordable = goldBudget > maxAffordable;
+                  
+                  if (isOutOfDifficultyRange) {
+                    return (
+                      <div className="mt-1 flex items-center">
+                        <span className="text-red-500 text-xs mr-1">⚠️</span>
+                        <span className="text-xs text-red-500">
+                          Gold budget must be between {range.min} and {range.max} for {formData.difficulty} difficulty.
+                        </span>
+                      </div>
+                    );
+                  } else if (isOverAffordable && maxAffordable < range.max) {
+                    return (
+                      <div className="mt-1 flex items-center">
+                        <span className="text-red-500 text-xs mr-1">⚠️</span>
+                        <span className="text-xs text-red-500">
+                          You can only afford up to {maxAffordable} gold with your current balance.
+                        </span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 {/* Recommended gold budget range label */}
                 <div className="text-xs text-amber-700 mt-1 mb-2">
                   Recommended for {formData.difficulty.charAt(0).toUpperCase() + formData.difficulty.slice(1)}: {getGoldBudgetRangeForDifficulty(formData.difficulty).min} - {getGoldBudgetRangeForDifficulty(formData.difficulty).max} gold
                 </div>
                 {/* Preset Add Gold Buttons */}
-                <div className="flex gap-2 mb-2">
-                  {[10, 100, 1000].map((amount) => (
-                    <button
-                      key={amount}
-                      type="button"
-                      className="px-3 py-1 rounded bg-amber-200 text-amber-900 font-semibold text-xs hover:bg-amber-300 border border-amber-300 transition-all"
-                      disabled={isGoldBudgetLocked || goldBudget >= Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing())}
-                      onClick={() => {
-                        if (!isGoldBudgetLocked) {
-                          const max = Math.min(getGoldBudgetRangeForDifficulty(formData.difficulty).max, calculateMaxBudgetForEditing());
-                          setGoldBudget((prev) => {
-                            const next = prev + amount;
-                            return next > max ? max : next;
-                          });
-                        }
-                      }}
-                    >
-                      +{amount} gold
-                    </button>
-                  ))}
+                <div className="flex gap-2 mb-2 flex-wrap">
+                  {(() => {
+                    const range = getGoldBudgetRangeForDifficulty(formData.difficulty);
+                    const maxAffordable = calculateMaxBudgetForEditing();
+                    const maxAllowed = Math.min(range.max, maxAffordable);
+                    
+                    // Smart preset amounts based on difficulty
+                    let presetAmounts: number[] = [];
+                    switch (formData.difficulty) {
+                      case 'initiate':
+                        presetAmounts = [50, 100, 250];
+                        break;
+                      case 'adventurer':
+                        presetAmounts = [250, 500, 1000];
+                        break;
+                      case 'champion':
+                        presetAmounts = [500, 1000, 2000];
+                        break;
+                      case 'mythic':
+                        presetAmounts = [1000, 2500, 5000];
+                        break;
+                      default:
+                        presetAmounts = [50, 100, 250];
+                    }
+                    
+                    const buttons = [];
+                    
+                    // Set to Min button
+                    buttons.push(
+                      <button
+                        key="min"
+                        type="button"
+                        className={`px-3 py-1 rounded font-semibold text-xs border transition-all ${
+                          isGoldBudgetLocked || goldBudget === range.min
+                            ? 'bg-gray-200 text-gray-500 border-gray-300 cursor-not-allowed'
+                            : 'bg-blue-200 text-blue-900 hover:bg-blue-300 border-blue-300'
+                        }`}
+                        disabled={isGoldBudgetLocked || goldBudget === range.min}
+                        onClick={() => {
+                          if (!isGoldBudgetLocked) {
+                            setGoldBudget(range.min);
+                          }
+                        }}
+                      >
+                        Min ({range.min})
+                      </button>
+                    );
+                    
+                    // Add gold preset buttons
+                    presetAmounts.forEach((amount) => {
+                      const newAmount = goldBudget + amount;
+                      const isDisabled = isGoldBudgetLocked || goldBudget >= maxAllowed || newAmount > maxAllowed;
+                      
+                      buttons.push(
+                        <button
+                          key={amount}
+                          type="button"
+                          className={`px-3 py-1 rounded font-semibold text-xs border transition-all ${
+                            isDisabled 
+                              ? 'bg-gray-200 text-gray-500 border-gray-300 cursor-not-allowed'
+                              : 'bg-amber-200 text-amber-900 hover:bg-amber-300 border-amber-300'
+                          }`}
+                          disabled={isDisabled}
+                          onClick={() => {
+                            if (!isGoldBudgetLocked) {
+                              setGoldBudget((prev) => {
+                                const next = prev + amount;
+                                return next > maxAllowed ? maxAllowed : next;
+                              });
+                            }
+                          }}
+                        >
+                          +{amount}
+                        </button>
+                      );
+                    });
+                    
+                    // Set to Max button (only if user can afford the full range max)
+                    if (maxAffordable >= range.max) {
+                      buttons.push(
+                        <button
+                          key="max"
+                          type="button"
+                          className={`px-3 py-1 rounded font-semibold text-xs border transition-all ${
+                            isGoldBudgetLocked || goldBudget === range.max
+                              ? 'bg-gray-200 text-gray-500 border-gray-300 cursor-not-allowed'
+                              : 'bg-green-200 text-green-900 hover:bg-green-300 border-green-300'
+                          }`}
+                          disabled={isGoldBudgetLocked || goldBudget === range.max}
+                          onClick={() => {
+                            if (!isGoldBudgetLocked) {
+                              setGoldBudget(range.max);
+                            }
+                          }}
+                        >
+                          Max ({range.max})
+                        </button>
+                      );
+                    }
+                    
+                    return buttons;
+                  })()}
                 </div>
                 <div className="flex justify-between mt-1">
                   <div className="flex items-center space-x-2">
@@ -1056,7 +1176,10 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                   </div>
                 )}
                 {errors.goldBudget && (
-                  <p className="mt-1 text-xs text-red-500">{errors.goldBudget}</p>
+                  <div className="mt-1 flex items-center">
+                    <span className="text-red-500 text-xs mr-1">⚠️</span>
+                    <p className="text-xs text-red-500">{errors.goldBudget}</p>
+                  </div>
                 )}
               </div>
             </div>
@@ -1175,6 +1298,56 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
                 {(formData.resources || '').length}/1000 characters
               </span>
             </div>
+          </div>
+
+          {/* Difficulty Affordability Warning */}
+          {(() => {
+            const range = getGoldBudgetRangeForDifficulty(formData.difficulty)
+            const maxAffordable = calculateMaxAffordableBudget(userGoldBalance)
+            
+            if (maxAffordable < range.min) {
+              return (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+                  <div className="flex items-center text-sm text-red-700">
+                    <span className="mr-2">⚠️</span>
+                    <span>
+                      <strong>Insufficient Gold:</strong> {formData.difficulty.charAt(0).toUpperCase() + formData.difficulty.slice(1)} difficulty requires at least {range.min} gold, but you only have {userGoldBalance} gold available. 
+                      {userGoldBalance >= 100 && (
+                        <span className="block mt-1">
+                          Consider selecting a lower difficulty level or purchase more gold.
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              )
+            }
+            return null
+          })()}
+          
+          <div className={`text-white px-4 py-3 rounded-lg shadow-md ${
+            formData.difficulty === 'initiate' ? 'bg-gradient-to-r from-green-500 to-green-600' :
+            formData.difficulty === 'adventurer' ? 'bg-gradient-to-r from-blue-400 to-blue-600' :
+            formData.difficulty === 'champion' ? 'bg-gradient-to-r from-yellow-400 to-orange-500' :
+            'bg-gradient-to-r from-purple-500 to-pink-500'
+          } ${isEditing && quest ? 'opacity-75' : ''}`}>
+            <div className="flex items-center justify-between">
+              <span className="font-bold uppercase text-lg">
+                {formData.difficulty === 'initiate' && '🌱 Initiate'}
+                {formData.difficulty === 'adventurer' && '⚔️ Adventurer'}
+                {formData.difficulty === 'champion' && '🏆 Champion'}
+                {formData.difficulty === 'mythic' && '🐉 Mythic'}
+              </span>
+              <span className="font-bold text-lg">
+                {getXPReward(formData.difficulty)} XP
+              </span>
+            </div>
+            <p className="text-sm opacity-90 mt-1">
+              {formData.difficulty === 'initiate' && 'Perfect for beginners - Learn the basics'}
+              {formData.difficulty === 'adventurer' && 'A true adventure - Moderate challenge'}
+              {formData.difficulty === 'champion' && 'Expert level required - High difficulty'}
+              {formData.difficulty === 'mythic' && 'Legendary challenge for the bravest - Ultimate test!'}
+            </p>
           </div>
 
           {/* Action Buttons */}
