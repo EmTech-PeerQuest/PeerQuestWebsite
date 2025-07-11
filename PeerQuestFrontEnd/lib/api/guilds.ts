@@ -18,6 +18,7 @@ const API_ENDPOINTS = {
   guildJoinRequests: (guildId: string) => `${API_BASE_URL}/api/guilds/${guildId}/join-requests/`,
   processJoinRequest: (guildId: string, requestId: number) => `${API_BASE_URL}/api/guilds/${guildId}/join-requests/${requestId}/process/`,
   kickMember: (guildId: string, userId: number) => `${API_BASE_URL}/api/guilds/${guildId}/kick/${userId}/`,
+  updateMemberRole: (guildId: string, userId: string) => `${API_BASE_URL}/api/guilds/${guildId}/members/${userId}/role/`,
 } as const;
 
 // --- Auth & Headers ---
@@ -39,8 +40,28 @@ async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let errorData: any = {};
     let rawText = '';
-    try { errorData = await response.json(); } catch { try { rawText = await response.text(); } catch {} }
-    throw new Error(errorData.message || rawText || JSON.stringify(errorData) || `HTTP error! status: ${response.status}`);
+    try { 
+      const responseText = await response.text();
+      rawText = responseText;
+      try {
+        errorData = JSON.parse(responseText);
+      } catch {
+        // If not JSON, use raw text
+      }
+    } catch { 
+      // If reading response fails
+    }
+    
+    console.error('API Error Response:', {
+      status: response.status,
+      statusText: response.statusText,
+      url: response.url,
+      errorData,
+      rawText
+    });
+    
+    const errorMessage = errorData.error || errorData.message || rawText || `HTTP error! status: ${response.status}`;
+    throw new Error(errorMessage);
   }
   return response.json();
 }
@@ -170,6 +191,63 @@ export const guildApi = {
     if (!isValidUUID(id)) throw new Error('Invalid guild ID.');
     const response = await fetch(API_ENDPOINTS.kickMember(id, userId), { method: 'POST', headers: createHeaders() });
     return handleResponse(response);
+  },
+  async updateMemberRole(guildId: string, userId: string, role: 'member' | 'admin'): Promise<{ message: string; membership: GuildMembership }> {
+    const id = toUUIDString(guildId);
+    if (!isValidUUID(id)) throw new Error('Invalid guild ID.');
+    if (!isValidUUID(userId)) throw new Error('Invalid user ID.');
+    
+    const url = API_ENDPOINTS.updateMemberRole(id, userId);
+    const payload = { role };
+    const headers = createHeaders();
+    
+    console.log('DEBUG: Making API call to update member role', {
+      url,
+      method: 'PATCH',
+      guildId: id,
+      userId,
+      role,
+      payload,
+      headers: Object.fromEntries(Object.entries(headers))
+    });
+    
+    try {
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      
+      console.log('DEBUG: API response received', {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('DEBUG: API Error Response', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText,
+          url: response.url
+        });
+        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+      }
+      
+      const result = await response.json();
+      console.log('DEBUG: API Success Response', result);
+      return result;
+    } catch (error) {
+      console.error('DEBUG: API Request failed', {
+        error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        url,
+        payload
+      });
+      throw error;
+    }
   },
 };
 

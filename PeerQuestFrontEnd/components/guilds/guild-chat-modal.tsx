@@ -50,7 +50,9 @@ export function GuildChatModal({ isOpen, onClose, guild, currentUser, showToast 
           createdAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
         },
       ]
-      setMessages(mockMessages)
+      // TODO: Fetch real guild chat messages from API
+      // For now, start with empty chat
+      setMessages([])
     }
   }, [isOpen, guild.id, guild.poster])
 
