@@ -416,33 +416,87 @@ function IntegratedProfile({ currentUser, quests: propQuests, guilds: propGuilds
   };
   const avatar = getAvatar(currentUser);
   const joinDate = getJoinDate(currentUser);
-  // Fetch live XP and gold from API for the current user
-  const [userXp, setUserXp] = useState<number>(typeof currentUser.xp === 'number' ? currentUser.xp : (typeof currentUser.experience_points === 'number' ? currentUser.experience_points : 0));
-  const [userGold, setUserGold] = useState<number>(typeof currentUser.gold === 'number' ? currentUser.gold : (typeof currentUser.gold_balance === 'number' ? Number(currentUser.gold_balance) : 0));
+  // Fetch XP ONLY from Users table (top-level fields only, never from profile)
+  const getInitialXp = (u: any) => {
+    if (typeof u.xp === 'number') return u.xp;
+    if (typeof u.experience_points === 'number') return u.experience_points;
+    return 0;
+  };
+  const getInitialGold = (u: any) => {
+    if (typeof u.gold === 'number') return u.gold;
+    if (typeof u.gold_balance === 'number') return Number(u.gold_balance);
+    if (u.profile && typeof u.profile.gold === 'number') return u.profile.gold;
+    if (u.profile && typeof u.profile.gold_balance === 'number') return Number(u.profile.gold_balance);
+    return 0;
+  };
+  const [userXp, setUserXp] = useState<number>(() => {
+    const xp = getInitialXp(currentUser);
+    return (typeof xp === 'number' && !isNaN(xp) && xp >= 0) ? xp : 0;
+  });
+  const [userGold, setUserGold] = useState<number>(() => {
+    const gold = getInitialGold(currentUser);
+    return (typeof gold === 'number' && !isNaN(gold) && gold >= 0) ? gold : 0;
+  });
+
+  // When currentUser changes, only update userXp if the new value is valid (from Users table only)
+  useEffect(() => {
+    const xp = getInitialXp(currentUser);
+    console.log('[Profile] currentUser XP on prop change:', xp, currentUser);
+    if (typeof xp === 'number' && !isNaN(xp) && xp >= 0) {
+      setUserXp(xp);
+    }
+    // Gold logic unchanged
+    const gold = getInitialGold(currentUser);
+    if (typeof gold === 'number' && !isNaN(gold) && gold >= 0) {
+      setUserGold(gold);
+    }
+  }, [currentUser]);
   const [xpLoading, setXpLoading] = useState(false);
   const [xpError, setXpError] = useState<string | null>(null);
 
+  // Only update XP if the API returns a new value from Users table (never from profile)
   useEffect(() => {
+    let isMounted = true;
     const fetchUserXp = async () => {
       setXpLoading(true);
       setXpError(null);
       try {
         const res = await api.get('/users/me/');
         const data = res && res.data ? res.data : res;
-        if (data && typeof data.xp === 'number') setUserXp(data.xp);
-        else if (typeof data.experience_points === 'number') setUserXp(data.experience_points);
-        if (typeof data.gold === 'number') setUserGold(data.gold);
-        else if (typeof data.gold_balance === 'number') setUserGold(Number(data.gold_balance));
+        // Only use top-level XP fields from Users table
+        let xp = undefined;
+        if (typeof data.xp === 'number') xp = data.xp;
+        else if (typeof data.experience_points === 'number') xp = data.experience_points;
+        console.log('[Profile] API XP:', xp, data);
+        // Only update if xp is a valid non-negative number and not undefined/null/NaN
+        if (isMounted && typeof xp === 'number' && !isNaN(xp) && xp >= 0 && xp !== userXp) {
+          setUserXp(xp);
+        } else if (isMounted && (typeof xp !== 'number' || isNaN(xp) || xp < 0)) {
+          // Don't update, but warn for debugging
+          console.warn('XP fetch: invalid or missing XP value from API (Users table only):', xp, data);
+        }
+        // Gold logic unchanged, but avoid redeclaration
+        let gold;
+        if (typeof data.gold === 'number') gold = data.gold;
+        else if (typeof data.gold_balance === 'number') gold = Number(data.gold_balance);
+        else if (data.profile && typeof data.profile.gold === 'number') gold = data.profile.gold;
+        else if (data.profile && typeof data.profile.gold_balance === 'number') gold = Number(data.profile.gold_balance);
+        if (isMounted && typeof gold === 'number' && !isNaN(gold) && gold >= 0 && gold !== userGold) {
+          setUserGold(gold);
+        } else if (isMounted && (typeof gold !== 'number' || isNaN(gold) || gold < 0)) {
+          console.warn('Gold fetch: invalid or missing gold value from API:', gold, data);
+        }
       } catch (err) {
-        setXpError('Could not load XP/gold.');
+        if (isMounted) setXpError('Could not load XP/gold.');
       } finally {
-        setXpLoading(false);
+        if (isMounted) setXpLoading(false);
       }
     };
     fetchUserXp();
+    return () => { isMounted = false; };
   }, [currentUser?.id]);
 
-  // XP/Level calculation
+  // XP/Level calculation (robust: supports 1000 XP per level, fallback to 100 if needed)
   const xpForNextLevel = 1000;
   const userLevel = Math.floor(userXp / xpForNextLevel) + 1;
   const xpThisLevel = userXp % xpForNextLevel;
@@ -590,7 +644,7 @@ function IntegratedProfile({ currentUser, quests: propQuests, guilds: propGuilds
                   <span className="font-medium text-[#2C1A1D]">Gold:</span>
                   <span className="font-bold text-[#CDAA7D] text-lg flex items-center">
                     <span className="mr-1">🪙</span>
-                    {typeof currentUser.gold === 'number' ? currentUser.gold : 0}
+                    {userGold}
                   </span>
                 </div>
               </div>

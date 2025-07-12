@@ -1,3 +1,88 @@
+# API endpoint to create a QuestCompletionLog directly
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import JSONParser
+
+class QuestCompletionLogCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser]
+
+    def post(self, request):
+        """
+        Create a QuestCompletionLog for a given quest and adventurer, awarding XP and gold.
+        Required fields: quest_id, adventurer_id, xp_earned, gold_earned
+        """
+        from .models import Quest, QuestCompletionLog
+        from users.models import User
+        quest_id = request.data.get('quest_id')
+        adventurer_id = request.data.get('adventurer_id')
+        xp_earned = request.data.get('xp_earned')
+        gold_earned = request.data.get('gold_earned')
+
+        if not quest_id or not adventurer_id or xp_earned is None or gold_earned is None:
+            return Response({'detail': 'quest_id, adventurer_id, xp_earned, and gold_earned are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            quest = Quest.objects.get(id=quest_id)
+            adventurer = User.objects.get(id=adventurer_id)
+        except Quest.DoesNotExist:
+            return Response({'detail': 'Quest not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except User.DoesNotExist:
+            return Response({'detail': 'Adventurer not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Prevent double reward
+        if QuestCompletionLog.objects.filter(quest=quest, adventurer=adventurer).exists():
+            return Response({'detail': 'Reward already granted for this quest and adventurer.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        adventurer.xp = getattr(adventurer, 'xp', 0) + int(xp_earned)
+        adventurer.gold = getattr(adventurer, 'gold', 0) + int(gold_earned)
+        # Update level if needed
+        import math
+        new_level = int(math.floor(adventurer.xp / 100))
+        if getattr(adventurer, 'level', 0) != new_level:
+            adventurer.level = new_level
+        adventurer.save()
+        # Award XP and gold using transaction system
+        from xp.utils import award_xp
+        from transactions.models import TransactionType
+        from transactions.transaction_utils import award_gold
+
+        xp_result = award_xp(
+            user=adventurer,
+            xp_amount=int(xp_earned),
+            reason=f"Completed quest: {quest.title}"
+        )
+
+        gold_result = award_gold(
+            user=adventurer,
+            amount=int(gold_earned),
+            description=f"Reward for completing quest: {quest.title}",
+            quest=quest,
+            transaction_type=TransactionType.QUEST_REWARD
+        )
+
+        # Create the log
+        log = QuestCompletionLog.objects.create(
+            quest=quest,
+            adventurer=adventurer,
+            xp_earned=xp_earned,
+            gold_earned=gold_earned,
+            completed_at=timezone.now()
+        )
+
+        return Response({
+            'log_id': log.id,
+            'adventurer': {
+                'id': adventurer.id,
+                'username': adventurer.username,
+                'level': adventurer.level,
+                'xp': adventurer.xp,
+                'gold': adventurer.gold,
+            },
+            'xp_earned': xp_earned,
+            'gold_earned': gold_earned,
+            'detail': f"{adventurer.username} earned {xp_earned} XP and {gold_earned} gold!"
+        }, status=status.HTTP_201_CREATED)
 from rest_framework import generics, viewsets, filters, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
@@ -5,17 +90,19 @@ from rest_framework.permissions import IsAuthenticated, AllowAny, SAFE_METHODS, 
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Q, Count, F
-from .models import Quest, QuestCategory, QuestParticipant, QuestSubmission, QuestSubmissionAttempt
+from .models import Quest, QuestCategory, QuestParticipant, QuestSubmission, QuestSubmissionAttempt, QuestCompletionLog
 from .serializers import (
     QuestListSerializer, QuestDetailSerializer, QuestCreateUpdateSerializer,
     QuestCategorySerializer, QuestParticipantSerializer, QuestParticipantCreateSerializer,
-    QuestSubmissionSerializer, QuestSubmissionCreateSerializer, QuestSubmissionReviewSerializer
+    QuestSubmissionSerializer, QuestSubmissionCreateSerializer, QuestSubmissionReviewSerializer,
+    QuestCompletionLogSerializer
 )
 from django.http import FileResponse, Http404
 from django.conf import settings
 import os
 import mimetypes
 import urllib.parse
+import math
 
 # Custom Permissions
 class IsQuestCreatorOrReadOnly(BasePermission):
@@ -442,10 +529,19 @@ class QuestSubmissionReviewViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
-        """Mark submission as approved and complete the participant"""
+        """Mark submission as approved and complete the participant, using robust reward/logging system"""
         submission = self.get_object()
         feedback = request.data.get('feedback', '')
+        participant = submission.quest_participant
+        quest = participant.quest
+        adventurer = participant.user
 
+        # Prevent double reward using QuestCompletionLog
+        from .models import QuestCompletionLog
+        if QuestCompletionLog.objects.filter(quest=quest, adventurer=adventurer).exists():
+            return Response({'detail': 'Reward already granted for this quest and adventurer.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Approve the submission
         submission.status = 'approved'
         submission.feedback = feedback
         submission.reviewed_at = timezone.now()
@@ -453,25 +549,60 @@ class QuestSubmissionReviewViewSet(viewsets.ModelViewSet):
         submission.save()
 
         # Mark participant as completed
-        participant = submission.quest_participant
-        quest = participant.quest
         participant.status = 'completed'
         participant.completed_at = timezone.now()
         participant.save()
 
-        # Create XP and Gold transactions for this participant
+        # Grant rewards using XPTransaction and GoldTransaction
         from users.models_reward import XPTransaction, GoldTransaction
-        xp_awarded = quest.xp_reward // max(1, quest.participant_count)
-        gold_awarded = int(quest.gold_reward // max(1, quest.participant_count))
-        xp_tx = XPTransaction.objects.create(user=participant.user, amount=xp_awarded, reason=f"Quest '{quest.title}' submission approved")
-        gold_tx = GoldTransaction.objects.create(user=participant.user, amount=gold_awarded, reason=f"Quest '{quest.title}' submission approved")
+        xp_awarded = getattr(quest, 'xp_reward', getattr(quest, 'reward_xp', 0))
+        gold_awarded = getattr(quest, 'gold_reward', getattr(quest, 'reward_gold', 0))
+        # If quest has multiple participants, divide rewards
+        participant_count = max(1, quest.participant_count)
+        xp_awarded = xp_awarded // participant_count
+        gold_awarded = int(gold_awarded // participant_count)
+        xp_tx = XPTransaction.objects.create(user=adventurer, amount=xp_awarded, reason=f"Quest '{quest.title}' submission approved")
+        gold_tx = GoldTransaction.objects.create(user=adventurer, amount=gold_awarded, reason=f"Quest '{quest.title}' submission approved")
+
+        # Update adventurer's level if needed
+        adventurer.refresh_from_db()
+        import math
+        new_level = int(math.floor(adventurer.xp / 100))
+        if adventurer.level != new_level:
+            adventurer.level = new_level
+            adventurer.save()
+
+        # Create QuestCompletionLog with debug logging and update adventurer's xp/gold
+        try:
+            log = QuestCompletionLog.objects.create(
+                quest=quest,
+                adventurer=adventurer,
+                xp_earned=xp_awarded,
+                gold_earned=gold_awarded,
+                completed_at=timezone.now()
+            )
+            # Add XP and gold to adventurer from log
+            adventurer.xp = getattr(adventurer, 'xp', 0) + xp_awarded
+            adventurer.gold = getattr(adventurer, 'gold', 0) + gold_awarded
+            # Update level if needed
+            import math
+            new_level = int(math.floor(adventurer.xp / 100))
+            if adventurer.level != new_level:
+                adventurer.level = new_level
+            adventurer.save()
+            print(f"[DEBUG] QuestCompletionLog created: id={log.id}, quest={quest.id}, adventurer={adventurer.id}, xp={xp_awarded}, gold={gold_awarded}")
+        except Exception as e:
+            print(f"[ERROR] Failed to create QuestCompletionLog: {e}")
+            import traceback
+            print(traceback.format_exc())
+            raise
 
         # Update the corresponding Application status to 'approved'
         from applications.models import Application
         try:
             application = Application.objects.get(
                 quest=quest,
-                applicant=participant.user,
+                applicant=adventurer,
                 status='approved'  # Should already be approved when they became a participant
             )
             # Application is already approved, no need to change
@@ -479,7 +610,7 @@ class QuestSubmissionReviewViewSet(viewsets.ModelViewSet):
             # If no application found, create or update one to show completion
             application, created = Application.objects.get_or_create(
                 quest=quest,
-                applicant=participant.user,
+                applicant=adventurer,
                 defaults={
                     'status': 'approved',
                     'applied_at': participant.joined_at,
@@ -503,7 +634,8 @@ class QuestSubmissionReviewViewSet(viewsets.ModelViewSet):
             'rewards': {
                 'xp_awarded': xp_awarded,
                 'gold_awarded': gold_awarded
-            }
+            },
+            'completion_log_id': log.id
         })
 
     @action(detail=True, methods=['post'])
@@ -725,3 +857,97 @@ class KickParticipantView(generics.DestroyAPIView):
             return Response({'detail': 'Only the quest owner can remove participants.'}, status=status.HTTP_403_FORBIDDEN)
         participant.delete()
         return Response({'detail': 'Participant removed.'}, status=status.HTTP_204_NO_CONTENT)
+
+
+from rest_framework.views import APIView
+
+class CompleteQuestView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        quest_id = request.data.get('quest_id')
+        submission_id = request.data.get('submission_id')
+        if not quest_id or not submission_id:
+            return Response({'detail': 'quest_id and submission_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        quest = get_object_or_404(Quest, id=quest_id)
+        submission = get_object_or_404(QuestSubmission, id=submission_id)
+        adventurer = submission.quest_participant.user
+
+        # 1. Verify the requesting user is the Quest creator.
+        if quest.creator != user:
+            return Response({'detail': 'Only the quest creator can complete this quest.'}, status=status.HTTP_403_FORBIDDEN)
+
+        # 2. Validate the submission is for the given quest and not already approved.
+        if submission.quest_participant.quest.id != quest.id:
+            return Response({'detail': 'Submission does not belong to this quest.'}, status=status.HTTP_400_BAD_REQUEST)
+        if submission.status == 'approved':
+            return Response({'detail': 'Submission already approved.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 3. Prevent double reward using QuestCompletionLog.
+        if QuestCompletionLog.objects.filter(quest=quest, adventurer=adventurer).exists():
+            return Response({'detail': 'Reward already granted for this quest and adventurer.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 4. Approve the submission and mark the quest as 'completed'.
+        submission.status = 'approved'
+        submission.reviewed_at = timezone.now()
+        submission.reviewed_by = user
+        submission.save()
+        quest.status = 'completed'
+        quest.completed_at = timezone.now()
+        quest.save()
+
+        # 5. Grant rewards
+        xp = getattr(quest, 'xp_reward', getattr(quest, 'reward_xp', 0))
+        gold = getattr(quest, 'gold_reward', getattr(quest, 'reward_gold', 0))
+        adventurer.xp = getattr(adventurer, 'xp', 0) + xp
+        adventurer.gold = getattr(adventurer, 'gold', 0) + gold
+        # 6. Update level if XP thresholds are passed
+        adventurer.level = int(math.floor(adventurer.xp / 100))
+        adventurer.save()
+
+        # 7. Create QuestCompletionLog
+        log = QuestCompletionLog.objects.create(
+            quest=quest,
+            adventurer=adventurer,
+            xp_earned=xp,
+            gold_earned=gold,
+            completed_at=timezone.now()
+        )
+
+        # 8. Return updated user profile and success message
+        return Response({
+            'adventurer': {
+                'id': adventurer.id,
+                'username': adventurer.username,
+                'level': adventurer.level,
+                'xp': adventurer.xp,
+                'gold': adventurer.gold,
+            },
+            'xp_earned': xp,
+            'gold_earned': gold,
+            'log_id': log.id,
+            'detail': f"{adventurer.username} earned {xp} XP and {gold} gold!"
+        }, status=status.HTTP_200_OK)
+
+
+# Quest Completion Log Views
+class QuestCompletionLogListView(generics.ListAPIView):
+    """
+    List quest completion logs with optional filtering by quest and adventurer username.
+    """
+    serializer_class = QuestCompletionLogSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        quest_id = self.request.query_params.get('quest')
+        adventurer_username = self.request.query_params.get('adventurer')
+        queryset = QuestCompletionLog.objects.all()
+        print(f"[DEBUG] QuestCompletionLogListView.get_queryset called with quest_id={quest_id}, adventurer_username={adventurer_username}")
+        if quest_id:
+            queryset = queryset.filter(quest_id=quest_id)
+        if adventurer_username:
+            queryset = queryset.filter(adventurer__username=adventurer_username)
+        print(f"[DEBUG] QuestCompletionLogListView returning {queryset.count()} logs")
+        return queryset

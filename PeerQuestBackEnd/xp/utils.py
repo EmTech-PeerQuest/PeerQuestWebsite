@@ -16,25 +16,29 @@ def award_xp(user, xp_amount, reason="Quest completion"):
         dict: Contains updated user info and whether they leveled up
     """
     if isinstance(user, int):
+        from users.models import User
         try:
-            user = NewUser.objects.get(id=user)
-        except NewUser.DoesNotExist:
+            user = User.objects.get(id=user)
+        except User.DoesNotExist:
             return {"error": "User not found"}
     
-    old_level = calculate_level(user.xp)
-    
+    old_xp = user.xp
+    old_level = calculate_level(old_xp)
+
+    from users.models_reward import XPTransaction
     with transaction.atomic():
-        user.xp += xp_amount
-        new_level = calculate_level(user.xp)
+        XPTransaction.objects.create(user=user, amount=xp_amount, reason=reason)
+        new_xp = user.xp  # property will now reflect the new total
+        new_level = calculate_level(new_xp)
         user.level = new_level
-        user.save()
-    
+        user.save(update_fields=["level"])
+
     leveled_up = new_level > old_level
-    
+
     return {
         "user": user,
-        "old_xp": user.xp - xp_amount,
-        "new_xp": user.xp,
+        "old_xp": old_xp,
+        "new_xp": new_xp,
         "old_level": old_level,
         "new_level": new_level,
         "leveled_up": leveled_up,

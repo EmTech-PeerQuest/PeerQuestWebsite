@@ -388,6 +388,8 @@ class Quest(models.Model):
 
         completion_results = []
 
+        from .models import QuestCompletionLog
+        from users.models_reward import XPTransaction, GoldTransaction
         for participant in participants:
             # Mark as completed if not already
             if participant.status != 'completed':
@@ -410,11 +412,35 @@ class Quest(models.Model):
                 description=f"Gold for quest '{self.title}' completion",
                 quest=self
             )
+            # Also create XPTransaction and GoldTransaction for user (for .xp and .gold properties)
+            XPTransaction.objects.create(
+                user=user,
+                amount=xp_per,
+                reason=f"Quest '{self.title}' completion"
+            )
+            GoldTransaction.objects.create(
+                user=user,
+                amount=gold_per,
+                reason=f"Quest '{self.title}' completion"
+            )
             # Update UserBalance for gold
             balance, _ = UserBalance.objects.get_or_create(user=user)
             balance.gold_balance += Decimal(gold_per)
             balance.save()
-            logger.info(f"Awarded {xp_per} XP and {gold_per} Gold to {user.username} for quest '{self.title}' (new system)")
+            # Create QuestCompletionLog if not already exists, with debug logging
+            log_obj, created = QuestCompletionLog.objects.get_or_create(
+                quest=self,
+                adventurer=user,
+                defaults={
+                    'xp_earned': xp_per,
+                    'gold_earned': gold_per,
+                    'completed_at': timezone.now()
+                }
+            )
+            if created:
+                logger.info(f"[QuestCompletionLog] Created for {user.username} on quest '{self.title}' (XP: {xp_per}, Gold: {gold_per})")
+            else:
+                logger.warning(f"[QuestCompletionLog] Already exists for {user.username} on quest '{self.title}'")
             completion_results.append({
                 "user": user.username,
                 "xp_awarded": xp_per,
@@ -541,6 +567,46 @@ class QuestSubmission(models.Model):
 
     def __str__(self):
         return f"Submission for {self.quest_participant.quest.title} by {self.quest_participant.user.username}"
+
+
+class QuestCompletionLog(models.Model):
+    quest = models.ForeignKey(Quest, on_delete=models.CASCADE, related_name='completion_logs')
+    adventurer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='quest_completions')
+    xp_earned = models.PositiveIntegerField()
+    gold_earned = models.PositiveIntegerField()
+    completed_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-completed_at']
+        unique_together = ('quest', 'adventurer')
+
+    def __str__(self):
+        return f"{self.adventurer.username} completed '{self.quest.title}' ({self.xp_earned} XP, {self.gold_earned} Gold)"
+
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding
+        super().save(*args, **kwargs)
+        if is_new:
+            # Update adventurer's XP and gold balance tables
+            from users.models_reward import XPTransaction, GoldTransaction
+            from transactions.models import UserBalance
+            # XPTransaction (for .xp property)
+            XPTransaction.objects.create(
+                user=self.adventurer,
+                amount=self.xp_earned,
+                reason=f"Quest '{self.quest.title}' completion log"
+            )
+            # GoldTransaction (for .gold property)
+            GoldTransaction.objects.create(
+                user=self.adventurer,
+                amount=self.gold_earned,
+                reason=f"Quest '{self.quest.title}' completion log"
+            )
+            # UserBalance (for gold balance)
+            from decimal import Decimal
+            balance, _ = UserBalance.objects.get_or_create(user=self.adventurer)
+            balance.gold_balance += Decimal(self.gold_earned)
+            balance.save()
 
 
 class QuestSubmissionAttempt(models.Model):
