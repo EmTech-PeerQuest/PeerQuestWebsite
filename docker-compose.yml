@@ -10,9 +10,13 @@ services:
     build:
       context: ./PeerQuestBackEnd
     container_name: peerquest-backend
-    command: daphne -b 0.0.0.0 -p 8000 core.asgi:application
+    # Use Django dev server for hot reload in development
+    command: >
+      sh -c "if [ \"$USE_DJANGO_DEV_SERVER\" = 'true' ]; then python manage.py runserver 0.0.0.0:8000; else daphne -b 0.0.0.0 -p 8000 core.asgi:application; fi"
     volumes:
       - ./PeerQuestBackEnd:/app
+    # Optional: Mount venv for pip cache (uncomment if needed)
+    # - ./PeerQuestBackEnd/venv:/app/venv
     ports:
       - "8000:8000"
     depends_on:
@@ -21,6 +25,7 @@ services:
       - /PeerQuestBackEnd/.env
     environment:
       - DJANGO_SETTINGS_MODULE=core.settings
+      - USE_DJANGO_DEV_SERVER=true
       # Add any other env vars you need
   frontend:
     build:
@@ -31,7 +36,7 @@ services:
     volumes:
       - ./PeerQuestFrontEnd:/app
       - /app/node_modules
-      - /app/.next
+      # .next is built output, not needed for dev hot reload
     depends_on:
       - backend
     env_file:
@@ -39,6 +44,7 @@ services:
     # For development, set NODE_ENV to development or remove it (Next.js defaults to dev mode)
     environment:
       - NODE_ENV=development
+      - WATCHPACK_POLLING=true
 
   mysql:
     image: mysql:8

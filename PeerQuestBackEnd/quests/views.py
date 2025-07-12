@@ -267,36 +267,52 @@ class QuestViewSet(viewsets.ModelViewSet):
         Complete a quest and award XP and gold to participants
         """
         quest = self.get_object()
-        
-        # Only quest creators can complete quests
-        if quest.creator != request.user:
+
+        # Only quest creators or admins can complete quests
+        user = request.user
+        is_admin = getattr(user, 'is_admin', False) or getattr(user, 'role', None) == 'admin'
+        if quest.creator != user and not is_admin:
             return Response(
-                {'error': 'Only the quest creator can complete this quest.'},
+                {'error': 'Only the quest creator or an admin can complete this quest.'},
                 status=status.HTTP_403_FORBIDDEN
             )
-            
+
         # Check if quest is already completed
         if quest.status == 'completed':
             return Response(
                 {'error': 'This quest is already completed.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-            
+
         # Check if quest has participants
         if not quest.participants.exists():
             return Response(
                 {'error': 'Cannot complete a quest with no participants.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         # Release gold reservation since gold will now be deducted directly
         from transactions.transaction_utils import release_gold_reservation
         release_gold_reservation(quest)
-            
+
         # Complete the quest and award rewards
         completion_reason = request.data.get('completion_reason', "Completed by creator")
         result = quest.complete_quest(completion_reason=completion_reason)
-        
+
+        # If admin_award is present, always include it in the response and double-check admin balance
+        if result.get('admin_award'):
+            from users.models import User
+            admin_user = User.objects.filter(is_admin=True).first()
+            if not admin_user:
+                admin_user = User.objects.filter(role='admin').first()
+            if admin_user:
+                # Fetch latest values
+                result['admin_balance'] = {
+                    'username': admin_user.username,
+                    'xp': admin_user.xp,
+                    'gold': admin_user.gold
+                }
+
         return Response(result)
 
 
@@ -429,20 +445,27 @@ class QuestSubmissionReviewViewSet(viewsets.ModelViewSet):
         """Mark submission as approved and complete the participant"""
         submission = self.get_object()
         feedback = request.data.get('feedback', '')
-        
+
         submission.status = 'approved'
         submission.feedback = feedback
         submission.reviewed_at = timezone.now()
         submission.reviewed_by = request.user
         submission.save()
-        
+
         # Mark participant as completed
         participant = submission.quest_participant
         quest = participant.quest
         participant.status = 'completed'
         participant.completed_at = timezone.now()
-        participant.save()  # This triggers the XP and gold reward signals
-        
+        participant.save()
+
+        # Create XP and Gold transactions for this participant
+        from users.models_reward import XPTransaction, GoldTransaction
+        xp_awarded = quest.xp_reward // max(1, quest.participant_count)
+        gold_awarded = int(quest.gold_reward // max(1, quest.participant_count))
+        xp_tx = XPTransaction.objects.create(user=participant.user, amount=xp_awarded, reason=f"Quest '{quest.title}' submission approved")
+        gold_tx = GoldTransaction.objects.create(user=participant.user, amount=gold_awarded, reason=f"Quest '{quest.title}' submission approved")
+
         # Update the corresponding Application status to 'approved'
         from applications.models import Application
         try:
@@ -471,13 +494,15 @@ class QuestSubmissionReviewViewSet(viewsets.ModelViewSet):
                 application.reviewed_at = timezone.now()
                 application.review_notes = f'Quest completed - submission approved: {feedback}'
                 application.save()
-        
+
         return Response({
             'status': 'approved',
             'message': 'Submission approved and participant completed',
+            'xp_transaction': {'id': xp_tx.id, 'amount': xp_tx.amount, 'reason': xp_tx.reason},
+            'gold_transaction': {'id': gold_tx.id, 'amount': gold_tx.amount, 'reason': gold_tx.reason},
             'rewards': {
-                'xp_awarded': quest.xp_reward,
-                'gold_awarded': quest.gold_reward
+                'xp_awarded': xp_awarded,
+                'gold_awarded': gold_awarded
             }
         })
 

@@ -1,5 +1,3 @@
-
-
 # User Report Serializer
 from rest_framework import serializers
 from .models import UserReport, QuestReport
@@ -76,7 +74,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
     gold_balance = serializers.SerializerMethodField()
     is_staff = serializers.BooleanField(read_only=True)
     is_superuser = serializers.BooleanField(read_only=True)
-    
+    experience_points = serializers.SerializerMethodField()
+
     def get_gold_balance(self, obj):
         """Get gold balance from UserBalance model (source of truth)"""
         try:
@@ -90,6 +89,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
             UserBalance.objects.create(user=obj, gold_balance=Decimal('0.00'))
             return 0.0
     
+    def get_experience_points(self, obj):
+        return obj.xp
+
     class Meta:
         model = User
         fields = [
@@ -218,6 +220,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 class UserSearchSerializer(serializers.ModelSerializer):
     """Serializer for user search results"""
     user_skills = serializers.SerializerMethodField()
+    experience_points = serializers.SerializerMethodField()
     
     class Meta:
         model = User
@@ -227,6 +230,9 @@ class UserSearchSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'level', 'experience_points']
     
+    def get_experience_points(self, obj):
+        return obj.xp
+
     def get_user_skills(self, obj):
         """Get user's skills with proficiency levels"""
         from .models import UserSkill

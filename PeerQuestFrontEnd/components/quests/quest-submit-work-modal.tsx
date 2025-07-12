@@ -1,5 +1,7 @@
+
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { X, UploadCloud, FileText, Image as ImageIcon, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import api from "@/lib/api";
 
 interface QuestSubmitWorkModalProps {
   isOpen: boolean;
@@ -171,7 +173,26 @@ export const QuestSubmitWorkModal: React.FC<QuestSubmitWorkModalProps> = ({
       
       console.log('Submitting with data:', submissionData);
       
-      await QuestAPI.submitQuestWork(submissionData);
+      // Submit quest work and get response (assume response may include xp or gold fields, or fetch user after)
+      const result = await QuestAPI.submitQuestWork(submissionData);
+      // Use transaction tables: refetch user profile after submission to update XP/gold
+      try {
+        // Optionally, show awarded XP/gold if present in result (backend must include them)
+        if (result && typeof result === 'object') {
+          if ('xp_transaction' in result && result.xp_transaction && typeof result.xp_transaction === 'object') {
+            const xpAmount = (result.xp_transaction as any).amount ?? null;
+            if (xpAmount !== null && showToast) showToast(`+${xpAmount} XP awarded!`, 'success');
+          }
+          if ('gold_transaction' in result && result.gold_transaction && typeof result.gold_transaction === 'object') {
+            const goldAmount = (result.gold_transaction as any).amount ?? null;
+            if (goldAmount !== null && showToast) showToast(`+${goldAmount} Gold awarded!`, 'success');
+          }
+        }
+        // Always refresh user profile to get up-to-date XP/gold from backend
+        await api.get('/users/me/');
+      } catch (e) {
+        if (showToast) showToast("Profile refresh failed, but submission succeeded.", "warning");
+      }
       setDescription("");
       setLink("");
       setFiles([]);
@@ -349,7 +370,7 @@ export const QuestSubmitWorkModal: React.FC<QuestSubmitWorkModalProps> = ({
                 {files.map((file, idx) => {
                   const isImage = file.type.startsWith("image/");
                   return (
-                    <li key={file.name + idx} className="flex items-center gap-3 bg-white border border-amber-200 rounded-lg p-2 relative group">
+                    <li key={file.name + file.size + idx} className="flex items-center gap-3 bg-white border border-amber-200 rounded-lg p-2 relative group">
                       {isImage ? (
                         <img
                           src={URL.createObjectURL(file)}

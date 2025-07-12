@@ -105,7 +105,7 @@ export const QuestAPI = {
     description: string;
     link?: string;
     files?: File[];
-  }): Promise<QuestSubmission> {
+  }): Promise<QuestCompletionResult> {
     const { questSlug, questParticipantId, applicationId, description, link, files = [] } = params;
     
     console.log('submitQuestWork called with params:', params);
@@ -604,6 +604,34 @@ export const QuestAPI = {
     }
     return response.json();
   },
+
+  // Quest completion
+  async completeQuest(questSlug: string, completionData: {
+    completion_reason: string;
+    participant_results: Array<{
+      user: string;
+      xp_awarded: number;
+      gold_awarded: number;
+    }>;
+    admin_award?: {
+      user: string;
+      xp_awarded: number;
+      gold_awarded: number;
+    };
+  }): Promise<QuestCompletionResult> {
+    const response = await fetchWithAuth(`${API_BASE_URL}/quests/quests/${questSlug}/complete/`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(completionData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Failed to complete quest: ${error.detail || response.statusText}`);
+    }
+
+    return response.json();
+  },
 }
 
 // Participant management
@@ -614,4 +642,32 @@ export async function kickParticipant(participantId: number) {
   });
   if (!res.ok) throw new Error('Failed to remove participant');
   return res.json();
+}
+
+export interface QuestCompletionResult {
+  quest_title: string;
+  completion_reason: string;
+  participants_completed: number;
+  xp_per_participant: number;
+  gold_per_participant: number;
+  total_xp_awarded: number;
+  total_gold_awarded: number;
+  participant_results: Array<{
+    user: string;
+    xp_awarded: number;
+    gold_awarded: number;
+  }>;
+  admin_award?: {
+    user: string;
+    xp_awarded: number;
+    gold_awarded: number;
+  };
+  admin_balance?: {
+    username: string;
+    xp: number;
+    gold: number;
+  };
+  // Legacy fields for backward compatibility
+  xp?: number;
+  gold?: number;
 }

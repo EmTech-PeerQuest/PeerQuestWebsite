@@ -606,15 +606,20 @@ class QuestSubmissionReviewSerializer(serializers.ModelSerializer):
         return value
         
     def to_representation(self, instance):
-        """Add reward information to the response when submission is approved"""
+        """Add divided reward information to the response when submission is approved"""
         data = super().to_representation(instance)
-        
-        # Add reward info if submission was approved
         if instance.status == 'approved':
             quest = instance.quest_participant.quest
+            # Use the quest's complete_quest logic to get the division (simulate, don't re-complete)
+            num_participants = quest.participant_count
+            xp_per = quest.xp_reward // num_participants if num_participants else 0
+            gold_per = int(quest.gold_reward // num_participants) if num_participants else 0
+            xp_excess = quest.xp_reward - (xp_per * num_participants)
+            gold_excess = quest.gold_reward - (gold_per * num_participants)
             data['rewards'] = {
-                'xp_awarded': quest.xp_reward,
-                'gold_awarded': quest.gold_reward
+                'xp_awarded': xp_per,
+                'gold_awarded': gold_per,
+                'admin_excess_xp': xp_excess,
+                'admin_excess_gold': gold_excess
             }
-            
         return data

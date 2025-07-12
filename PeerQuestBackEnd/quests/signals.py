@@ -68,14 +68,19 @@ def award_xp_and_gold_on_quest_completion(sender, instance, created, **kwargs):
                 transaction_type=TransactionType.QUEST_REWARD
             )
             print(f"User {user.username} received {gold_amount} gold for completing quest: {quest.title}")
-            
             # Commission is handled through the reservation system - the total reserved amount
             # included both the reward and commission, and we only award the reward amount
             # to participants, effectively keeping the commission in the system
-        
         # Handle level up notifications
         if xp_result.get("leveled_up"):
             print(f"User {user.username} leveled up to level {xp_result['new_level']}!")
+
+        # Award 'First Quest' achievement if this is the user's first completed quest
+        try:
+            from quests.achievement_award import award_first_quest_achievement
+            award_first_quest_achievement(user)
+        except Exception as e:
+            logger.error(f"Error awarding 'First Quest' achievement: {e}")
 
 
 @receiver(post_save, sender=Quest)

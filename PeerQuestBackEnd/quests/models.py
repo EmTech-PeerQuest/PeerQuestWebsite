@@ -128,15 +128,37 @@ class Quest(models.Model):
         return self.title
 
     def save(self, *args, **kwargs):
-        # Automatically set XP reward based on difficulty
-        if self.difficulty in self.DIFFICULTY_XP_MAPPING:
+        # Automatically set XP reward based on difficulty ONLY if not manually set
+        if self.difficulty in self.DIFFICULTY_XP_MAPPING and (not self.xp_reward or self.xp_reward == self.DIFFICULTY_XP_MAPPING.get(self.difficulty)):
             self.xp_reward = self.DIFFICULTY_XP_MAPPING[self.difficulty]
-        
+
+        # Detect status change to 'completed' and trigger reward logic
+        status_changing_to_completed = False
+        if self.pk:
+            old = Quest.objects.get(pk=self.pk)
+            if old.status != 'completed' and self.status == 'completed':
+                status_changing_to_completed = True
+
         if not self.slug:
             from django.utils.text import slugify
             import uuid
             self.slug = f"{slugify(self.title)}-{str(uuid.uuid4())[:8]}"
+
         super().save(*args, **kwargs)
+
+        # After saving, if status just changed to completed, trigger reward logic
+        if status_changing_to_completed:
+            # Ensure assigned user is a participant
+            if self.assigned_to:
+                from .models import QuestParticipant
+                participant, created = QuestParticipant.objects.get_or_create(
+                    quest=self, user=self.assigned_to,
+                    defaults={'status': 'joined'}
+                )
+                if participant.status != 'completed':
+                    participant.status = 'joined'
+                    participant.save()
+            self.complete_quest()
 
     @property
     def is_completed(self):
@@ -322,57 +344,137 @@ class Quest(models.Model):
 
     def complete_quest(self, completion_reason="Quest completed"):
         """
-        Complete the quest and automatically award XP and gold to all participants.
-        
-        Args:
-            completion_reason: Reason for quest completion
-            
-        Returns:
-            dict: Summary of completion results
+        Complete the quest and dynamically divide XP and gold among all eligible participants.
+        Any remainder is given to the admin account. Rewards are tracked in transaction tables.
+        This version is robust: it rewards all participants who are not dropped, and logs all actions.
         """
-        from django.utils import timezone
-        
+        from users.models import User
+        from decimal import Decimal
+        import logging
+        logger = logging.getLogger("quest-rewards")
+        from transactions.models import Transaction, TransactionType, UserBalance
+        from .models import QuestParticipant
+        # XP is now tracked in Transaction table as type='REWARD', with a new 'xp' field or as a negative gold value if not supported
+        # For now, we will use Transaction for both XP and Gold, and UserBalance for gold only
+
         if self.status == 'completed':
+            logger.warning(f"Quest '{self.title}' is already completed. No rewards distributed.")
             return {"error": "Quest is already completed"}
-        
-        # Update quest status
+
         self.status = 'completed'
         self.completed_at = timezone.now()
         self.save()
-        
-        # Get all active participants
+
+        # Reward all participants who are not dropped
         participants = QuestParticipant.objects.filter(
             quest=self,
-            status__in=['joined', 'in_progress']
-        )
-        
+            status__in=['joined', 'in_progress', 'approved', 'completed']
+        ).exclude(status='dropped')
+        num_participants = participants.count()
+        if num_participants == 0:
+            logger.warning(f"Quest '{self.title}' has no eligible participants for rewards.")
+            return {"error": "No participants to complete this quest."}
+
+        # Calculate divided rewards
+        xp_per = int(self.xp_reward // num_participants)
+        gold_per = int(self.gold_reward // num_participants)
+        xp_excess = int(self.xp_reward - (xp_per * num_participants))
+        gold_excess = int(self.gold_reward - (gold_per * num_participants))
+
+        # Find admin account (first with is_admin True, fallback to role=ADMIN)
+        admin_user = User.objects.filter(is_admin=True).first()
+        if not admin_user:
+            admin_user = User.objects.filter(role='admin').first()
+
         completion_results = []
-        
-        # Complete all participants
+
         for participant in participants:
-            participant.status = 'completed'
-            participant.completed_at = timezone.now()
-            participant.save()  # This triggers the XP award signal and gold award signal
-            
+            # Mark as completed if not already
+            if participant.status != 'completed':
+                participant.status = 'completed'
+                participant.completed_at = timezone.now()
+                participant.save()
+            user = participant.user
+            # Create XP and Gold transactions in unified system
+            Transaction.objects.create(
+                user=user,
+                type=TransactionType.REWARD,
+                amount=Decimal(xp_per),
+                description=f"XP for quest '{self.title}' completion",
+                quest=self
+            )
+            Transaction.objects.create(
+                user=user,
+                type=TransactionType.REWARD,
+                amount=Decimal(gold_per),
+                description=f"Gold for quest '{self.title}' completion",
+                quest=self
+            )
+            # Update UserBalance for gold
+            balance, _ = UserBalance.objects.get_or_create(user=user)
+            balance.gold_balance += Decimal(gold_per)
+            balance.save()
+            logger.info(f"Awarded {xp_per} XP and {gold_per} Gold to {user.username} for quest '{self.title}' (new system)")
             completion_results.append({
-                "user": participant.user.username,
-                "xp_awarded": self.xp_reward,
-                "gold_awarded": self.gold_reward
+                "user": user.username,
+                "xp_awarded": xp_per,
+                "gold_awarded": gold_per
             })
-        
+
+        # Give excess to admin
+        admin_award = None
+        if admin_user and (xp_excess > 0 or gold_excess > 0):
+            if xp_excess > 0:
+                Transaction.objects.create(
+                    user=admin_user,
+                    type=TransactionType.REWARD,
+                    amount=Decimal(xp_excess),
+                    description=f"Excess XP from quest '{self.title}'",
+                    quest=self
+                )
+            if gold_excess > 0:
+                Transaction.objects.create(
+                    user=admin_user,
+                    type=TransactionType.REWARD,
+                    amount=Decimal(gold_excess),
+                    description=f"Excess gold from quest '{self.title}'",
+                    quest=self
+                )
+                balance, _ = UserBalance.objects.get_or_create(user=admin_user)
+                balance.gold_balance += Decimal(gold_excess)
+                balance.save()
+            logger.info(f"Admin {admin_user.username} received excess: {xp_excess} XP, {gold_excess} Gold from quest '{self.title}' (new system)")
+            admin_award = {
+                "user": admin_user.username,
+                "xp_awarded": xp_excess,
+                "gold_awarded": gold_excess
+            }
+
+        logger.info(f"Quest '{self.title}' completed. Rewards distributed to {num_participants} participants. (new system)")
+
+        # Return updated balances for admin/creator if needed
+        admin_balance = None
+        if admin_user:
+            admin_balance = {
+                "xp": int(sum([t.amount for t in Transaction.objects.filter(user=admin_user, description__icontains="XP")])) or 0,
+                "gold": float(UserBalance.objects.get(user=admin_user).gold_balance) if UserBalance.objects.filter(user=admin_user).exists() else 0.0
+            }
+
         return {
             "quest_title": self.title,
             "completion_reason": completion_reason,
-            "participants_completed": len(completion_results),
-            "xp_per_participant": self.xp_reward,
-            "gold_per_participant": self.gold_reward,
-            "total_xp_awarded": self.xp_reward * len(completion_results),
-            "total_gold_awarded": self.gold_reward * len(completion_results),
-            "participant_results": completion_results
+            "participants_completed": num_participants,
+            "xp_per_participant": xp_per,
+            "gold_per_participant": gold_per,
+            "total_xp_awarded": self.xp_reward,
+            "total_gold_awarded": self.gold_reward,
+            "participant_results": completion_results,
+            "admin_award": admin_award,
+            "admin_balance": admin_balance
         }
 
     def delete(self, using=None, keep_parents=False):
-        """Soft delete: mark as deleted instead of removing from DB."""
+        # Soft delete: mark as deleted instead of removing from DB.
         self.is_deleted = True
         self.save(update_fields=["is_deleted"])
         

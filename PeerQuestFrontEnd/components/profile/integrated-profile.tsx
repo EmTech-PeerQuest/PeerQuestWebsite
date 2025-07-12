@@ -5,6 +5,7 @@ import type { User, Quest, Guild } from "@/lib/types"
 import { ChevronDown } from "lucide-react"
 import { formatJoinDate } from "@/lib/date-utils"
 
+
 // Type for props
 type IntegratedProfileProps = {
   currentUser: User;
@@ -14,10 +15,235 @@ type IntegratedProfileProps = {
   defaultTab?: "overview" | "quests" | "guilds" | "achievements";
 };
 
-// Import API for fetching user skills
-import { skillsApi } from "@/lib/api"
+// --- AchievementsSection and types ---
+interface Achievement {
+  id: string | number;
+  achievement_type: string;
+  achievement_name: string;
+  description?: string;
+  earned_at?: string;
+}
 
-export function IntegratedProfile({ currentUser, quests, guilds, navigateToSection, defaultTab = "overview" }: IntegratedProfileProps) {
+function AchievementsSection({ userId }: { userId: string | number }) {
+  const [owned, setOwned] = useState<Achievement[]>([]);
+  const [unowned, setUnowned] = useState<Achievement[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"all" | "owned" | "unowned">("all");
+
+  useEffect(() => {
+    const fetchAchievements = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.get(`/users/${userId}/achievements-full/`);
+        setOwned(Array.isArray(res.data?.owned) ? res.data.owned : []);
+        setUnowned(Array.isArray(res.data?.unowned) ? res.data.unowned : []);
+      } catch (err: any) {
+        setError("Could not load achievements.");
+        setOwned([]);
+        setUnowned([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (userId) fetchAchievements();
+  }, [userId]);
+
+  // Filter/search logic
+  const filterAchievements = (achievements: Achievement[]) => {
+    return achievements.filter((ach) => {
+      const searchLower = search.toLowerCase();
+      return (
+        ach.achievement_name.toLowerCase().includes(searchLower) ||
+        (ach.description && ach.description.toLowerCase().includes(searchLower))
+      );
+    });
+  };
+
+  const filteredOwned = filterAchievements(owned);
+  const filteredUnowned = filterAchievements(unowned);
+
+  let showOwned = filter === "all" || filter === "owned";
+  let showUnowned = filter === "all" || filter === "unowned";
+
+  // Simple instructions for each locked achievement
+  const getInstruction = (ach: Achievement) => {
+    switch (ach.achievement_name) {
+      case "First Quest":
+        return "Complete any quest.";
+      case "Quest Creator":
+        return "Create a new quest.";
+      case "Quest Streak":
+        return "Complete 5 quests in a row.";
+      case "Quest Master":
+        return "Complete 20 quests.";
+      case "Legendary Creator":
+        return "Create 100 quests.";
+      case "Guild Member":
+        return "Join any guild.";
+      case "Guild Leader":
+        return "Create a guild.";
+      case "Guild Contributor":
+        return "Post a quest or message in your guild.";
+      case "Legendary Guildmaster":
+        return "Lead a guild with 20+ members.";
+      case "Profile Complete":
+        return "Fill out all profile fields.";
+      case "Customizer":
+        return "Change your profile avatar.";
+      case "Skilled":
+        return "Add your first skill.";
+      case "XP Collector":
+        return "Earn 100 XP.";
+      case "XP Grinder":
+        return "Earn 5000 XP.";
+      case "Legendary XP":
+        return "Earn 50000 XP.";
+      case "Gold Digger":
+        return "Earn 100 gold.";
+      case "Gold Hoarder":
+        return "Earn 1000 gold.";
+      case "Legendary Gold":
+        return "Earn 10000 gold.";
+      case "Adventurer":
+        return "Reach level 5.";
+      case "Veteran":
+        return "Reach level 10.";
+      case "Legendary Adventurer":
+        return "Reach level 50.";
+      case "Social Butterfly":
+        return "Send your first message.";
+      case "Messenger":
+        return "Send 10 messages.";
+      case "Popular":
+        return "Receive 10 messages.";
+      case "Helper":
+        return "Answer a question in the help forum.";
+      case "Mentor":
+        return "Share a tip in the community forum.";
+      case "Reviewer":
+        return "Leave your first comment on a quest.";
+      case "Critic":
+        return "Leave 10 comments on quests.";
+      case "Legendary Reviewer":
+        return "Leave 100 comments on quests.";
+      case "Bug Finder":
+        return "Report a bug or suggestion to the team.";
+      case "Bug Smasher":
+        return "Have a suggestion you made implemented.";
+      case "Community Participant":
+        return "Participate in a community poll or vote.";
+      case "Community Winner":
+        return "Win a community poll or be top voted in a discussion.";
+      default:
+        return "Unlock by being active on PeerQuest!";
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#8B75AA]" />
+        <span className="ml-2 text-[#2C1A1D]">Loading achievements...</span>
+      </div>
+    );
+  }
+  if (error) {
+    return <p className="text-red-500 text-sm bg-red-50 rounded-2xl p-3 border border-red-200">{error}</p>;
+  }
+  if (!owned.length && !unowned.length) {
+    return (
+      <>
+        <div className="text-6xl mb-4">🏆</div>
+        <p className="text-[#2C1A1D]/60 text-lg font-medium">No achievements yet.</p>
+        <p className="text-[#2C1A1D]/40 text-sm mt-4 bg-[#fff7e0]/60 rounded-2xl p-4 border border-[#CDAA7D]/20">Complete quests and participate in guild activities to earn achievements!</p>
+      </>
+    );
+  }
+  return (
+    <div>
+      {/* Search and Filter Bar */}
+      <div className="flex flex-col sm:flex-row items-center gap-3 mb-6">
+        <input
+          type="text"
+          placeholder="Search achievements..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="px-4 py-2 rounded-xl border border-[#CDAA7D]/40 bg-[#fff7e0]/80 text-[#2C1A1D] focus:outline-none focus:ring-2 focus:ring-[#8B75AA]/30 w-full sm:w-1/2"
+        />
+        <div className="flex gap-2 mt-2 sm:mt-0">
+          <button
+            className={`px-4 py-2 rounded-xl font-medium border transition-all duration-200 ${filter === "all" ? "bg-[#8B75AA] text-white border-[#8B75AA]" : "bg-[#fff7e0] text-[#2C1A1D] border-[#CDAA7D]/40"}`}
+            onClick={() => setFilter("all")}
+          >All</button>
+          <button
+            className={`px-4 py-2 rounded-xl font-medium border transition-all duration-200 ${filter === "owned" ? "bg-[#8B75AA] text-white border-[#8B75AA]" : "bg-[#fff7e0] text-[#2C1A1D] border-[#CDAA7D]/40"}`}
+            onClick={() => setFilter("owned")}
+          >Unlocked</button>
+          <button
+            className={`px-4 py-2 rounded-xl font-medium border transition-all duration-200 ${filter === "unowned" ? "bg-[#8B75AA] text-white border-[#8B75AA]" : "bg-[#fff7e0] text-[#2C1A1D] border-[#CDAA7D]/40"}`}
+            onClick={() => setFilter("unowned")}
+          >Locked</button>
+        </div>
+      </div>
+
+      {/* Owned Achievements */}
+      {showOwned && (
+        <>
+          <h4 className="text-lg font-bold text-[#8B75AA] mb-2">Unlocked Achievements</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+            {filteredOwned.length === 0 && <div className="col-span-2 text-[#2C1A1D]/60">No achievements unlocked yet.</div>}
+            {filteredOwned.map((ach) => (
+              <div key={ach.id} className="bg-[#fff7e0]/60 rounded-2xl p-4 border border-[#CDAA7D]/20 text-left shadow hover:shadow-lg transition-all duration-300">
+                <div className="flex items-center mb-2">
+                  <span className="text-2xl mr-2">🏅</span>
+                  <span className="font-bold text-[#8B75AA] text-lg">{ach.achievement_name}</span>
+                </div>
+                <div className="text-[#2C1A1D] text-sm mb-1">{ach.description}</div>
+                <div className="text-xs text-[#CDAA7D]">{ach.earned_at ? `Earned: ${new Date(ach.earned_at).toLocaleDateString()}` : null}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Unowned Achievements */}
+      {showUnowned && (
+        <>
+          <h4 className="text-lg font-bold text-[#CDAA7D] mb-2">Locked Achievements</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {filteredUnowned.length === 0 && <div className="col-span-2 text-[#2C1A1D]/40">All achievements unlocked!</div>}
+            {filteredUnowned.map((ach) => (
+              <div key={ach.id} className="bg-[#e0e0e0]/60 rounded-2xl p-4 border border-[#CDAA7D]/20 text-left shadow relative opacity-60 grayscale">
+                <div className="flex items-center mb-2">
+                  <span className="text-2xl mr-2">🏅</span>
+                  <span className="font-bold text-[#8B75AA] text-lg">{ach.achievement_name}</span>
+                </div>
+                <div className="text-[#2C1A1D] text-sm mb-1">{ach.description}</div>
+                <div className="text-xs text-[#CDAA7D]">Locked</div>
+                <div className="text-xs text-[#2C1A1D]/70 mt-2 italic">How to unlock: {getInstruction(ach)}</div>
+                <div className="absolute inset-0 bg-[#fff] opacity-30 rounded-2xl pointer-events-none" />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+
+// Import API for fetching user skills and achievements
+import { skillsApi } from "@/lib/api";
+import api from "@/lib/api";
+import { guildApi } from "@/lib/api/guilds";
+import { QuestAPI } from "@/lib/api/quests";
+import React from "react";
+
+
+function IntegratedProfile({ currentUser, quests: propQuests, guilds: propGuilds, navigateToSection, defaultTab = "overview" }: IntegratedProfileProps) {
   const [activeTab, setActiveTab] = useState<"overview" | "quests" | "guilds" | "achievements">(defaultTab);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
@@ -25,7 +251,17 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
   const [skillsLoading, setSkillsLoading] = useState(false);
   const [skillsError, setSkillsError] = useState<string | null>(null);
 
-  // Fetch user skills on mount
+  // --- GUILD/QUEST API STATE ---
+  const [userGuilds, setUserGuilds] = useState<Guild[]>([]);
+  const [guildsLoading, setGuildsLoading] = useState(false);
+  const [guildsError, setGuildsError] = useState<string | null>(null);
+  const [allGuilds, setAllGuilds] = useState<Guild[]>([]);
+
+  const [allQuests, setAllQuests] = useState<Quest[]>([]);
+  const [questsLoading, setQuestsLoading] = useState(false);
+  const [questsError, setQuestsError] = useState<string | null>(null);
+
+  // --- Fetch user skills ---
   useEffect(() => {
     const fetchSkills = async () => {
       setSkillsLoading(true);
@@ -47,34 +283,109 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
     fetchSkills();
   }, [currentUser?.id]);
 
+  // --- Fetch all guilds and user's member guilds (API logic from enhanced-guild-management) ---
+  useEffect(() => {
+    const fetchGuilds = async () => {
+      setGuildsLoading(true);
+      setGuildsError(null);
+      try {
+        // Always fetch all guilds from API for freshest data
+        let guildList: Guild[] = await guildApi.getGuilds();
+        setAllGuilds(guildList);
+        // Now, check membership for each guild using API data only
+        const memberGuilds: Guild[] = [];
+        await Promise.all(
+          guildList.map(async (guild) => {
+            try {
+              // Ensure id is string
+              const guildId = String(guild.guild_id ?? guild.id ?? "");
+              if (!guildId) return;
+              const members = await guildApi.getGuildMembers(guildId);
+              const isMember = members.some((membership: any) =>
+                String(membership.user.id) === String(currentUser.id) &&
+                membership.status === 'approved' &&
+                membership.is_active
+              );
+              if (isMember) {
+                // Attach members array for member count (store as .members, not .member_count)
+                memberGuilds.push({ ...guild, members: members });
+              }
+            } catch (err) {
+              // Ignore errors for individual guilds
+            }
+          })
+        );
+        setUserGuilds(memberGuilds);
+      } catch (err) {
+        setGuildsError("Could not load guilds.");
+        setUserGuilds([]);
+      } finally {
+        setGuildsLoading(false);
+      }
+    };
+    if (currentUser?.id) fetchGuilds();
+  }, [currentUser?.id]);
 
-  // Filter quests by status (robust fallback)
-  const activeQuests = Array.isArray(quests)
-    ? quests.filter((q) => q.status === "in_progress" && Array.isArray(q.applicants) && q.applicants.some(app => app.userId === currentUser.id && app.status === "accepted"))
-    : [];
-  const createdQuests = Array.isArray(quests)
-    ? quests.filter((q) => q.poster && q.poster.id === currentUser.id)
-    : [];
-  const completedQuests = Array.isArray(quests)
-    ? quests.filter((q) => q.status === "completed" && Array.isArray(q.applicants) && q.applicants.some(app => app.userId === currentUser.id && app.status === "accepted"))
-    : [];
+  // --- Fetch all quests and filter by user (API logic from quest-management) ---
+  useEffect(() => {
+    const fetchQuests = async () => {
+      setQuestsLoading(true);
+      setQuestsError(null);
+      try {
+        let all: Quest[] = [];
+        if (Array.isArray(propQuests) && propQuests.length > 0) {
+          all = propQuests;
+        } else {
+          // Always fetch fresh from API for up-to-date data
+          const questResponse = await QuestAPI.getQuests();
+          if (Array.isArray(questResponse)) {
+            all = questResponse;
+          } else if (questResponse && Array.isArray(questResponse.results)) {
+            all = questResponse.results;
+          } else if (questResponse && Array.isArray(questResponse.value)) {
+            all = questResponse.value;
+          }
+        }
+        setAllQuests(all);
+      } catch (err) {
+        setQuestsError("Could not load quests.");
+        setAllQuests([]);
+      } finally {
+        setQuestsLoading(false);
+      }
+    };
+    if (currentUser?.id) fetchQuests();
+  }, [currentUser?.id, propQuests]);
 
-  // Get user's guilds from currentUser.guilds or fallback to prop
-  let userGuilds: Guild[] = [];
-  if (Array.isArray(currentUser.guilds) && currentUser.guilds.length > 0) {
-    // If currentUser.guilds is an array of guild objects or ids
-    if (typeof currentUser.guilds[0] === 'object') {
-      userGuilds = currentUser.guilds as Guild[];
-    } else if (typeof currentUser.guilds[0] === 'number' || typeof currentUser.guilds[0] === 'string') {
-      userGuilds = guilds.filter(g =>
-        Array.isArray(currentUser.guilds) &&
-        currentUser.guilds.some((id: any) => id === g.id)
-      );
-    }
-  } else if (Array.isArray(guilds)) {
-    // fallback: show all guilds if userGuilds is not available
-    userGuilds = guilds;
-  }
+  // --- Filter quests by user (API logic from quest-management) ---
+  const createdQuests = allQuests.filter((quest: any) => String(quest.creator?.id || quest.poster?.id) === String(currentUser?.id));
+  const activeQuests = allQuests.filter((quest: any) => {
+    if (String(quest.creator?.id || quest.poster?.id) === String(currentUser?.id)) return false;
+    // Check participants_detail or applicants or assigned_to
+    const isInParticipants = Array.isArray(quest.participants_detail)
+      ? quest.participants_detail.some((p: any) => String(p.user?.id) === String(currentUser?.id))
+      : false;
+    const isAssignedTo = quest.assigned_to && String(quest.assigned_to.id) === String(currentUser?.id);
+    const isApplicantAccepted = Array.isArray(quest.applicants)
+      ? quest.applicants.some((app: any) => app.userId === currentUser.id && app.status === "accepted")
+      : false;
+    return (
+      (quest.status === "in_progress" || quest.status === "active") && (isInParticipants || isAssignedTo || isApplicantAccepted)
+    );
+  });
+  const completedQuests = allQuests.filter((quest: any) => {
+    if (String(quest.creator?.id || quest.poster?.id) === String(currentUser?.id)) return false;
+    const isInParticipants = Array.isArray(quest.participants_detail)
+      ? quest.participants_detail.some((p: any) => String(p.user?.id) === String(currentUser?.id))
+      : false;
+    const isAssignedTo = quest.assigned_to && String(quest.assigned_to.id) === String(currentUser?.id);
+    const isApplicantAccepted = Array.isArray(quest.applicants)
+      ? quest.applicants.some((app: any) => app.userId === currentUser.id && app.status === "accepted")
+      : false;
+    return (
+      quest.status === "completed" && (isInParticipants || isAssignedTo || isApplicantAccepted)
+    );
+  });
 
   // Robustly get avatar and join date from all possible backend fields
   const getAvatar = (u: any) => {
@@ -105,9 +416,34 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
   };
   const avatar = getAvatar(currentUser);
   const joinDate = getJoinDate(currentUser);
-  // Calculate Level and XP Progress
-  const xpForNextLevel = 1000; // XP required per level (adjust as needed)
-  const userXp = typeof currentUser.xp === 'number' && currentUser.xp > 0 ? currentUser.xp : 0;
+  // Fetch live XP and gold from API for the current user
+  const [userXp, setUserXp] = useState<number>(typeof currentUser.xp === 'number' ? currentUser.xp : (typeof currentUser.experience_points === 'number' ? currentUser.experience_points : 0));
+  const [userGold, setUserGold] = useState<number>(typeof currentUser.gold === 'number' ? currentUser.gold : (typeof currentUser.gold_balance === 'number' ? Number(currentUser.gold_balance) : 0));
+  const [xpLoading, setXpLoading] = useState(false);
+  const [xpError, setXpError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUserXp = async () => {
+      setXpLoading(true);
+      setXpError(null);
+      try {
+        const res = await api.get('/users/me/');
+        const data = res && res.data ? res.data : res;
+        if (data && typeof data.xp === 'number') setUserXp(data.xp);
+        else if (typeof data.experience_points === 'number') setUserXp(data.experience_points);
+        if (typeof data.gold === 'number') setUserGold(data.gold);
+        else if (typeof data.gold_balance === 'number') setUserGold(Number(data.gold_balance));
+      } catch (err) {
+        setXpError('Could not load XP/gold.');
+      } finally {
+        setXpLoading(false);
+      }
+    };
+    fetchUserXp();
+  }, [currentUser?.id]);
+
+  // XP/Level calculation
+  const xpForNextLevel = 1000;
   const userLevel = Math.floor(userXp / xpForNextLevel) + 1;
   const xpThisLevel = userXp % xpForNextLevel;
   const xpProgress = (xpThisLevel / xpForNextLevel) * 100;
@@ -149,12 +485,13 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
               {/* Level Bar */}
               <div className="mt-6 max-w-md mx-auto sm:mx-0">
                 <div className="flex justify-between text-sm mb-2 text-[#fff7e0] font-medium">
-                  <span>Level Progress</span>
-                  <span>{currentUser.xp} XP</span>
+                  <span>Level {userLevel} Progress</span>
+                  {xpLoading ? <span>Loading XP...</span> : <span>{userXp} XP</span>}
                 </div>
                 <div className="w-full bg-[#2C1A1D]/60 rounded-2xl h-4 shadow-inner backdrop-blur-sm">
                   <div className="bg-gradient-to-r from-[#CDAA7D] to-[#8B75AA] h-4 rounded-2xl shadow-lg transition-all duration-300" style={{ width: `${xpProgress}%` }}></div>
                 </div>
+                {xpError && <div className="text-xs text-red-500 mt-1">{xpError}</div>}
               </div>
             </div>
 
@@ -396,77 +733,41 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
         {/* Guilds Tab */}
         {activeTab === "guilds" && (
           <div>
-            {userGuilds.length > 0 ? (
+            {guildsLoading ? (
+              <div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#8B75AA]" /><span className="ml-2 text-[#2C1A1D]">Loading guilds...</span></div>
+            ) : guildsError ? (
+              <div className="text-red-500 text-sm bg-red-50 rounded-2xl p-3 border border-red-200">{guildsError}</div>
+            ) : userGuilds.length > 0 ? (
               <div className="space-y-6">
-                {/* Mystic Brewers Guild */}
-                <div className="bg-[#fff7e0]/90 backdrop-blur-sm rounded-3xl border-2 border-[#CDAA7D]/40 overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300">
-                  <div className="p-6">
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="w-16 h-16 bg-gradient-to-br from-[#2C1A1D] to-[#8B75AA] rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg">
-                        🧪
+                {userGuilds.map((guild, idx) => (
+                  <div key={guild.id || guild.guild_id || idx} className="bg-[#fff7e0]/90 backdrop-blur-sm rounded-3xl border-2 border-[#CDAA7D]/40 overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300">
+                    <div className="p-6">
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="w-16 h-16 bg-gradient-to-br from-[#2C1A1D] to-[#8B75AA] rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg">
+                          {guild.emblem || "🏰"}
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-bold text-xl text-[#2C1A1D]">{guild.name}</h3>
+                          {guild.specialization && (
+                            <p className="text-[#8B75AA] font-semibold bg-[#8B75AA]/10 px-3 py-1 rounded-xl text-sm inline-block">{guild.specialization}</p>
+                          )}
+                        </div>
+                        {guild.owner && guild.owner.id === currentUser.id && (
+                          <div className="bg-gradient-to-r from-[#CDAA7D] to-[#8B75AA] text-white text-xs px-3 py-2 rounded-2xl font-bold shadow-lg">Guild Master</div>
+                        )}
                       </div>
-                      <div className="flex-1">
-                        <h3 className="font-bold text-xl text-[#2C1A1D]">Mystic Brewers Guild</h3>
-                        <p className="text-[#8B75AA] font-semibold bg-[#8B75AA]/10 px-3 py-1 rounded-xl text-sm inline-block">Alchemy</p>
+                      <p className="text-[#2C1A1D]/80 text-sm leading-relaxed mb-4 bg-[#fff7e0]/60 rounded-2xl p-4 border border-[#CDAA7D]/20">
+                        {guild.description || "No description provided."}
+                      </p>
+                      <div className="flex flex-col sm:flex-row sm:justify-between gap-2 text-sm">
+                        <span className="bg-[#CDAA7D]/20 text-[#2C1A1D] px-3 py-1 rounded-xl font-medium">
+                          {typeof guild.member_count === 'number' ? guild.member_count : (Array.isArray(guild.members) ? guild.members.length : 1)} member{((typeof guild.member_count === 'number' ? guild.member_count : (Array.isArray(guild.members) ? guild.members.length : 1)) !== 1 ? 's' : '')}
+                        </span>
+                        <span className="bg-[#8B75AA]/20 text-[#2C1A1D] px-3 py-1 rounded-xl font-medium">Created: {guild.created_at ? new Date(guild.created_at).toLocaleDateString() : 'N/A'}</span>
                       </div>
-                    </div>
-                    <p className="text-[#2C1A1D]/80 text-sm leading-relaxed mb-4 bg-[#fff7e0]/60 rounded-2xl p-4 border border-[#CDAA7D]/20">
-                      A guild dedicated to the art of potion-making and alchemy. We share recipes, techniques, and
-                      collaborate on complex brewing projects.
-                    </p>
-                    <div className="flex flex-col sm:flex-row sm:justify-between gap-2 text-sm">
-                      <span className="bg-[#CDAA7D]/20 text-[#2C1A1D] px-3 py-1 rounded-xl font-medium">3 members</span>
-                      <span className="bg-[#8B75AA]/20 text-[#2C1A1D] px-3 py-1 rounded-xl font-medium">Created: 4/15/2023</span>
                     </div>
                   </div>
-                </div>
-
-                {/* Tavern Defenders */}
-                <div className="bg-[#fff7e0]/90 backdrop-blur-sm rounded-3xl border-2 border-[#CDAA7D]/40 overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300">
-                  <div className="p-6">
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="w-16 h-16 bg-gradient-to-br from-[#2C1A1D] to-[#8B75AA] rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg">
-                        🛡️
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-bold text-xl text-[#2C1A1D]">Tavern Defenders</h3>
-                        <p className="text-[#8B75AA] font-semibold bg-[#8B75AA]/10 px-3 py-1 rounded-xl text-sm inline-block">Protection</p>
-                      </div>
-                    </div>
-                    <p className="text-[#2C1A1D]/80 text-sm leading-relaxed mb-4 bg-[#fff7e0]/60 rounded-2xl p-4 border border-[#CDAA7D]/20">
-                      The official guild for those who help protect and maintain the PeerQuest Tavern. Members get
-                      priority on tavern-related quests.
-                    </p>
-                    <div className="flex flex-col sm:flex-row sm:justify-between gap-2 text-sm">
-                      <span className="bg-[#CDAA7D]/20 text-[#2C1A1D] px-3 py-1 rounded-xl font-medium">2 members</span>
-                      <span className="bg-[#8B75AA]/20 text-[#2C1A1D] px-3 py-1 rounded-xl font-medium">Created: 2/10/2023</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Creative Crafters */}
-                <div className="bg-[#fff7e0]/90 backdrop-blur-sm rounded-3xl border-2 border-[#CDAA7D]/40 overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300">
-                  <div className="p-6">
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="w-16 h-16 bg-gradient-to-br from-[#2C1A1D] to-[#8B75AA] rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg">
-                        🎨
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-bold text-xl text-[#2C1A1D]">Creative Crafters</h3>
-                        <p className="text-[#8B75AA] font-semibold bg-[#8B75AA]/10 px-3 py-1 rounded-xl text-sm inline-block">Art & Design</p>
-                      </div>
-                      <div className="bg-gradient-to-r from-[#CDAA7D] to-[#8B75AA] text-white text-xs px-3 py-2 rounded-2xl font-bold shadow-lg">Guild Master</div>
-                    </div>
-                    <p className="text-[#2C1A1D]/80 text-sm leading-relaxed mb-4 bg-[#fff7e0]/60 rounded-2xl p-4 border border-[#CDAA7D]/20">
-                      A guild for artists, designers, and creators of all kinds. We collaborate on creative projects and
-                      share techniques.
-                    </p>
-                    <div className="flex flex-col sm:flex-row sm:justify-between gap-2 text-sm">
-                      <span className="bg-[#CDAA7D]/20 text-[#2C1A1D] px-3 py-1 rounded-xl font-medium">1 member</span>
-                      <span className="bg-[#8B75AA]/20 text-[#2C1A1D] px-3 py-1 rounded-xl font-medium">Created: 6/20/2023</span>
-                    </div>
-                  </div>
-                </div>
+                ))}
               </div>
             ) : (
               <div className="bg-[#fff7e0]/90 backdrop-blur-sm rounded-3xl p-8 border-2 border-[#CDAA7D]/40 text-center shadow-xl">
@@ -480,13 +781,13 @@ export function IntegratedProfile({ currentUser, quests, guilds, navigateToSecti
 
         {/* Achievements Tab */}
         {activeTab === "achievements" && (
-          <div className="bg-[#fff7e0]/90 backdrop-blur-sm rounded-3xl p-8 border-2 border-[#CDAA7D]/40 text-center shadow-xl">
-            <div className="text-6xl mb-4">🏆</div>
-            <p className="text-[#2C1A1D]/60 text-lg font-medium">No achievements yet.</p>
-            <p className="text-[#2C1A1D]/40 text-sm mt-4 bg-[#fff7e0]/60 rounded-2xl p-4 border border-[#CDAA7D]/20">Complete quests and participate in guild activities to earn achievements!</p>
+          <div className="bg-[#fff7e0]/90 backdrop-blur-sm rounded-3xl p-8 border-2 border-[#CDAA7D]/40 shadow-xl">
+            <AchievementsSection userId={currentUser.id} />
           </div>
         )}
       </div>
     </section>
-  )
+  );
 }
+
+export default IntegratedProfile;

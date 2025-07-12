@@ -36,21 +36,26 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
   const [submissions, setSubmissions] = useState<QuestSubmission[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [completionResult, setCompletionResult] = useState<any>(null);
 
+  // Fetch submissions and optionally completion result
   useEffect(() => {
     if (!isOpen || !quest) return;
     setLoading(true);
     setError(null);
-    QuestAPI.getQuestSubmissions(quest.slug)
-      .then((data) => {
+    Promise.all([
+      QuestAPI.getQuestSubmissions(quest.slug),
+      quest.status === 'completed' ? QuestAPI.getQuest(quest.slug) : Promise.resolve(null)
+    ])
+      .then(([data, questData]) => {
         const submissionsArray = Array.isArray(data) ? data : [];
-        
-        // Sort submissions by most recent first
-        const sortedSubmissions = submissionsArray.sort((a, b) => 
-          new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime()
-        );
-        
+        const sortedSubmissions = submissionsArray.sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
         setSubmissions(sortedSubmissions);
+        if (questData && questData.completion_result) {
+          setCompletionResult(questData.completion_result);
+        } else {
+          setCompletionResult(null);
+        }
       })
       .catch(() => {
         setError("Failed to load submissions.");
@@ -118,6 +123,28 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
               <p className="text-sm text-green-700 mt-1">
                 This quest has been marked as completed. Participants have been awarded their rewards.
               </p>
+              {completionResult && (
+                <div className="mt-2 text-green-900 text-sm">
+                  <strong>Reward Summary:</strong><br />
+                  {completionResult.participant_results && completionResult.participant_results.length > 0 && (
+                    <>
+                      <span>Participants: </span>
+                      {completionResult.participant_results.map((r: any, idx: number) => (
+                        <span key={r.user}>
+                          {r.user}: {r.xp_awarded} XP, {r.gold_awarded} Gold{idx < completionResult.participant_results.length - 1 ? '; ' : ''}
+                        </span>
+                      ))}
+                      <br />
+                    </>
+                  )}
+                  {completionResult.admin_award && (
+                    <span>Admin: {completionResult.admin_award.user} received {completionResult.admin_award.xp_awarded} XP, {completionResult.admin_award.gold_awarded} Gold</span>
+                  )}
+                  {completionResult.admin_balance && (
+                    <div>Admin Balance: {completionResult.admin_balance.xp} XP, {completionResult.admin_balance.gold} Gold</div>
+                  )}
+                </div>
+              )}
             </div>
           )}
           
@@ -158,17 +185,53 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
                 
                 <div className="flex justify-end">
                   <button
-                    onClick={hasPendingSubmissions ? undefined : onMarkComplete}
-                    disabled={hasPendingSubmissions}
+                    onClick={async () => {
+                      if (hasPendingSubmissions) return;
+                      if (!quest) return;
+                      setLoading(true);
+                      try {
+                        let result = null;
+                        try {
+                          result = await QuestAPI.completeQuest(quest.slug, {
+                            completion_reason: "Completed by creator via UI",
+                            participant_results: [],
+                          });
+                        } catch (err: any) {
+                          // Fallback: try legacy PATCH if POST fails (for backward compatibility)
+                          console.warn("Primary quest completion endpoint failed, trying PATCH fallback", err);
+                          result = await QuestAPI.updateQuestStatus(quest.slug, "completed");
+                        }
+                        if (result) {
+                          setCompletionResult(result);
+                          if (showToast) showToast("Quest marked as completed and rewards distributed!", "success");
+                          if (typeof result === 'object' && 'admin_balance' in result && result.admin_balance) {
+                            showToast && showToast(`Admin balance: ${result.admin_balance.xp} XP, ${result.admin_balance.gold} Gold`, 'info');
+                          }
+                          // eslint-disable-next-line no-console
+                          console.log("[Quest Completion] Success:", result);
+                          alert("Quest completion succeeded! Rewards distributed. See console for details.");
+                        } else {
+                          if (showToast) showToast("Quest completion failed: No response from server.", "error");
+                          // eslint-disable-next-line no-console
+                          console.error("[Quest Completion] No result returned.");
+                        }
+                        if (onMarkComplete) onMarkComplete();
+                      } catch (err: any) {
+                        if (showToast) showToast("Failed to complete quest and distribute rewards.", "error");
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    disabled={hasPendingSubmissions || loading}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors font-semibold ${
-                      hasPendingSubmissions
+                      hasPendingSubmissions || loading
                         ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
                         : 'bg-green-500 text-white hover:bg-green-600'
                     }`}
                     title={hasPendingSubmissions ? 'Review all submissions before completing quest' : 'Complete quest and award rewards'}
                   >
                     <CheckCircle2 size={18} />
-                    <span>Complete Quest</span>
+                    <span>{loading ? 'Completing...' : 'Complete Quest'}</span>
                   </button>
                 </div>
               </div>

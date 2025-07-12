@@ -40,6 +40,11 @@ class CustomUserAdmin(UserAdmin):
         'is_active', 'is_banned', 'ban_reason', 'ban_expires_at','level', 'experience_points', 
         'date_joined', 'last_login'
     ]
+
+    def experience_points(self, obj):
+        return obj.xp
+    experience_points.admin_order_field = 'xp'
+    experience_points.short_description = 'XP'
     list_filter = [
         'is_staff', 'is_active', 'level', 'date_joined', 'last_login',
         'is_superuser'
@@ -177,4 +182,17 @@ class CustomUserAdmin(UserAdmin):
     def has_add_permission(self, request):
         return request.user.is_superuser or request.user.is_staff
 
-# To add CRUD for other apps, import and register their models here when they exist.
+# Register XPTransaction and GoldTransaction models for admin visibility
+from .models_reward import XPTransaction, GoldTransaction
+
+@admin.register(XPTransaction)
+class XPTransactionAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'amount', 'reason', 'created_at')
+    list_filter = ('reason', 'created_at')
+    search_fields = ('user__username', 'reason')
+
+@admin.register(GoldTransaction)
+class GoldTransactionAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'amount', 'reason', 'created_at')
+    list_filter = ('reason', 'created_at')
+    search_fields = ('user__username', 'reason')

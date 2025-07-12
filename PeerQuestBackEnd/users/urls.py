@@ -12,6 +12,8 @@ from .admin_views import AdminUserListView, AdminUserBanView, AdminUserUnbanView
 from .ban_appeal_views import BanAppealSubmitView, BanAppealListView, BanAppealReviewView
 from .action_log_views import ActionLogListView
 from .ai_chatbot_proxy import AIChatbotProxyView
+from .achievement_views import UserAchievementsView  # <-- New import
+from .achievement_full_api import UserAchievementsFullView  # <-- New import for full achievements
 
 urlpatterns = [
     # Authenticated user endpoints
@@ -67,4 +69,7 @@ urlpatterns = [
     path("action-log/", ActionLogListView.as_view(), name="action-log-list"),
     # AI Chatbot API (Proxy)
     path("ai-chat/", AIChatbotProxyView.as_view(), name="ai-chatbot-proxy"),
+    # User Achievements API
+    path('<uuid:user_id>/achievements/', UserAchievementsView.as_view(), name='user-achievements'),
+    path('<uuid:user_id>/achievements-full/', UserAchievementsFullView.as_view(), name='user-achievements-full'),  # <-- New endpoint for full achievements
 ]

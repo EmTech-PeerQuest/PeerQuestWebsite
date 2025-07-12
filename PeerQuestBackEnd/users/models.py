@@ -173,8 +173,17 @@ class User(AbstractUser):
     avatar_data = models.TextField(blank=True, null=True)  # For base64 image data
     bio = models.TextField(blank=True)
     level = models.IntegerField(default=1)
-    experience_points = models.IntegerField(default=0)
-    gold_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    # Removed experience_points and gold_balance fields; now use transaction tables
+    from .models_reward import XPTransaction, GoldTransaction
+    @property
+    def xp(self):
+        from .models_reward import XPTransaction
+        return XPTransaction.objects.filter(user=self).aggregate(models.Sum('amount'))['amount__sum'] or 0
+
+    @property
+    def gold(self):
+        from .models_reward import GoldTransaction
+        return GoldTransaction.objects.filter(user=self).aggregate(models.Sum('amount'))['amount__sum'] or 0
     is_admin = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
     verification_documents = models.JSONField(default=dict, blank=True)
@@ -251,8 +260,8 @@ class User(AbstractUser):
         self.last_password_change = timezone.now()
 
     def calculate_level(self):
-        # Implement your level calculation logic
-        return min(100, max(1, self.experience_points // 1000))
+        # Level is now based on transaction-based XP
+        return min(100, max(1, self.xp // 1000))
 
     # Role hierarchy methods
     def role_level(self):
@@ -365,7 +374,9 @@ class UserSkill(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.skill.name} ({self.proficiency_level})"
 
-class UserAchievement(models.Model):
+
+# Master Achievement model
+class Achievement(models.Model):
     class RarityLevel(models.TextChoices):
         COMMON = 'common', _('Common')
         UNCOMMON = 'uncommon', _('Uncommon')
@@ -374,17 +385,30 @@ class UserAchievement(models.Model):
         LEGENDARY = 'legendary', _('Legendary')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='achievements')
-    achievement_type = models.CharField(max_length=50)
-    achievement_name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
     icon_url = models.URLField(max_length=255, blank=True)
     rarity = models.CharField(max_length=10, choices=RarityLevel.choices, default=RarityLevel.COMMON)
     points_value = models.IntegerField(default=0)
     category = models.CharField(max_length=50, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'achievement_name')
+        ordering = ['-rarity', 'name']
+
+    def __str__(self):
+        return f"{self.name} ({self.rarity})"
+
+# UserAchievement now references Achievement
+class UserAchievement(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='achievements')
+    achievement = models.ForeignKey(Achievement, on_delete=models.CASCADE, related_name='user_achievements', null=True, blank=True)
+    awarded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'achievement')
 
 class PasswordHistory(models.Model):
     """Track user password history for security."""

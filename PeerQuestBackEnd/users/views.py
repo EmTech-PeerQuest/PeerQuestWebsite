@@ -1362,15 +1362,27 @@ class CurrentUserView(APIView):
 
     def get(self, request):
         user = request.user
-        # You can use a serializer if you want more fields or custom formatting
+        # Return all relevant fields for the profile, including XP and gold
         data = {
             'id': user.id,
             'username': user.username,
             'email': user.email,
             'first_name': getattr(user, 'first_name', ''),
             'last_name': getattr(user, 'last_name', ''),
-            # Add more fields as needed
+            'bio': getattr(user, 'bio', ''),
+            'avatar': getattr(user, 'avatar', ''),
+            'date_joined': getattr(user, 'date_joined', None),
+            'level': getattr(user, 'level', None),
+            'experience_points': getattr(user, 'experience_points', 0),
+            'gold_balance': getattr(user, 'gold_balance', 0),
+            'role': getattr(user, 'role', ''),
+            'role_display': getattr(user, 'role_display', ''),
+            'is_admin': getattr(user, 'is_admin', False),
+            # Add any other fields needed by the frontend here
         }
+        # For compatibility, also provide 'xp' and 'gold' keys
+        data['xp'] = data['experience_points']
+        data['gold'] = data['gold_balance']
         return Response(data)
 
 class UpdateProfileView(APIView):

@@ -199,6 +199,7 @@ export interface Quest {
   // Legacy fields for compatibility
   reward?: number
   xp?: number
+  experience_points?: number // Backend field for XP, sometimes used instead of xp
   poster?: User
   deadline?: string
   applicants?: any[]

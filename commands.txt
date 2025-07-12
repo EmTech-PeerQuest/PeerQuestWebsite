@@ -133,3 +133,8 @@ git pull origin your-branch
 git fetch origin
 git merge origin/main
 
+# Add XP to a user (Docker):
+docker-compose exec backend python manage.py add_xp <username_or_id> <amount>
+# Example:
+docker-compose exec backend python manage.py add_xp admin 100
+

@@ -23,7 +23,7 @@ import { GoldSystemModal } from '@/components/gold/gold-system-modal'
 import { useRouter } from 'next/navigation'
 import Spinner from '@/components/ui/spinner'
 import LoadingModal from '@/components/ui/loading-modal'
-import { IntegratedProfile } from '@/components/profile/integrated-profile'
+import IntegratedProfile from '@/components/profile/integrated-profile'
 import type { User, Quest, Guild, GuildJoinRequest, CreateGuildData } from "@/lib/types"
 import { fetchInitialData } from '@/lib/api/init-data'
 import { SimpleGuildManagement } from '@/components/guilds/simple-guild-management'
