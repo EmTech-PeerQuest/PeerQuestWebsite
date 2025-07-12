@@ -14,6 +14,15 @@ docker-compose stop backend
 To start again: (Just type)
 docker-compose up backend
 
+//////////If done edits in the Docker files///////////
+docker-compose down --volumes  # Clear containers & volumes
+docker-compose build           # Force rebuild with new Dockerfile
+docker-compose up              # Run with updated config
+
+(In a separate terminal)
+docker-compose exec backend python manage.py migrate
+docker-compose exec backend python manage.py createsuperuser
+
 
 ////////// Docker START ONLY //////////
 docker-compose up

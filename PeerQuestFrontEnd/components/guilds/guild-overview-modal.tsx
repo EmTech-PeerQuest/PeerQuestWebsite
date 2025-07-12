@@ -1,7 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, Users, Crown, MessageCircle, Settings, DollarSign, Star, ChevronDown } from "lucide-react"
+import {
+  X, Users, Crown, MessageCircle, Settings, DollarSign, Star, ChevronDown,
+} from "lucide-react"
 import type { Guild, User, GuildMembership } from "@/lib/types"
 import { guildApi } from "@/lib/api/guilds"
 
@@ -11,11 +13,11 @@ interface GuildOverviewModalProps {
   guild: Guild
   currentUser: User | null
   onJoinGuild: (guildId: string, message: string) => void
-  onOpenChat: (guildId: number) => void
-  onOpenSettings?: (guildId: number) => void
+  onOpenChat: (guildId: string) => void
+  onOpenSettings?: (guildId: string) => void
   onManageGuild?: (guild: Guild) => void
   showToast: (message: string, type?: string) => void
-  isOwnedGuild?: boolean // Add prop to specify if this is an owned guild
+  isOwnedGuild?: boolean
 }
 
 export function GuildOverviewModal({
@@ -39,21 +41,19 @@ export function GuildOverviewModal({
 
   if (!isOpen) return null
 
-  // Use the isOwnedGuild prop to determine management capabilities, 
-  // fallback to checking guild ownership for backwards compatibility
   const isOwner = isOwnedGuild || (currentUser && (
-    String(guild.owner?.id) === String(currentUser.id) || 
+    String(guild.owner?.id) === String(currentUser.id) ||
     guild.poster?.username === currentUser.username
   ))
-  const isAdmin = false // For now, we'll focus on ownership
-  const isMember = currentUser && guildMembers.some(membership => 
-    String(membership.user.id) === String(currentUser.id) && 
-    membership.status === 'approved' && 
-    membership.is_active
-  )
+
+  const isMember = currentUser && guildMembers.some(m => (
+    String(m.user.id) === String(currentUser.id) &&
+    m.status === 'approved' &&
+    m.is_active
+  ))
+
   const canManage = isOwner
 
-  // Fetch guild members when modal opens
   useEffect(() => {
     if (isOpen && guild.guild_id) {
       fetchGuildMembers()
@@ -66,71 +66,54 @@ export function GuildOverviewModal({
       const members = await guildApi.getGuildMembers(guild.guild_id)
       setGuildMembers(members)
     } catch (error) {
-      console.error('Failed to fetch guild members:', error)
-      showToast('Failed to load guild members', 'error')
+      console.error("Failed to fetch guild members", error)
+      showToast("Failed to load guild members", "error")
     } finally {
       setLoadingMembers(false)
     }
   }
 
-  // Utility to get a valid guildId (always prefer string UUID if present)
   function getValidGuildId(guild: Guild): string | null {
-    if (typeof guild.guild_id === 'string' && guild.guild_id && guild.guild_id !== 'NaN' && guild.guild_id !== 'undefined' && guild.guild_id !== 'null' && guild.guild_id.length >= 8) {
-      return guild.guild_id;
-    }
-    if (typeof guild.id === 'string' && guild.id && guild.id !== 'NaN' && guild.id !== 'undefined' && guild.id !== 'null' && guild.id.length >= 8) {
-      return guild.id;
-    }
-    if (typeof guild.id === 'number' && guild.id > 0) {
-      return guild.id.toString();
-    }
-    return null;
+    if (typeof guild.guild_id === 'string' && guild.guild_id?.length >= 8) return guild.guild_id
+    if (typeof guild.id === 'string' && guild.id?.length >= 8) return guild.id
+    if (typeof guild.id === 'number' && guild.id > 0) return guild.id.toString()
+    return null
   }
 
   const handleJoinClick = async () => {
-    if (!currentUser) {
-      showToast("Please log in to join guilds", "error")
-      return
-    }
+    if (!currentUser) return showToast("Please log in to join guilds", "error")
 
     if (guild.require_approval) {
       setShowJoinForm(true)
     } else {
-      const guildId = getValidGuildId(guild);
+      const guildId = getValidGuildId(guild)
       if (guildId) {
         try {
           await onJoinGuild(guildId, "")
-          // Refresh guild members to update membership status
           await fetchGuildMembers()
           onClose()
-        } catch (error) {
-          console.error('Failed to join guild:', error)
-          showToast('Failed to join guild. Please try again.', 'error')
+        } catch (e) {
+          console.error(e)
+          showToast("Failed to join guild. Please try again.", "error")
         }
       } else {
-        showToast('Invalid guild. Please try again.', 'error');
+        showToast("Invalid guild. Please try again.", "error")
       }
     }
   }
 
   const handleJoinSubmit = async () => {
-    if (joinMessage.trim()) {
-      const guildId = getValidGuildId(guild);
-      if (guildId) {
-        try {
-          await onJoinGuild(guildId, joinMessage)
-          setShowJoinForm(false)
-          setJoinMessage("")
-          // Refresh guild members to update membership status
-          await fetchGuildMembers()
-          onClose()
-        } catch (error) {
-          console.error('Failed to join guild:', error)
-          showToast('Failed to join guild. Please try again.', 'error')
-        }
-      } else {
-        showToast('Invalid guild. Please try again.', 'error');
-      }
+    const guildId = getValidGuildId(guild)
+    if (!joinMessage.trim() || !guildId) return showToast("Invalid request", "error")
+    try {
+      await onJoinGuild(guildId, joinMessage.trim())
+      setShowJoinForm(false)
+      setJoinMessage("")
+      await fetchGuildMembers()
+      onClose()
+    } catch (e) {
+      console.error(e)
+      showToast("Failed to join guild. Please try again.", "error")
     }
   }
 
@@ -209,8 +192,8 @@ export function GuildOverviewModal({
             {isMember && (
               <button
                 onClick={() => {
-                  const guildId = (guild.id || guild.guild_id) as number
-                  if (guildId) onOpenChat(guildId)
+                const guildId = (guild.id || guild.guild_id)?.toString()
+                if (guildId) onOpenChat(guildId)
                 }}
                 className="px-3 py-1.5 bg-[#CDAA7D] text-[#2C1A1D] rounded text-sm hover:bg-[#B8956A] transition-colors flex items-center gap-1"
               >
@@ -225,7 +208,7 @@ export function GuildOverviewModal({
                     onManageGuild(guild)
                     onClose()
                   } else if (onOpenSettings && guild.id) {
-                    onOpenSettings(guild.id as number)
+                    onOpenSettings(guild.id.toString())
                   }
                 }}
                 className="px-3 py-1.5 border border-white text-white rounded text-sm hover:bg-white hover:text-[#2C1A1D] transition-colors flex items-center gap-1"
@@ -407,7 +390,7 @@ export function GuildOverviewModal({
               <button
                 onClick={() => {
                   const guildId = (guild.id || guild.guild_id) as number
-                  if (guildId) onOpenChat(guildId)
+                  if (guildId) onOpenChat(guild.guild_id)
                 }}
                 className="px-4 py-2 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699] transition-colors"
               >

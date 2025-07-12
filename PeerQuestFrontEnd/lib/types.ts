@@ -390,6 +390,7 @@ export interface Conversation {
   last_message_date?: string
   created_at?: string
   guildId?: string
+  hasUnreadMessages?: boolean;
 }
 
 export interface Message {

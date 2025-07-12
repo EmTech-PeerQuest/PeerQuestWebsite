@@ -6,9 +6,21 @@ User = get_user_model()
 
 
 class UserSerializer(serializers.ModelSerializer):
+    avatar_url = serializers.SerializerMethodField()
     class Meta:
         model = User
-        fields = ['id', 'username', 'first_name', 'email']
+        fields = ['id', 'username', 'first_name', 'email', 'avatar_url']
+
+    def get_avatar_url(self, obj):
+        try:
+            avatar_url = getattr(obj, 'avatar_url', None)
+            if avatar_url:
+                return avatar_url
+            username = getattr(obj, 'username', None) or 'U'
+            return f'https://ui-avatars.com/api/?name={username}&background=8b75aa&color=fff&size=128'
+        except Exception as e:
+            print("get_avatar_url error:", e)
+            return 'https://ui-avatars.com/api/?name=U&background=8b75aa&color=fff&size=128'
 
 
 class GuildTagSerializer(serializers.ModelSerializer):
@@ -225,3 +237,24 @@ class GuildJoinRequestSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
         return super().create(validated_data)
+
+# --- Guild Chat Message Serializer ---
+from .models import GuildChatMessage
+
+class GuildChatMessageSerializer(serializers.ModelSerializer):
+    sender = UserSerializer(read_only=True)
+    senderName = serializers.SerializerMethodField()
+    senderAvatar = serializers.SerializerMethodField()
+    class Meta:
+        model = GuildChatMessage
+        fields = ['id', 'guild', 'sender', 'content', 'created_at', 'senderName', 'senderAvatar']
+
+    def get_senderName(self, obj):
+        return obj.sender.username if obj.sender else "Unknown"
+
+    def get_senderAvatar(self, obj):
+        if hasattr(obj.sender, 'avatar_url') and obj.sender.avatar_url:
+            return obj.sender.avatar_url
+        elif obj.sender and obj.sender.username:
+            return obj.sender.username[0]
+        return "U"

@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
+import Avatar from "@/components/ui/avatar";
 import type {
   Conversation,
   Message,
@@ -44,10 +45,11 @@ export default function MessagingSystem({
     return null
   })
   const [messages, setMessages] = useState<Message[]>([])
+  // Track currently typing users (for typing indicator)
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
-  const [onlineMap, setOnlineMap] = useState<Map<string, UserStatus>>(
-    onlineUsers
-  )
+  // Hybrid: local presence map for conversation, fallback to global
+  const [onlineMap, setOnlineMap] = useState<Map<string, UserStatus>>(onlineUsers);
   const [infoOpen, setInfoOpen] = useState(false)
   const [newMessage, setNewMessage] = useState("")
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
@@ -241,12 +243,7 @@ export default function MessagingSystem({
   // Render avatar with online status indicator
   const renderAvatar = useCallback(
     (user: User, size?: "sm" | "md" | "lg") => {
-      // Use only onlineMap for online status; never pass isOnline as a prop
-      const status = onlineMap.get(user.id) || "offline";
-      let sizeClass = "w-8 h-8";
-      if (size === "sm") sizeClass = "w-6 h-6";
-      if (size === "lg") sizeClass = "w-12 h-12";
-      // Dot color and label by status
+      const status = onlineMap.get(user.id) || onlineUsers.get(user.id) || "offline";
       let dotColor = "bg-gray-300";
       let dotLabel = "Offline";
       if (status === "online") {
@@ -256,19 +253,10 @@ export default function MessagingSystem({
         dotColor = "bg-amber-400";
         dotLabel = "Idle";
       }
-      // Always show Online if status is online, never show Offline if user is online
-      // Fix: If status is online, always show Online label
       const showLabel = status === "online" ? "Online" : dotLabel;
       return (
-        <div className={`relative ${sizeClass}`}>
-          <div className={`${sizeClass} rounded-full bg-gray-400 text-white flex items-center justify-center font-bold`}>
-            {user.avatar ? (
-              <img src={user.avatar} alt={user.username || "?"} className="w-full h-full rounded-full object-cover" />
-            ) : (
-              user.username ? user.username[0] : "?"
-            )}
-          </div>
-          {/* Online status dot (no label here, just dot) */}
+        <div className="relative">
+          <Avatar user={user} size={size || "md"} />
           <span
             className={`absolute bottom-0 right-0 ${size === "lg" ? "w-4 h-4" : size === "sm" ? "w-2.5 h-2.5" : "w-3 h-3"} rounded-full border-2 border-white ${dotColor}`}
             title={showLabel}
@@ -276,7 +264,7 @@ export default function MessagingSystem({
         </div>
       );
     },
-    [onlineMap]
+    [onlineMap, onlineUsers]
   )
 
   const getOtherParticipant = useCallback(
@@ -290,21 +278,27 @@ export default function MessagingSystem({
       setActiveId(conv.id)
       localStorage.setItem("activeConversationId", conv.id);
       setInfoOpen(false)
-      if (
-        conv.last_message &&
-        !conv.last_message.read &&
-        conv.last_message.sender.id !== currentUser.id
-      ) {
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === conv.id
-              ? { ...c, last_message: { ...c.last_message!, read: true } }
-              : c
-          )
-        )
+      // Send read_receipt for all unread messages from the other user
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        const unread = messages
+          .filter(
+            (m) =>
+              m.conversation_id === conv.id &&
+              !m.read &&
+              m.sender.id !== currentUser.id
+          );
+        console.log("[WS] Sending read_receipt for message IDs:", unread.map(m => m.id));
+        unread.forEach((m) => {
+          wsRef.current!.send(
+            JSON.stringify({
+              type: "read_receipt",
+              message_id: m.id,
+            })
+          );
+        });
       }
     },
-    [currentUser.id]
+    [currentUser.id, messages]
   )
 
   const handleConversationUpdate = useCallback((id: string, msg: Message) => {
@@ -498,9 +492,10 @@ export default function MessagingSystem({
 
             if (!Array.isArray(data.messages)) return;
 
+            // Do not set status to delivered/read on initial fetch; only update via WebSocket events
             const realMessages = (data.messages || []).map((m: Message) => ({
               ...m,
-              status: (m.read ? "read" : "sent") as MessageStatus,
+              status: m.status as MessageStatus || "sent",
             }));
 
             setMessages((existing) => {
@@ -566,22 +561,34 @@ export default function MessagingSystem({
 
 
         case "message_status":
+          console.log("[WS] message_status event:", data);
           setMessages((prev) =>
             prev.map((m) => {
+              // Only update status for the correct message and only for the sender
               const isTarget =
                 (m.id === data.message_id ||
                   (m.id.startsWith("temp") && data.sender_id === currentUser.id)) &&
                 m.sender.id === currentUser.id;
-
               return isTarget ? { ...m, status: data.status as MessageStatus } : m;
             })
-          )
+          );
+          return;
 
 
-        case "typing":
+        case "typing": {
           if (data.user_id === currentUser.id) return;
 
-          setIsOtherUserTyping(true);
+          // Add or update typing user
+          setTypingUsers((prev) => {
+            const exists = prev.some((u) => u.user_id === data.user_id);
+            if (exists) {
+              return prev.map((u) =>
+                u.user_id === data.user_id ? { ...u, username: data.username } : u
+              );
+            } else {
+              return [...prev, { user_id: data.user_id, username: data.username }];
+            }
+          });
 
           // Clear previous timeout
           if (typingTimeouts.current.has(data.user_id)) {
@@ -589,12 +596,13 @@ export default function MessagingSystem({
           }
 
           const timeout = setTimeout(() => {
-            setIsOtherUserTyping(false);
+            setTypingUsers((prev) => prev.filter((u) => u.user_id !== data.user_id));
             typingTimeouts.current.delete(data.user_id);
           }, 3000);
 
           typingTimeouts.current.set(data.user_id, timeout);
           return;
+        }
 
 
 
@@ -610,13 +618,12 @@ export default function MessagingSystem({
           return
 
         case "presence_update":
-          console.log("📡 Presence update received:", data)
           setOnlineMap((prev) =>
             new Map(prev).set(
               data.user_id,
               data.is_online ? "online" : "offline"
             )
-          )
+          );
           return
       }
     },
@@ -821,13 +828,13 @@ export default function MessagingSystem({
   }, [API, mounted, showToast]);
 
 
-  // sync external onlineUsers updates
+  // Sync global presence context to local map for fallback
   useEffect(() => {
     if (onlineUsers && onlineUsers.size > 0) {
       setOnlineMap((prev) => {
         const updated = new Map(prev);
         for (const [id, status] of onlineUsers.entries()) {
-          updated.set(id, status);
+          if (!updated.has(id)) updated.set(id, status);
         }
         return updated;
       });
@@ -930,7 +937,7 @@ export default function MessagingSystem({
               currentUser={currentUser}
               onSendMessage={onSendMessage}
               onTyping={onTyping}
-              isOtherUserTyping={isOtherUserTyping}
+              typingUsers={typingUsers.filter(u => u.user_id !== currentUser.id)}
               wsConnected={wsStatus === "connected"}
               wsError={wsStatus === "disconnected" ? "Disconnected" : undefined}
               newMessage={newMessage}
@@ -952,7 +959,8 @@ export default function MessagingSystem({
               activeConversation={activeConv}
               conversations={conversations}
               getOtherParticipant={getOtherParticipant}
-              isLoading={isLoadingMessages} typingUsers={[]}            />
+              isLoading={isLoadingMessages}
+            />
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center p-8">
@@ -966,14 +974,14 @@ export default function MessagingSystem({
         {infoOpen && activeConv && (
           <>
             <motion.div
-              className="absolute inset-0 bg-black/30 z-40"
+              className="fixed inset-0 bg-black/30 z-[100]"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setInfoOpen(false)}
             />
             <motion.div
-              className="absolute top-0 right-0 bottom-0 w-full sm:w-[400px] md:w-[450px] z-50 border-l border-gray-200 shadow-xl overflow-y-auto"
+              className="fixed top-0 right-0 bottom-0 w-full sm:w-[400px] md:w-[450px] h-screen z-[110] border-l border-gray-200 shadow-xl bg-white overflow-y-auto"
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}

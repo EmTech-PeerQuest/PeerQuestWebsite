@@ -4,6 +4,7 @@ import type { Guild, User, GuildMembership } from "@/lib/types"
 import { GuildOverviewModal } from '@/components/guilds/guild-overview-modal'
 import { GuildChatModal } from '@/components/guilds/guild-chat-modal'
 import { guildApi } from '@/lib/api/guilds'
+import { usePresence } from '@/context/PresenceContext'
 
 interface GuildHallProps {
   guilds: Guild[]
@@ -28,6 +29,8 @@ export function GuildHall({
     id_type: typeof g.id,
     name: g.name
   })));
+  // Presence context
+  const { onlineUsers } = usePresence();
   // Filter out guilds with invalid guild_id (must be a valid UUID string)
   const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
   const validGuilds = guilds.filter(g =>
@@ -171,14 +174,24 @@ export function GuildHall({
     setShowOverviewModal(true)
   }
 
-  const handleOpenChat = (guildId: number) => {
-    const guild = guilds.find((g) => (g.guild_id || g.id) === guildId)
+  const handleOpenChat = (guildId: string) => {
+    if (!uuidRegex.test(guildId)) {
+      console.warn('[handleOpenChat] Invalid UUID:', guildId)
+      return
+    }
+
+    const guild = guilds.find((g) => g.guild_id === guildId)
+
     if (guild) {
       setSelectedGuild(guild)
       setShowChatModal(true)
       setShowOverviewModal(false)
+    } else {
+      console.warn('[handleOpenChat] No guild found for UUID:', guildId)
     }
   }
+
+
 
   const submitJoinRequest = async () => {
     // Strict validation for selectedGuildId
@@ -431,9 +444,9 @@ export function GuildHall({
         )}
 
         {/* Guild Overview Modal */}
-        {selectedGuild && (
+        {showOverviewModal && selectedGuild && (
           <GuildOverviewModal
-            isOpen={showOverviewModal}
+            isOpen={true}
             onClose={() => {
               console.log('🔍 Guild overview modal closing')
               setShowOverviewModal(false)
@@ -447,16 +460,24 @@ export function GuildHall({
           />
         )}
 
-        {/* Guild Chat Modal */}
-        {selectedGuild && (
+
+        {showChatModal && selectedGuild && (
           <GuildChatModal
-            isOpen={showChatModal}
+            isOpen={true}
             onClose={() => setShowChatModal(false)}
             guild={selectedGuild}
             currentUser={currentUser}
             showToast={showToast}
+            userMemberships={{
+              [selectedGuild.guild_id]: userMemberships[selectedGuild.guild_id] || false
+            }}
+            token={typeof window !== "undefined" ? localStorage.getItem("access_token") || "" : ""}
+            onlineUsers={onlineUsers}
           />
         )}
+
+
+
 
         {/* Features Section */}
         <section>

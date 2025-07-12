@@ -347,17 +347,27 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
     async def handle_read_receipt(self, data):
         mid = data.get("message_id")
-        msg = await mark_message_read(mid)
-        if msg:
-            sender_id = str(msg.sender.id)
-            await self.channel_layer.group_send(
-                f"user_{sender_id}",
-                {
-                    "type": "message.status",
-                    "message_id": mid,
-                    "status": "read",
-                },
-            )
+        user = self.scope["user"]
+        from messaging.models import Message
+        try:
+            msg = await sync_to_async(Message.objects.get)(id=mid)
+        except Message.DoesNotExist:
+            logger.warning(f"[WS] read_receipt: Message {mid} does not exist.")
+            return
+        if str(msg.recipient.id) != str(user.id):
+            logger.warning(f"[WS] read_receipt: User {user.id} is not recipient of message {mid}.")
+            return
+        logger.info(f"[WS] read_receipt: User {user.id} marking message {mid} as read.")
+        await mark_message_read(mid)
+        sender_id = str(msg.sender.id)
+        await self.channel_layer.group_send(
+            f"user_{sender_id}",
+            {
+                "type": "message.status",
+                "message_id": mid,
+                "status": "read",
+            },
+        )
 
 
     # — Event handlers for group_send —

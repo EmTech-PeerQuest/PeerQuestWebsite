@@ -8,6 +8,8 @@ from .views import (
 
 app_name = 'guilds'
 
+from .views import GuildChatMessageListView
+
 urlpatterns = [
     # Guild CRUD operations
     path('', GuildListView.as_view(), name='guild-list'),  # Guild Hall
@@ -29,4 +31,6 @@ urlpatterns = [
     path('<uuid:guild_id>/join-requests/', guild_join_requests, name='guild-join-requests'),
     path('<uuid:guild_id>/join-requests/<int:request_id>/process/', 
          process_join_request, name='process-join-request'),
+    # Guild chat messages
+    path('<uuid:guild_id>/messages/', GuildChatMessageListView.as_view(), name='guild-messages'),
 ]
