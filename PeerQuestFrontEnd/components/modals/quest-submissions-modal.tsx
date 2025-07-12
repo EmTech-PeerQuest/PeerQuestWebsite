@@ -214,7 +214,6 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
                         // Find all approved submissions
                         const approvedSubs = submissions.filter(sub => sub.status === 'approved');
                         if (approvedSubs.length === 0) {
-                          if (showToast) showToast("No approved submissions to complete.", "error");
                           setLoading(false);
                           return;
                         }
@@ -253,23 +252,16 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
                             if (res.ok) {
                               const data = await res.json();
                               results.push(data);
-                            } else {
-                              // fallback: show error
-                              const err = await res.json().catch(() => ({}));
-                              if (showToast) showToast(err.detail || 'Failed to create completion log.', 'error');
                             }
                           } catch (err) {
                             // Already approved or error
                           }
                         }
                         setCompletionResult(results);
-                        if (showToast) showToast("Quest marked as completed and rewards distributed!", "success");
-                        // eslint-disable-next-line no-console
-                        console.log("[Quest Completion] Success:", results);
-                        alert("Quest completion succeeded! Rewards distributed. See console for details.");
+                        if (showToast) showToast('Quest marked as completed and rewards distributed!', 'success');
                         if (onMarkComplete) onMarkComplete();
                       } catch (err: any) {
-                        if (showToast) showToast("Failed to complete quest and distribute rewards.", "error");
+                        setLoading(false);
                       } finally {
                         setLoading(false);
                       }
@@ -459,7 +451,25 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
                     {canReviewSubmissions && submission.status === 'pending' && (
                       <div className="flex flex-col sm:flex-row gap-3 mt-3 pt-3 border-t border-gray-200 justify-center">
                         <button
-                          onClick={() => onApproveSubmission?.(submission.id)}
+                          onClick={async () => {
+                            try {
+                              if (onApproveSubmission) {
+                                await onApproveSubmission(submission.id);
+                                // Refetch submissions after approval
+                                if (quest) {
+                                  setLoading(true);
+                                  const submissionsData = await QuestAPI.getQuestSubmissions(quest.slug);
+                                  const sortedSubmissions = Array.isArray(submissionsData)
+                                    ? submissionsData.sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
+                                    : [];
+                                  setSubmissions(sortedSubmissions);
+                                  setLoading(false);
+                                }
+                              }
+                            } catch (err) {
+                              setLoading(false);
+                            }
+                          }}
                           className="flex items-center justify-center gap-2 px-6 py-3 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-semibold text-sm min-w-[140px] sm:flex-1 sm:max-w-[200px]"
                         >
                           <CheckCircle2 size={16} />
