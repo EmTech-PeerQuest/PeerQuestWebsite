@@ -184,6 +184,18 @@ class User(AbstractUser):
     def gold(self):
         from .models_reward import GoldTransaction
         return GoldTransaction.objects.filter(user=self).aggregate(models.Sum('amount'))['amount__sum'] or 0
+
+    @gold.setter
+    def gold(self, value):
+        """
+        Set the user's gold by creating a GoldTransaction to adjust the balance.
+        This setter will create a transaction for the difference between the new value and the current value.
+        """
+        from .models_reward import GoldTransaction
+        current_gold = self.gold
+        diff = value - current_gold
+        if diff != 0:
+            GoldTransaction.objects.create(user=self, amount=diff, reason='admin_set')
     is_admin = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
     verification_documents = models.JSONField(default=dict, blank=True)
