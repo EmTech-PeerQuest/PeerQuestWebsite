@@ -43,25 +43,46 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
     if (!isOpen || !quest) return;
     setLoading(true);
     setError(null);
-    Promise.all([
-      QuestAPI.getQuestSubmissions(quest.slug),
-      quest.status === 'completed' ? QuestAPI.getQuest(quest.slug) : Promise.resolve(null)
-    ])
-      .then(([data, questData]) => {
-        const submissionsArray = Array.isArray(data) ? data : [];
+    // Fetch submissions and, if completed, the quest completion log for reward info
+    const fetchData = async () => {
+      try {
+        const submissionsData = await QuestAPI.getQuestSubmissions(quest.slug);
+        const submissionsArray = Array.isArray(submissionsData) ? submissionsData : [];
         const sortedSubmissions = submissionsArray.sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
         setSubmissions(sortedSubmissions);
-        if (questData && questData.completion_result) {
-          setCompletionResult(questData.completion_result);
+        if (quest.status === 'completed') {
+          // Find all approved submissions and fetch their completion logs
+          const approvedSubs = sortedSubmissions.filter(sub => sub.status === 'approved');
+          if (approvedSubs.length > 0) {
+            try {
+              // Fetch all logs in parallel
+              const logs = await Promise.all(
+                approvedSubs.map(async (sub) => {
+                  const res = await fetch(`${API_BASE_URL}/quests/completion_log/?quest=${quest.id}&adventurer=${sub.participant_username}`);
+                  if (res.ok) {
+                    return await res.json();
+                  }
+                  return null;
+                })
+              );
+              setCompletionResult(logs.filter(Boolean));
+            } catch {
+              setCompletionResult(null);
+            }
+          } else {
+            setCompletionResult(null);
+          }
         } else {
           setCompletionResult(null);
         }
-      })
-      .catch(() => {
+      } catch {
         setError("Failed to load submissions.");
         if (showToast) showToast("Failed to load submissions", "error");
-      })
-      .finally(() => setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
   }, [isOpen, quest]);
 
   if (!isOpen || !quest) return null;
@@ -190,31 +211,62 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
                       if (!quest) return;
                       setLoading(true);
                       try {
-                        let result = null;
+                        // Find all approved submissions
+                        const approvedSubs = submissions.filter(sub => sub.status === 'approved');
+                        if (approvedSubs.length === 0) {
+                          if (showToast) showToast("No approved submissions to complete.", "error");
+                          setLoading(false);
+                          return;
+                        }
+                        // Fetch quest participants to map usernames to user IDs
+                        let participantMap: Record<string, number> = {};
                         try {
-                          result = await QuestAPI.completeQuest(quest.slug, {
-                            completion_reason: "Completed by creator via UI",
-                            participant_results: [],
-                          });
-                        } catch (err: any) {
-                          // Fallback: try legacy PATCH if POST fails (for backward compatibility)
-                          console.warn("Primary quest completion endpoint failed, trying PATCH fallback", err);
-                          result = await QuestAPI.updateQuestStatus(quest.slug, "completed");
+                          const participants = await QuestAPI.getQuestParticipants(quest.slug);
+                          participantMap = participants.reduce((acc, p) => {
+                            if (p.user && p.user.username) {
+                              acc[p.user.username] = p.user.id;
+                            }
+                            return acc;
+                          }, {} as Record<string, number>);
+                        } catch (e) {
+                          // fallback: no mapping
                         }
-                        if (result) {
-                          setCompletionResult(result);
-                          if (showToast) showToast("Quest marked as completed and rewards distributed!", "success");
-                          if (typeof result === 'object' && 'admin_balance' in result && result.admin_balance) {
-                            showToast && showToast(`Admin balance: ${result.admin_balance.xp} XP, ${result.admin_balance.gold} Gold`, 'info');
+                        // Call the new QuestCompletionLog API for each approved submission
+                        const results = [];
+                        for (const sub of approvedSubs) {
+                          try {
+                            const userId = participantMap[sub.participant_username] || sub.id; // fallback to sub.id if mapping fails
+                            const res = await fetch(`${API_BASE_URL}/quests/completion_log/create/`, {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                ...(typeof window !== 'undefined' && localStorage.getItem('access_token') ? { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` } : {})
+                              },
+                              credentials: 'include',
+                              body: JSON.stringify({
+                                quest_id: quest.id,
+                                adventurer_id: userId,
+                                xp_earned: quest.xp_reward || 0,
+                                gold_earned: quest.gold_reward || 0
+                              })
+                            });
+                            if (res.ok) {
+                              const data = await res.json();
+                              results.push(data);
+                            } else {
+                              // fallback: show error
+                              const err = await res.json().catch(() => ({}));
+                              if (showToast) showToast(err.detail || 'Failed to create completion log.', 'error');
+                            }
+                          } catch (err) {
+                            // Already approved or error
                           }
-                          // eslint-disable-next-line no-console
-                          console.log("[Quest Completion] Success:", result);
-                          alert("Quest completion succeeded! Rewards distributed. See console for details.");
-                        } else {
-                          if (showToast) showToast("Quest completion failed: No response from server.", "error");
-                          // eslint-disable-next-line no-console
-                          console.error("[Quest Completion] No result returned.");
                         }
+                        setCompletionResult(results);
+                        if (showToast) showToast("Quest marked as completed and rewards distributed!", "success");
+                        // eslint-disable-next-line no-console
+                        console.log("[Quest Completion] Success:", results);
+                        alert("Quest completion succeeded! Rewards distributed. See console for details.");
                         if (onMarkComplete) onMarkComplete();
                       } catch (err: any) {
                         if (showToast) showToast("Failed to complete quest and distribute rewards.", "error");

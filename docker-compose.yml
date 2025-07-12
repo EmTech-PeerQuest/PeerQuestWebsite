@@ -15,8 +15,12 @@ services:
       sh -c "if [ \"$USE_DJANGO_DEV_SERVER\" = 'true' ]; then python manage.py runserver 0.0.0.0:8000; else daphne -b 0.0.0.0 -p 8000 core.asgi:application; fi"
     volumes:
       - ./PeerQuestBackEnd:/app
-    # Optional: Mount venv for pip cache (uncomment if needed)
-    # - ./PeerQuestBackEnd/venv:/app/venv
+      - ./PeerQuestBackEnd/core:/app/core  # Ensures code changes in core/ reload
+      - ./PeerQuestBackEnd/blog:/app/blog  # Ensures code changes in blog/ reload
+      - ./PeerQuestBackEnd/blog_api:/app/blog_api  # Ensures code changes in blog_api/ reload
+      - ./PeerQuestBackEnd/users:/app/users  # Ensures code changes in users/ reload
+      - ./PeerQuestBackEnd/media:/app/media  # For media uploads
+      # - ./PeerQuestBackEnd/venv:/app/venv  # Optional: pip cache
     ports:
       - "8000:8000"
     depends_on:
@@ -26,6 +30,8 @@ services:
     environment:
       - DJANGO_SETTINGS_MODULE=core.settings
       - USE_DJANGO_DEV_SERVER=true
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
       # Add any other env vars you need
   frontend:
     build:
@@ -36,7 +42,9 @@ services:
     volumes:
       - ./PeerQuestFrontEnd:/app
       - /app/node_modules
-      # .next is built output, not needed for dev hot reload
+      - ./PeerQuestFrontEnd/pages:/app/pages  # Hot reload for Next.js pages
+      - ./PeerQuestFrontEnd/components:/app/components  # Hot reload for components
+      - ./PeerQuestFrontEnd/public:/app/public  # Hot reload for static assets
     depends_on:
       - backend
     env_file:
@@ -45,6 +53,8 @@ services:
     environment:
       - NODE_ENV=development
       - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true  # Ensures hot reload works in Docker
+      - NEXT_TELEMETRY_DISABLED=1
 
   mysql:
     image: mysql:8

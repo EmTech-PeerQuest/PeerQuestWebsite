@@ -9,6 +9,7 @@ class TransactionType(models.TextChoices):
     TRANSFER = 'TRANSFER', 'Transfer'
     REFUND = 'REFUND', 'Refund'
     CASHOUT = 'CASHOUT', 'Cashout'
+    QUEST_REWARD = 'QUEST_REWARD', 'Quest Reward'
 
 class Transaction(models.Model):
     transaction_id = models.AutoField(primary_key=True, help_text='Primary key, auto-increment')

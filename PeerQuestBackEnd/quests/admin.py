@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django import forms
-from .models import Quest, QuestCategory, QuestParticipant, QuestSubmission, QuestSubmissionAttempt
+from .models import Quest, QuestCategory, QuestParticipant, QuestSubmission, QuestSubmissionAttempt, QuestCompletionLog
 
 
 class QuestAdminForm(forms.ModelForm):
@@ -396,4 +396,14 @@ class QuestSubmissionAttemptAdmin(admin.ModelAdmin):
     search_fields = ['participant__user__username', 'quest__title', 'user__username']
     list_filter = ['quest', 'user', 'timestamp']
     readonly_fields = ['timestamp']
+    list_per_page = 50
+
+
+@admin.register(QuestCompletionLog)
+class QuestCompletionLogAdmin(admin.ModelAdmin):
+    list_display = ['id', 'quest', 'adventurer', 'xp_earned', 'gold_earned', 'completed_at']
+    search_fields = ['quest__title', 'adventurer__username']
+    list_filter = ['quest', 'adventurer', 'completed_at']
+    readonly_fields = ['completed_at']
+    date_hierarchy = 'completed_at'
     list_per_page = 50

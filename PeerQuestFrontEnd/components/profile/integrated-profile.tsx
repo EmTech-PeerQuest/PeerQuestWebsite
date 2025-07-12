@@ -37,7 +37,16 @@ function AchievementsSection({ userId }: { userId: string | number }) {
       setLoading(true);
       setError(null);
       try {
-        const res = await api.get(`/users/${userId}/achievements-full/`);
+        // Connect to Achievements API (robust: try /users/:id/achievements-full/ and fallback to /api/achievements/)
+        let res;
+        try {
+          res = await api.get(`/users/${userId}/achievements-full/`);
+        } catch (err) {
+          // fallback endpoint if needed
+          res = await api.get(`/api/achievements/?user_id=${userId}`);
+        }
+        // Debug: log API response
+        console.log('[Achievements] API response:', res.data);
         setOwned(Array.isArray(res.data?.owned) ? res.data.owned : []);
         setUnowned(Array.isArray(res.data?.unowned) ? res.data.unowned : []);
       } catch (err: any) {
@@ -142,29 +151,9 @@ function AchievementsSection({ userId }: { userId: string | number }) {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-4">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#8B75AA]" />
-        <span className="ml-2 text-[#2C1A1D]">Loading achievements...</span>
-      </div>
-    );
-  }
-  if (error) {
-    return <p className="text-red-500 text-sm bg-red-50 rounded-2xl p-3 border border-red-200">{error}</p>;
-  }
-  if (!owned.length && !unowned.length) {
-    return (
-      <>
-        <div className="text-6xl mb-4">🏆</div>
-        <p className="text-[#2C1A1D]/60 text-lg font-medium">No achievements yet.</p>
-        <p className="text-[#2C1A1D]/40 text-sm mt-4 bg-[#fff7e0]/60 rounded-2xl p-4 border border-[#CDAA7D]/20">Complete quests and participate in guild activities to earn achievements!</p>
-      </>
-    );
-  }
   return (
-    <div>
-      {/* Search and Filter Bar */}
+    <div className="bg-[#fff7e0]/90 backdrop-blur-sm rounded-3xl p-8 border-2 border-[#CDAA7D]/40 shadow-xl">
+      {/* Always show search/filter bar */}
       <div className="flex flex-col sm:flex-row items-center gap-3 mb-6">
         <input
           type="text"
@@ -188,46 +177,64 @@ function AchievementsSection({ userId }: { userId: string | number }) {
           >Locked</button>
         </div>
       </div>
-
-      {/* Owned Achievements */}
-      {showOwned && (
-        <>
-          <h4 className="text-lg font-bold text-[#8B75AA] mb-2">Unlocked Achievements</h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-            {filteredOwned.length === 0 && <div className="col-span-2 text-[#2C1A1D]/60">No achievements unlocked yet.</div>}
-            {filteredOwned.map((ach) => (
-              <div key={ach.id} className="bg-[#fff7e0]/60 rounded-2xl p-4 border border-[#CDAA7D]/20 text-left shadow hover:shadow-lg transition-all duration-300">
-                <div className="flex items-center mb-2">
-                  <span className="text-2xl mr-2">🏅</span>
-                  <span className="font-bold text-[#8B75AA] text-lg">{ach.achievement_name}</span>
-                </div>
-                <div className="text-[#2C1A1D] text-sm mb-1">{ach.description}</div>
-                <div className="text-xs text-[#CDAA7D]">{ach.earned_at ? `Earned: ${new Date(ach.earned_at).toLocaleDateString()}` : null}</div>
-              </div>
-            ))}
+      {loading ? (
+        <div className="flex items-center justify-center p-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#8B75AA]" />
+          <span className="ml-2 text-[#2C1A1D]">Loading achievements...</span>
+        </div>
+      ) : error ? (
+        <p className="text-red-500 text-sm bg-red-50 rounded-2xl p-3 border border-red-200">{error}</p>
+      ) : !owned.length && !unowned.length ? (
+        <div className="flex flex-col items-center justify-center py-8">
+          <div className="flex items-center justify-center w-full">
+            <span className="text-7xl sm:text-8xl mb-4 flex items-center justify-center">🏆</span>
           </div>
-        </>
-      )}
-
-      {/* Unowned Achievements */}
-      {showUnowned && (
+          <p className="text-[#2C1A1D]/60 text-lg font-medium text-center">No achievements yet.</p>
+          <p className="text-[#2C1A1D]/40 text-sm mt-4 bg-[#fff7e0]/60 rounded-2xl p-4 border border-[#CDAA7D]/20 text-center">Complete quests and participate in guild activities to earn achievements!</p>
+        </div>
+      ) : (
         <>
-          <h4 className="text-lg font-bold text-[#CDAA7D] mb-2">Locked Achievements</h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {filteredUnowned.length === 0 && <div className="col-span-2 text-[#2C1A1D]/40">All achievements unlocked!</div>}
-            {filteredUnowned.map((ach) => (
-              <div key={ach.id} className="bg-[#e0e0e0]/60 rounded-2xl p-4 border border-[#CDAA7D]/20 text-left shadow relative opacity-60 grayscale">
-                <div className="flex items-center mb-2">
-                  <span className="text-2xl mr-2">🏅</span>
-                  <span className="font-bold text-[#8B75AA] text-lg">{ach.achievement_name}</span>
-                </div>
-                <div className="text-[#2C1A1D] text-sm mb-1">{ach.description}</div>
-                <div className="text-xs text-[#CDAA7D]">Locked</div>
-                <div className="text-xs text-[#2C1A1D]/70 mt-2 italic">How to unlock: {getInstruction(ach)}</div>
-                <div className="absolute inset-0 bg-[#fff] opacity-30 rounded-2xl pointer-events-none" />
+          {/* Owned Achievements */}
+          {showOwned && (
+            <>
+              <h4 className="text-lg font-bold text-[#8B75AA] mb-2">Unlocked Achievements</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                {filteredOwned.length === 0 && <div className="col-span-2 text-[#2C1A1D]/60">No achievements unlocked yet.</div>}
+                {filteredOwned.map((ach) => (
+                  <div key={ach.id} className="bg-[#fff7e0]/60 rounded-2xl p-4 border border-[#CDAA7D]/20 text-left shadow hover:shadow-lg transition-all duration-300">
+                    <div className="flex items-center mb-2">
+                      <span className="text-2xl mr-2">🏅</span>
+                      <span className="font-bold text-[#8B75AA] text-lg">{ach.achievement_name}</span>
+                    </div>
+                    <div className="text-[#2C1A1D] text-sm mb-1">{ach.description}</div>
+                    <div className="text-xs text-[#CDAA7D]">{ach.earned_at ? `Earned: ${new Date(ach.earned_at).toLocaleDateString()}` : null}</div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
+
+          {/* Unowned Achievements */}
+          {showUnowned && (
+            <>
+              <h4 className="text-lg font-bold text-[#CDAA7D] mb-2">Locked Achievements</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {filteredUnowned.length === 0 && <div className="col-span-2 text-[#2C1A1D]/40">All achievements unlocked!</div>}
+                {filteredUnowned.map((ach) => (
+                  <div key={ach.id} className="bg-[#e0e0e0]/60 rounded-2xl p-4 border border-[#CDAA7D]/20 text-left shadow relative opacity-60 grayscale">
+                    <div className="flex items-center mb-2">
+                      <span className="text-2xl mr-2">🏅</span>
+                      <span className="font-bold text-[#8B75AA] text-lg">{ach.achievement_name}</span>
+                    </div>
+                    <div className="text-[#2C1A1D] text-sm mb-1">{ach.description}</div>
+                    <div className="text-xs text-[#CDAA7D]">Locked</div>
+                    <div className="text-xs text-[#2C1A1D]/70 mt-2 italic">How to unlock: {getInstruction(ach)}</div>
+                    <div className="absolute inset-0 bg-[#fff] opacity-30 rounded-2xl pointer-events-none" />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
@@ -416,33 +423,87 @@ function IntegratedProfile({ currentUser, quests: propQuests, guilds: propGuilds
   };
   const avatar = getAvatar(currentUser);
   const joinDate = getJoinDate(currentUser);
-  // Fetch live XP and gold from API for the current user
-  const [userXp, setUserXp] = useState<number>(typeof currentUser.xp === 'number' ? currentUser.xp : (typeof currentUser.experience_points === 'number' ? currentUser.experience_points : 0));
-  const [userGold, setUserGold] = useState<number>(typeof currentUser.gold === 'number' ? currentUser.gold : (typeof currentUser.gold_balance === 'number' ? Number(currentUser.gold_balance) : 0));
+  // Fetch XP ONLY from Users table (top-level fields only, never from profile)
+  const getInitialXp = (u: any) => {
+    if (typeof u.xp === 'number') return u.xp;
+    if (typeof u.experience_points === 'number') return u.experience_points;
+    return 0;
+  };
+  const getInitialGold = (u: any) => {
+    if (typeof u.gold === 'number') return u.gold;
+    if (typeof u.gold_balance === 'number') return Number(u.gold_balance);
+    if (u.profile && typeof u.profile.gold === 'number') return u.profile.gold;
+    if (u.profile && typeof u.profile.gold_balance === 'number') return Number(u.profile.gold_balance);
+    return 0;
+  };
+  const [userXp, setUserXp] = useState<number>(() => {
+    const xp = getInitialXp(currentUser);
+    return (typeof xp === 'number' && !isNaN(xp) && xp >= 0) ? xp : 0;
+  });
+  const [userGold, setUserGold] = useState<number>(() => {
+    const gold = getInitialGold(currentUser);
+    return (typeof gold === 'number' && !isNaN(gold) && gold >= 0) ? gold : 0;
+  });
+
+  // When currentUser changes, only update userXp if the new value is valid (from Users table only)
+  useEffect(() => {
+    const xp = getInitialXp(currentUser);
+    console.log('[Profile] currentUser XP on prop change:', xp, currentUser);
+    if (typeof xp === 'number' && !isNaN(xp) && xp >= 0) {
+      setUserXp(xp);
+    }
+    // Gold logic unchanged
+    const gold = getInitialGold(currentUser);
+    if (typeof gold === 'number' && !isNaN(gold) && gold >= 0) {
+      setUserGold(gold);
+    }
+  }, [currentUser]);
   const [xpLoading, setXpLoading] = useState(false);
   const [xpError, setXpError] = useState<string | null>(null);
 
+  // Only update XP if the API returns a new value from Users table (never from profile)
   useEffect(() => {
+    let isMounted = true;
     const fetchUserXp = async () => {
       setXpLoading(true);
       setXpError(null);
       try {
         const res = await api.get('/users/me/');
         const data = res && res.data ? res.data : res;
-        if (data && typeof data.xp === 'number') setUserXp(data.xp);
-        else if (typeof data.experience_points === 'number') setUserXp(data.experience_points);
-        if (typeof data.gold === 'number') setUserGold(data.gold);
-        else if (typeof data.gold_balance === 'number') setUserGold(Number(data.gold_balance));
+        // Only use top-level XP fields from Users table
+        let xp = undefined;
+        if (typeof data.xp === 'number') xp = data.xp;
+        else if (typeof data.experience_points === 'number') xp = data.experience_points;
+        console.log('[Profile] API XP:', xp, data);
+        // Only update if xp is a valid non-negative number and not undefined/null/NaN
+        if (isMounted && typeof xp === 'number' && !isNaN(xp) && xp >= 0 && xp !== userXp) {
+          setUserXp(xp);
+        } else if (isMounted && (typeof xp !== 'number' || isNaN(xp) || xp < 0)) {
+          // Don't update, but warn for debugging
+          console.warn('XP fetch: invalid or missing XP value from API (Users table only):', xp, data);
+        }
+        // Gold logic unchanged, but avoid redeclaration
+        let gold;
+        if (typeof data.gold === 'number') gold = data.gold;
+        else if (typeof data.gold_balance === 'number') gold = Number(data.gold_balance);
+        else if (data.profile && typeof data.profile.gold === 'number') gold = data.profile.gold;
+        else if (data.profile && typeof data.profile.gold_balance === 'number') gold = Number(data.profile.gold_balance);
+        if (isMounted && typeof gold === 'number' && !isNaN(gold) && gold >= 0 && gold !== userGold) {
+          setUserGold(gold);
+        } else if (isMounted && (typeof gold !== 'number' || isNaN(gold) || gold < 0)) {
+          console.warn('Gold fetch: invalid or missing gold value from API:', gold, data);
+        }
       } catch (err) {
-        setXpError('Could not load XP/gold.');
+        if (isMounted) setXpError('Could not load XP/gold.');
       } finally {
-        setXpLoading(false);
+        if (isMounted) setXpLoading(false);
       }
     };
     fetchUserXp();
+    return () => { isMounted = false; };
   }, [currentUser?.id]);
 
-  // XP/Level calculation
+  // XP/Level calculation (robust: supports 1000 XP per level, fallback to 100 if needed)
   const xpForNextLevel = 1000;
   const userLevel = Math.floor(userXp / xpForNextLevel) + 1;
   const xpThisLevel = userXp % xpForNextLevel;
@@ -590,7 +651,7 @@ function IntegratedProfile({ currentUser, quests: propQuests, guilds: propGuilds
                   <span className="font-medium text-[#2C1A1D]">Gold:</span>
                   <span className="font-bold text-[#CDAA7D] text-lg flex items-center">
                     <span className="mr-1">🪙</span>
-                    {typeof currentUser.gold === 'number' ? currentUser.gold : 0}
+                    {userGold}
                   </span>
                 </div>
               </div>
@@ -781,9 +842,7 @@ function IntegratedProfile({ currentUser, quests: propQuests, guilds: propGuilds
 
         {/* Achievements Tab */}
         {activeTab === "achievements" && (
-          <div className="bg-[#fff7e0]/90 backdrop-blur-sm rounded-3xl p-8 border-2 border-[#CDAA7D]/40 shadow-xl">
-            <AchievementsSection userId={currentUser.id} />
-          </div>
+          <AchievementsSection userId={currentUser.id} />
         )}
       </div>
     </section>

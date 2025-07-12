@@ -1357,12 +1357,35 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
+
+# --- API endpoint: Return all relevant fields for the current user, including XP and gold ---
 class CurrentUserView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
-        # Return all relevant fields for the profile, including XP and gold
+        # Defensive: always get XP and gold from the canonical User model fields
+        data = {
+            'id': str(user.id),
+            'username': user.username,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'avatar_url': getattr(user, 'avatar_url', None),
+            'bio': getattr(user, 'bio', ''),
+            'xp': getattr(user, 'xp', 0),
+            'experience_points': getattr(user, 'xp', 0),  # alias for frontend compatibility
+            'gold': getattr(user, 'gold', 0),
+            'gold_balance': getattr(user, 'gold', 0),     # alias for frontend compatibility
+            'level': getattr(user, 'level', 1),
+            'email_verified': getattr(user, 'email_verified', False),
+            'is_banned': getattr(user, 'is_banned', False),
+            'ban_reason': getattr(user, 'ban_reason', ''),
+            'ban_expires_at': getattr(user, 'ban_expires_at', None),
+            'date_joined': user.date_joined,
+            # Add any other fields needed by the frontend here
+        }
+        return Response(data)
         data = {
             'id': user.id,
             'username': user.username,

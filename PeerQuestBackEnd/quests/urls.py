@@ -29,6 +29,9 @@ from .views import (
     AdminQuestListView,
     AdminQuestDetailView,
     get_submission_count,
+    CompleteQuestView,
+    QuestCompletionLogListView,
+    QuestCompletionLogCreateView,
 )
 
 app_name = 'quests'
@@ -72,6 +75,13 @@ urlpatterns = [
     # Admin Views
     path('admin/quests/', AdminQuestListView.as_view(), name='admin-quest-list'),
     path('admin/quests/<slug:slug>/', AdminQuestDetailView.as_view(), name='admin-quest-detail'),
+    
+    # Quest Completion
+    path('complete/', CompleteQuestView.as_view(), name='quest-complete'),
+    
+    # Quest Completion Log
+    path('completion_log/', QuestCompletionLogListView.as_view(), name='quest-completion-log-list'),
+    path('completion_log/create/', QuestCompletionLogCreateView.as_view(), name='quest-completion-log-create'),
 ]
 
 """

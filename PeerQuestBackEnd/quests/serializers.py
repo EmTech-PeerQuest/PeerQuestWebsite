@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Quest, QuestCategory, QuestParticipant, QuestSubmission, QuestSubmissionAttempt
+from .models import Quest, QuestCategory, QuestParticipant, QuestSubmission, QuestSubmissionAttempt, QuestCompletionLog
 
 User = get_user_model()
 
@@ -623,3 +623,12 @@ class QuestSubmissionReviewSerializer(serializers.ModelSerializer):
                 'admin_excess_gold': gold_excess
             }
         return data
+
+
+class QuestCompletionLogSerializer(serializers.ModelSerializer):
+    quest_title = serializers.CharField(source='quest.title', read_only=True)
+    adventurer_username = serializers.CharField(source='adventurer.username', read_only=True)
+
+    class Meta:
+        model = QuestCompletionLog
+        fields = ['id', 'quest', 'quest_title', 'adventurer', 'adventurer_username', 'xp_earned', 'gold_earned', 'completed_at']
