@@ -553,16 +553,7 @@ class QuestSubmissionReviewViewSet(viewsets.ModelViewSet):
         participant.completed_at = timezone.now()
         participant.save()
 
-        # Grant rewards using XPTransaction and GoldTransaction
-        from users.models_reward import XPTransaction, GoldTransaction
-        xp_awarded = getattr(quest, 'xp_reward', getattr(quest, 'reward_xp', 0))
-        gold_awarded = getattr(quest, 'gold_reward', getattr(quest, 'reward_gold', 0))
-        # If quest has multiple participants, divide rewards
-        participant_count = max(1, quest.participant_count)
-        xp_awarded = xp_awarded // participant_count
-        gold_awarded = int(gold_awarded // participant_count)
-        xp_tx = XPTransaction.objects.create(user=adventurer, amount=xp_awarded, reason=f"Quest '{quest.title}' submission approved")
-        gold_tx = GoldTransaction.objects.create(user=adventurer, amount=gold_awarded, reason=f"Quest '{quest.title}' submission approved")
+        # XP and Gold transactions are now handled in QuestCompletionLog.save()
 
         # Update adventurer's level if needed
         adventurer.refresh_from_db()

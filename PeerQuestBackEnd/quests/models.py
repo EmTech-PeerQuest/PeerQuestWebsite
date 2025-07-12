@@ -389,7 +389,6 @@ class Quest(models.Model):
         completion_results = []
 
         from .models import QuestCompletionLog
-        from users.models_reward import XPTransaction, GoldTransaction
         for participant in participants:
             # Mark as completed if not already
             if participant.status != 'completed':
@@ -397,7 +396,7 @@ class Quest(models.Model):
                 participant.completed_at = timezone.now()
                 participant.save()
             user = participant.user
-            # Create XP and Gold transactions in unified system
+            # Create Transaction records for XP and Gold (for unified transaction history)
             Transaction.objects.create(
                 user=user,
                 type=TransactionType.REWARD,
@@ -411,17 +410,6 @@ class Quest(models.Model):
                 amount=Decimal(gold_per),
                 description=f"Gold for quest '{self.title}' completion",
                 quest=self
-            )
-            # Also create XPTransaction and GoldTransaction for user (for .xp and .gold properties)
-            XPTransaction.objects.create(
-                user=user,
-                amount=xp_per,
-                reason=f"Quest '{self.title}' completion"
-            )
-            GoldTransaction.objects.create(
-                user=user,
-                amount=gold_per,
-                reason=f"Quest '{self.title}' completion"
             )
             # Update UserBalance for gold
             balance, _ = UserBalance.objects.get_or_create(user=user)
