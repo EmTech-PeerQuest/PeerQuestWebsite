@@ -162,28 +162,29 @@ export function TavernQuestCard({
               </div>
             </div>
             
-            {/* Difficulty Badge */}
-            {(() => {
-              const tier = getTierInfo(quest.difficulty);
-              return (
-                <span className={`px-3 py-1 text-xs font-bold rounded-full border ${tier.color} flex items-center gap-1`}>
-                  <span>{tier.icon}</span>
-                  {tier.label}
-                </span>
-              );
-            })()}
+            {/* Difficulty and Status Badges */}
+            <div className="flex flex-col gap-2 items-end">
+              {/* Difficulty Badge */}
+              {(() => {
+                const tier = getTierInfo(quest.difficulty);
+                return (
+                  <span className={`px-3 py-1 text-xs font-bold rounded-full border ${tier.color} flex items-center gap-1`}>
+                    <span>{tier.icon}</span>
+                    {tier.label}
+                  </span>
+                );
+              })()}
+              
+              {/* Status Badge */}
+              <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getStatusColor(quest.status)}`}>
+                {quest.status.replace('-', ' ').toUpperCase()}
+              </span>
+            </div>
           </div>
         </div>
         
         {/* White Body Section */}
         <div className="p-4">
-          {/* Quest Status Badge */}
-          <div className="mb-3">
-            <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getStatusColor(quest.status)}`}>
-              {quest.status.replace('-', ' ').toUpperCase()}
-            </span>
-          </div>
-          
           {/* Reward Section */}
           <div className="bg-gradient-to-r from-amber-100 to-orange-100 rounded-lg p-3 mb-4">
             <div className="flex items-center justify-center gap-8">

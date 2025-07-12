@@ -250,7 +250,9 @@ class ApplicationViewSet(ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Get attempt information
+        # Get attempt information with detailed logging
+        logger.info(f"Checking attempts for user {request.user.username} on quest {quest_id}")
+        
         attempt_count = ApplicationAttempt.get_attempt_count(quest, request.user)
         can_apply, reason = ApplicationAttempt.can_apply_again(quest, request.user)
         
@@ -267,14 +269,18 @@ class ApplicationViewSet(ModelViewSet):
         if last_status == 'kicked':
             max_attempts = None  # Unlimited for kicked users
         
-        return Response({
+        result = {
             'quest_id': quest_id,
             'attempt_count': attempt_count,
             'max_attempts': max_attempts,
             'can_apply': can_apply,
             'reason': reason,
             'last_application_status': last_status
-        })
+        }
+        
+        logger.info(f"Attempt check result for user {request.user.username} on quest {quest_id}: {result}")
+        
+        return Response(result)
 
 # Temporary test views for debugging
 from rest_framework.decorators import api_view, permission_classes

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { useAudioContext } from '@/context/audio-context';
 import { useClickSound } from '@/hooks/use-click-sound';
 import { X, Coins, TrendingUp, TrendingDown, ArrowUpDown, CreditCard, Smartphone, CheckCircle, Clock, ArrowLeft } from "lucide-react"
@@ -521,16 +521,19 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
     switch (cashoutMethod) {
       case "gcash":
         return JSON.stringify({
+          method: "gcash",
           mobile_number: paymentDetails.gcash_number,
           account_name: paymentDetails.gcash_name
         })
       case "paymaya":
         return JSON.stringify({
+          method: "paymaya",
           mobile_number: paymentDetails.paymaya_number,
           account_name: paymentDetails.paymaya_name
         })
       case "bank":
         return JSON.stringify({
+          method: "bank",
           bank_name: paymentDetails.bank_name,
           account_number: paymentDetails.account_number,
           account_name: paymentDetails.account_name,
@@ -863,45 +866,55 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                 <p className="text-[#8B75AA]">Choose a package to enhance your questing experience</p>
               </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
-                {goldPackages.map((pkg) => (
-                  <div
-                    key={pkg.amount}
-                    className={`relative border-2 rounded-lg p-6 cursor-pointer transition-all hover:shadow-lg ${
-                      pkg.popular ? "border-[#8B75AA] bg-[#8B75AA]/5" : "border-[#CDAA7D] hover:border-[#8B75AA]/50"
-                    }`}
-                    onClick={() => {
-                      playSound('button')
-                      purchaseGold(pkg.id, pkg.amount, pkg.price, pkg.bonus)
-                    }}
-                  >
-                    {pkg.popular && (
-                      <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-[#8B75AA] text-white px-3 py-1 rounded-full text-xs font-bold">
-                        MOST POPULAR
-                      </div>
-                    )}
-                    <div className="flex justify-between items-center mb-4">
-                      <div className="flex items-center gap-3">
-                        <Coins size={32} className="text-[#CDAA7D]" />
-                        <div>
-                          <div className="text-xl font-bold text-[#2C1A1D]">{pkg.amount.toLocaleString()} Gold</div>
-                          <div className="text-sm text-[#8B75AA]">₱{pkg.price.toLocaleString()}</div>
-                        </div>
-                      </div>
-                      {pkg.bonus && (
-                        <div className="text-right">
-                          <div className="text-sm font-bold text-[#8B75AA] bg-[#CDAA7D]/20 px-2 py-1 rounded">
-                            {pkg.bonus}
-                          </div>
+              {packagesLoading ? (
+                <div className="text-center py-8">
+                  <div className="text-[#8B75AA]">Loading gold packages...</div>
+                </div>
+              ) : goldPackages.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-red-600">Failed to load gold packages. Please try refreshing the page.</div>
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-2 gap-4">
+                  {goldPackages.map((pkg) => (
+                    <div
+                      key={pkg.amount}
+                      className={`relative border-2 rounded-lg p-6 cursor-pointer transition-all hover:shadow-lg ${
+                        pkg.popular ? "border-[#8B75AA] bg-[#8B75AA]/5" : "border-[#CDAA7D] hover:border-[#8B75AA]/50"
+                      }`}
+                      onClick={() => {
+                        playSound('button')
+                        purchaseGold(pkg.id, pkg.amount, pkg.price, pkg.bonus)
+                      }}
+                    >
+                      {pkg.popular && (
+                        <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-[#8B75AA] text-white px-3 py-1 rounded-full text-xs font-bold">
+                          MOST POPULAR
                         </div>
                       )}
+                      <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-3">
+                          <Coins size={32} className="text-[#CDAA7D]" />
+                          <div>
+                            <div className="text-xl font-bold text-[#2C1A1D]">{pkg.amount.toLocaleString()} Gold</div>
+                            <div className="text-sm text-[#8B75AA]">₱{pkg.price.toLocaleString()}</div>
+                          </div>
+                        </div>
+                        {pkg.bonus && (
+                          <div className="text-right">
+                            <div className="text-sm font-bold text-[#8B75AA] bg-[#CDAA7D]/20 px-2 py-1 rounded">
+                              {pkg.bonus}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-xs text-[#8B75AA] text-center">
+                        ₱{(pkg.price / pkg.amount).toFixed(2)} per gold
+                      </div>
                     </div>
-                    <div className="text-xs text-[#8B75AA] text-center">
-                      ₱{(pkg.price / pkg.amount).toFixed(2)} per gold
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

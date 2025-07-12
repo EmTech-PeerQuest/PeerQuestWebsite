@@ -93,13 +93,18 @@ class Application(models.Model):
 
     def save(self, *args, **kwargs):
         """Override save to run validation and record application attempts"""
+        from django.db import transaction
+        
         self.clean()
         is_new = self.pk is None
-        super().save(*args, **kwargs)
         
-        # Record application attempt when creating a new application
-        if is_new and self.status == 'pending':
-            ApplicationAttempt.record_attempt(self)
+        # Use atomic transaction to ensure consistency
+        with transaction.atomic():
+            super().save(*args, **kwargs)
+            
+            # Record application attempt when creating a new application
+            if is_new and self.status == 'pending':
+                ApplicationAttempt.record_attempt(self)
 
     def approve(self, reviewer):
         """Approve the application and assign the quest to the applicant"""
@@ -333,11 +338,20 @@ class ApplicationAttempt(models.Model):
     
     @classmethod
     def record_attempt(cls, application):
-        """Record a new application attempt"""
-        attempt_count = cls.get_attempt_count(application.quest, application.applicant)
+        """Record a new application attempt using chronological order"""
+        # Get all applications for this user+quest created before or at the same time as this one
+        previous_applications = Application.objects.filter(
+            quest=application.quest,
+            applicant=application.applicant,
+            applied_at__lte=application.applied_at
+        ).order_by('applied_at')
+        
+        # The attempt number should be the position of this application in chronological order
+        attempt_number = list(previous_applications).index(application) + 1
+        
         return cls.objects.create(
             quest=application.quest,
             applicant=application.applicant,
             application=application,
-            attempt_number=attempt_count + 1
+            attempt_number=attempt_number
         )

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getApplicationsToMyQuests, approveApplication, rejectApplication, kickParticipant } from "@/lib/api/applications";
+import { QuestAPI } from "@/lib/api/quests";
 import { X, ScrollText, Users, CheckCircle, XCircle, Clock, Star, CircleDollarSign, Calendar, User, AlertCircle } from "lucide-react";
 import type { Application, User as UserType } from "@/lib/types";
 import { getDifficultyClass } from "@/lib/utils";
@@ -29,12 +30,67 @@ export function QuestManagementApplicationsModal({
   const [processingApplications, setProcessingApplications] = useState<Set<number>>(new Set())
   const [removalReason, setRemovalReason] = useState<string>("");
   const [removalTarget, setRemovalTarget] = useState<number | null>(null);
+  const [questSubmissions, setQuestSubmissions] = useState<Record<string, any[]>>({});
 
-  // Remove/Kick applicant handler
+  // Function to check if a participant has approved submissions
+  const hasApprovedSubmissions = (questId: number, participantUsername: string): boolean => {
+    const submissions = questSubmissions[questId] || [];
+    return submissions.some(submission => 
+      submission.participant_username === participantUsername && 
+      submission.status === 'approved'
+    );
+  };
+
+  // Function to check if quest has any pending submissions
+  const hasPendingSubmissions = (questId: number): boolean => {
+    const submissions = questSubmissions[questId] || [];
+    return submissions.some(submission => submission.status === 'pending');
+  };
+
+  // Load submissions for a quest using quest ID
+  const loadQuestSubmissions = async (questId: number, questSlug?: string) => {
+    try {
+      // We need the quest slug to get submissions, so let's get quest details first
+      if (!questSlug) {
+        // If we don't have slug, we'll skip loading submissions for now
+        // In a production app, you'd want to either add slug to Application.quest
+        // or have an endpoint that works with quest ID
+        console.warn(`Cannot load submissions for quest ${questId} - slug not available`);
+        return;
+      }
+      const submissions = await QuestAPI.getQuestSubmissions(questSlug);
+      setQuestSubmissions(prev => ({
+        ...prev,
+        [questId]: submissions
+      }));
+    } catch (error) {
+      console.error('Failed to load quest submissions:', error);
+    }
+  };
+
+  // Remove/Kick applicant handler with submission check
   const handleRemoveApplicant = async (applicationId: number) => {
     setProcessingApplications((prev) => new Set(prev).add(applicationId));
     setError(null);
     try {
+      const application = applicationsToMyQuests.find(app => app.id === applicationId);
+      if (!application) {
+        throw new Error('Application not found');
+      }
+
+      // Check if participant has approved submissions (simple warning for now)
+      // In a full implementation, you'd want to verify this with the backend
+      if (application.status === 'approved') {
+        const confirmKick = window.confirm(
+          `Warning: This participant may have submitted work for this quest. ` +
+          `Kicking them after work submission should only be done in exceptional circumstances. ` +
+          `Are you sure you want to proceed?`
+        );
+        if (!confirmKick) {
+          return;
+        }
+      }
+
       let reason = removalReason;
       if (removalTarget !== applicationId) reason = "";
       await kickParticipant(applicationId, reason);
@@ -74,6 +130,10 @@ export function QuestManagementApplicationsModal({
       const filteredAppsToMyQuests = questId ? appsToMyQuests.filter(app => app.quest.id === questId) : appsToMyQuests
       
       setApplicationsToMyQuests(filteredAppsToMyQuests)
+      
+      // Load submissions for each unique quest (skip for now since we need slug)
+      // const uniqueQuestIds = [...new Set(filteredAppsToMyQuests.map(app => app.quest.id))];
+      // We'll load submissions on-demand when checking kick eligibility
     } catch (err) {
       console.error('Failed to load applications:', err)
       const errorMessage = err instanceof Error ? err.message : 'Failed to load applications'
@@ -197,6 +257,7 @@ export function QuestManagementApplicationsModal({
             <button
               onClick={onClose}
               className="p-2 hover:bg-white/20 rounded-xl transition-colors"
+              title="Close applications modal"
             >
               <X size={24} />
             </button>
@@ -353,39 +414,49 @@ export function QuestManagementApplicationsModal({
                             </div>
                           )}
                           {/* Remove/Kick button for both pending and approved */}
-                          <div className="flex gap-2 items-center mt-1">
-                            {removalTarget === application.id ? (
-                              <>
-                                <input
-                                  type="text"
-                                  className="px-2 py-1 border rounded text-sm flex-1"
-                                  placeholder="Reason (optional)"
-                                  value={removalReason}
-                                  onChange={e => setRemovalReason(e.target.value)}
-                                  autoFocus
-                                />
-                                <button
-                                  onClick={() => handleRemoveApplicant(application.id)}
-                                  disabled={processingApplications.has(application.id)}
-                                  className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-semibold disabled:opacity-50"
-                                >
-                                  {processingApplications.has(application.id) ? 'Kicking...' : 'Confirm'}
-                                </button>
-                                <button
-                                  onClick={() => { setRemovalTarget(null); setRemovalReason(""); }}
-                                  className="px-2 py-1 text-xs text-gray-500 hover:text-gray-800"
-                                >Cancel</button>
-                              </>
-                            ) : (
-                              <button
-                                onClick={() => { setRemovalTarget(application.id); setRemovalReason(""); }}
-                                disabled={processingApplications.has(application.id)}
-                                className="px-4 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 text-xs font-semibold disabled:opacity-50"
-                              >
-                                Kick Participant
-                              </button>
-                            )}
-                          </div>
+                          {/* Only show kick button if quest is not completed and hasn't reached submission phase */}
+                          {application.quest.status !== 'completed' && (
+                            <div className="flex gap-2 items-center mt-1">
+                              {removalTarget === application.id ? (
+                                <>
+                                  <input
+                                    type="text"
+                                    className="px-2 py-1 border rounded text-sm flex-1"
+                                    placeholder="Reason (optional)"
+                                    value={removalReason}
+                                    onChange={e => setRemovalReason(e.target.value)}
+                                    autoFocus
+                                  />
+                                  <button
+                                    onClick={() => handleRemoveApplicant(application.id)}
+                                    disabled={processingApplications.has(application.id)}
+                                    className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs font-semibold disabled:opacity-50"
+                                  >
+                                    {processingApplications.has(application.id) ? 'Kicking...' : 'Confirm'}
+                                  </button>
+                                  <button
+                                    onClick={() => { setRemovalTarget(null); setRemovalReason(""); }}
+                                    className="px-2 py-1 text-xs text-gray-500 hover:text-gray-800"
+                                  >Cancel</button>
+                                </>
+                              ) : (
+                                <div className="flex flex-col gap-1">
+                                  <button
+                                    onClick={() => { setRemovalTarget(application.id); setRemovalReason(""); }}
+                                    disabled={processingApplications.has(application.id)}
+                                    className="px-4 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 text-xs font-semibold disabled:opacity-50"
+                                  >
+                                    Kick Participant
+                                  </button>
+                                  {application.status === 'approved' && application.quest.status === 'in-progress' && (
+                                    <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                                      ⚠️ Warning: Use carefully for active participants
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
