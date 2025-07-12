@@ -509,6 +509,17 @@ function IntegratedProfile({ currentUser, quests: propQuests, guilds: propGuilds
   const xpThisLevel = userXp % xpForNextLevel;
   const xpProgress = (xpThisLevel / xpForNextLevel) * 100;
 
+  // Level title based on XP
+  const getLevelTitle = (xp: number) => {
+    if (xp >= 50000) return "Legendary Adventurer";
+    if (xp >= 20000) return "Epic Adventurer";
+    if (xp >= 10000) return "Veteran Adventurer";
+    if (xp >= 5000) return "Seasoned Adventurer";
+    if (xp >= 1000) return "Adventurer";
+    if (xp >= 100) return "Rookie Adventurer";
+    return "Novice Adventurer";
+  };
+
   const tabs = [
     { id: "overview", label: "Overview" },
     { id: "quests", label: "Quests" },
@@ -541,7 +552,7 @@ function IntegratedProfile({ currentUser, quests: propQuests, guilds: propGuilds
             {/* User Info */}
             <div className="flex-1 text-center sm:text-left">
               <h2 className="text-3xl sm:text-4xl font-bold text-[#fff7e0] drop-shadow-lg tracking-wide">{currentUser.username || "HeroicAdventurer"}</h2>
-              <p className="text-[#CDAA7D] text-lg font-semibold mt-1 drop-shadow-sm">Novice Adventurer</p>
+              <p className="text-[#CDAA7D] text-lg font-semibold mt-1 drop-shadow-sm">{getLevelTitle(userXp)}</p>
 
               {/* Level Bar */}
               <div className="mt-6 max-w-md mx-auto sm:mx-0">
