@@ -5,7 +5,7 @@ services:
     ports:
       - "6379:6379"
     restart: unless-stopped
-  
+
   backend:
     build:
       context: ./PeerQuestBackEnd
@@ -26,7 +26,7 @@ services:
     depends_on:
       - redis
     env_file:
-      - /PeerQuestBackEnd/.env
+      - ./PeerQuestBackEnd/.env
     environment:
       - DJANGO_SETTINGS_MODULE=core.settings
       - USE_DJANGO_DEV_SERVER=true
@@ -49,7 +49,6 @@ services:
       - backend
     env_file:
       - ./PeerQuestFrontEnd/.env.local
-    # For development, set NODE_ENV to development or remove it (Next.js defaults to dev mode)
     environment:
       - NODE_ENV=development
       - WATCHPACK_POLLING=true

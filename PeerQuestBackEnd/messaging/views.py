@@ -98,7 +98,7 @@ class MessageListView(APIView):
 
             logger.info(f"[DEBUG] Found {messages.count()} messages")
 
-            serializer = MessageSerializer(messages, many=True)
+            serializer = MessageSerializer(messages, many=True, context={'request': request})
             return Response(serializer.data)
 
         except Exception as e:
@@ -174,12 +174,12 @@ class SendMessageView(APIView):
                     'filename': attachment.filename,
                     'file_size': attachment.file_size_human,
                     'content_type': attachment.content_type,
-                    'file_url': attachment.file.url,
-                    'thumbnail_url': attachment.thumbnail.url if attachment.thumbnail else None,
+                    'file_url': request.build_absolute_uri(attachment.file.url),
+                    'thumbnail_url': request.build_absolute_uri(attachment.thumbnail.url) if attachment.thumbnail else None,
                     'is_image': attachment.is_image,
                 })
 
-            message_data = MessageSerializer(message).data
+            message_data = MessageSerializer(message, context={'request': request}).data
             # ✅ Broadcast over WebSocket
             from channels.layers import get_channel_layer
             from asgiref.sync import async_to_sync

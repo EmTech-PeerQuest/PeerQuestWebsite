@@ -1,20 +1,26 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { motion } from "framer-motion"
-import type { Message, User, Attachment, MessageStatus } from "@/lib/types"
-import { Check, CheckCheck, AlertCircle, File, FileText, ImageIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
-import type { JSX } from "react/jsx-runtime"
+import type React from "react";
+import type { Message, User, Attachment, MessageStatus } from "@/lib/types";
+import {
+  Check,
+  CheckCheck,
+  AlertCircle,
+  File,
+  FileText,
+  ImageIcon,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { JSX } from "react/jsx-runtime";
 
 export interface MessageBubbleProps {
-  message: Message
-  isOwnMessage: boolean
-  showAvatar?: boolean
-  status?: MessageStatus
-  onAttachmentClick?: (attachment: Attachment) => void
-  renderAvatar?: (user: User, size?: "sm" | "md" | "lg") => JSX.Element
-  onlineUsers?: Map<string, "online" | "idle" | "offline">
+  message: Message;
+  isOwnMessage: boolean;
+  showAvatar?: boolean;
+  status?: MessageStatus;
+  onAttachmentClick?: (attachment: Attachment) => void;
+  renderAvatar?: (user: User, size?: "sm" | "md" | "lg") => JSX.Element;
+  onlineUsers?: Map<string, "online" | "idle" | "offline">;
 }
 
 const getStatusIcon = (status: MessageStatus) => {
@@ -24,9 +30,9 @@ const getStatusIcon = (status: MessageStatus) => {
     delivered: <CheckCheck className="w-3 h-3" style={{ color: "var(--tavern-gold)" }} />,
     read: <CheckCheck className="w-3 h-3" style={{ color: "var(--tavern-purple)" }} />,
     failed: <AlertCircle className="w-3 h-3 text-red-500" />,
-  }
-  return icons[status] ?? null
-}
+  };
+  return icons[status] ?? null;
+};
 
 const getFileIcon = (a: Attachment) =>
   a.is_image ? (
@@ -35,38 +41,46 @@ const getFileIcon = (a: Attachment) =>
     <FileText className="w-4 h-4 text-red-500" />
   ) : (
     <File className="w-4 h-4" style={{ color: "var(--tavern-gold)" }} />
-  )
+  );
 
-const defaultAvatar = (user: User, size = "md", onlineUsers?: Map<string, "online" | "idle" | "offline">) => {
-  const avatarClass = size === "sm" ? "avatar avatar-sm" : size === "lg" ? "avatar avatar-lg" : "avatar";
-  let presence: "online" | "idle" | "offline" = "offline";
-  if (onlineUsers && onlineUsers.has(user.id)) {
-    presence = onlineUsers.get(user.id) as "online" | "idle" | "offline";
-  }
-  let dotColor = "bg-gray-300";
-  let dotLabel = "Offline";
-  if (presence === "online") {
-    dotColor = "bg-green-500";
-    dotLabel = "Online";
-  } else if (presence === "idle") {
-    dotColor = "bg-amber-400";
-    dotLabel = "Idle";
-  }
-  // Always show Online if presence is online, never show Offline if user is online
-  if (presence === "online") {
-    dotLabel = "Online";
-  }
-  const initial = user.username ? user.username.charAt(0).toUpperCase() : "?";
+const defaultAvatar = (
+  user: User,
+  size = "md",
+  onlineUsers?: Map<string, "online" | "idle" | "offline">
+) => {
+  const presence = onlineUsers?.get(user.id) || "offline";
+  const dotLabel = presence.charAt(0).toUpperCase() + presence.slice(1);
+
   return (
-    <div className={avatarClass + " relative flex items-center justify-center"}>
-      {initial}
+    <div
+      className={`relative flex items-center justify-center rounded-full text-white bg-gray-500 ${
+        size === "sm" ? "w-6 h-6" : size === "lg" ? "w-12 h-12" : "w-8 h-8"
+      }`}
+    >
+      <span className="font-bold">{user.username?.charAt(0).toUpperCase() || "?"}</span>
       <span
-        className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white z-10 ${dotColor}`}
+        className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white z-10 ${
+          presence === "online"
+            ? "bg-green-500"
+            : presence === "idle"
+            ? "bg-amber-400"
+            : "bg-gray-300"
+        }`}
         title={dotLabel}
       />
     </div>
   );
-}
+};
+
+
+
+// Fallback user for null sender cases
+const fallbackUser: User = {
+  id: "unknown",
+  username: "Unknown",
+  avatar: undefined,
+  email: "unknown@example.com",
+};
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
@@ -79,39 +93,39 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 }) => {
   const safeAttachments =
     message.attachments?.filter(
-      (a): a is Attachment => a && typeof a.content_type === "string" && typeof a.file_url === "string",
-    ) || []
+      (a): a is Attachment =>
+        a && typeof a.content_type === "string" && typeof a.file_url === "string"
+    ) || [];
 
-  const imageAttachments = safeAttachments.filter((a) => a.is_image)
-  const otherAttachments = safeAttachments.filter((a) => !a.is_image)
-  // Wrap Avatar to inject onlineUsers if not provided by parent
+  const imageAttachments = safeAttachments.filter((a) => a.is_image);
+  const otherAttachments = safeAttachments.filter((a) => !a.is_image);
+
   const Avatar = renderAvatar
-    ? (user: User, size?: "sm" | "md" | "lg") => renderAvatar(user, size)
-    : (user: User, size?: "sm" | "md" | "lg") => defaultAvatar(user, size, onlineUsers)
+  ? (user: User, size?: "sm" | "md" | "lg") => renderAvatar(user, size)
+  : (user: User, size?: "sm" | "md" | "lg") => defaultAvatar(user, size, onlineUsers);
+
 
   const time = message.timestamp
     ? new Date(message.timestamp).toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
       })
-    : ""
+    : "";
 
-  const shouldShowBorder = !!message.content || imageAttachments.length > 0
+  const shouldShowBorder = !!message.content || imageAttachments.length > 0;
+
+  const sender = message.sender || fallbackUser;
 
   return (
-    <div
-      className={cn("flex mb-4 group", isOwnMessage ? "justify-end" : "justify-start")}
-    >
+    <div className={cn("flex mb-4 group", isOwnMessage ? "justify-end" : "justify-start")}>
       {!isOwnMessage && showAvatar && (
-        <div className="mr-3 flex-shrink-0 self-end">
-          {message.sender ? Avatar(message.sender, "md") : defaultAvatar({ id: "unknown", username: "Unknown", email: "unknown@example.com", avatar: undefined }, "md", onlineUsers)}
-        </div>
+        <div className="mr-3 flex-shrink-0 self-end">{Avatar(sender, "md")}</div>
       )}
 
       <div
         className={cn(
           "relative max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-lg transition-all group-hover:shadow-xl",
-          isOwnMessage ? "rounded-br-md" : "rounded-bl-md",
+          isOwnMessage ? "rounded-br-md" : "rounded-bl-md"
         )}
         style={{
           backgroundColor: isOwnMessage ? "var(--tavern-gold)" : "white",
@@ -119,19 +133,18 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
           border: `2px solid ${isOwnMessage ? "var(--tavern-purple)" : "var(--tavern-gold)"}`,
         }}
       >
-        {/* Sender name for group chats */}
-        {!isOwnMessage && message.sender && (
+        {!isOwnMessage && sender && (
           <p className="text-xs font-medium mb-1" style={{ color: "var(--tavern-purple)" }}>
-            {message.sender.username}
+            {sender.username}
           </p>
         )}
 
-        {/* Text content */}
         {message.content && message.message_type === "text" && (
-          <p className="break-words whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+          <p className="break-words whitespace-pre-wrap text-sm leading-relaxed">
+            {message.content}
+          </p>
         )}
 
-        {/* Image attachments */}
         {imageAttachments.length > 0 && (
           <div
             className={cn("mt-2 space-y-2", message.content && "pt-2 border-t border-opacity-30")}
@@ -139,31 +152,29 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
           >
             {imageAttachments.map((a) => {
               const getAbsoluteUrl = (url?: string) => {
-                if (!url) return ""
-                return url.startsWith("http") ? url : `http://localhost:8000${url.startsWith("/") ? "" : "/"}${url}`
-              }
+                if (!url) return "";
+                return url.startsWith("http")
+                  ? url
+                  : `http://localhost:8000${url.startsWith("/") ? "" : "/"}${url}`;
+              };
 
-              const src = getAbsoluteUrl(a.thumbnail_url || a.file_url)
-              if (!src) return null
+              const src = getAbsoluteUrl(a.thumbnail_url || a.file_url);
+              if (!src) return null;
 
               return (
-                <div
-                  key={a.id}
-                  className="overflow-hidden rounded-lg"
-                >
+                <div key={a.id} className="overflow-hidden rounded-lg">
                   <img
-                    src={src || "/placeholder.svg"}
+                    src={src}
                     alt={a.filename || "image"}
                     className="rounded-lg max-w-xs max-h-64 object-cover cursor-pointer"
                     onClick={() => onAttachmentClick?.(a)}
                   />
                 </div>
-              )
+              );
             })}
           </div>
         )}
 
-        {/* File attachments */}
         {otherAttachments.length > 0 && (
           <div
             className={cn("mt-2 space-y-1", shouldShowBorder && "pt-2 border-t border-opacity-30")}
@@ -179,19 +190,20 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                 {getFileIcon(a)}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{a.filename}</p>
-                  {a.file_size_human && <p className="text-xs opacity-75">{a.file_size_human}</p>}
+                  {a.file_size_human && (
+                    <p className="text-xs opacity-75">{a.file_size_human}</p>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* Time + status */}
         {time && (
           <div
             className={cn(
               "flex items-center gap-2 text-xs mt-2 opacity-75",
-              isOwnMessage ? "justify-end" : "justify-start",
+              isOwnMessage ? "justify-end" : "justify-start"
             )}
           >
             <span>{time}</span>
@@ -201,12 +213,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       </div>
 
       {isOwnMessage && showAvatar && (
-        <div className="ml-3 flex-shrink-0 self-end">
-          {message.sender ? Avatar(message.sender, "md") : defaultAvatar({ id: "unknown", username: "Unknown", email: "unknown@example.com", avatar: undefined }, "md", onlineUsers)}
-        </div>
+        <div className="ml-3 flex-shrink-0 self-end">{Avatar(sender, "md")}</div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default MessageBubble
+export default MessageBubble;

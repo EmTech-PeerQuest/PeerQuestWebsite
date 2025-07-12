@@ -13,7 +13,6 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.contrib.auth.models import AnonymousUser
 from messaging.models import Message, Conversation, UserPresence
 from messaging.serializers import MessageSerializer
-from xp.utils import award_xp
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -48,7 +47,19 @@ def mark_user_offline(user):
 
 @database_sync_to_async
 def get_participant_ids(conversation_id):
-    return list(Conversation.objects.get(id=conversation_id).participants.values_list("id", flat=True))
+    try:
+        # Ensure UUID instance
+        if isinstance(conversation_id, str):
+            conversation_id = uuid.UUID(conversation_id)
+        conv = Conversation.objects.get(id=conversation_id)
+        return list(conv.participants.values_list("id", flat=True))
+    except Conversation.DoesNotExist:
+        logger.error(f"Conversation {conversation_id} does not exist.")
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error in get_participant_ids: {e}")
+        raise
+
 
 @database_sync_to_async
 def create_message(conversation_id, sender_id, content, message_type="text"):
@@ -66,10 +77,46 @@ def create_message(conversation_id, sender_id, content, message_type="text"):
     )
 
 @database_sync_to_async
+def create_message_with_attachment(conversation_id, sender_id, content, message_type, attachment_data):
+    """
+    Create a message and attach a file (image or generic file).
+    `attachment_data` should include:
+        - file_url: path or full URL of uploaded file (already handled by frontend HTTP)
+        - filename
+        - file_size
+        - content_type
+    """
+    from messaging.models import MessageAttachment
+
+    conversation = Conversation.objects.get(id=conversation_id)
+    recipient = conversation.participants.exclude(id=sender_id).first()
+    if not recipient:
+        return None
+
+    message = Message.objects.create(
+        conversation=conversation,
+        sender_id=sender_id,
+        recipient_id=recipient.id,
+        content=content or "",
+        message_type=message_type,
+    )
+
+    # Attach file metadata
+    MessageAttachment.objects.create(
+        message=message,
+        file=attachment_data["file_url"],
+        filename=attachment_data["filename"],
+        file_size=attachment_data["file_size"],
+        content_type=attachment_data["content_type"],
+    )
+
+    return message
+
+@database_sync_to_async
 def mark_message_read(message_id):
     msg = Message.objects.get(id=message_id)
     msg.mark_as_read()
-    return True
+    return msg
 
 @database_sync_to_async
 def fetch_initial_messages(conversation_id, limit=50):
@@ -77,13 +124,17 @@ def fetch_initial_messages(conversation_id, limit=50):
     return MessageSerializer(msgs, many=True).data
 
 @database_sync_to_async
-def award_xp_sync(user, amount, reason):
-    award_xp(user, amount=amount, reason=reason)
-
-@database_sync_to_async
 def serialize_message(message):
     # <— this moves DRF serialization off the async loop
     return MessageSerializer(message).data
+
+@database_sync_to_async
+def is_user_online(user_id):
+    try:
+        return UserPresence.objects.get(user_id=user_id).is_online
+    except UserPresence.DoesNotExist:
+        return False
+
 
 
 # --- Consumer —----------------------------------------
@@ -95,27 +146,28 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             await self.close(code=4001)
             return
 
-        user = self.scope["user"]
-        if not (user and user.is_authenticated):
-            await self.close(code=4001)
-            return
-
         self.conversation_id = self.scope["url_route"]["kwargs"]["conversation_id"]
-        # check membership
+        self.room_group = f"chat_{self.conversation_id}"
+
         if not await user_in_conversation(user.id, self.conversation_id):
             await self.close(code=4003)
             return
 
         await mark_user_online(user)
-        self.room_group = f"chat_{self.conversation_id}"
+
+        # ✅ Join personal user group (needed for presence updates)
+        await self.channel_layer.group_add(f"user_{user.id}", self.channel_name)
+
+        # ✅ Join conversation group
         await self.channel_layer.group_add(self.room_group, self.channel_name)
+
         await self.accept()
 
-        # send initial messages
+        # Fetch and send initial messages
         initial = await fetch_initial_messages(self.conversation_id)
         await self.send_json({"type": "initial_messages", "messages": initial})
 
-        # broadcast presence to other participants
+        # Broadcast presence to others
         pids = await get_participant_ids(self.conversation_id)
         for pid in pids:
             if str(pid) != str(user.id):
@@ -123,21 +175,72 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                     f"user_{pid}",
                     {"type": "presence_update", "user_id": str(user.id), "is_online": True},
                 )
+        
+        # Notify current user about others' presence
+        for pid in pids:
+            if str(pid) != str(user.id):
+                online = await is_user_online(pid)
+                await self.channel_layer.group_send(
+                    f"user_{user.id}",  # Send presence info to yourself
+                    {
+                        "type": "presence_update",
+                        "user_id": str(pid),
+                        "is_online": online,
+                    },
+                )
+        # ✅ Also send own presence status to self
+        await self.channel_layer.group_send(
+            f"user_{user.id}",
+            {
+                "type": "presence_update",
+                "user_id": str(user.id),
+                "is_online": True,
+            },
+        )
+
+
+
 
     async def disconnect(self, code):
         user = self.scope["user"]
-        logger.warning(f"WebSocket disconnect: user={getattr(user, 'username', None)}, code={code}, conversation_id={getattr(self, 'conversation_id', None)}")
-        if user and user.is_authenticated:
-            await mark_user_offline(user)
+        conv_id = getattr(self, "conversation_id", None)
+
+        logger.warning(f"WebSocket disconnect: user={getattr(user, 'username', None)}, code={code}, conversation_id={conv_id}")
+
+        if not user or not user.is_authenticated or not conv_id:
+            logger.warning("Disconnect skipped: no user or conversation_id set.")
+            return
+
+        try:
+            # ✅ Leave personal group
+            await self.channel_layer.group_discard(f"user_{user.id}", self.channel_name)
+
+            # Leave room group
             await self.channel_layer.group_discard(self.room_group, self.channel_name)
 
-            pids = await get_participant_ids(self.conversation_id)
+            # Mark offline
+            await mark_user_offline(user)
+
+            # Send presence update to others
+            try:
+                pids = await get_participant_ids(conv_id)
+            except Exception as e:
+                logger.error(f"Failed to get participants for conversation {conv_id}: {e}")
+                return
+
             for pid in pids:
                 if str(pid) != str(user.id):
                     await self.channel_layer.group_send(
                         f"user_{pid}",
-                        {"type": "presence_update", "user_id": str(user.id), "is_online": False},
+                        {
+                            "type": "presence_update",
+                            "user_id": str(user.id),
+                            "is_online": False,
+                        },
                     )
+
+        except Exception as e:
+            logger.exception(f"Error in disconnect handler: {e}")
 
     async def receive(self, text_data):
         try:
@@ -159,23 +262,41 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         try:
             user = self.scope["user"]
             content = data.get("content", "").strip()
-            temp_id = data.get("temp_id")  # Get temp_id from frontend
-            
-            if not content:
+            temp_id = data.get("temp_id")
+            message_type = data.get("message_type", "text")
+
+            # Optional: for image/file
+            attachment_data = data.get("attachment")
+
+            if message_type == "text" and not content:
                 return
 
-            # create & persist the message
-            msg = await create_message(self.conversation_id, str(user.id), content)
+            if message_type in ("image", "file") and not attachment_data:
+                return  # malformed
+
+            # Choose message creation path
+            if message_type in ("image", "file"):
+                msg = await create_message_with_attachment(
+                    self.conversation_id,
+                    str(user.id),
+                    content,
+                    message_type,
+                    attachment_data
+                )
+            else:
+                msg = await create_message(
+                    self.conversation_id,
+                    str(user.id),
+                    content,
+                    message_type,
+                )
+
             if not msg:
                 return
 
-            # award XP
-            await award_xp_sync(user, amount=10, reason="chat message")
-
-            # serialize in a thread
             serialized = await serialize_message(msg)
 
-            # broadcast new_message with temp_id to all participants (including sender)
+            # Broadcast
             await self.channel_layer.group_send(
                 self.room_group,
                 {
@@ -185,7 +306,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 },
             )
 
-            # update each user's conversation preview
+            # Update conversation preview for all participants
             pids = await get_participant_ids(self.conversation_id)
             for pid in pids:
                 await self.channel_layer.group_send(
@@ -197,7 +318,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                     },
                 )
 
-            # ✅ Send status=sent to sender only
+            # Send message status to sender
             await self.channel_layer.group_send(
                 f"user_{user.id}",
                 {
@@ -208,8 +329,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             )
         except Exception as e:
             logger.error(f"Exception in handle_chat_message: {e}", exc_info=True)
-            # Optionally, send error to client or just log
-            # await self.send_json({"type": "error", "detail": str(e)})
+
 
 
     async def handle_typing(self, data):
@@ -220,17 +340,25 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                 "type": "typing.indicator",
                 "user_id": str(user.id),
                 "username": user.username,
+                "sender_channel_name": self.channel_name,
             },
         )
 
+
     async def handle_read_receipt(self, data):
         mid = data.get("message_id")
-        success = await mark_message_read(mid)
-        if success:
+        msg = await mark_message_read(mid)
+        if msg:
+            sender_id = str(msg.sender.id)
             await self.channel_layer.group_send(
-                self.room_group,
-                {"type": "message.read", "message_id": mid},
+                f"user_{sender_id}",
+                {
+                    "type": "message.status",
+                    "message_id": mid,
+                    "status": "read",
+                },
             )
+
 
     # — Event handlers for group_send —
 
@@ -245,6 +373,16 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             updated_msg = await mark_message_delivered(message_data["id"])
             message_data = await serialize_message(updated_msg)
 
+        await self.channel_layer.group_send(
+            f"user_{message_data['sender']['id']}",
+            {
+                "type": "message.status",
+                "message_id": message_data["id"],
+                "status": "delivered",
+            },
+        )
+
+
         response_data = {
             "type": "new_message",
             "message": message_data
@@ -257,16 +395,23 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
 
     async def presence_update(self, event):
-        if str(event["user_id"]) != str(self.scope["user"].id):
-            await self.send_json(
-                {"type": "presence_update", "user_id": event["user_id"], "is_online": event["is_online"]}
-            )
+        await self.send_json({
+            "type": "presence_update",
+            "user_id": event["user_id"],
+            "is_online": event["is_online"]
+        })
 
     async def typing_indicator(self, event):
-        if str(event["user_id"]) != str(self.scope["user"].id):
-            await self.send_json(
-                {"type": "typing", "user_id": event["user_id"], "username": event["username"]}
-            )
+        # 👇 This line is crucial — make sure it's here:
+        if self.channel_name != event.get("sender_channel_name"):
+            await self.send_json({
+                "type": "typing",
+                "user_id": event["user_id"],
+                "username": event["username"],
+            })
+
+
+
 
     async def conversation_update(self, event):
         await self.send_json(
@@ -277,9 +422,6 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             }
         )
 
-    async def message_read(self, event):
-        await self.send_json({"type": "message_read_update", "message_id": event["message_id"]})
-    
     async def message_status(self, event):
         await self.send_json({
             "type": "message_status",

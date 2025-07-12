@@ -1,6 +1,9 @@
 # Use official Node.js image as the base
 FROM node:20-alpine
 
+# Install pnpm globally
+RUN npm install -g pnpm
+
 # Set working directory
 WORKDIR /app
 
@@ -11,9 +14,8 @@ RUN npm install -g pnpm
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV FORCE_COLOR=1
 
-# Copy package.json and package-lock.json (or pnpm-lock.yaml if it exists)
+# Copy package.json and package-lock.json
 COPY package*.json ./
-COPY pnpm-lock.yaml* ./
 
 # Copy Tailwind and PostCSS config files before install (for build cache efficiency)
 COPY tailwind.config.js ./
@@ -25,11 +27,9 @@ RUN pnpm install
 # Copy the rest of the application code
 COPY . .
 
-# Build the Next.js app (uncomment for production)
-# RUN npm run build
-
 # Expose the port the app runs on
 EXPOSE 3000
-
+ENV WATCHPACK_POLLING=true
 # Start the Next.js app
-CMD ["pnpm", "run", "dev"]
+#CMD ["npm", "start"]
+CMD ["npm", "run", "dev"]
