@@ -960,6 +960,7 @@ export default function MessagingSystem({
               conversations={conversations}
               getOtherParticipant={getOtherParticipant}
               isLoading={isLoadingMessages}
+              isOtherUserTyping={isOtherUserTyping}
             />
           </>
         ) : (

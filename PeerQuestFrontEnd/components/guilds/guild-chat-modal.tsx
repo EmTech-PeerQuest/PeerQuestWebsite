@@ -374,8 +374,8 @@ export function GuildChatModal({
                         className="flex items-center gap-2 text-white"
                       >
                         <div className="relative w-8 h-8 bg-[#8B75AA] rounded-full flex items-center justify-center font-bold">
-                          {user.avatar_url && typeof user.avatar_url === "string" && user.avatar_url.startsWith("http") ? (
-                            <img src={user.avatar_url} alt={user.username || "?"} className="w-full h-full rounded-full object-cover" />
+                          {user.avatar && typeof user.avatar === "string" && user.avatar.startsWith("http") ? (
+                            <img src={user.avatar} alt={user.username || "?"} className="w-full h-full rounded-full object-cover" />
                           ) : (
                             user.username?.[0] || "?"
                           )}
@@ -425,9 +425,7 @@ export function GuildChatModal({
             ) : (
               messages.map((message) => {
                 const isCurrentUser =
-                  (message.sender?.id && String(message.sender.id) === String(currentUser.id)) ||
-                  (message.senderId && String(message.senderId) === String(currentUser.id)) ||
-                  (message.sender_id && String(message.sender_id) === String(currentUser.id));
+                  (message.senderId && String(message.senderId) === String(currentUser.id));
                 return (
                   <div
                     key={message.id}
@@ -443,7 +441,7 @@ export function GuildChatModal({
                     <div className={`flex flex-col ${isCurrentUser ? "items-end" : "items-start"} flex-1`}>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium text-white">{message.senderName}</span>
-                        <span className="text-xs text-gray-400">{formatTime(message.created_at || message.timestamp)}</span>
+                        <span className="text-xs text-gray-400">{formatTime(message.timestamp)}</span>
                       </div>
                       <p className={`px-4 py-2 rounded-2xl shadow-md inline-block max-w-xs break-words transition-colors duration-150
                         ${isCurrentUser

@@ -472,7 +472,6 @@ export function GuildHall({
               [selectedGuild.guild_id]: userMemberships[selectedGuild.guild_id] || false
             }}
             token={typeof window !== "undefined" ? localStorage.getItem("access_token") || "" : ""}
-            onlineUsers={onlineUsers}
           />
         )}
 

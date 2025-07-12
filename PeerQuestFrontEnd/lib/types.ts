@@ -26,6 +26,7 @@ export interface User {
   email_verified?: boolean;
   username?: string;
   avatar?: string;
+  avatar_url?: string;
   isOnline?: boolean
   lastSeen?: string
   isBanned?: boolean;
