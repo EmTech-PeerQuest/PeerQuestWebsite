@@ -46,7 +46,7 @@ export const TransactionAPI = {
   /**
    * Get the current user's balance with enhanced debugging
    */
-  async getMyBalance(): Promise<UserBalance> {
+  getMyBalance: async function (): Promise<UserBalance> {
     try {
       console.log('🔍 Fetching user balance...');
       
@@ -56,7 +56,6 @@ export const TransactionAPI = {
       
       if (!token && !refreshToken) {
         console.warn('⚠️ No auth tokens available, returning default balance');
-        // If no tokens at all, return early with default
         return {
           user: 0,
           username: '',
@@ -94,119 +93,196 @@ export const TransactionAPI = {
         };
       }
 
-      // If response is a Response object, parse as before
-      try {
-        // Defensive: if response.json is not a function, treat as data
-        if (typeof response.json !== 'function') {
-          // Already parsed JSON
-          const data = response;
-          let goldBalance = 0;
-          if (typeof data.gold_balance === 'number') {
-            goldBalance = data.gold_balance;
-          } else if (typeof data.gold_balance === 'string') {
-            goldBalance = parseFloat(data.gold_balance);
-          } else {
-            goldBalance = Number(data.gold_balance || 0);
-          }
-          return {
-            ...data,
-            gold_balance: goldBalance
-          };
-        }
-
-        // If response is a Response object, parse as before
-        const data = await response.json();
-        let goldBalance = 0;
-        if (typeof data.gold_balance === 'number') {
-          goldBalance = data.gold_balance;
-        } else if (typeof data.gold_balance === 'string') {
-          goldBalance = parseFloat(data.gold_balance);
-        } else {
-          goldBalance = Number(data.gold_balance || 0);
-        }
+      if (!response.ok) {
+        console.error('Failed to fetch balance:', response.status, response.statusText);
         return {
-          ...data,
-          gold_balance: goldBalance
+          user: 0,
+          username: '',
+          gold_balance: 0,
+          last_updated: new Date().toISOString()
         };
-      } catch (parseError) {
-        console.error('❌ Failed to parse balance response:', parseError);
-        throw new Error('Invalid response format from balance API');
       }
-    } catch (error) {
-      console.error('❌ Balance fetch error:', error);
-      // Return a default balance instead of throwing
+
+      const data = await response.json();
+      let goldBalance = 0;
+      if (typeof data.gold_balance === 'number') {
+        goldBalance = data.gold_balance;
+      } else if (typeof data.gold_balance === 'string') {
+        goldBalance = parseFloat(data.gold_balance);
+      } else {
+        goldBalance = Number(data.gold_balance || 0);
+      }
       return {
-        user: 0,
-        username: '',
-        gold_balance: 0,
+        user: data.user || 0,
+        username: data.username || '',
+        gold_balance: goldBalance,
         last_updated: new Date().toISOString()
       };
-    }
-  },
-  
-  /**
-   * Get the current user's transactions
-   */
-  async getMyTransactions(): Promise<Transaction[]> {
-    try {
-      console.log('🔍 Fetching user transactions...');
-      // Use the main transactions endpoint which already filters by user
-      const response = await fetchWithAuth(`${API_BASE_URL}/transactions/transactions/`)
-
-      // Defensive: handle both fetch Response and direct data
-      if (response && typeof response.json === 'function') {
-        console.log('🔄 Transactions API Response Status:', response.status, response.statusText);
-        if (!response.ok) {
-          const text = await response.text();
-          handleApiError(response, text, 'view your transactions');
-        }
-        const data = await response.json();
-        console.log('✅ Transactions data:', data);
-        // Handle both paginated and non-paginated responses
-        const transactions = data.results || data || [];
-        console.log('✅ Processed transactions:', transactions.length, 'items');
-        return transactions;
-      } else if (response) {
-        // Already parsed JSON (not a Response object)
-        const data = response;
-        console.log('✅ Transactions data (direct):', data);
-        const transactions = data.results || data || [];
-        console.log('✅ Processed transactions:', transactions.length, 'items');
-        return transactions;
-      } else {
-        throw new Error('No response from transactions API');
-      }
     } catch (error) {
-      console.error('Transactions fetch error:', error);
-      // Re-throw the error so the frontend can handle it properly
+      console.error('Balance fetch error:', error);
       throw error;
     }
   },
-  
+
+  /**
+   * Get the user's transactions
+   */
+  getMyTransactions: async function (): Promise<Transaction[]> {
+    try {
+      console.log('🔍 Fetching user transactions...');
+      const response = await fetchWithAuth(`${API_BASE_URL}/transactions/transactions/my_transactions/`);
+      const text = await response.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (jsonError) {
+        console.error('Failed to parse transactions response as JSON:', jsonError);
+      }
+      if (!response.ok) {
+        handleApiError(response, text, 'view your transactions');
+        return [];
+      }
+      // Backend returns array directly, not wrapped in {transactions: [...]}
+      if (data && Array.isArray(data)) {
+        return data;
+      }
+      // Fallback: check if it's wrapped in transactions object (for compatibility)
+      if (data && Array.isArray(data.transactions)) {
+        return data.transactions;
+      }
+      return [];
+    } catch (error) {
+      console.error('Transactions fetch error:', error);
+      throw error;
+    }
+  },
+
   /**
    * Get quest rewards
    */
-  async getQuestRewards(): Promise<Transaction[]> {
+  getQuestRewards: async function (): Promise<Transaction[]> {
     try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/transactions/transactions/quest_rewards/`)
-      
-      if (!response.ok) {
-        const text = await response.text();
-        handleApiError(response, text, 'view quest rewards');
+      const response = await fetchWithAuth(`${API_BASE_URL}/transactions/transactions/quest_rewards/`);
+      const text = await response.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (jsonError) {
+        console.error('Failed to parse quest rewards response as JSON:', jsonError);
       }
-      
-      return await response.json()
+      if (!response.ok) {
+        handleApiError(response, text, 'view quest rewards');
+        return [];
+      }
+      if (data && Array.isArray(data.transactions)) {
+        return data.transactions;
+      }
+      return [];
     } catch (error) {
       console.error('Quest rewards fetch error:', error);
-      // Re-throw the error so the frontend can handle it properly
       throw error;
     }
   },
-  
+
+  /**
+   * Get user's cashout requests
+   */
+  getMyCashouts: async function (): Promise<CashoutRequest[]> {
+    try {
+      console.log('🔍 Fetching user cashout requests...');
+      const response = await fetchWithAuth(`${API_BASE_URL}/transactions/cashouts/`);
+      const text = await response.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (jsonError) {
+        console.error('Failed to parse cashouts response as JSON:', jsonError);
+      }
+      if (!response.ok) {
+        handleApiError(response, text, 'view your cashout requests');
+        return [];
+      }
+      if (data && Array.isArray(data.cashouts)) {
+        return data.cashouts;
+      }
+      return [];
+    } catch (error) {
+      console.error('Cashouts fetch error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Request a new cashout
+   */
+  requestCashout: async function (amount_gold: number, method: string, payment_details?: string): Promise<any> {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/transactions/cashouts/request_cashout/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount_gold,
+          method,
+          payment_details
+        })
+      });
+      
+      const text = await response.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (jsonError) {
+        console.error('Failed to parse cashout request response as JSON:', jsonError);
+      }
+      
+      if (!response.ok) {
+        handleApiError(response, text, 'request cashout');
+        return null;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Cashout request error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Cancel a cashout request
+   */
+  cancelCashout: async function (cashoutId: number): Promise<any> {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/transactions/cashouts/${cashoutId}/cancel_cashout/`, {
+        method: 'POST'
+      });
+      
+      const text = await response.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (jsonError) {
+        console.error('Failed to parse cashout cancellation response as JSON:', jsonError);
+      }
+      
+      if (!response.ok) {
+        handleApiError(response, text, 'cancel cashout');
+        return null;
+      }
+      
+      console.log('✅ Cashout cancellation successful:', data);
+      return data;
+    } catch (error) {
+      console.error('Cashout cancellation error:', error);
+      throw error;
+    }
+  },
+
   /**
    * Get the gold balance from the user profile
    */
-  async getUserProfileGold(): Promise<{gold_balance: number, success: boolean}> {
+  getUserProfileGold: async function (): Promise<{gold_balance: number, success: boolean}> {
     try {
       console.log('🔍 Getting gold balance from user profile...');
       const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
@@ -236,97 +312,8 @@ export const TransactionAPI = {
       
       return { gold_balance: 0, success: false };
     } catch (error) {
-      console.error('❌ Error fetching user profile gold:', error);
+      console.error('Error getting user profile gold:', error);
       return { gold_balance: 0, success: false };
-    }
-  },
-
-  /**
-   * Cashout API endpoints
-   */
-  
-  /**
-   * Get user's cashout requests
-   */
-  async getMyCashouts(): Promise<CashoutRequest[]> {
-    try {
-      console.log('🔍 Fetching user cashout requests...');
-      
-      const response = await fetchWithAuth(`${API_BASE_URL}/transactions/cashouts/my_cashouts/`)
-      
-      if (!response.ok) {
-        const text = await response.text();
-        handleApiError(response, text, 'view your cashout requests');
-      }
-      
-      const data = await response.json()
-      console.log('✅ Cashout requests data:', data);
-      
-      // Handle both paginated and non-paginated responses
-      return data.results || data || []
-    } catch (error) {
-      console.error('Cashout requests fetch error:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Request a cashout
-   */
-  async requestCashout(amount_gold: number, method: string, payment_details: string = ''): Promise<{message: string, cashout_request: CashoutRequest}> {
-    try {
-      console.log('🔍 Requesting cashout:', { amount_gold, method, payment_details });
-      
-      const response = await fetchWithAuth(`${API_BASE_URL}/transactions/cashouts/request_cashout/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          amount_gold,
-          method,
-          payment_details
-        })
-      })
-      
-      const data = await response.json()
-      
-      if (!response.ok) {
-        const errorMessage = data.error || data.detail || 'Failed to request cashout';
-        throw new Error(errorMessage);
-      }
-      
-      console.log('✅ Cashout request successful:', data);
-      return data;
-    } catch (error) {
-      console.error('Cashout request error:', error);
-      throw error;
-    }
-  },
-
-  /**
-   * Cancel a cashout request
-   */
-  async cancelCashout(cashoutId: number): Promise<{message: string, cashout_request: CashoutRequest}> {
-    try {
-      console.log('🔍 Cancelling cashout:', cashoutId);
-      
-      const response = await fetchWithAuth(`${API_BASE_URL}/transactions/cashouts/${cashoutId}/cancel_cashout/`, {
-        method: 'POST'
-      })
-      
-      const data = await response.json()
-      
-      if (!response.ok) {
-        const errorMessage = data.error || data.detail || 'Failed to cancel cashout';
-        throw new Error(errorMessage);
-      }
-      
-      console.log('✅ Cashout cancellation successful:', data);
-      return data;
-    } catch (error) {
-      console.error('Cashout cancellation error:', error);
-      throw error;
     }
   }
 }

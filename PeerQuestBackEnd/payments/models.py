@@ -24,7 +24,7 @@ class GoldPackage(models.Model):
     @property
     def total_gold(self):
         """Total gold including bonus"""
-        return self.gold_amount + self.bonus_gold
+        return (self.gold_amount or 0) + (self.bonus_gold or 0)
     
     @property
     def formatted_bonus(self):

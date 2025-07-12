@@ -15,6 +15,12 @@ docker-compose build --no-cache; docker-compose up
 /////// DELETE ALL DOCKER /////////////////
 docker system prune -a --volumes -f
 
+
+/////// GOLD PACKAGES //////////////////////// ACHIEVEMENTS /////////////////
+docker-compose exec backend python manage.py create_gold_packages
+docker-compose exec backend python manage.py loaddata users/achievement_fixtures.json
+
+
 ////////// Copy-Paste Friendly Setup Commands //////////
 # Backend (Windows, PowerShell):
 py -m venv venv

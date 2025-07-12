@@ -50,6 +50,7 @@ function QuestDetailsModal({
   const [reportReason, setReportReason] = useState("")
   const [reportMessage, setReportMessage] = useState("")
   const [isReporting, setIsReporting] = useState(false)
+  const [isApplying, setIsApplying] = useState(false)
   // Only allow reporting if user is not the quest creator and is authenticated
   const canReportQuest = isAuthenticated && quest && currentUser && String(quest.creator.id) !== String(currentUser.id)
 
@@ -84,21 +85,16 @@ function QuestDetailsModal({
     (p) => String(p.user.id) === String(currentUser?.id)
   );
 
-  // Check if user is assigned to this quest (newer single assignment system)
-  const isAssignedTo = quest?.assigned_to && 
-    String(quest.assigned_to.id) === String(currentUser?.id);
-
-  // Check if user is already a participant (either through participants_detail, assigned_to, or approved application)
+  // Check if user is already a participant (either through participants_detail or approved application)
   // BUT exclude kicked users - they should no longer be considered participants
   const isAlreadyParticipant = !hasBeenKicked && (
     (quest?.participants_detail?.some((p) => String(p.user.id) === String(currentUser?.id)) || false) || 
-    isAssignedTo ||
     hasApprovedApplication
   )
 
-  // Only allow submit if user is a participant (either in participants_detail, assigned_to, or has approved application) 
+  // Only allow submit if user is a participant (either in participants_detail or has approved application) 
   // and the quest is in-progress AND user hasn't been kicked
-  const canSubmitWork = (!!myParticipant || isAssignedTo || hasApprovedApplication) && 
+  const canSubmitWork = (!!myParticipant || hasApprovedApplication) && 
     (quest?.status === "in-progress" || quest?.status === "in_progress") && 
     !hasBeenKicked;
 
@@ -110,8 +106,6 @@ function QuestDetailsModal({
       questStatusType: typeof quest.status,
       currentUserId: currentUser.id,
       myParticipant: myParticipant ? { id: myParticipant.id, userId: myParticipant.user?.id } : null,
-      isAssignedTo,
-      assignedTo: quest.assigned_to ? { id: quest.assigned_to.id, username: quest.assigned_to.username } : null,
       hasApprovedApplication,
       hasBeenKicked,
       isAlreadyParticipant,
@@ -155,20 +149,31 @@ function QuestDetailsModal({
     }
   }, [isOpen, isAuthenticated, currentUser, myParticipant, quest?.id, isAlreadyParticipant])
 
-  const loadUserApplications = async () => {
+  const loadUserApplications = async (retryCount = 0) => {
     try {
       setIsLoadingApplications(true)
       const applications = await getMyApplications()
       setUserApplications(applications)
+      console.log('📋 Quest Details Modal - Applications loaded:', applications.length)
     } catch (error) {
       console.error('Failed to load user applications:', error)
+      
+      // Retry logic for transient failures
+      if (retryCount < 2) {
+        console.log(`🔄 Retrying applications load (attempt ${retryCount + 1}/2)...`)
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        return loadUserApplications(retryCount + 1)
+      }
+      
+      // Set empty array on final failure to prevent crashes
+      setUserApplications([])
     } finally {
       setIsLoadingApplications(false)
     }
   }
 
   // Load application attempt information
-  const loadAttemptInfo = async () => {
+  const loadAttemptInfo = async (retryCount = 0) => {
     if (!quest || !isAuthenticated) return
     
     setIsLoadingAttempts(true)
@@ -178,7 +183,15 @@ function QuestDetailsModal({
       console.log('📊 Quest Details Modal - Attempt info loaded:', info)
     } catch (error) {
       console.error('Failed to load attempt info:', error)
-      // Don't show error to user, just fail silently
+      
+      // Retry logic for transient failures
+      if (retryCount < 2) {
+        console.log(`🔄 Retrying attempt info load (attempt ${retryCount + 1}/2)...`)
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        return loadAttemptInfo(retryCount + 1)
+      }
+      
+      // Don't show error to user, just fail silently after retries
       setAttemptInfo(null)
     } finally {
       setIsLoadingAttempts(false)
@@ -264,6 +277,14 @@ function QuestDetailsModal({
       return
     }
 
+    // Prevent double submissions
+    if (isApplying) {
+      showToast("Application already in progress...", "info")
+      return
+    }
+
+    setIsApplying(true)
+    
     try {
       console.log('🎯 Quest Details Modal - Applying for quest:', {
         questId: questId,
@@ -279,9 +300,16 @@ function QuestDetailsModal({
       
       console.log('✅ Quest Details Modal - Application submitted successfully')
       showToast("Application submitted successfully!")
+      
+      // Add a small delay to ensure database transaction is committed
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
       // Refresh applications and attempt info to update button state
-      await loadUserApplications()
-      await loadAttemptInfo()
+      console.log('🔄 Refreshing application data...')
+      await Promise.all([
+        loadUserApplications(),
+        loadAttemptInfo()
+      ])
       
       // Refresh quest data to update applications_count
       if (onQuestUpdate) {
@@ -298,11 +326,45 @@ function QuestDetailsModal({
         )
       }
       
+      console.log('✅ Application data refreshed successfully')
+      
       // Don't automatically close modal - let user see the updated state and close manually
     } catch (error) {
       console.error('❌ Quest Details Modal - Failed to apply for quest:', error)
-      const errorMessage = error instanceof Error ? error.message : "Failed to apply for quest. Please try again."
+      
+      // Enhanced error handling with specific error types
+      let errorMessage = "Failed to apply for quest. Please try again."
+      
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase()
+        
+        // Handle specific error cases
+        if (message.includes('pending')) {
+          errorMessage = "You already have a pending application for this quest."
+        } else if (message.includes('maximum') || message.includes('attempts')) {
+          errorMessage = "You have reached the maximum number of application attempts for this quest."
+        } else if (message.includes('participating') || message.includes('approved')) {
+          errorMessage = "You are already participating in this quest."
+        } else if (message.includes('network') || message.includes('fetch')) {
+          errorMessage = "Network error. Please check your connection and try again."
+        } else {
+          errorMessage = error.message
+        }
+      }
+      
       showToast(errorMessage, "error")
+      
+      // Refresh data even on error to show current state
+      try {
+        await Promise.all([
+          loadUserApplications(),
+          loadAttemptInfo()
+        ])
+      } catch (refreshError) {
+        console.error('Failed to refresh data after error:', refreshError)
+      }
+    } finally {
+      setIsApplying(false)
     }
   }
 
@@ -536,6 +598,32 @@ function QuestDetailsModal({
             {/* Unified Application Status Notification (for non-owners) */}
             {!isQuestOwner && isAuthenticated && (
               <>
+                {/* Manual Refresh Button for Application Status */}
+                {(hasAlreadyApplied || hasApprovedApplication || hasRejectedApplication || hasBeenKicked || (attemptInfo && attemptInfo.attempt_count > 0)) && (
+                  <div className="flex justify-end mb-4">
+                    <button
+                      onClick={async () => {
+                        console.log('🔄 Manual refresh triggered by user')
+                        await Promise.all([
+                          loadUserApplications(),
+                          loadAttemptInfo()
+                        ])
+                        showToast("Application status refreshed", "success")
+                      }}
+                      disabled={isLoadingApplications || isLoadingAttempts}
+                      className="flex items-center gap-2 px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors disabled:opacity-50"
+                      title="Refresh application status"
+                    >
+                      {isLoadingApplications || isLoadingAttempts ? (
+                        <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <Clock size={16} />
+                      )}
+                      {isLoadingApplications || isLoadingAttempts ? 'Refreshing...' : 'Refresh Status'}
+                    </button>
+                  </div>
+                )}
+
                 {/* Active Participation or Pending Application */}
                 {(isAlreadyParticipant || hasApprovedApplication || hasAlreadyApplied) && (
                   <div className={`p-4 rounded-lg ${
@@ -632,6 +720,16 @@ function QuestDetailsModal({
                           </>
                         )}
                       </div>
+                    )}
+                    
+                    {/* Submit Completed Work Button for active participants */}
+                    {canSubmitWork && (latestSubmissionStatus !== 'approved') && (
+                      <button
+                        className="mt-4 px-5 py-2 bg-gradient-to-r from-purple-500 to-amber-500 text-white rounded-lg font-semibold shadow hover:from-purple-600 hover:to-amber-600 transition-colors"
+                        onClick={() => setShowSubmitWorkModal(true)}
+                      >
+                        {latestSubmissionStatus === 'needs_revision' ? 'Submit Revised Work' : 'Submit Completed Work'}
+                      </button>
                     )}
                   </div>
                 )}
@@ -785,40 +883,35 @@ function QuestDetailsModal({
                 </button>
               </div>
             ) : isAuthenticated ? (
-              <div className="flex gap-3">
-                {/* Submit Work Button for approved participants */}
-                {canSubmitWork && (latestSubmissionStatus !== 'approved') && (
-                  <button
-                    onClick={() => setShowSubmitWorkModal(true)}
-                    className="px-6 py-2 bg-gradient-to-r from-purple-500 to-amber-500 text-white rounded-lg hover:from-purple-600 hover:to-amber-600 transition-colors font-medium shadow-md"
-                  >
-                    {latestSubmissionStatus === 'needs_revision' ? 'Submit Revised Work' : 'Submit Completed Work'}
-                  </button>
+              <button
+                onClick={() => applyForQuest(quest.id)}
+                className={`px-6 py-2 rounded-lg font-medium shadow-md transition-colors flex items-center gap-2 ${
+                  !applicationEligibility.canApply || isLoadingApplications || isLoadingAttempts || isApplying
+                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
+                    : 'bg-[#8B75AA] text-white hover:bg-[#7A6699]'
+                }`}
+                disabled={!applicationEligibility.canApply || isLoadingApplications || isLoadingAttempts || isApplying}
+              >
+                {isApplying ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Applying...
+                  </>
+                ) : isLoadingApplications || isLoadingAttempts ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                    Loading...
+                  </>
+                ) : !applicationEligibility.canApply ? (
+                  applicationEligibility.reason
+                ) : attemptInfo && attemptInfo.attempt_count > 0 ? (
+                  attemptInfo.last_application_status === 'kicked'
+                    ? "Re-apply to Quest"
+                    : "Apply Again"
+                ) : (
+                  "Apply for Quest"
                 )}
-                
-                {/* Apply for Quest Button (only show if can't submit work) */}
-                {!canSubmitWork && (
-                  <button
-                    onClick={() => applyForQuest(quest.id)}
-                    className={`px-6 py-2 rounded-lg font-medium shadow-md transition-colors ${
-                      !applicationEligibility.canApply || isLoadingApplications
-                        ? 'bg-gray-400 text-gray-600 cursor-not-allowed opacity-50'
-                        : 'bg-[#8B75AA] text-white hover:bg-[#7A6699]'
-                    }`}
-                    disabled={!applicationEligibility.canApply || isLoadingApplications || isLoadingAttempts}
-                  >
-                    {isLoadingApplications || isLoadingAttempts
-                      ? "Loading..."
-                      : !applicationEligibility.canApply
-                        ? applicationEligibility.reason
-                        : attemptInfo && attemptInfo.attempt_count > 0
-                          ? attemptInfo.last_application_status === 'kicked'
-                            ? "Re-apply to Quest"
-                            : "Apply Again"
-                          : "Apply for Quest"}
-                  </button>
-                )}
-              </div>
+              </button>
             ) : (
               <button
                 onClick={() => setAuthModalOpen(true)}
