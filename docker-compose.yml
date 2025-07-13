@@ -1,4 +1,19 @@
 services:
+  nginx:
+    image: nginx:1.25
+    container_name: peerquest-nginx
+    depends_on:
+      - backend
+      - frontend
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./PeerQuestBackEnd/media:/app/media:ro
+      - ./PeerQuestBackEnd/static:/app/static:ro
+      - ./PeerQuestFrontEnd/.next/static:/app/.next/static:ro
+    restart: unless-stopped
+
   redis:
     image: redis:7
     container_name: peerquest-redis
@@ -10,50 +25,38 @@ services:
     build:
       context: ./PeerQuestBackEnd
     container_name: peerquest-backend
-    # Use Django dev server for hot reload in development
     command: >
-      sh -c "if [ \"$USE_DJANGO_DEV_SERVER\" = 'true' ]; then python manage.py runserver 0.0.0.0:8000; else daphne -b 0.0.0.0 -p 8000 core.asgi:application; fi"
+      sh -c "python manage.py collectstatic --noinput && daphne -b 0.0.0.0 -p 8000 core.asgi:application"
     volumes:
-      - ./PeerQuestBackEnd:/app
-      - ./PeerQuestBackEnd/core:/app/core  # Ensures code changes in core/ reload
-      - ./PeerQuestBackEnd/blog:/app/blog  # Ensures code changes in blog/ reload
-      - ./PeerQuestBackEnd/blog_api:/app/blog_api  # Ensures code changes in blog_api/ reload
-      - ./PeerQuestBackEnd/users:/app/users  # Ensures code changes in users/ reload
-      - ./PeerQuestBackEnd/media:/app/media  # For media uploads
-      # - ./PeerQuestBackEnd/venv:/app/venv  # Optional: pip cache
+      - ./PeerQuestBackEnd/media:/app/media  # Only persist media uploads
     ports:
       - "8000:8000"
     depends_on:
       - redis
+      - mysql
     env_file:
       - ./PeerQuestBackEnd/.env
     environment:
       - DJANGO_SETTINGS_MODULE=core.settings
-      - USE_DJANGO_DEV_SERVER=true
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
-      # Add any other env vars you need
+    restart: unless-stopped
   frontend:
     build:
       context: ./PeerQuestFrontEnd
+      dockerfile: Dockerfile.prod
     container_name: peerquest-frontend
+    command: "npm run start"
     ports:
       - "3000:3000"
-    volumes:
-      - ./PeerQuestFrontEnd:/app
-      - /app/node_modules
-      - ./PeerQuestFrontEnd/pages:/app/pages  # Hot reload for Next.js pages
-      - ./PeerQuestFrontEnd/components:/app/components  # Hot reload for components
-      - ./PeerQuestFrontEnd/public:/app/public  # Hot reload for static assets
     depends_on:
       - backend
     env_file:
-      - ./PeerQuestFrontEnd/.env.local
+      - ./PeerQuestFrontEnd/.env.production
     environment:
-      - NODE_ENV=development
-      - WATCHPACK_POLLING=true
-      - CHOKIDAR_USEPOLLING=true  # Ensures hot reload works in Docker
+      - NODE_ENV=production
       - NEXT_TELEMETRY_DISABLED=1
+    restart: unless-stopped
 
   mysql:
     image: mysql:8
@@ -61,12 +64,13 @@ services:
     ports:
       - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: peerquestdb
-      MYSQL_USER: peerquestuser
-      MYSQL_PASSWORD: peerquestpass
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
+    restart: unless-stopped
 
 volumes:
   mysql_data:

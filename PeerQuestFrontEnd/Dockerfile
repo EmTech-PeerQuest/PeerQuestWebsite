@@ -32,4 +32,4 @@ EXPOSE 3000
 ENV WATCHPACK_POLLING=true
 # Start the Next.js app
 #CMD ["npm", "start"]
-CMD ["npm", "run", "dev"]
+CMD ["npm", "start"]
