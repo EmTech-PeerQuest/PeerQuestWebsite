@@ -81,25 +81,19 @@ class GuildChatConsumer(AsyncJsonWebsocketConsumer):
             if msg_type == "send_message":
                 content_text = content.get("content", "").strip()
 
+                # Save to DB and get the message instance
+                message_instance = await self.save_guild_message_instance(content_text)
 
-                message = {
-                    "id": str(uuid.uuid4()),
-                    "guildId": str(self.guild_id),
-                    "senderId": str(self.user.id),
-                    "senderName": self.user.username,
-                    "senderAvatar": getattr(self.user, "avatar", self.user.username[0]),
-                    "content": content_text,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-
-                # Optional: persist to DB
-                await self.save_guild_message(message)
+                # Serialize the message using DRF serializer for consistency
+                from guilds.serializers import GuildChatMessageSerializer
+                serializer = GuildChatMessageSerializer(message_instance)
+                serialized_message = serializer.data
 
                 await self.channel_layer.group_send(
                     self.group_name,
                     {
                         "type": "new_message",
-                        "message": message,
+                        "message": serialized_message,
                     }
                 )
         except Exception as e:
@@ -131,11 +125,12 @@ class GuildChatConsumer(AsyncJsonWebsocketConsumer):
             return False
 
     @database_sync_to_async
-    def save_guild_message(self, message_data):
+    def save_guild_message_instance(self, content_text):
         from guilds.models import GuildChatMessage, Guild
-        guild = Guild.objects.get(guild_id=message_data["guildId"])
-        GuildChatMessage.objects.create(
+        guild = Guild.objects.get(guild_id=self.guild_id)
+        message = GuildChatMessage.objects.create(
             guild=guild,
-            sender=User.objects.get(id=message_data["senderId"]),
-            content=message_data["content"],
+            sender=self.user,
+            content=content_text,
         )
+        return message

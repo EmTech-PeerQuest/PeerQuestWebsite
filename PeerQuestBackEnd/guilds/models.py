@@ -443,14 +443,29 @@ class GuildChatMessage(models.Model):
     
     def approve(self, processed_by_user):
         """Approve the join request and add user to guild"""
+        from django.utils import timezone
         self.is_approved = True
         self.processed_by = processed_by_user
         self.processed_at = timezone.now()
         self.save()
-        
-        # Add user to guild members
-        self.guild.members.add(self.user)
-        
+        # Add user to guild as a member (create GuildMembership if not exists)
+        from .models import GuildMembership
+        membership, created = GuildMembership.objects.get_or_create(
+            guild=self.guild,
+            user=self.user,
+            defaults={
+                'role': 'member',
+                'status': 'approved',
+                'is_active': True
+            }
+        )
+        if not created:
+            membership.status = 'approved'
+            membership.is_active = True
+            membership.save()
+        # Update guild member count
+        self.guild.member_count = self.guild.memberships.filter(is_active=True).count()
+        self.guild.save()
         # Notify applicant of approval
         from notifications.models import Notification
         Notification.objects.create(
@@ -462,14 +477,14 @@ class GuildChatMessage(models.Model):
             guild_name=self.guild.name,
             status='approved'
         )
-    
+
     def reject(self, processed_by_user):
         """Reject the join request"""
+        from django.utils import timezone
         self.is_approved = False
         self.processed_by = processed_by_user
         self.processed_at = timezone.now()
         self.save()
-        
         # Notify applicant of rejection
         from notifications.models import Notification
         Notification.objects.create(

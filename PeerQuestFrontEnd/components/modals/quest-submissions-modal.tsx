@@ -11,7 +11,7 @@ interface QuestSubmissionsModalProps {
   currentUser?: any;
   showToast?: (msg: string, type?: string) => void;
   onMarkComplete?: () => void;
-  onApproveSubmission?: (submissionId: number, feedback?: string) => void;
+  onApproveSubmission?: (submissionId: number, feedback?: string) => Promise<void> | void;
   onMarkNeedsRevision?: (submissionId: number, feedback?: string) => void;
   canReviewSubmissions?: boolean;
 }
@@ -77,7 +77,7 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
         }
       } catch {
         setError("Failed to load submissions.");
-        if (showToast) showToast("Failed to load submissions", "error");
+        // Suppress error toast: do not show toast error message
       } finally {
         setLoading(false);
       }
@@ -262,6 +262,7 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
                         if (onMarkComplete) onMarkComplete();
                       } catch (err: any) {
                         setLoading(false);
+                        // Suppress error toast: do not show toast error message
                       } finally {
                         setLoading(false);
                       }
@@ -454,7 +455,8 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
                           onClick={async () => {
                             try {
                               if (onApproveSubmission) {
-                                await onApproveSubmission(submission.id);
+                                // Always suppress error toasts from onApproveSubmission
+                                await Promise.resolve(onApproveSubmission(submission.id)).catch(() => {});
                                 // Refetch submissions after approval
                                 if (quest) {
                                   setLoading(true);
@@ -468,6 +470,7 @@ const QuestSubmissionsModal: React.FC<QuestSubmissionsModalProps> = ({
                               }
                             } catch (err) {
                               setLoading(false);
+                              // Suppress error toast: do not show toast error message
                             }
                           }}
                           className="flex items-center justify-center gap-2 px-6 py-3 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors font-semibold text-sm min-w-[140px] sm:flex-1 sm:max-w-[200px]"

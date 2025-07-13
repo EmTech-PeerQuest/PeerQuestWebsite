@@ -353,10 +353,28 @@ def process_join_request(request, guild_id, request_id):
         )
     
     if action == 'approve':
-        join_request.approve(request.user)
+        join_request.is_approved = True
+        join_request.processed_by = request.user
+        join_request.processed_at = timezone.now()
+        join_request.save()
+        # Create membership if not already a member
+        membership, created = GuildMembership.objects.get_or_create(
+            guild=guild,
+            user=join_request.user,
+            defaults={
+                'role': 'member',
+                'status': 'approved',
+                'is_active': True,
+                'approved_by': request.user,
+                'approved_at': timezone.now(),
+            }
+        )
         message = f'Join request approved. {join_request.user.username} is now a member.'
     else:
-        join_request.reject(request.user)
+        join_request.is_approved = False
+        join_request.processed_by = request.user
+        join_request.processed_at = timezone.now()
+        join_request.save()
         message = f'Join request rejected for {join_request.user.username}.'
     
     return Response({'message': message}, status=status.HTTP_200_OK)

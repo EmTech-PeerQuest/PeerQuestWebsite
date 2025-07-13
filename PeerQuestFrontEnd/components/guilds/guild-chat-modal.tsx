@@ -424,33 +424,59 @@ export function GuildChatModal({
               </div>
             ) : (
               messages.map((message) => {
-                const isCurrentUser =
-                  (message.senderId && String(message.senderId) === String(currentUser.id));
+                // Support both API and WebSocket message shapes
+                // Support both API and WebSocket message shapes, fallback to undefined if not present
+                const senderId = (message as any).senderId ?? (message as any).sender_id ?? (message as any).sender_id ?? undefined;
+                const senderName = (message as any).senderName ?? (message as any).sender_name ?? undefined;
+                const senderAvatar = (message as any).senderAvatar ?? (message as any).sender_avatar ?? undefined;
+                const createdAt = (message as any).created_at ?? (message as any).timestamp ?? undefined;
+                const isCurrentUser = String(senderId) === String(currentUser.id);
                 return (
                   <div
                     key={message.id}
-                    className={`flex gap-3 ${isCurrentUser ? "flex-row-reverse justify-end" : ""}`}
+                    className={`flex gap-3 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div className="w-10 h-10 bg-[#8B75AA] rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
-                      {message.senderAvatar && typeof message.senderAvatar === "string" && message.senderAvatar.startsWith("http") ? (
-                        <img src={message.senderAvatar} alt={message.senderName || "?"} className="w-full h-full rounded-full object-cover" />
-                      ) : (
-                        message.senderAvatar
-                      )}
-                    </div>
-                    <div className={`flex flex-col ${isCurrentUser ? "items-end" : "items-start"} flex-1`}>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-white">{message.senderName}</span>
-                        <span className="text-xs text-gray-400">{formatTime(message.timestamp)}</span>
-                      </div>
-                      <p className={`px-4 py-2 rounded-2xl shadow-md inline-block max-w-xs break-words transition-colors duration-150
-                        ${isCurrentUser
-                          ? "bg-[#CDAA7D] text-[#2C1A1D] ml-auto border border-[#B8956D] hover:bg-[#e7d3b3]"
-                          : "bg-[#F4F0E6] text-[#2C1A1D] mr-auto border border-[#E0D6C3] hover:bg-[#ede7db]"}
-                      `}>
-                        {message.content}
-                      </p>
-                    </div>
+                    {isCurrentUser ? (
+                      <>
+                        <div className="flex flex-col items-end flex-1">
+                          <div className="flex items-center gap-2 mb-1 justify-end">
+                            <span className="font-medium text-white">{senderName}</span>
+                            <span className="text-xs text-gray-400">{formatTime(createdAt)}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <p className="px-4 py-2 rounded-2xl shadow-md inline-block max-w-xs break-words transition-colors duration-150 bg-[#CDAA7D] text-[#2C1A1D] ml-auto border border-[#B8956D] hover:bg-[#e7d3b3]">
+                              {message.content}
+                            </p>
+                            <div className="w-10 h-10 bg-[#8B75AA] rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 ml-2">
+                              {senderAvatar && typeof senderAvatar === "string" && senderAvatar.startsWith("http") ? (
+                                <img src={senderAvatar} alt={senderName || "?"} className="w-full h-full rounded-full object-cover" />
+                              ) : (
+                                senderAvatar
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-10 h-10 bg-[#8B75AA] rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 mr-2">
+                          {senderAvatar && typeof senderAvatar === "string" && senderAvatar.startsWith("http") ? (
+                            <img src={senderAvatar} alt={senderName || "?"} className="w-full h-full rounded-full object-cover" />
+                          ) : (
+                            senderAvatar
+                          )}
+                        </div>
+                        <div className="flex flex-col items-start flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-white">{senderName}</span>
+                            <span className="text-xs text-gray-400">{formatTime(createdAt)}</span>
+                          </div>
+                          <p className="px-4 py-2 rounded-2xl shadow-md inline-block max-w-xs break-words transition-colors duration-150 bg-[#F4F0E6] text-[#2C1A1D] mr-auto border border-[#E0D6C3] hover:bg-[#ede7db]">
+                            {message.content}
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })

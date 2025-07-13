@@ -833,7 +833,7 @@ export default function Home() {
               );
             }
             return (
-              <AdminPanelDynamic
+              <AdminPanel
                 currentUser={currentUser}
                 showToast={(message: string, type?: string) => {
                   toast({ title: message, variant: type === "error" ? "destructive" : "default" });
