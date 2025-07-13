@@ -31,7 +31,7 @@ export default function SkillsPage() {
         setUserSkills(userSkillsResponse.skills);
         
         // Mark user's skills as selected
-        const userSkillIds = new Set(userSkillsResponse.skills.map((s: any) => s.skill_id as string));
+        const userSkillIds = new Set<string>(userSkillsResponse.skills.map((s: any) => s.skill_id as string));
         setSelectedSkills(userSkillIds);
       }
     } catch (error) {
