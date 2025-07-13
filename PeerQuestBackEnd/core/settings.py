@@ -106,30 +106,41 @@ CHANNEL_LAYERS = {
 #     },
 # }
 
-# Channel Layers (using Redis for development)
+
+# --- Railway/Docker Compose Production-Ready Channel Layers & Celery/Database Config ---
+import dj_database_url
+
+# Redis/Channels config (use REDIS_URL if set, fallback to Docker Compose default)
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [("redis", 6379)], 
+            "hosts": [REDIS_URL],
         },
     },
 }
 
-# For Celery
-CELERY_BROKER_URL = "redis://redis:6379/0"
+# Celery config (use REDIS_URL if set)
+CELERY_BROKER_URL = REDIS_URL
 
-# Database (SQLite for development)
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('DB_NAME', 'peerquestdb'),
-        'USER': os.environ.get('DB_USER', 'peerquestuser'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'peerquestpass'),
-        'HOST': os.environ.get('DB_HOST', 'mysql'),
-        'PORT': os.environ.get('DB_PORT', '3306'),
+# Database config (use DATABASE_URL if set, fallback to Docker Compose/MySQL env vars)
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=False)
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': os.environ.get('DB_NAME', 'peerquestdb'),
+            'USER': os.environ.get('DB_USER', 'peerquestuser'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', 'peerquestpass'),
+            'HOST': os.environ.get('DB_HOST', 'mysql'),
+            'PORT': os.environ.get('DB_PORT', '3306'),
+        }
+    }
 
 # Enhanced Password validation with superadmin exemption
 AUTH_PASSWORD_VALIDATORS = [

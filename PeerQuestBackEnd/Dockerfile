@@ -1,4 +1,4 @@
-# PeerQuestBackEnd/Dockerfile
+# PeerQuestBackEnd/Dockerfile (Railway compatible)
 FROM python:3.11
 
 WORKDIR /app
@@ -10,9 +10,12 @@ RUN pip install --no-cache-dir -r requirements.txt && pip install watchdog
 # Copy all project files
 COPY . .
 
-# Collect static files
-RUN python manage.py collectstatic --noinput
+# Collect static files at build time (optional, can also be done at runtime)
+RUN python manage.py collectstatic --noinput || true
 
-# Start using Daphne
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]
+# Railway sets PORT env var automatically
+ENV PORT=8000
+
+# Start using Daphne, bind to 0.0.0.0 and use $PORT
+CMD ["sh", "-c", "daphne -b 0.0.0.0 -p $PORT core.asgi:application"]
 
