@@ -44,48 +44,6 @@ export const EnhancedProfile: React.FC<EnhancedProfileProps> = ({ user, quests, 
     }
   }
 
-  const completeTestQuest = () => {
-    // Create a test completed quest
-    const testQuest: Partial<Quest> = {
-      id: Date.now(),
-      title: `Test Quest ${Math.floor(Math.random() * 1000)}`,
-      description: "This is a test quest that was completed for testing",
-      status: "completed",
-      assignedTo: user.id,
-      xp: 50 + Math.floor(Math.random() * 100),
-      reward: 25 + Math.floor(Math.random() * 75),
-      createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-      completedAt: new Date(),
-    }
-
-    // Find the setQuests function from parent component if available
-    if (window.updateCompletedQuests) {
-      window.updateCompletedQuests(testQuest as Quest)
-      if (showToast) {
-        showToast("Test quest completed successfully!")
-      }
-    } else {
-      if (showToast) {
-        showToast("Could not update quests. Function not available.", "error")
-      }
-    }
-  }
-
-  const joinTestGuild = () => {
-    // Create a test guild to join
-    const guildName = `Test Guild ${Math.floor(Math.random() * 1000)}`
-
-    if (window.joinGuildTest) {
-      window.joinGuildTest(user.id, guildName)
-      if (showToast) {
-        showToast(`Successfully joined ${guildName}!`)
-      }
-    } else {
-      if (showToast) {
-        showToast("Could not join guild. Function not available.", "error")
-      }
-    }
-  }
 
   return (
     <div>
@@ -131,13 +89,6 @@ export const EnhancedProfile: React.FC<EnhancedProfileProps> = ({ user, quests, 
             <div className="text-center text-[#8B75AA] py-3">No completed quests yet</div>
           )}
 
-          {/* Add test quest completion button */}
-          <button
-            onClick={completeTestQuest}
-            className="mt-3 w-full px-4 py-2 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699] transition-colors"
-          >
-            Complete a Test Quest
-          </button>
         </div>
       </div>
 
@@ -165,14 +116,6 @@ export const EnhancedProfile: React.FC<EnhancedProfileProps> = ({ user, quests, 
           ) : (
             <div className="text-center text-[#8B75AA] py-3">No guilds joined yet</div>
           )}
-
-          {/* Add join test guild button */}
-          <button
-            onClick={joinTestGuild}
-            className="mt-3 w-full px-4 py-2 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699] transition-colors"
-          >
-            Join a Test Guild
-          </button>
         </div>
       </div>
     </div>
