@@ -34,7 +34,7 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}): Pro
 }
 import axios from "axios";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 // Login: Obtain JWT tokens
 export const login = async (username: string, password: string) => {

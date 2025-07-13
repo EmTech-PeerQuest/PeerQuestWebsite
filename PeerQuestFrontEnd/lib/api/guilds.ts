@@ -4,7 +4,7 @@ import { isValidUUID, toUUIDString } from './uuid';
 import { useCallback, useMemo, useState } from 'react';
 
 // --- API Endpoint Config ---
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const API_ENDPOINTS = {
   guilds: `${API_BASE_URL}/api/guilds/`,
   createGuild: `${API_BASE_URL}/api/guilds/create/`,

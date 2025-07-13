@@ -1,6 +1,6 @@
 import { Quest } from '@/lib/types'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL + '/api';
 
 // Type definitions
 export type DifficultyTier = 'initiate' | 'adventurer' | 'champion' | 'mythic'

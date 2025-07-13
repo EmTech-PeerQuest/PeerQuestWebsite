@@ -1,7 +1,7 @@
 import axios from "axios"
 import { TokenInvalidError } from "./auth"
 
-const BASE_URL = "http://localhost:8000" // 🔁 replace with your backend URL if hosted elsewhere
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 export async function fetchInitialData() {
   try {

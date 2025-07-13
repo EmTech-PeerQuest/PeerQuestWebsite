@@ -9,7 +9,7 @@ export interface QuestReportPayload {
 
 export async function reportQuest(payload: QuestReportPayload): Promise<{ success: boolean; message?: string; errors?: any }> {
   if (!API_BASE_URL) {
-    throw new Error('NEXT_PUBLIC_API_URL is not set. Please add NEXT_PUBLIC_API_URL to your .env.local (e.g. NEXT_PUBLIC_API_URL=http://localhost:8000).');
+    throw new Error('NEXT_PUBLIC_API_BASE_URL is not set. Please add NEXT_PUBLIC_API_BASE_URL to your .env.local (e.g. NEXT_PUBLIC_API_BASE_URL=http://localhost:8000).');
   }
   const base = API_BASE_URL.replace(/\/$/, '');
   const endpoint = base.endsWith('/api')
