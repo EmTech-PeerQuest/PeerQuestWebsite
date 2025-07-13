@@ -1,11 +1,46 @@
-
-
 services:
   redis:
     image: redis:7
     container_name: peerquest-redis
     ports:
       - "6379:6379"
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./PeerQuestBackEnd
+    container_name: peerquest-backend
+    command: >
+      sh -c "python manage.py collectstatic --noinput && daphne -b 0.0.0.0 -p 8000 core.asgi:application"
+    volumes:
+      - ./PeerQuestBackEnd/media:/app/media  # Only persist media uploads
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - mysql
+    env_file:
+      - ./PeerQuestBackEnd/.env
+    environment:
+      - DJANGO_SETTINGS_MODULE=core.settings
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+    restart: unless-stopped
+  frontend:
+    build:
+      context: ./PeerQuestFrontEnd
+      dockerfile: Dockerfile.prod
+    container_name: peerquest-frontend
+    command: "npm run start"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    env_file:
+      - ./PeerQuestFrontEnd/.env.production
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
     restart: unless-stopped
 
   mysql:
@@ -20,55 +55,6 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
-    restart: unless-stopped
-
-  backend:
-    build:
-      context: ./PeerQuestBackEnd
-      dockerfile: Dockerfile
-    container_name: peerquest-backend
-    ports:
-      - "8000:8000"
-    environment:
-      - DJANGO_SETTINGS_MODULE=core.settings
-      - PYTHONUNBUFFERED=1
-      - PYTHONDONTWRITEBYTECODE=1
-      - GOOGLE_OAUTH2_CLIENT_ID=${GOOGLE_OAUTH2_CLIENT_ID}
-      - GOOGLE_OAUTH2_CLIENT_SECRET=${GOOGLE_OAUTH2_CLIENT_SECRET}
-      - EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
-      - EMAIL_HOST=smtp.gmail.com
-      - EMAIL_PORT=587
-      - EMAIL_USE_TLS=True
-      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
-      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - DB_ENGINE=mysql
-      - DB_NAME=${MYSQL_DATABASE}
-      - DB_USER=${MYSQL_USER}
-      - DB_PASSWORD=${MYSQL_PASSWORD}
-      - DB_HOST=peerquest-mysql
-      - DB_PORT=3306
-      - REDIS_URL=redis://peerquest-redis:6379/0
-    depends_on:
-      - redis
-      - mysql
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./PeerQuestFrontEnd
-      dockerfile: Dockerfile
-    container_name: peerquest-frontend
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-      - NEXT_TELEMETRY_DISABLED=1
-      - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
-      - NEXT_PUBLIC_MEDIA_URL=${NEXT_PUBLIC_MEDIA_URL}
-    depends_on:
-      - backend
     restart: unless-stopped
 
 volumes:
