@@ -1,45 +1,87 @@
+version: '3.9'
 
 services:
   backend:
     build:
       context: ./PeerQuestBackEnd
       dockerfile: Dockerfile
+    container_name: peerquest-backend
     ports:
       - "8000:8000"
+    depends_on:
+      - db
+      - redis
     environment:
       - DJANGO_SETTINGS_MODULE=core.settings
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
-      - MYSQL_HOST=mysql
-      - MYSQL_PORT=3306
-      - MYSQL_DATABASE=peerquest
-      - MYSQL_USER=root
-      - MYSQL_PASSWORD=yourpassword
-      - REDIS_URL=redis://default:yourredispassword@redis:6379
-    depends_on:
-      - mysql
-      - redis
+
+      # OAuth
+      - GOOGLE_OAUTH2_CLIENT_ID=${GOOGLE_OAUTH2_CLIENT_ID}
+      - GOOGLE_OAUTH2_CLIENT_SECRET=${GOOGLE_OAUTH2_CLIENT_SECRET}
+
+      # Email (SMTP)
+      - EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+      - EMAIL_HOST=smtp.gmail.com
+      - EMAIL_PORT=587
+      - EMAIL_USE_TLS=True
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
+
+      # GROQ
+      - GROQ_API_KEY=${GROQ_API_KEY}
+
+      # MySQL
+      - DB_ENGINE=mysql
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=db
+      - DB_PORT=3306
+
+      # Redis
+      - REDIS_URL=redis://default:${REDIS_PASSWORD}@redis:6379
 
   frontend:
     build:
       context: ./PeerQuestFrontEnd
+      dockerfile: Dockerfile
+    container_name: peerquest-frontend
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
       - NEXT_TELEMETRY_DISABLED=1
+      - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+      - NEXT_PUBLIC_MEDIA_URL=${NEXT_PUBLIC_MEDIA_URL}
+    depends_on:
+      - backend
 
-  mysql:
+  db:
     image: mysql:8
+    container_name: mysql
     restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: pq@2025deployET
-      MYSQL_DATABASE: peerquest
     ports:
       - "3306:3306"
+    environment:
+      - MYSQL_DATABASE=${DB_NAME}
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
 
   redis:
     image: redis:7
+    container_name: redis
     restart: always
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  mysql_data:
+  redis_data:
