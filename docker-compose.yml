@@ -1,6 +1,27 @@
 
 
 services:
+  redis:
+    image: redis:7
+    container_name: peerquest-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8
+    container_name: peerquest-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+
   backend:
     build:
       context: ./PeerQuestBackEnd
@@ -12,29 +33,26 @@ services:
       - DJANGO_SETTINGS_MODULE=core.settings
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
-
-      # OAuth
       - GOOGLE_OAUTH2_CLIENT_ID=${GOOGLE_OAUTH2_CLIENT_ID}
       - GOOGLE_OAUTH2_CLIENT_SECRET=${GOOGLE_OAUTH2_CLIENT_SECRET}
-
-      # Email (SMTP)
       - EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
       - EMAIL_HOST=smtp.gmail.com
       - EMAIL_PORT=587
       - EMAIL_USE_TLS=True
       - EMAIL_HOST_USER=${EMAIL_HOST_USER}
       - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
-
-      # GROQ
       - GROQ_API_KEY=${GROQ_API_KEY}
-
-      # (Optional) You can use external DB by setting these
       - DB_ENGINE=mysql
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
+      - DB_NAME=${MYSQL_DATABASE}
+      - DB_USER=${MYSQL_USER}
+      - DB_PASSWORD=${MYSQL_PASSWORD}
+      - DB_HOST=peerquest-mysql
+      - DB_PORT=3306
+      - REDIS_URL=redis://peerquest-redis:6379/0
+    depends_on:
+      - redis
+      - mysql
+    restart: unless-stopped
 
   frontend:
     build:
@@ -51,3 +69,7 @@ services:
       - NEXT_PUBLIC_MEDIA_URL=${NEXT_PUBLIC_MEDIA_URL}
     depends_on:
       - backend
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
