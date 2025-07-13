@@ -1,5 +1,5 @@
 # Use Node.js Alpine base
-FROM node:20-alpine
+FROM node:20-alpine AS builder
 
 # Install pnpm globally
 RUN npm install -g pnpm
@@ -10,8 +10,8 @@ WORKDIR /app
 # Copy dependency files
 COPY package.json pnpm-lock.yaml ./
 
-# Install dependencies (will use frozen lockfile if the lockfile matches config)
-RUN pnpm install --frozen-lockfile
+# Fix lockfile config mismatch by running install without --frozen-lockfile first
+RUN pnpm install --no-frozen-lockfile
 
 # Copy the rest of the project
 COPY . .
@@ -23,7 +23,7 @@ RUN pnpm build
 FROM nginx:alpine
 
 # Copy built app from previous stage
-COPY --from=0 /app/dist /usr/share/nginx/html
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Expose port
 EXPOSE 80
