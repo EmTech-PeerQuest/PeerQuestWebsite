@@ -1,5 +1,5 @@
-# ---- Base Stage ----
-FROM node:20-alpine
+# ---- Build Stage ----
+FROM node:20-alpine AS builder
 
 # Install pnpm
 RUN npm install -g pnpm
@@ -11,14 +11,29 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 
 # Install dependencies
-RUN pnpm install
+RUN pnpm install --no-frozen-lockfile
 
-# Copy all project files
+# Copy project files
 COPY . .
 
-# Expose development port
+# Build the Next.js app (Railway injects runtime env vars during build)
+RUN pnpm build
+
+# ---- Production Stage ----
+FROM node:20-alpine AS runner
+
+# Install pnpm
+RUN npm install -g pnpm
+
+WORKDIR /app
+
+# Copy only necessary files from builder
+COPY --from=builder /app ./
+
+ENV NODE_ENV=production
+
+# Expose the correct port
 EXPOSE 3000
 
-# Start in development mode
-CMD ["pnpm", "dev"]
-
+# Start the Next.js app on port 3000
+CMD ["pnpm", "start"]
