@@ -11,6 +11,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'your-secret-key' # IMPORTANT: Change this to a strong, random key in production!
 DEBUG = True
+
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
@@ -459,5 +460,3 @@ LOGGING = {
         # },
     },
 }
-
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend']
