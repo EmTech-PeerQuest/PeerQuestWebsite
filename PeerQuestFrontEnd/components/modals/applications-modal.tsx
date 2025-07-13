@@ -393,7 +393,6 @@ export function ApplicationsModal({ isOpen, onClose, currentUser, questId, onApp
                                     onClick={() => handleApproveApplicant(application.id)}
                                     disabled={processingApplications.has(application.id)}
                                     className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-                                    soundType="success"
                                   >
                                     {processingApplications.has(application.id) ? (
                                       <>
