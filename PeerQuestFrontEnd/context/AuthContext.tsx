@@ -115,7 +115,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const res = await fetchUserApi(token);
       // ...existing code...
-      const avatarUrl = res.data.avatar_url || res.data.avatar_data;
+      const avatarUrl = res.avatar_url;
       let finalAvatar = undefined;
       if (avatarUrl && (avatarUrl.startsWith('http') || avatarUrl.startsWith('data:'))) {
         if (avatarUrl.startsWith('data:')) {
@@ -133,26 +133,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
       const transformedUser = {
-        ...res.data,
+        ...res,
         avatar: finalAvatar,
-        dateJoined: res.data.date_joined || res.data.dateJoined,
-        createdAt: res.data.created_at || res.data.createdAt || res.data.date_joined,
-        displayName: res.data.display_name || res.data.displayName,
-        lastPasswordChange: res.data.last_password_change || res.data.lastPasswordChange,
-        birthday: res.data.birthday,
-        gender: res.data.gender,
-        xp: res.data.experience_points || res.data.xp || 0,
-        gold: res.data.gold_balance || res.data.gold || 0,
-        is_staff: res.data.is_staff,
-        is_superuser: res.data.is_superuser,
-        isSuperuser: res.data.is_super_user,
+        dateJoined: res.dateJoined,
+        createdAt: res.createdAt,
+        displayName: res.displayName,
+        lastPasswordChange: res.lastPasswordChange,
+        birthday: res.birthday,
+        gender: res.gender,
+        xp: res.xp || 0,
+        gold: res.gold || 0,
+        is_staff: res.is_staff,
+        is_superuser: res.is_superuser,
+        isSuperuser: res.is_superuser || res.isSuperuser,
         // Ban fields
-        isBanned: res.data.is_banned,
-        banReason: res.data.ban_reason,
-        banExpiration: res.data.ban_expires_at,
+        isBanned: res.isBanned,
+        banReason: res.banReason,
+        banExpiration: res.banExpiration,
       };
-      transformedUser.is_staff = !!(res.data.is_staff);
-      transformedUser.isSuperuser = !!(res.data.is_superuser || res.data.isSuperuser);
+      transformedUser.is_staff = !!(res.is_staff);
+      transformedUser.isSuperuser = !!(res.is_superuser || res.isSuperuser);
       // If banned, clear state and redirect before setting user
       if (transformedUser.isBanned) {
         toast({
