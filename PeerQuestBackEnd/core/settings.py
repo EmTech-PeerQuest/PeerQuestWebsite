@@ -371,6 +371,7 @@ OAUTH2_PROVIDER_REFRESH_TOKEN_MODEL = 'oauth2_provider.RefreshToken'
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://peerquestadmin.up.railway.app",
 ]
 
 # Session and CSRF cookie settings for cross-origin authentication
