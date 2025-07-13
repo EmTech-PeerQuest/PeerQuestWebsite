@@ -17,7 +17,7 @@ export async function reportQuest(payload: QuestReportPayload): Promise<{ succes
     : `${base}/api/users/quest-report/`;
   console.debug('[reportQuest] POST to', endpoint);
   // Use fetchWithAuth to ensure token is always included
-  return await fetchWithAuth(endpoint, {
+  const response = await fetchWithAuth(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -28,4 +28,5 @@ export async function reportQuest(payload: QuestReportPayload): Promise<{ succes
       message: payload.message || "",
     }),
   });
+  return await response.json();
 }

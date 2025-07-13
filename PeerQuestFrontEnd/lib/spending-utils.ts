@@ -1,4 +1,7 @@
-import type { User, SpendingRecord } from "./types"
+import type { User as BaseUser, SpendingRecord } from "./types"
+
+// Extend User type locally to include spendingHistory
+type User = BaseUser & { spendingHistory?: SpendingRecord[] }
 
 export function getSpendingForPeriod(user: User, days: number): number {
   if (!user.spendingHistory) return 0
@@ -7,8 +10,8 @@ export function getSpendingForPeriod(user: User, days: number): number {
   cutoffDate.setDate(cutoffDate.getDate() - days)
 
   return user.spendingHistory
-    .filter((record) => record.date >= cutoffDate)
-    .reduce((total, record) => total + record.amount, 0)
+    .filter((record: SpendingRecord) => new Date(record.date) >= cutoffDate)
+    .reduce((total: number, record: SpendingRecord) => total + record.amount, 0)
 }
 
 export function getDailySpending(user: User): number {
@@ -46,15 +49,15 @@ export function canSpend(user: User, amount: number): { canSpend: boolean; reaso
 
 export function addSpendingRecord(user: User, amount: number, type: SpendingRecord["type"], description: string): User {
   const newRecord: SpendingRecord = {
-    id: Date.now(),
+    id: Date.now().toString(),
     amount,
     type,
     description,
-    date: new Date(),
+    date: new Date().toISOString(),
   }
 
   return {
     ...user,
     spendingHistory: [...(user.spendingHistory || []), newRecord],
-  }
+  } as User
 }

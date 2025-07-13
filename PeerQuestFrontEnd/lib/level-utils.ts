@@ -1,16 +1,16 @@
 import type { LevelThreshold } from "./types"
 
 export const levelThresholds: LevelThreshold[] = [
-  { level: 1, xpRequired: 0, title: "Novice Adventurer" },
-  { level: 2, xpRequired: 100, title: "Apprentice Adventurer" },
-  { level: 3, xpRequired: 250, title: "Journeyman Adventurer" },
-  { level: 4, xpRequired: 500, title: "Adept Adventurer" },
-  { level: 5, xpRequired: 1000, title: "Expert Adventurer" },
-  { level: 6, xpRequired: 1750, title: "Master Adventurer" },
-  { level: 7, xpRequired: 2750, title: "Grandmaster Adventurer" },
-  { level: 8, xpRequired: 4000, title: "Legendary Adventurer" },
-  { level: 9, xpRequired: 5500, title: "Mythic Adventurer" },
-  { level: 10, xpRequired: 7500, title: "Divine Adventurer" },
+  { level: 1, xpRequired: 0, title: "Novice Adventurer", perks: [] },
+  { level: 2, xpRequired: 100, title: "Apprentice Adventurer", perks: [] },
+  { level: 3, xpRequired: 250, title: "Journeyman Adventurer", perks: [] },
+  { level: 4, xpRequired: 500, title: "Adept Adventurer", perks: [] },
+  { level: 5, xpRequired: 1000, title: "Expert Adventurer", perks: [] },
+  { level: 6, xpRequired: 1750, title: "Master Adventurer", perks: [] },
+  { level: 7, xpRequired: 2750, title: "Grandmaster Adventurer", perks: [] },
+  { level: 8, xpRequired: 4000, title: "Legendary Adventurer", perks: [] },
+  { level: 9, xpRequired: 5500, title: "Mythic Adventurer", perks: [] },
+  { level: 10, xpRequired: 7500, title: "Divine Adventurer", perks: [] },
 ]
 
 export const calculateLevel = (xp: number): number => {
