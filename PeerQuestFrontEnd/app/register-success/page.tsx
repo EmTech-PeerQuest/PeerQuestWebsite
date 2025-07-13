@@ -16,7 +16,7 @@ export default function RegisterSuccess() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    const emailParam = searchParams.get('email');
+    const emailParam = searchParams?.get('email') ?? null;
     if (emailParam) {
       setEmail(emailParam);
     }
