@@ -341,9 +341,18 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
                     } else {
                       label = String(skill);
                     }
+                    // Strictly ensure key is string or number, never an object
+                    let key: string | number = index;
+                    if (typeof skill === 'object' && skill !== null) {
+                      if ('id' in skill && (typeof skill.id === 'string' || typeof skill.id === 'number')) {
+                        key = skill.id;
+                      } else if ('skill_name' in skill && typeof skill.skill_name === 'string') {
+                        key = skill.skill_name;
+                      }
+                    }
                     return (
                       <span
-                        key={typeof skill === 'object' && skill !== null ? (('id' in skill && skill.id) || ('skill_name' in skill && skill.skill_name) || index) : index}
+                        key={key}
                         className="px-3 py-1 bg-[#8B75AA]/10 text-[#8B75AA] rounded-full text-sm"
                       >
                         {label}
