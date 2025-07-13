@@ -29,7 +29,7 @@ docker system prune -a --volumes -f
 docker-compose exec backend python manage.py create_gold_packages
 docker-compose exec backend python manage.py loaddata users/achievement_fixtures.json
 
-
+1
 ////////// Copy-Paste Friendly Setup Commands //////////
 # Backend (Windows, PowerShell):
 py -m venv venv
