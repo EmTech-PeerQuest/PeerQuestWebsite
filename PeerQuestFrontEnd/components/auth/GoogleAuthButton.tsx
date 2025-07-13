@@ -1,6 +1,6 @@
 import React from "react";
 import { GoogleLogin } from "@react-oauth/google";
-import api from "../../lib/api";
+import { api } from "../../lib/api";
 
 interface GoogleAuthButtonProps {
   onLoginSuccess?: (data: any) => void;
@@ -46,8 +46,9 @@ const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({ onLoginSuccess, onS
           
           let res;
           try {
+            // Always use the Axios instance with dynamic baseURL and interceptors
             res = await api.post(
-              "google-login-callback/",
+              "/google-login-callback/",
               { credential: credentialResponse.credential }
             );
           } catch (error: any) {
@@ -67,19 +68,15 @@ const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({ onLoginSuccess, onS
             throw error;
           }
 
+
           console.log('✅ Backend response:', res.data);
 
-          // Save tokens and user info with new token names
-          if (res.data.access) {
+          // Save tokens and user info using the centralized auth helpers
+          if (res.data.access && res.data.refresh) {
             localStorage.setItem("access_token", res.data.access);
-            console.log('✅ Access token saved');
-          }
-
-          if (res.data.refresh) {
             localStorage.setItem("refresh_token", res.data.refresh);
-            console.log('✅ Refresh token saved');
+            console.log('✅ Access/Refresh tokens saved');
           }
-
           if (res.data.user) {
             localStorage.setItem("user", JSON.stringify(res.data.user));
             console.log('✅ User data saved');

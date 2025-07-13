@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { X, Eye, EyeOff, AlertCircle } from "lucide-react"
 import LoadingModal from "@/components/ui/loading-modal"
-import GoogleAuthButton from "@/components/auth/GoogleAuthButton"
+import dynamic from "next/dynamic";
+const GoogleAuthButton = dynamic(() => import("@/components/auth/GoogleAuthButton"), { ssr: false });
 import ProfileCompletionModal from "@/components/auth/ProfileCompletionModal"
 import { ResendVerification } from "@/components/auth/resend-verification"
 import { forgotPassword } from "@/lib/api/auth"

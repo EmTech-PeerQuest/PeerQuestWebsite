@@ -1,61 +1,71 @@
-import axios from "axios";
+import { TokenInvalidError, BannedUserError } from './errors';
+import { refreshToken, clearTokens, saveBanInfo } from './auth.js';
+import axios from 'axios';
 
-const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL + "/api/",
-  withCredentials: true, // Allow cookies for cross-origin requests if needed
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+export const api = axios.create({
+  baseURL: API_BASE + '/api/',
+  withCredentials: false,
 });
 
+// Attach access token to all requests
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("access_token");
-  if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
   }
   return config;
 });
 
-// Response interceptor to handle token refresh
+// Response interceptor for ban, token refresh, etc.
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-
+    // Ban enforcement
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.ban_reason
+    ) {
+      if (typeof window !== 'undefined') {
+        saveBanInfo(error.response.data.ban_reason, error.response.data.ban_expires_at);
+        clearTokens();
+        window.location.href = '/banned';
+      }
+      return Promise.reject(new BannedUserError(error.response.data.ban_reason, error.response.data.ban_expires_at));
+    }
+    // Don't handle 401 errors from login endpoints
+    if (
+      error.response?.status === 401 &&
+      (originalRequest.url?.includes('/api/token/') ||
+        originalRequest.url?.includes('/auth/login') ||
+        originalRequest.url?.includes('/auth/google'))
+    ) {
+      return Promise.reject(error);
+    }
+    // Token refresh
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-
-      const refreshToken = localStorage.getItem("refresh_token");
-      if (refreshToken) {
-
-        try {
-          const response = await axios.post((process.env.NEXT_PUBLIC_API_BASE_URL + "/api/token/refresh/"), {
-            refresh: refreshToken,
-          });
-
-          const newAccessToken = response.data.access;
-          localStorage.setItem("access_token", newAccessToken);
-
-          // Update the Authorization header and retry the request
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-          return api(originalRequest);
-        } catch (refreshError) {
-          // Refresh failed, redirect to login
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
-          // Instead of redirecting, throw an error so the UI can handle it
-          // Optionally, you can show a toast here if you have access
-          // window.location.href = "/login";
-          return Promise.reject(refreshError);
+      try {
+        const refreshData = await refreshToken();
+        localStorage.setItem('access_token', refreshData.access);
+        if (originalRequest.headers)
+          originalRequest.headers['Authorization'] = `Bearer ${refreshData.access}`;
+        else
+          originalRequest.headers = { Authorization: `Bearer ${refreshData.access}` };
+        return api(originalRequest);
+      } catch (refreshError) {
+        clearTokens();
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('login')) {
+          window.location.href = '/';
         }
-      } else {
-        // No refresh token, redirect to login
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        // Instead of redirecting, throw an error so the UI can handle it
-        // window.location.href = "/login";
+        return Promise.reject(new TokenInvalidError('Token refresh failed'));
       }
     }
-
-    // Optionally, show a toast or set a global error state here
     return Promise.reject(error);
   }
 );
