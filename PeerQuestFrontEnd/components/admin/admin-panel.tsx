@@ -10,7 +10,7 @@ import { QuestAPI } from "@/lib/api/quests";
 // --- Helper: fetchWithAuth ---
 // Handles token refresh for all API calls
 const fetchWithAuth = async (url: string, options: any = {}, autoLogout = true) => {
-  const API_BASE = "http://localhost:8000";
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
   let token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
   const refresh = typeof window !== 'undefined' ? localStorage.getItem("refresh_token") : null;
   if (!token) throw new Error("No access token found");
@@ -247,7 +247,7 @@ function AdminPanel({
     setActionLogsLoading(true);
     setActionLogsError("");
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/users/action-log/`);
       if (!res.ok) {
         const err = await res.text();
@@ -271,7 +271,7 @@ function AdminPanel({
     setReportsError("");
     setReports([]); // Clear existing reports to prevent duplication
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       
       // The main reports endpoint already returns all types (user, quest, guild)
       const res = await fetchWithAuth(`${API_BASE}/api/users/admin/reports/`);
@@ -307,7 +307,7 @@ function AdminPanel({
     setTransactionsLoading(true);
     setTransactionsError("");
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/transactions/transactions/all_transactions/`);
       if (!res.ok) {
         const err = await res.text();
@@ -341,7 +341,7 @@ function AdminPanel({
     setAppealsLoading(true);
     setAppealsError("");
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/users/ban-appeals/`);
       if (!res.ok) {
         const err = await res.text();
@@ -362,7 +362,7 @@ function AdminPanel({
   // Fetch users from backend
   const fetchUsers = async () => {
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/users/admin/users/`);
       if (!res.ok) {
         if (showToast) showToast(`Failed to fetch users: ${res.status}`, "error");
@@ -389,7 +389,7 @@ function AdminPanel({
   // Fetch guilds from backend
   const fetchGuilds = async () => {
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/guilds/`);
       if (!res.ok) {
         if (showToast) showToast(`Failed to fetch guilds: ${res.status}`, "error");
@@ -418,7 +418,7 @@ function AdminPanel({
     setReceiptsLoading(true);
     setReceiptsError("");
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const params = new URLSearchParams();
       if (receiptSearch.trim()) params.append("search", receiptSearch.trim());
       if (showFutureReceipts) params.append("show_future", "true");
@@ -453,7 +453,7 @@ function AdminPanel({
   // Handle individual receipt actions
   const handleReceiptAction = async (receiptId: number, action: string, notes: string = '') => {
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/payments/admin/receipts/${receiptId}/action/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -480,7 +480,7 @@ function AdminPanel({
     }
     
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/payments/admin/receipts/batch-action/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -507,7 +507,7 @@ function AdminPanel({
   // User management actions
   const handleBanUser = async (user: User, reason: string) => {
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/users/admin/users/${user.id}/ban/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -554,7 +554,7 @@ function AdminPanel({
 
   const handleUnbanUser = async (user: User) => {
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/users/admin/users/${user.id}/unban/`, {
         method: 'POST'
       });
@@ -598,7 +598,7 @@ function AdminPanel({
     }
     
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/users/admin/users/${user.id}/delete/`, {
         method: 'DELETE'
       });
@@ -622,7 +622,7 @@ function AdminPanel({
     }
     
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/quests/admin/quests/${quest.slug}/`, {
         method: 'DELETE'
       });
@@ -642,7 +642,7 @@ function AdminPanel({
   // Guild management actions
   const handleWarnGuild = async (guild: Guild, reason: string) => {
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/guilds/${guild.guild_id || guild.id}/warn/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -668,7 +668,7 @@ function AdminPanel({
     }
     
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/guilds/${guild.guild_id || guild.id}/disable/`, {
         method: 'POST'
       });
@@ -687,7 +687,7 @@ function AdminPanel({
 
   const handleEnableGuild = async (guild: Guild) => {
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/guilds/${guild.guild_id || guild.id}/enable/`, {
         method: 'POST'
       });
@@ -706,7 +706,7 @@ function AdminPanel({
 
   const handleResetGuildWarnings = async (guild: Guild) => {
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/guilds/${guild.guild_id || guild.id}/reset-warnings/`, {
         method: 'POST'
       });
@@ -726,7 +726,7 @@ function AdminPanel({
   // Report management actions
   const handleReportUser = async (user: User, reason: string, message: string) => {
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/reports/user/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -753,7 +753,7 @@ function AdminPanel({
 
   const handleReportQuest = async (quest: Quest, reason: string, message: string) => {
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/reports/quest/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -780,7 +780,7 @@ function AdminPanel({
 
   const handleReportGuild = async (guild: Guild, reason: string, message: string) => {
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/users/guild-report/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -808,7 +808,7 @@ function AdminPanel({
   // Report resolution actions
   const handleResolveReport = async (report: any, action: string) => {
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       
       // Use specific endpoints based on report type - all routes through users app
       let endpoint = "";
@@ -855,7 +855,7 @@ function AdminPanel({
   // Appeals actions
   const handleApproveAppeal = async (appeal: any) => {
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/users/ban-appeal/${appeal.id}/review/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -880,7 +880,7 @@ function AdminPanel({
 
   const handleDenyAppeal = async (appeal: any) => {
     try {
-      const API_BASE = "http://localhost:8000";
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const res = await fetchWithAuth(`${API_BASE}/api/users/ban-appeal/${appeal.id}/review/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1535,7 +1535,7 @@ function AdminPanel({
                                 receipt.status === 'rejected' ? 'bg-red-100 text-red-800' :
                                 'bg-gray-100 text-gray-800'
                               }`}>
-                                {receipt.status}
+                                 {report.status}
                               </span>
                             </td>
                             <td className="py-3 px-4 border-b">
