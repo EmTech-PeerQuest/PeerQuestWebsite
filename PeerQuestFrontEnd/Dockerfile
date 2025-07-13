@@ -10,23 +10,24 @@ WORKDIR /app
 # Copy dependency files
 COPY package.json pnpm-lock.yaml ./
 
-# Fix lockfile config mismatch by running install without --frozen-lockfile first
+# Install dependencies
 RUN pnpm install --no-frozen-lockfile
 
 # Copy the rest of the project
 COPY . .
 
-# Build the React app
+# Build the Next.js app
 RUN pnpm build
 
-# Use nginx to serve the built files (for static React apps)
-FROM nginx:alpine
+# Production image
+FROM node:20-alpine
 
-# Copy built app from previous stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+WORKDIR /app
 
-# Expose port
-EXPOSE 80
+COPY --from=builder /app ./
 
-# Start NGINX
-CMD ["nginx", "-g", "daemon off;"]
+ENV NODE_ENV=production
+
+EXPOSE 3000
+
+CMD ["pnpm", "start"]
