@@ -4,9 +4,10 @@ import { useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 export default function GoogleCallbackPage() {
-  const searchParams = useSearchParams()
-  const code = searchParams.get('code')
-  const error = searchParams.get('error')
+
+  const searchParams = useSearchParams();
+  const code = searchParams?.get('code') ?? null;
+  const error = searchParams?.get('error') ?? null;
 
   useEffect(() => {
     if (code) {
