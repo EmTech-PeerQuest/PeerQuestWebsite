@@ -19,11 +19,11 @@ export default function VerifyEmail() {
   const { refreshUser } = useAuth();
 
   useEffect(() => {
-    const token = searchParams.get('token');
-    const success = searchParams.get('success');
-    const error = searchParams.get('error');
-    const accessToken = searchParams.get('access_token');
-    const refreshToken = searchParams.get('refresh_token');
+    const token = searchParams?.get('token') ?? null;
+    const success = searchParams?.get('success') ?? null;
+    const error = searchParams?.get('error') ?? null;
+    const accessToken = searchParams?.get('access_token') ?? null;
+    const refreshToken = searchParams?.get('refresh_token') ?? null;
     
     if (success === 'true' && accessToken && refreshToken) {
       // Handle successful verification with tokens from GET redirect
@@ -153,7 +153,7 @@ export default function VerifyEmail() {
         errorMessage = 'Verification link has expired. Please request a new one.';
         setStatus('expired');
         setCanResend(true);
-        const emailParam = searchParams.get('email');
+        const emailParam = searchParams?.get('email') ?? null;
         if (emailParam) {
           setEmail(emailParam);
         }

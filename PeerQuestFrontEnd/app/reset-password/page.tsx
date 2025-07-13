@@ -16,9 +16,10 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false)
   const [validLink, setValidLink] = useState<boolean | null>(null)
   
-  const searchParams = useSearchParams()
-  const uid = searchParams.get('uid')
-  const token = searchParams.get('token')
+
+  const searchParams = useSearchParams();
+  const uid = searchParams?.get('uid') ?? null;
+  const token = searchParams?.get('token') ?? null;
 
   useEffect(() => {
     // Check if we have the required parameters
