@@ -13,10 +13,10 @@ COPY package.json pnpm-lock.yaml ./
 # Install dependencies
 RUN pnpm install --no-frozen-lockfile
 
-# Copy all project files
+# Copy project files
 COPY . .
 
-# Build with env vars passed by Railway
+# Build the Next.js app (Railway injects runtime env vars during build)
 RUN pnpm build
 
 # ---- Production Stage ----
@@ -27,13 +27,13 @@ RUN npm install -g pnpm
 
 WORKDIR /app
 
-# Copy only the built output and dependencies
+# Copy only necessary files from builder
 COPY --from=builder /app ./
 
 ENV NODE_ENV=production
 
+# Expose the correct port
 EXPOSE 3000
 
+# Start the Next.js app on port 3000
 CMD ["pnpm", "start"]
-RUN echo "API: $NEXT_PUBLIC_API_BASE_URL"
-RUN echo "API: $NEXT_PUBLIC_MEDIA_URL"
