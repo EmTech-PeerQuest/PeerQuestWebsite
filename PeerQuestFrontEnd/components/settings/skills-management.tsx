@@ -94,7 +94,7 @@ export function SkillsManagement({ showToast }: SkillsManagementProps) {
   const saveSkills = async () => {
     try {
       setLoading(true)
-      const response = await skillsApi.updateUserSkills(userSkills)
+      const response = await skillsApi.updateUserSkills({ skills: userSkills })
       
       if (response.success) {
         showToast('Skills updated successfully!')
