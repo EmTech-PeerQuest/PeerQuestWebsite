@@ -31,3 +31,4 @@ EXPOSE 8000
 
 # Start the Daphne ASGI server
 CMD ["python", "-m", "daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]
+
