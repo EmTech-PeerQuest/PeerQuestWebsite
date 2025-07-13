@@ -1,27 +1,37 @@
-# PeerQuestFrontEnd/Dockerfile
+# Railway-compatible Dockerfile for Next.js (pnpm)
+FROM node:20-alpine
 
-FROM node:18-alpine
+# Install pnpm globally
+RUN npm install -g pnpm
 
 # Set working directory
 WORKDIR /app
 
-# Enable PNPM via Corepack
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Set environment variables
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV FORCE_COLOR=1
 
-# Copy only lockfile and package definition for install caching
-COPY pnpm-lock.yaml package.json ./
+# Copy package.json and lockfile
+COPY package*.json ./
 
-# Install deps
-RUN pnpm install
+# Copy Tailwind and PostCSS config files before install (for build cache efficiency)
+COPY tailwind.config.js ./
+COPY postcss.config.js ./
 
-# Copy rest of the frontend files
+# Install dependencies using pnpm
+RUN pnpm install --frozen-lockfile
+
+# Copy the rest of the application code
 COPY . .
 
-# Build the production frontend
+# Build the Next.js app
 RUN pnpm build
 
-# Expose Next.js default port
+# Expose the port the app runs on
 EXPOSE 3000
 
-# Start Next.js in production
+# Railway sets PORT automatically; Next.js uses 3000 by default
+ENV PORT=3000
+
+# Start the Next.js app in production mode
 CMD ["pnpm", "start"]
