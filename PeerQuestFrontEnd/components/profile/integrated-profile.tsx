@@ -1,6 +1,8 @@
+// Remove duplicate RecentActivity component definition (keep only one at the top of the file)
 "use client"
 
 import { useState, useEffect } from "react"
+import { useGoldBalance } from "@/context/GoldBalanceContext";
 import type { User, Quest, Guild } from "@/lib/types"
 import { ChevronDown } from "lucide-react"
 import { formatJoinDate } from "@/lib/date-utils"
@@ -16,6 +18,8 @@ type IntegratedProfileProps = {
 };
 
 // --- AchievementsSection and types ---
+
+// ...existing code...
 interface Achievement {
   id: string | number;
   achievement_type: string;
@@ -248,6 +252,7 @@ import api from "@/lib/api";
 import { guildApi } from "@/lib/api/guilds";
 import { QuestAPI } from "@/lib/api/quests";
 import React from "react";
+import RecentActivity from "./RecentActivity";
 
 
 function IntegratedProfile({ currentUser, quests: propQuests, guilds: propGuilds, navigateToSection, defaultTab = "overview" }: IntegratedProfileProps) {
@@ -305,7 +310,7 @@ function IntegratedProfile({ currentUser, quests: propQuests, guilds: propGuilds
           guildList.map(async (guild) => {
             try {
               // Ensure id is string
-              const guildId = String(guild.guild_id ?? guild.id ?? "");
+              const guildId = String((guild as any).guild_id ?? guild.id ?? "");
               if (!guildId) return;
               const members = await guildApi.getGuildMembers(guildId);
               const isMember = members.some((membership: any) =>
@@ -314,8 +319,8 @@ function IntegratedProfile({ currentUser, quests: propQuests, guilds: propGuilds
                 membership.is_active
               );
               if (isMember) {
-                // Attach members array for member count (store as .members, not .member_count)
-                memberGuilds.push({ ...guild, members: members });
+                // Attach members count for member count (store as .members: number)
+                memberGuilds.push({ ...guild, members: Array.isArray(members) ? members.length : 1 });
               }
             } catch (err) {
               // Ignore errors for individual guilds
@@ -429,21 +434,14 @@ function IntegratedProfile({ currentUser, quests: propQuests, guilds: propGuilds
     if (typeof u.experience_points === 'number') return u.experience_points;
     return 0;
   };
-  const getInitialGold = (u: any) => {
-    if (typeof u.gold === 'number') return u.gold;
-    if (typeof u.gold_balance === 'number') return Number(u.gold_balance);
-    if (u.profile && typeof u.profile.gold === 'number') return u.profile.gold;
-    if (u.profile && typeof u.profile.gold_balance === 'number') return Number(u.profile.gold_balance);
-    return 0;
-  };
+
   const [userXp, setUserXp] = useState<number>(() => {
     const xp = getInitialXp(currentUser);
     return (typeof xp === 'number' && !isNaN(xp) && xp >= 0) ? xp : 0;
   });
-  const [userGold, setUserGold] = useState<number>(() => {
-    const gold = getInitialGold(currentUser);
-    return (typeof gold === 'number' && !isNaN(gold) && gold >= 0) ? gold : 0;
-  });
+
+  // Use global gold balance from context
+  const { goldBalance, loading: goldLoading } = useGoldBalance();
 
   // When currentUser changes, only update userXp if the new value is valid (from Users table only)
   useEffect(() => {
@@ -452,11 +450,7 @@ function IntegratedProfile({ currentUser, quests: propQuests, guilds: propGuilds
     if (typeof xp === 'number' && !isNaN(xp) && xp >= 0) {
       setUserXp(xp);
     }
-    // Gold logic unchanged
-    const gold = getInitialGold(currentUser);
-    if (typeof gold === 'number' && !isNaN(gold) && gold >= 0) {
-      setUserGold(gold);
-    }
+    // Gold is now handled by context
   }, [currentUser]);
   const [xpLoading, setXpLoading] = useState(false);
   const [xpError, setXpError] = useState<string | null>(null);
@@ -488,11 +482,12 @@ function IntegratedProfile({ currentUser, quests: propQuests, guilds: propGuilds
         else if (typeof data.gold_balance === 'number') gold = Number(data.gold_balance);
         else if (data.profile && typeof data.profile.gold === 'number') gold = data.profile.gold;
         else if (data.profile && typeof data.profile.gold_balance === 'number') gold = Number(data.profile.gold_balance);
-        if (isMounted && typeof gold === 'number' && !isNaN(gold) && gold >= 0 && gold !== userGold) {
-          setUserGold(gold);
-        } else if (isMounted && (typeof gold !== 'number' || isNaN(gold) || gold < 0)) {
-          console.warn('Gold fetch: invalid or missing gold value from API:', gold, data);
-        }
+        // Gold is now handled by context, do not set or check userGold here
+        // if (isMounted && typeof gold === 'number' && !isNaN(gold) && gold >= 0 && gold !== userGold) {
+        //   setUserGold(gold);
+        // } else if (isMounted && (typeof gold !== 'number' || isNaN(gold) || gold < 0)) {
+        //   console.warn('Gold fetch: invalid or missing gold value from API:', gold, data);
+        // }
       } catch (err) {
         if (isMounted) setXpError('Could not load XP/gold.');
       } finally {
@@ -662,7 +657,7 @@ function IntegratedProfile({ currentUser, quests: propQuests, guilds: propGuilds
                   <span className="font-medium text-[#2C1A1D]">Gold:</span>
                   <span className="font-bold text-[#CDAA7D] text-lg flex items-center">
                     <span className="mr-1">🪙</span>
-                    {userGold}
+                    {goldLoading ? "Loading..." : goldBalance}
                   </span>
                 </div>
               </div>
@@ -709,13 +704,13 @@ function IntegratedProfile({ currentUser, quests: propQuests, guilds: propGuilds
               )}
             </div>
 
-            {/* Recent Activity */}
+            {/* Recent Activity (Dynamic, using notification logic) */}
             <div className="bg-[#fff7e0]/90 backdrop-blur-sm rounded-3xl p-6 sm:p-8 border-2 border-[#CDAA7D]/40 shadow-xl hover:shadow-2xl transition-all duration-300 md:col-span-3">
               <h3 className="font-bold text-xl mb-6 text-[#2C1A1D] flex items-center">
                 <span className="mr-2">📖</span>
                 Recent Activity
               </h3>
-              <p className="text-[#2C1A1D]/60 text-sm bg-[#fff7e0]/60 rounded-2xl p-4 border border-[#CDAA7D]/20">No recent activity to display.</p>
+              <RecentActivity userId={currentUser.id} />
             </div>
           </div>
         )}
