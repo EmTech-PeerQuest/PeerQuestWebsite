@@ -1,9 +1,10 @@
-from django.urls import path
+from django.urls import path, include
 from .views import (
     GuildListView, GuildDetailView, GuildCreateView, GuildUpdateView, 
     GuildDeleteView, MyGuildsView, GuildMembersView, join_guild, 
     leave_guild, guild_join_requests, process_join_request, kick_member,
-    my_join_requests, update_member_role
+    my_join_requests, update_member_role, warn_guild, disable_guild,
+    enable_guild, dismiss_warning, guild_warnings, reset_warnings
 )
 
 app_name = 'guilds'
@@ -34,4 +35,12 @@ urlpatterns = [
          process_join_request, name='process-join-request'),
     # Guild chat messages
     path('<uuid:guild_id>/messages/', GuildChatMessageListView.as_view(), name='guild-messages'),
+    
+    # Guild moderation (admin only)
+    path('<uuid:guild_id>/warn/', warn_guild, name='warn-guild'),
+    path('<uuid:guild_id>/disable/', disable_guild, name='disable-guild'),
+    path('<uuid:guild_id>/enable/', enable_guild, name='enable-guild'),
+    path('<uuid:guild_id>/warnings/', guild_warnings, name='guild-warnings'),
+    path('<uuid:guild_id>/warnings/<int:warning_id>/dismiss/', dismiss_warning, name='dismiss-warning'),
+    path('<uuid:guild_id>/reset-warnings/', reset_warnings, name='reset-warnings'),
 ]

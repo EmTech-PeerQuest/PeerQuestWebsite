@@ -54,7 +54,6 @@ urlpatterns = [
     path('api/payments/', include('payments.urls')),
     # Quests API
     path('api/quests/', include('quests.urls')),
-    path('api/guilds/', include('guilds.urls')),
     # Messaging app
     path('api/messages/', include('messaging.urls')),
     path('api/conversations/', include('messaging.urls')),

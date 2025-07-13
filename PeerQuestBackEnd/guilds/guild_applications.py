@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 from guilds.models import Guild
 
 class GuildApplication(models.Model):
@@ -41,22 +42,59 @@ class GuildApplication(models.Model):
                 from django.core.exceptions import ValidationError
                 raise ValidationError('You already have a pending application for this guild.')
 
+
     def save(self, *args, **kwargs):
         self.clean()
+        is_new = self.pk is None
         super().save(*args, **kwargs)
+        # Notify guild master on new application
+        if is_new and self.status == 'pending':
+            from notifications.models import Notification
+            Notification.objects.create(
+                user=self.guild.owner,
+                notif_type='guild_event',
+                title='New Guild Application',
+                message=f'{self.applicant.username} has applied to join your guild "{self.guild.name}".',
+                guild_id=self.guild.guild_id,
+                guild_name=self.guild.name,
+                applicant=self.applicant.username,
+                application_id=self.id
+            )
 
     def approve(self, reviewer):
         self.status = 'approved'
         self.reviewed_by = reviewer
         self.reviewed_at = timezone.now()
-        self.save()
+        super().save()
         # Add applicant to guild members
         self.guild.members.add(self.applicant)
-        # Optionally notify applicant
+        # Notify applicant of acceptance
+        from notifications.models import Notification
+        Notification.objects.create(
+            user=self.applicant,
+            notif_type='guild_event',
+            title='Guild Application Accepted',
+            message=f'Your application to join guild "{self.guild.name}" has been accepted!',
+            guild_id=self.guild.guild_id,
+            guild_name=self.guild.name,
+            application_id=self.id,
+            status='approved'
+        )
 
     def reject(self, reviewer):
         self.status = 'rejected'
         self.reviewed_by = reviewer
         self.reviewed_at = timezone.now()
-        self.save()
-        # Optionally notify applicant
+        super().save()
+        # Notify applicant of rejection
+        from notifications.models import Notification
+        Notification.objects.create(
+            user=self.applicant,
+            notif_type='guild_event',
+            title='Guild Application Rejected',
+            message=f'Your application to join guild "{self.guild.name}" was rejected.',
+            guild_id=self.guild.guild_id,
+            guild_name=self.guild.name,
+            application_id=self.id,
+            status='rejected'
+        )

@@ -733,8 +733,8 @@ class AdminQuestDetailView(generics.RetrieveUpdateDestroyAPIView):
         """
         quest = self.get_object()
         
-        # Check if user is the quest creator
-        if quest.creator != request.user:
+        # Check if user is the quest creator or an admin
+        if quest.creator != request.user and not (request.user.is_staff or request.user.is_superuser):
             return Response(
                 {'error': 'You can only delete your own quests.'},
                 status=status.HTTP_403_FORBIDDEN
@@ -760,6 +760,19 @@ class AdminQuestDetailView(generics.RetrieveUpdateDestroyAPIView):
 
         if refund_result["success"]:
             print(f"✅ Refunded {refund_result['amount_refunded']} gold to {quest.creator.username} for quest deletion")
+            
+            # Create notification for quest creator about deletion
+            from notifications.models import Notification
+            if request.user != quest.creator:  # Only notify if admin deleted it, not self-deletion
+                Notification.objects.create(
+                    user=quest.creator,
+                    notif_type="quest_deleted",
+                    title="Quest Deleted by Admin",
+                    message=f"Your quest '{quest.title}' has been deleted by an administrator. {refund_result['amount_refunded']} gold has been refunded to your account.",
+                    quest_id=quest.id,
+                    quest_title=quest.title
+                )
+            
             # Soft delete the quest instead of hard delete
             quest.delete()  # This now sets is_deleted=True
             # Return refund info and new balance

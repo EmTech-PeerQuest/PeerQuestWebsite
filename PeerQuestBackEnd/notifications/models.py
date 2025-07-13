@@ -8,6 +8,13 @@ class Notification(models.Model):
         ("kicked_from_quest", "Kicked From Quest"),
         ("quest_disabled", "Quest Disabled"),
         ("quest_deleted", "Quest Deleted"),
+        ("guild_event", "Guild Notification"),
+        ("guild_application_approved", "Guild Application Approved"),
+        ("guild_application_rejected", "Guild Application Rejected"),
+        ("guild_warned", "Guild Warned"),
+        ("guild_disabled", "Guild Disabled"),
+        ("guild_re_enabled", "Guild Re-enabled"),
+        ("warning_reset", "Warning Reset"),
     ]
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
@@ -20,6 +27,8 @@ class Notification(models.Model):
     status = models.CharField(max_length=32, blank=True, null=True)  # pending, approved, rejected
     result = models.CharField(max_length=32, blank=True, null=True)  # accepted, rejected
     reason = models.TextField(blank=True, null=True)
+    guild_id = models.CharField(max_length=255, null=True, blank=True, help_text="Related Guild ID")
+    guild_name = models.CharField(max_length=255, blank=True, null=True)
     read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     application_id = models.IntegerField(null=True, blank=True, help_text="Related Application ID")

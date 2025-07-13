@@ -2,7 +2,6 @@ export { Navbar } from '@/components/ui/navbar'
 export { Hero } from '@/components/ui/hero'
 export { QuestBoard } from '@/components/quests/quest-board-clean'
 export { GuildHall } from '@/components/guilds/guild-hall'
-// export { Profile } from '@/components/auth/profile'  // Missing component
 export { Settings } from '@/components/settings/settings'
 export { About } from "./about"
 export { AuthModal } from '@/components/auth/auth-modal'
@@ -15,7 +14,6 @@ export { GoldPurchaseModal } from '@/components/gold/gold-purchase-modal'
 export { Toast } from '@/components/ui/toast'
 export { Footer } from '@/components/ui/footer'
 export { EnhancedProfile } from '@/components/auth/enhanced-profile'
-// export { UserSearch } from "./user-search"  // Missing component
 export { default as MessagingSystem } from '@/components/messaging/messaging-system'
 export { QuestManagement } from '@/components/quests/quest-management'
 export { GuildManagement } from '@/components/guilds/guild-management'

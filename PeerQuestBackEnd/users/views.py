@@ -1477,3 +1477,71 @@ class RegisterUserView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request):
         return Response({'message': 'RegisterUserView placeholder'}, status=200)
+
+# Guild Report API
+from .models import GuildReport
+from .serializers import GuildReportSerializer
+
+class GuildReportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        data = request.data.copy()
+        data['reporter'] = request.user.id
+
+        # Check if guild exists
+        from guilds.models import Guild
+        try:
+            # Handle both 'reported_guild' and 'reportedGuild' field names
+            guild_id = data.get('reported_guild') or data.get('reportedGuild')
+            if not guild_id:
+                return Response({'success': False, 'message': 'Guild ID is required.'}, status=status.HTTP_400_BAD_REQUEST)
+            reported_guild = Guild.objects.get(guild_id=guild_id)
+        except Guild.DoesNotExist:
+            return Response({'success': False, 'message': 'Guild not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Prevent reporting own guild
+        if reported_guild.owner_id == request.user.id:
+            return Response({'success': False, 'message': 'You cannot report your own guild.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Map frontend field names to backend field names
+        data['reported_guild'] = reported_guild.guild_id
+        data['reason'] = data.get('reason', '')
+
+        serializer = GuildReportSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'success': True, 'message': 'Guild reported successfully.'}, status=status.HTTP_201_CREATED)
+        return Response({'success': False, 'errors': serializer.errors, 'message': 'Failed to report guild.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, pk=None):
+        # Mark a guild report as resolved (admin only)
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        report_id = pk or request.data.get('id')
+        if not report_id:
+            return Response({'detail': 'Report ID required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            report = GuildReport.objects.get(id=report_id)
+        except GuildReport.DoesNotExist:
+            return Response({'detail': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+        report.resolved = True
+        report.resolved_by = request.user
+        from django.utils import timezone
+        report.resolved_at = timezone.now()
+        report.save()
+        return Response({'success': True, 'message': 'Guild report resolved.'}, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk=None):
+        # Allow admin to delete a guild report
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        report_id = pk or request.data.get('id')
+        if not report_id:
+            return Response({'detail': 'Report ID required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            report = GuildReport.objects.get(id=report_id)
+        except GuildReport.DoesNotExist:
+            return Response({'detail': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+        report.delete()
+        return Response({'success': True, 'message': 'Guild report deleted.'}, status=status.HTTP_200_OK)

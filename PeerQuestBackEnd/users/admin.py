@@ -2,7 +2,8 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
-from .models import User, BanAppeal, UserReport, QuestReport
+from .models import User, BanAppeal, UserReport, QuestReport, GuildReport
+
 # UserReport admin registration
 @admin.register(UserReport)
 class UserReportAdmin(admin.ModelAdmin):
@@ -20,6 +21,18 @@ class QuestReportAdmin(admin.ModelAdmin):
     search_fields = ('reported_quest__id', 'reporter__username', 'reason', 'message')
     date_hierarchy = 'created_at'
     readonly_fields = ('created_at',)
+
+# GuildReport admin registration - Manual registration
+class GuildReportAdmin(admin.ModelAdmin):
+    list_display = ('id', 'reported_guild', 'reporter', 'reason', 'created_at', 'resolved', 'resolved_by', 'resolved_at')
+    list_filter = ('resolved', 'reason', 'created_at')
+    search_fields = ('reported_guild__name', 'reporter__username', 'reason', 'message')
+    date_hierarchy = 'created_at'
+    readonly_fields = ('created_at',)
+
+# Manual registration to ensure it works
+admin.site.register(GuildReport, GuildReportAdmin)
+
 # BanAppeal admin registration
 @admin.register(BanAppeal)
 class BanAppealAdmin(admin.ModelAdmin):

@@ -1,10 +1,14 @@
 "use client"
 import { useState, useEffect, useCallback } from "react"
+import { Flag } from "lucide-react"
 import type { Guild, User, GuildMembership } from "@/lib/types"
 import { GuildOverviewModal } from '@/components/guilds/guild-overview-modal'
 import { GuildChatModal } from '@/components/guilds/guild-chat-modal'
+import { GuildWarningModal } from '@/components/guilds/guild-warning-modal'
 import { guildApi } from '@/lib/api/guilds'
 import { usePresence } from '@/context/PresenceContext'
+import { reportGuild } from '@/lib/api/guild-report'
+import { getGuildWarningStatus } from '@/lib/utils/guild-moderation'
 
 interface GuildHallProps {
   guilds: Guild[]
@@ -47,6 +51,14 @@ export function GuildHall({
   const [showChatModal, setShowChatModal] = useState(false)
   const [selectedGuild, setSelectedGuild] = useState<Guild | null>(null)
   const [userMemberships, setUserMemberships] = useState<{[guildId: string]: boolean}>({})
+  const [showWarningModal, setShowWarningModal] = useState(false)
+
+  // Report-related state
+  const [showReportModal, setShowReportModal] = useState(false)
+  const [reportingGuild, setReportingGuild] = useState<Guild | null>(null)
+  const [reportReason, setReportReason] = useState("")
+  const [reportMessage, setReportMessage] = useState("")
+  const [reportSubmitting, setReportSubmitting] = useState(false)
 
   // Check user membership status for all guilds
   useEffect(() => {
@@ -235,22 +247,58 @@ export function GuildHall({
     }
   }
 
+  // Report handling functions
+  const handleSubmitReport = async () => {
+    if (!reportingGuild || !reportReason.trim()) {
+      showToast('Please select a reason for reporting', 'error')
+      return
+    }
+
+    if (!currentUser) {
+      showToast('You must be logged in to report a guild', 'error')
+      return
+    }
+
+    setReportSubmitting(true)
+    
+    try {
+      await reportGuild({
+        reportedGuild: reportingGuild.guild_id,
+        reason: reportReason,
+        message: reportMessage.trim() || undefined
+      })
+      
+      showToast('Guild reported successfully. Our team will review it.', 'success')
+      setShowReportModal(false)
+      setReportingGuild(null)
+      setReportReason('')
+      setReportMessage('')
+    } catch (error: any) {
+      console.error('Error reporting guild:', error)
+      showToast(error.message || 'Failed to report guild. Please try again.', 'error')
+    } finally {
+      setReportSubmitting(false)
+    }
+  }
+
   return (
     <section className="bg-[#F4F0E6] min-h-screen py-8">
       <div className="max-w-6xl mx-auto px-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-4xl font-bold text-[#2C1A1D] font-serif">Guild Hall</h2>
-          {currentUser && (
-            <button
-              onClick={e => {
-                e.stopPropagation();
-                openCreateGuildModal();
-              }}
-              className="bg-[#8B75AA] text-white px-4 py-2 rounded hover:bg-[#7A6699] transition-colors"
-            >
-              Create a Guild
-            </button>
-          )}
+          <div className="flex gap-4">
+            {currentUser && (
+              <button
+                onClick={e => {
+                  e.stopPropagation();
+                  openCreateGuildModal();
+                }}
+                className="bg-[#8B75AA] text-white px-4 py-2 rounded hover:bg-[#7A6699] transition-colors"
+              >
+                Create a Guild
+              </button>
+            )}
+          </div>
         </div>
         <p className="text-center text-[#8B75AA] mb-8">
           JOIN OR CREATE A GUILD TO COLLABORATE WITH OTHER ADVENTURERS ON LARGER QUESTS.
@@ -283,11 +331,46 @@ export function GuildHall({
                     </div>
                     <div className="flex-1">
                       <h3 className="font-bold text-white text-xl leading-tight font-serif mb-1">{guild.name}</h3>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-bold text-white shadow-lg ${getSpecializationBadgeColor(guild.specialization)}`}
-                      >
-                        {guild.specialization.toUpperCase()}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-bold text-white shadow-lg ${getSpecializationBadgeColor(guild.specialization)}`}
+                        >
+                          {guild.specialization.toUpperCase()}
+                        </span>
+                        
+                        {/* Warning indicators */}
+                        {guild.is_disabled && (
+                          <span className="px-2 py-1 bg-red-600 text-white text-xs font-bold rounded-full shadow-lg">
+                            DISABLED
+                          </span>
+                        )}
+                        {!guild.is_disabled && guild.warning_count > 0 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              console.log('Warning badge clicked!', { 
+                                guild: guild.name, 
+                                currentUser: currentUser?.username,
+                                guildOwner: guild.owner?.username,
+                                isOwner: currentUser && guild.owner && String(guild.owner.id) === String(currentUser.id)
+                              });
+                              
+                              // Check if current user is the guild owner
+                              if (currentUser && guild.owner && String(guild.owner.id) === String(currentUser.id)) {
+                                console.log('Opening warning modal for owner');
+                                setSelectedGuild(guild);
+                                setShowWarningModal(true);
+                              } else {
+                                console.log('User is not the owner');
+                                showToast('Only guild owners can view warning details', 'info');
+                              }
+                            }}
+                            className="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold rounded-full shadow-lg transition-colors"
+                          >
+                            ⚠️ {guild.warning_count}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -343,51 +426,70 @@ export function GuildHall({
               <div className="border-t border-[#CDAA7D]/20 p-6 bg-gradient-to-r from-[#F4F0E6] to-white">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2 text-sm text-[#8B75AA]">
-                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                    <span className="font-medium">Active Guild</span>
+                    <span className={`w-2 h-2 rounded-full ${guild.is_disabled ? 'bg-red-500' : 'bg-green-500 animate-pulse'}`}></span>
+                    <span className="font-medium">{guild.is_disabled ? 'Disabled Guild' : 'Active Guild'}</span>
                   </div>
 
-                  {typeof guild.guild_id === 'string' && guild.guild_id && guild.guild_id !== 'NaN' && guild.guild_id !== 'undefined' ? (
+                  <div className="flex items-center gap-2">
+                    {/* Report Button */}
                     <button
                       onClick={e => {
                         e.stopPropagation();
-                        handleJoinClick(guild.guild_id);
+                        setReportingGuild(guild);
+                        setShowReportModal(true);
                       }}
-                      disabled={
-                        isUserMember(guild, currentUser) ||
-                        getJoinRequestStatus(guild.guild_id) === 'pending'
-                      }
-                      className={`px-6 py-2 rounded-lg font-medium transition-all duration-200 shadow-md ${
-                        isUserMember(guild, currentUser)
-                          ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                      className="p-2 rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-200"
+                      title="Report Guild"
+                    >
+                      <Flag className="w-4 h-4" />
+                    </button>                    {/* Join Button */}
+                    {typeof guild.guild_id === 'string' && guild.guild_id && guild.guild_id !== 'NaN' && guild.guild_id !== 'undefined' ? (
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          handleJoinClick(guild.guild_id);
+                        }}
+                        disabled={
+                          guild.is_disabled ||
+                          isUserMember(guild, currentUser) ||
+                          getJoinRequestStatus(guild.guild_id) === 'pending'
+                        }
+                        className={`px-6 py-2 rounded-lg font-medium transition-all duration-200 shadow-md ${
+                          guild.is_disabled
+                            ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            : isUserMember(guild, currentUser)
+                            ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                            : getJoinRequestStatus(guild.guild_id) === 'pending'
+                            ? "bg-yellow-200 text-yellow-700 cursor-not-allowed"
+                            : getJoinRequestStatus(guild.guild_id) === 'declined'
+                            ? "bg-red-100 border-2 border-red-300 text-red-700 hover:bg-red-200 hover:shadow-lg transform hover:-translate-y-0.5"
+                            : "bg-[#8B75AA] text-white hover:bg-[#7A6699] hover:shadow-lg transform hover:-translate-y-0.5"
+                        }`}
+                      >
+                        {guild.is_disabled
+                          ? "GUILD DISABLED"
+                          : isUserMember(guild, currentUser)
+                          ? "✓ JOINED"
                           : getJoinRequestStatus(guild.guild_id) === 'pending'
-                          ? "bg-yellow-200 text-yellow-700 cursor-not-allowed"
+                          ? (
+                              <span className="inline-flex items-center gap-1">
+                                <span role="img" aria-label="pending">⏳</span>
+                                <span>Request Pending Approval</span>
+                              </span>
+                            )
                           : getJoinRequestStatus(guild.guild_id) === 'declined'
-                          ? "bg-red-100 border-2 border-red-300 text-red-700 hover:bg-red-200 hover:shadow-lg transform hover:-translate-y-0.5"
-                          : "bg-[#8B75AA] text-white hover:bg-[#7A6699] hover:shadow-lg transform hover:-translate-y-0.5"
-                      }`}
-                    >
-                      {isUserMember(guild, currentUser)
-                        ? "✓ JOINED"
-                        : getJoinRequestStatus(guild.guild_id) === 'pending'
-                        ? (
-                            <span className="inline-flex items-center gap-1">
-                              <span role="img" aria-label="pending">⏳</span>
-                              <span>Request Pending Approval</span>
-                            </span>
-                          )
-                        : getJoinRequestStatus(guild.guild_id) === 'declined'
-                        ? "🔄 REAPPLY"
-                        : "JOIN GUILD"}
-                    </button>
-                  ) : (
-                    <button
-                      disabled
-                      className="px-6 py-2 rounded-lg font-medium bg-gray-100 text-gray-400 cursor-not-allowed shadow-md"
-                    >
-                      NOT AVAILABLE
-                    </button>
-                  )}
+                          ? "🔄 REAPPLY"
+                          : "JOIN GUILD"}
+                      </button>
+                    ) : (
+                      <button
+                        disabled
+                        className="px-6 py-2 rounded-lg font-medium bg-gray-100 text-gray-400 cursor-not-allowed shadow-md"
+                      >
+                        NOT AVAILABLE
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -475,8 +577,97 @@ export function GuildHall({
           />
         )}
 
+        {/* Guild Warning Modal */}
+        {selectedGuild && showWarningModal && (
+          <GuildWarningModal
+            isOpen={showWarningModal}
+            onClose={() => {
+              console.log('Closing warning modal from Guild Hall');
+              setShowWarningModal(false);
+              setSelectedGuild(null);
+            }}
+            guild={selectedGuild}
+            currentUser={currentUser}
+            showToast={showToast}
+          />
+        )}
 
+        {/* Report Guild Modal */}
+        {showReportModal && reportingGuild && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-xl font-bold text-[#2C1A1D] mb-2">Report Guild</h3>
+                <p className="text-[#8B75AA]">Report "{reportingGuild.name}" for inappropriate content or behavior</p>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">
+                    Reason for reporting *
+                  </label>
+                  <select
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA] focus:border-transparent"
+                    required
+                  >
+                    <option value="">Select a reason</option>
+                    <option value="inappropriate_content">Inappropriate Content</option>
+                    <option value="spam">Spam</option>
+                    <option value="harassment">Harassment</option>
+                    <option value="fake_information">Fake Information</option>
+                    <option value="scam">Scam/Fraud</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">
+                    Additional details (optional)
+                  </label>
+                  <textarea
+                    value={reportMessage}
+                    onChange={(e) => setReportMessage(e.target.value)}
+                    placeholder="Provide more details about the issue..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA] focus:border-transparent resize-none"
+                    rows={3}
+                  />
+                </div>
+              </div>
+              
+              <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setShowReportModal(false);
+                    setReportingGuild(null);
+                    setReportReason('');
+                    setReportMessage('');
+                  }}
+                  className="px-4 py-2 text-[#8B75AA] hover:bg-gray-100 rounded-lg transition-colors"
+                  disabled={reportSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmitReport}
+                  disabled={!reportReason.trim() || reportSubmitting}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                >
+                  {reportSubmitting ? 'Submitting...' : 'Submit Report'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
+        {/* DEBUG: Show modal state */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="fixed bottom-4 right-4 bg-black text-white p-2 rounded text-xs z-50">
+            Modal State: {showWarningModal ? 'OPEN' : 'CLOSED'}<br/>
+            Selected Guild: {selectedGuild?.name || 'NONE'}
+          </div>
+        )}
 
         {/* Features Section */}
         <section>

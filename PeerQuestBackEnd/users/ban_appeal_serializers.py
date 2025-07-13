@@ -8,8 +8,16 @@ class BanAppealFileSerializer(serializers.ModelSerializer):
         model = BanAppealFile
         fields = ['id', 'file', 'uploaded_at']
 
+# Nested serializer for user info
+class BanAppealUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        from .models import User
+        model = User
+        fields = ['id', 'username', 'email']
+
 class BanAppealSerializer(serializers.ModelSerializer):
     files = BanAppealFileSerializer(many=True, read_only=True)
+    user = BanAppealUserSerializer(read_only=True)
     ban_reason = serializers.SerializerMethodField()
     ban_expires_at = serializers.SerializerMethodField()
     user_email = serializers.SerializerMethodField()
@@ -17,11 +25,11 @@ class BanAppealSerializer(serializers.ModelSerializer):
     class Meta:
         model = BanAppeal
         fields = [
-            'id', 'user_email', 'message', 'files', 'created_at',
+            'id', 'user', 'user_email', 'message', 'files', 'created_at',
             'reviewed', 'reviewed_by', 'review_decision', 'review_comment', 'reviewed_at',
             'ban_reason', 'ban_expires_at'
         ]
-        read_only_fields = ['id', 'user_email', 'created_at', 'reviewed', 'reviewed_by', 'review_decision', 'review_comment', 'reviewed_at', 'ban_reason', 'ban_expires_at']
+        read_only_fields = ['id', 'user', 'user_email', 'created_at', 'reviewed', 'reviewed_by', 'review_decision', 'review_comment', 'reviewed_at', 'ban_reason', 'ban_expires_at']
 
     def get_ban_reason(self, obj):
         return getattr(obj.user, 'ban_reason', None)

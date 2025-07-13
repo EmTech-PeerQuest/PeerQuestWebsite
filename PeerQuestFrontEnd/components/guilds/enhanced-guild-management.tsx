@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Users, Shield, DollarSign, Activity, BarChart3, UserPlus, CheckCircle, XCircle } from "lucide-react"
+import { Search, Users, Shield, DollarSign, Activity, BarChart3, UserPlus, CheckCircle, XCircle, AlertTriangle } from "lucide-react"
 import type { Guild, User, GuildJoinRequest, GuildMembership } from "@/lib/types"
 import { GuildAuditLog } from '@/components/admin/guild-audit-log'
 import { GuildPayouts } from '@/components/guilds/guild-payouts'
 import { GuildRolesConfig } from '@/components/guilds/guild-roles-config'
+import { GuildWarningModal } from '@/components/guilds/guild-warning-modal'
 import { guildApi } from '@/lib/api/guilds'
 
 interface EnhancedGuildManagementProps {
@@ -78,6 +79,7 @@ export function EnhancedGuildManagement({
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [updatingRole, setUpdatingRole] = useState(false)
   const [pendingRoleChange, setPendingRoleChange] = useState<string | null>(null)
+  const [showWarningModal, setShowWarningModal] = useState(false)
 
   // Fetch guild data when selectedGuild changes
   useEffect(() => {
@@ -338,6 +340,47 @@ export function EnhancedGuildManagement({
               <div>
                 <h2 className="text-2xl font-bold text-[#2C1A1D]">{selectedGuild.name}</h2>
                 <p className="text-[#8B75AA]">Level {calculateGuildLevel(selectedGuild)} Guild</p>
+                
+                {/* Warning notifications */}
+                {selectedGuild.is_disabled && (
+                  <div className="mt-2 bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle size={16} />
+                      <span className="font-semibold">Guild Disabled</span>
+                    </div>
+                    <p className="text-sm mt-1">Your guild has been disabled due to multiple warnings.</p>
+                  </div>
+                )}
+                
+                {!selectedGuild.is_disabled && selectedGuild.warning_count > 0 && (
+                  <div className="mt-2 bg-yellow-100 border border-yellow-400 text-yellow-700 px-3 py-2 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle size={16} />
+                        <span className="font-semibold">
+                          {selectedGuild.warning_count} Active Warning{selectedGuild.warning_count > 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          console.log('🚨 REAL WARNING BANNER: View Details clicked!');
+                          console.log('🚨 Guild:', selectedGuild?.name, 'Warning count:', selectedGuild?.warning_count);
+                          console.log('TEST: Opening warning modal for guild:', selectedGuild.name);
+                          setShowWarningModal(true);
+                        }}
+                        className="text-yellow-800 hover:text-yellow-900 underline text-sm font-medium px-3 py-1 bg-yellow-200 rounded hover:bg-yellow-300 transition-colors"
+                      >
+                        View Details
+                      </button>
+                    </div>
+                    <p className="text-sm mt-1">
+                      {selectedGuild.warning_count >= 2 ? 
+                        'One more warning will disable your guild!' : 
+                        'Please review the warning and take appropriate action.'
+                      }
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -962,6 +1005,20 @@ export function EnhancedGuildManagement({
               </div>
             )}
           </div>
+        )}
+        
+        {/* Warning Modal */}
+        {selectedGuild && showWarningModal && (
+          <GuildWarningModal
+            isOpen={showWarningModal}
+            onClose={() => {
+              console.log('🚨 GUILD MANAGEMENT: Closing warning modal');
+              setShowWarningModal(false);
+            }}
+            guild={selectedGuild}
+            currentUser={currentUser}
+            showToast={showToast}
+          />
         )}
       </div>
     </section>

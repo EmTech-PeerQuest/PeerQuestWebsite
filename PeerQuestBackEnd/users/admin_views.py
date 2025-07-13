@@ -104,8 +104,10 @@ class AdminReportsListView(APIView):
         # Get all user reports
         user_reports = UserReport.objects.select_related('reported_user', 'reporter', 'resolved_by').order_by('-created_at')
         # Get all quest reports
-        from .models import QuestReport
+        from .models import QuestReport, GuildReport
         quest_reports = QuestReport.objects.select_related('reported_quest', 'reporter', 'resolved_by').order_by('-created_at')
+        # Get all guild reports
+        guild_reports = GuildReport.objects.select_related('reported_guild', 'reporter', 'resolved_by').order_by('-created_at')
 
         # Filter by resolved status if specified
         resolved_filter = request.query_params.get('resolved')
@@ -113,9 +115,11 @@ class AdminReportsListView(APIView):
             if resolved_filter.lower() in ['true', '1']:
                 user_reports = user_reports.filter(resolved=True)
                 quest_reports = quest_reports.filter(resolved=True)
+                guild_reports = guild_reports.filter(resolved=True)
             elif resolved_filter.lower() in ['false', '0']:
                 user_reports = user_reports.filter(resolved=False)
                 quest_reports = quest_reports.filter(resolved=False)
+                guild_reports = guild_reports.filter(resolved=False)
 
         # Serialize user reports
         reports_data = []
@@ -169,6 +173,34 @@ class AdminReportsListView(APIView):
                 'resolved_at': report.resolved_at.isoformat() if report.resolved_at else None,
             })
 
+        # Serialize guild reports
+        for report in guild_reports:
+            reports_data.append({
+                'id': report.id,
+                'type': 'guild',
+                'report_type': 'guild',
+                'reported_guild': {
+                    'guild_id': str(report.reported_guild.guild_id),
+                    'name': report.reported_guild.name,
+                },
+                'reported_guild_name': report.reported_guild.name,
+                'reporter': {
+                    'id': str(report.reporter.id),
+                    'username': report.reporter.username,
+                    'email': report.reporter.email,
+                },
+                'reason': report.reason,
+                'message': report.message,
+                'created_at': report.created_at.isoformat(),
+                'resolved': report.resolved,
+                'resolved_by': {
+                    'id': str(report.resolved_by.id),
+                    'username': report.resolved_by.username,
+                    'email': report.resolved_by.email,
+                } if report.resolved_by else None,
+                'resolved_at': report.resolved_at.isoformat() if report.resolved_at else None,
+            })
+
         # Sort all reports by created_at descending
         reports_data.sort(key=lambda r: r['created_at'], reverse=True)
         return Response(reports_data)
@@ -181,10 +213,21 @@ class AdminReportsListView(APIView):
         if not report_id:
             return Response({'detail': 'Report ID is required'}, status=status.HTTP_400_BAD_REQUEST)
         
+        from .models import QuestReport
+        
+        # Try to find the report in both UserReport and QuestReport models
+        report = None
+        report_type = None
+        
         try:
             report = UserReport.objects.get(id=report_id)
+            report_type = 'user'
         except UserReport.DoesNotExist:
-            return Response({'detail': 'Report not found'}, status=status.HTTP_404_NOT_FOUND)
+            try:
+                report = QuestReport.objects.get(id=report_id)
+                report_type = 'quest'
+            except QuestReport.DoesNotExist:
+                return Response({'detail': 'Report not found'}, status=status.HTTP_404_NOT_FOUND)
         
         # Mark as resolved
         report.resolved = True
@@ -192,4 +235,74 @@ class AdminReportsListView(APIView):
         report.resolved_at = timezone.now()
         report.save()
         
-        return Response({'detail': 'Report resolved successfully'})
+        return Response({'detail': f'{report_type.title()} report resolved successfully'})
+
+class AdminGuildReportsListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Only staff or superusers can access
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Get all guild reports
+        from .models import GuildReport
+        guild_reports = GuildReport.objects.select_related('reported_guild', 'reporter', 'resolved_by').order_by('-created_at')
+
+        # Filter by resolved status if specified
+        resolved_filter = request.query_params.get('resolved')
+        if resolved_filter is not None:
+            if resolved_filter.lower() in ['true', '1']:
+                guild_reports = guild_reports.filter(resolved=True)
+            elif resolved_filter.lower() in ['false', '0']:
+                guild_reports = guild_reports.filter(resolved=False)
+
+        # Serialize guild reports
+        reports_data = []
+        for report in guild_reports:
+            reports_data.append({
+                'id': report.id,
+                'type': 'guild',
+                'report_type': 'guild',
+                'reported_guild': {
+                    'guild_id': str(report.reported_guild.guild_id),
+                    'name': report.reported_guild.name,
+                },
+                'reported_guild_name': report.reported_guild.name,
+                'reporter': {
+                    'id': str(report.reporter.id),
+                    'username': report.reporter.username,
+                    'email': report.reporter.email,
+                },
+                'reason': report.reason,
+                'message': report.message,
+                'created_at': report.created_at.isoformat(),
+                'resolved': report.resolved,
+                'resolved_by': {
+                    'id': str(report.resolved_by.id),
+                    'username': report.resolved_by.username,
+                    'email': report.resolved_by.email,
+                } if report.resolved_by else None,
+                'resolved_at': report.resolved_at.isoformat() if report.resolved_at else None,
+            })
+
+        return Response(reports_data)
+    
+    def patch(self, request, report_id=None):
+        # Only staff or superusers can resolve guild reports
+        if not (request.user.is_superuser or request.user.is_staff):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        if not report_id:
+            return Response({'detail': 'Report ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+        from .models import GuildReport
+        try:
+            report = GuildReport.objects.get(id=report_id)
+        except GuildReport.DoesNotExist:
+            return Response({'detail': 'Report not found'}, status=status.HTTP_404_NOT_FOUND)
+        # Mark as resolved
+        report.resolved = True
+        report.resolved_by = request.user
+        from django.utils import timezone
+        report.resolved_at = timezone.now()
+        report.save()
+        return Response({'detail': 'Guild report resolved successfully'})
