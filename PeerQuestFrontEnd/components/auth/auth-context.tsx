@@ -1,8 +1,21 @@
-import { createContext, useContext, useState, useEffect } from "react";
 
-export const AuthContext = createContext({ user: null, setUser: () => {} });
+import { createContext, useContext, useState, useEffect, Dispatch, SetStateAction, ReactNode } from "react";
 
-export function AuthProvider({ children }) {
+interface AuthContextType {
+  user: any;
+  setUser: Dispatch<SetStateAction<any>>;
+}
+
+export const AuthContext = createContext<AuthContextType>({
+  user: null,
+  setUser: () => {},
+});
+
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState(() => {
     const stored = localStorage.getItem("user");
     return stored ? JSON.parse(stored) : null;
