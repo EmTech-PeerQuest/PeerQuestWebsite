@@ -1,5 +1,5 @@
 import { TokenInvalidError, BannedUserError } from './errors';
-import { refreshToken, clearTokens, saveBanInfo } from './auth.js';
+import { refreshToken, clearTokens, saveBanInfo } from './auth';
 import axios from 'axios';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
