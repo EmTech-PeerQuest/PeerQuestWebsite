@@ -131,12 +131,6 @@ export default function AdminPanelPage() {
       />
       <AdminPanel
         currentUser={currentUser}
-        users={users}
-        quests={quests}
-        guilds={guilds}
-        setUsers={setUsers}
-        setQuests={setQuests}
-        setGuilds={setGuilds}
         showToast={showToast}
       />
     </>

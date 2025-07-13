@@ -25,8 +25,16 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
   const [activeTab, setActiveTab] = useState<'about' | 'skills' | 'badges' | 'quests' | 'guilds'>('about');
   if (!isOpen) return null
 
+  // Ensure quests is always an array
+  const safeQuests = Array.isArray(quests) ? quests : [];
+  
+  // Debug logging to track prop types
+  if (process.env.NODE_ENV === 'development' && !Array.isArray(quests)) {
+    console.warn('[UserProfileModal] quests prop is not an array:', typeof quests, quests);
+  }
+  
   // Get user's completed quests
-  const userQuests = quests.filter(quest => 
+  const userQuests = safeQuests.filter(quest => 
     (quest.poster && quest.poster.id === user.id) || quest.status === 'completed'
   ).slice(0, 5) // Show only first 5
 

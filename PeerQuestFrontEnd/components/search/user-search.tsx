@@ -25,6 +25,20 @@ export function UserSearch({ quests, guilds, currentUser, showToast }: UserSearc
   const [selectedUserProfile, setSelectedUserProfile] = useState<User | null>(null);
   const [messagingUser, setMessagingUser] = useState<User | null>(null);
 
+  // Ensure props are arrays to prevent runtime errors
+  const safeQuests = Array.isArray(quests) ? quests : [];
+  const safeGuilds = Array.isArray(guilds) ? guilds : [];
+  
+  // Debug logging to track prop types
+  if (process.env.NODE_ENV === 'development') {
+    if (!Array.isArray(quests)) {
+      console.warn('[UserSearch] quests prop is not an array:', typeof quests, quests);
+    }
+    if (!Array.isArray(guilds)) {
+      console.warn('[UserSearch] guilds prop is not an array:', typeof guilds, guilds);
+    }
+  }
+
   useEffect(() => {
     async function fetchUsers() {
       setLoadingUsers(true);
@@ -320,8 +334,8 @@ export function UserSearch({ quests, guilds, currentUser, showToast }: UserSearc
           isOpen={!!selectedUserProfile}
           onClose={() => setSelectedUserProfile(null)}
           user={selectedUserProfile}
-          quests={quests}
-          guilds={guilds}
+          quests={safeQuests}
+          guilds={safeGuilds}
           currentUser={currentUser}
           showToast={showToast}
         />

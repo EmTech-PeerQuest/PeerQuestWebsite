@@ -60,7 +60,16 @@ async function handleResponse<T>(response: Response): Promise<T> {
       rawText
     });
     
-    const errorMessage = errorData.error || errorData.message || rawText || `HTTP error! status: ${response.status}`;
+    // More defensive error message handling
+    let errorMessage = 'Unknown error';
+    if (errorData && typeof errorData === 'object' && (errorData.error || errorData.message)) {
+      errorMessage = errorData.error || errorData.message;
+    } else if (rawText && rawText.trim()) {
+      errorMessage = rawText;
+    } else {
+      errorMessage = `HTTP ${response.status}: ${response.statusText || 'Request failed'}`;
+    }
+    
     throw new Error(errorMessage);
   }
   return response.json();

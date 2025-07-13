@@ -12,6 +12,39 @@ export interface QuestReport {
   reporter_username?: string;
   reported_quest_title?: string;
 }
+
+export interface UserReport {
+  id: number;
+  reported_user: string;
+  reporter: string;
+  reason: string;
+  message?: string;
+  created_at: string;
+  resolved: boolean;
+  resolved_by?: string;
+  resolved_at?: string;
+  reporter_username?: string;
+  reported_user_username?: string;
+  report_type?: 'user';
+}
+
+export interface GuildReport {
+  id: number;
+  reported_guild: string;
+  reporter: string;
+  reason: string;
+  message?: string;
+  created_at: string;
+  resolved: boolean;
+  resolved_by?: string;
+  resolved_at?: string;
+  reporter_username?: string;
+  reported_guild_name?: string;
+  report_type: 'guild';
+}
+
+// Union type for all report types
+export type Report = QuestReport | UserReport | GuildReport;
 export interface ActionLogEntry {
   id: number;
   action: string;
@@ -202,6 +235,16 @@ export interface Quest {
   requirements?: string[]
 }
 
+export interface GuildWarning {
+  id: number;
+  reason: string;
+  issued_by: User;
+  issued_at: string;
+  dismissed_at?: string | null;
+  dismissed_by?: User | null;
+  is_active: boolean;
+}
+
 export interface Guild {
   guild_id: string;
   name: string;
@@ -223,6 +266,15 @@ export interface Guild {
   member_count: number;
   tags?: GuildTag[];
   social_links?: GuildSocialLink[];
+  
+  // Moderation fields
+  is_disabled: boolean;
+  warning_count: number;
+  disabled_at?: string | null;
+  disabled_by?: User | null;
+  disable_reason?: string;
+  active_warnings?: GuildWarning[];
+  active_warnings_count?: number;
   
   // Backward compatibility
   id?: string | number;

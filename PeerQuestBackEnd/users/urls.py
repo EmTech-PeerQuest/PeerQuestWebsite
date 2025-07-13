@@ -6,9 +6,9 @@ from .views import (
     LogoutView, LogoutAllView, UserSessionsView, RevokeSessionView,
     PasswordStrengthCheckView, UserSearchView, SkillsListView,
     UserSkillsView, UserListForFrontendView, UserReportView, QuestReportView,
-    CurrentUserView  # <-- Add this import
+    CurrentUserView, GuildReportView  # <-- Add this import
 )
-from .admin_views import AdminUserListView, AdminUserBanView, AdminUserUnbanView, AdminUserDeleteView, AdminReportsListView
+from .admin_views import AdminUserListView, AdminUserBanView, AdminUserUnbanView, AdminUserDeleteView, AdminReportsListView, AdminGuildReportsListView
 from .ban_appeal_views import BanAppealSubmitView, BanAppealListView, BanAppealReviewView
 from .action_log_views import ActionLogListView
 from .ai_chatbot_proxy import AIChatbotProxyView
@@ -51,13 +51,16 @@ urlpatterns = [
     # User Report API
     path("user-report/", UserReportView.as_view(), name="user-report"),
     path("quest-report/", QuestReportView.as_view(), name="quest-report"),
+    path("guild-report/", GuildReportView.as_view(), name="guild-report"),
     # Admin Panel API
     path("admin/users/", AdminUserListView.as_view(), name="admin-user-list"),
     path("admin/users/<uuid:user_id>/ban/", AdminUserBanView.as_view(), name="admin-user-ban"),
     path("admin/users/<uuid:user_id>/unban/", AdminUserUnbanView.as_view(), name="admin-user-unban"),
     path("admin/users/<uuid:user_id>/delete/", AdminUserDeleteView.as_view(), name="admin-user-delete"),
     path("admin/reports/", AdminReportsListView.as_view(), name="admin-reports-list"),
+    path("admin/guild-reports/", AdminGuildReportsListView.as_view(), name="admin-guild-reports-list"),
     path("admin/reports/<int:report_id>/resolve/", AdminReportsListView.as_view(), name="admin-report-resolve"),
+    path("admin/guild-reports/<int:report_id>/resolve/", AdminGuildReportsListView.as_view(), name="admin-guild-report-resolve"),
     # Ban Appeal API
     path("ban-appeal/submit/", BanAppealSubmitView.as_view(), name="ban-appeal-submit"),
     path("ban-appeal/list/", BanAppealListView.as_view(), name="ban-appeal-list"),

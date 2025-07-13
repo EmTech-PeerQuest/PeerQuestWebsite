@@ -30,6 +30,21 @@ class QuestReport(models.Model):
         return f"QuestReport by {self.reporter.username} against Quest {self.reported_quest.id} at {self.created_at}"
 
 
+# Guild Report model for reporting guilds
+class GuildReport(models.Model):
+    reported_guild = models.ForeignKey('guilds.Guild', on_delete=models.CASCADE, related_name='reports_against')
+    reporter = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='guild_reports_made')
+    reason = models.CharField(max_length=255)
+    message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved = models.BooleanField(default=False)
+    resolved_by = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='resolved_guild_reports')
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"GuildReport by {self.reporter.username} against Guild {self.reported_guild.name} at {self.created_at}"
+
+
 # Ban Appeal model for user ban appeals
 
 from django.db import models

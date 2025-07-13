@@ -39,8 +39,17 @@ class BanAppealListView(APIView):
     def get(self, request):
         if not (request.user.is_superuser or request.user.is_staff):
             return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
-        # Only return unresolved (pending) appeals
-        appeals = BanAppeal.objects.filter(reviewed=False).order_by('-created_at')
+        
+        # Check if we should filter by status
+        status_filter = request.query_params.get('status', 'pending')
+        
+        if status_filter == 'all':
+            appeals = BanAppeal.objects.all().order_by('-created_at')
+        elif status_filter == 'resolved':
+            appeals = BanAppeal.objects.filter(reviewed=True).order_by('-created_at')
+        else:  # default to pending
+            appeals = BanAppeal.objects.filter(reviewed=False).order_by('-created_at')
+            
         serializer = BanAppealSerializer(appeals, many=True)
         return Response(serializer.data)
 

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Guild, GuildTag, GuildSocialLink, GuildMembership, GuildJoinRequest
+from .models import Guild, GuildTag, GuildSocialLink, GuildMembership, GuildJoinRequest, GuildWarning
 
 User = get_user_model()
 
@@ -35,18 +35,40 @@ class GuildMembershipSerializer(serializers.ModelSerializer):
         ]
 
 
+class GuildWarningSerializer(serializers.ModelSerializer):
+    """Serializer for guild warnings"""
+    issued_by = UserSerializer(read_only=True)
+    dismissed_by = UserSerializer(read_only=True)
+    is_active = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = GuildWarning
+        fields = [
+            'id', 'reason', 'issued_by', 'issued_at', 
+            'dismissed_at', 'dismissed_by', 'is_active'
+        ]
+    
+    def get_is_active(self, obj):
+        return obj.is_active()
+
+
 class GuildListSerializer(serializers.ModelSerializer):
     """Serializer for guild list view (minimal data)"""
     owner = UserSerializer(read_only=True)
     tags = GuildTagSerializer(many=True, read_only=True)
+    active_warnings_count = serializers.SerializerMethodField()
     
     class Meta:
         model = Guild
         fields = [
             'guild_id', 'name', 'description', 'specialization',
             'custom_emblem', 'preset_emblem', 'privacy', 'owner',
-            'member_count', 'created_at', 'tags', 'minimum_level'
+            'member_count', 'created_at', 'tags', 'minimum_level',
+            'is_disabled', 'warning_count', 'active_warnings_count'
         ]
+    
+    def get_active_warnings_count(self, obj):
+        return obj.get_active_warnings().count()
 
 
 class GuildDetailSerializer(serializers.ModelSerializer):
@@ -55,6 +77,8 @@ class GuildDetailSerializer(serializers.ModelSerializer):
     tags = GuildTagSerializer(many=True, read_only=True)
     social_links = GuildSocialLinkSerializer(many=True, read_only=True)
     memberships = GuildMembershipSerializer(many=True, read_only=True)
+    active_warnings = GuildWarningSerializer(many=True, read_only=True, source='get_active_warnings')
+    active_warnings_count = serializers.SerializerMethodField()
     
     class Meta:
         model = Guild
@@ -64,8 +88,13 @@ class GuildDetailSerializer(serializers.ModelSerializer):
             'minimum_level', 'allow_discovery', 'show_on_home_page',
             'who_can_post_quests', 'who_can_invite_members', 'owner',
             'created_at', 'updated_at', 'member_count', 'tags',
-            'social_links', 'memberships'
+            'social_links', 'memberships', 'is_disabled', 'warning_count',
+            'disabled_at', 'disabled_by', 'disable_reason', 'active_warnings',
+            'active_warnings_count'
         ]
+    
+    def get_active_warnings_count(self, obj):
+        return obj.get_active_warnings().count()
 
 
 class GuildCreateUpdateSerializer(serializers.ModelSerializer):

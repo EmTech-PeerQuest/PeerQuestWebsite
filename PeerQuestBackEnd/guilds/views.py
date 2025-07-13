@@ -6,10 +6,10 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from django.utils import timezone
 from django.contrib.auth import get_user_model
-from .models import Guild, GuildMembership, GuildJoinRequest
+from .models import Guild, GuildMembership, GuildJoinRequest, GuildWarning
 from .serializers import (
     GuildListSerializer, GuildDetailSerializer, GuildCreateUpdateSerializer,
-    GuildMembershipSerializer, GuildJoinRequestSerializer
+    GuildMembershipSerializer, GuildJoinRequestSerializer, GuildWarningSerializer
 )
 
 User = get_user_model()
@@ -352,24 +352,11 @@ def process_join_request(request, guild_id, request_id):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    join_request.processed_at = timezone.now()
-    join_request.processed_by = request.user
-    join_request.is_approved = (action == 'approve')
-    join_request.save()
-    
     if action == 'approve':
-        # Create membership
-        membership = GuildMembership.objects.create(
-            guild=guild,
-            user=join_request.user,
-            role='member',
-            status='approved',
-            is_active=True
-        )
-        membership.approve(request.user)
-        
+        join_request.approve(request.user)
         message = f'Join request approved. {join_request.user.username} is now a member.'
     else:
+        join_request.reject(request.user)
         message = f'Join request rejected for {join_request.user.username}.'
     
     return Response({'message': message}, status=status.HTTP_200_OK)
@@ -507,4 +494,178 @@ def update_member_role(request, guild_id, user_id):
     return Response({
         'message': f'Member role updated from {old_role} to {new_role}',
         'membership': serializer.data
+    })
+
+
+# Admin-only Guild Moderation Views
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def warn_guild(request, guild_id):
+    """
+    Issue a warning to a guild (staff/superuser only)
+    """
+    if not (request.user.is_staff or request.user.is_superuser):
+        return Response(
+            {'error': 'Permission denied. Staff access required.'}, 
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    guild = get_object_or_404(Guild, guild_id=guild_id)
+    reason = request.data.get('reason', '')
+    
+    if not reason:
+        return Response(
+            {'error': 'Warning reason is required'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Add warning to guild
+    warning = guild.add_warning(request.user, reason)
+    
+    return Response({
+        'message': f'Warning issued to guild "{guild.name}"',
+        'warning': GuildWarningSerializer(warning).data,
+        'guild_disabled': guild.is_disabled,
+        'total_warnings': guild.warning_count
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def disable_guild(request, guild_id):
+    """
+    Manually disable a guild (staff/superuser only)
+    """
+    if not (request.user.is_staff or request.user.is_superuser):
+        return Response(
+            {'error': 'Permission denied. Staff access required.'}, 
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    guild = get_object_or_404(Guild, guild_id=guild_id)
+    reason = request.data.get('reason', 'Manually disabled by admin')
+    
+    guild.disable_guild(request.user, reason)
+    
+    return Response({
+        'message': f'Guild "{guild.name}" has been disabled',
+        'disabled_at': guild.disabled_at,
+        'reason': guild.disable_reason
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def enable_guild(request, guild_id):
+    """
+    Re-enable a disabled guild (staff/superuser only)
+    """
+    if not (request.user.is_staff or request.user.is_superuser):
+        return Response(
+            {'error': 'Permission denied. Staff access required.'}, 
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    guild = get_object_or_404(Guild, guild_id=guild_id)
+    
+    if not guild.is_disabled:
+        return Response(
+            {'error': 'Guild is not currently disabled'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    guild.enable_guild()
+    
+    return Response({
+        'message': f'Guild "{guild.name}" has been re-enabled'
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def dismiss_warning(request, guild_id, warning_id):
+    """
+    Dismiss a specific guild warning (guild owner only)
+    """
+    guild = get_object_or_404(Guild, guild_id=guild_id)
+    warning = get_object_or_404(GuildWarning, id=warning_id, guild=guild)
+    
+    if not guild.is_owner(request.user):
+        return Response(
+            {'error': 'Only guild owners can dismiss warnings'}, 
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    if warning.is_dismissed():
+        return Response(
+            {'error': 'Warning has already been dismissed'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    warning.dismiss(request.user)
+    
+    return Response({
+        'message': 'Warning dismissed successfully',
+        'warning': GuildWarningSerializer(warning).data
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def guild_warnings(request, guild_id):
+    """
+    Get all warnings for a guild (guild owner/admin only)
+    """
+    guild = get_object_or_404(Guild, guild_id=guild_id)
+    
+    if not guild.is_admin(request.user):
+        return Response(
+            {'error': 'Permission denied. Guild admin access required.'}, 
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    # Get all warnings (not just active ones)
+    warnings = GuildWarning.objects.filter(guild=guild).order_by('-issued_at')
+    active_warnings = guild.get_active_warnings()
+    
+    return Response({
+        'all_warnings': GuildWarningSerializer(warnings, many=True).data,
+        'active_warnings': GuildWarningSerializer(active_warnings, many=True).data,
+        'total_warnings': warnings.count(),
+        'active_warnings_count': active_warnings.count(),
+        'guild_disabled': guild.is_disabled
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reset_warnings(request, guild_id):
+    """
+    Reset all warnings for a guild (staff/superuser only)
+    """
+    if not (request.user.is_staff or request.user.is_superuser):
+        return Response(
+            {'error': 'Permission denied. Staff access required.'}, 
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    guild = get_object_or_404(Guild, guild_id=guild_id)
+    
+    # Get count of warnings before reset
+    active_warnings = guild.get_active_warnings()
+    warning_count = active_warnings.count()
+    
+    if warning_count == 0:
+        return Response(
+            {'error': 'Guild has no active warnings to reset'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Reset warnings using the Guild model method
+    guild.reset_warnings()
+    
+    return Response({
+        'message': f'All warnings for guild "{guild.name}" have been reset',
+        'warnings_reset': warning_count
     })

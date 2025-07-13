@@ -1,8 +1,6 @@
-
-
 # User Report Serializer
 from rest_framework import serializers
-from .models import UserReport, QuestReport
+from .models import UserReport, QuestReport, GuildReport, GuildReport
 
 class UserReportSerializer(serializers.ModelSerializer):
     reporter_username = serializers.CharField(source='reporter.username', read_only=True)
@@ -30,6 +28,21 @@ class QuestReportSerializer(serializers.ModelSerializer):
             'reporter_username', 'reported_quest_title',
         ]
         read_only_fields = ['id', 'created_at', 'resolved', 'resolved_by', 'resolved_at', 'reporter_username', 'reported_quest_title']
+
+# Guild Report Serializer
+class GuildReportSerializer(serializers.ModelSerializer):
+    reporter_username = serializers.CharField(source='reporter.username', read_only=True)
+    reported_guild_name = serializers.CharField(source='reported_guild.name', read_only=True)
+
+    class Meta:
+        model = GuildReport
+        fields = [
+            'id', 'reported_guild', 'reporter', 'reason', 'message', 'created_at',
+            'resolved', 'resolved_by', 'resolved_at',
+            'reporter_username', 'reported_guild_name',
+        ]
+        read_only_fields = ['id', 'created_at', 'resolved', 'resolved_by', 'resolved_at', 'reporter_username', 'reported_guild_name']
+
 from .validators import PROFANITY_LIST, LEET_MAP, levenshtein, normalize_username
 from itertools import product
 import unicodedata

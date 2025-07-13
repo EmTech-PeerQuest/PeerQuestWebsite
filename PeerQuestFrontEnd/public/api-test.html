@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Reports API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .error { color: red; }
+        .success { color: green; }
+        pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Admin Reports API Test</h1>
+    
+    <div class="section">
+        <h2>Authentication</h2>
+        <input type="text" id="username" placeholder="Username" value="admin">
+        <input type="password" id="password" placeholder="Password" value="">
+        <button onclick="login()">Login</button>
+        <button onclick="clearTokens()">Clear Tokens</button>
+        <div id="auth-status"></div>
+    </div>
+
+    <div class="section">
+        <h2>API Test</h2>
+        <button onclick="testReportsAPI()">Test Reports API</button>
+        <button onclick="testGuildReportsAPI()">Test Guild Reports API</button>
+        <div id="api-results"></div>
+    </div>
+
+    <script>
+        const API_BASE = "http://localhost:8000";
+        
+        function updateAuthStatus() {
+            const token = localStorage.getItem("access_token");
+            const refresh = localStorage.getItem("refresh_token");
+            const status = document.getElementById("auth-status");
+            
+            if (token) {
+                status.innerHTML = '<span class="success">✓ Access token available</span>';
+                if (refresh) {
+                    status.innerHTML += '<br><span class="success">✓ Refresh token available</span>';
+                }
+            } else {
+                status.innerHTML = '<span class="error">✗ No access token</span>';
+            }
+        }
+
+        async function login() {
+            const username = document.getElementById("username").value;
+            const password = document.getElementById("password").value;
+            const status = document.getElementById("auth-status");
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/token/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    localStorage.setItem("access_token", data.access);
+                    localStorage.setItem("refresh_token", data.refresh);
+                    status.innerHTML = '<span class="success">✓ Login successful</span>';
+                    updateAuthStatus();
+                } else {
+                    const error = await response.text();
+                    status.innerHTML = `<span class="error">✗ Login failed: ${error}</span>`;
+                }
+            } catch (err) {
+                status.innerHTML = `<span class="error">✗ Login error: ${err.message}</span>`;
+            }
+        }
+
+        function clearTokens() {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("refresh_token");
+            updateAuthStatus();
+        }
+
+        async function fetchWithAuth(url, options = {}) {
+            let token = localStorage.getItem("access_token");
+            const refresh = localStorage.getItem("refresh_token");
+            
+            if (!token) throw new Error("No access token found");
+            
+            let res = await fetch(url, {
+                ...options,
+                headers: {
+                    ...(options.headers || {}),
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+            
+            if (res.status === 401 && refresh) {
+                // Try to refresh token
+                const refreshRes = await fetch(`${API_BASE}/api/token/refresh/`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ refresh })
+                });
+                
+                if (refreshRes.ok) {
+                    const data = await refreshRes.json();
+                    if (data.access) {
+                        localStorage.setItem("access_token", data.access);
+                        token = data.access;
+                        // Retry original request
+                        res = await fetch(url, {
+                            ...options,
+                            headers: {
+                                ...(options.headers || {}),
+                                Authorization: `Bearer ${token}`,
+                            },
+                        });
+                    }
+                }
+            }
+            
+            return res;
+        }
+
+        async function testReportsAPI() {
+            const results = document.getElementById("api-results");
+            results.innerHTML = "<p>Testing reports API...</p>";
+            
+            try {
+                const res = await fetchWithAuth(`${API_BASE}/api/users/admin/reports/`);
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    
+                    // Analyze the data
+                    const guildReports = data.filter(r => r.type === 'guild' || r.report_type === 'guild' || !!r.reported_guild);
+                    
+                    results.innerHTML = `
+                        <h3 class="success">✓ API Success</h3>
+                        <p><strong>Total reports:</strong> ${data.length}</p>
+                        <p><strong>Guild reports found:</strong> ${guildReports.length}</p>
+                        
+                        <h4>All Reports Data:</h4>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                        
+                        <h4>Guild Reports Analysis:</h4>
+                        <pre>${JSON.stringify(guildReports, null, 2)}</pre>
+                    `;
+                } else {
+                    const error = await res.text();
+                    results.innerHTML = `<h3 class="error">✗ API Error (${res.status})</h3><pre>${error}</pre>`;
+                }
+            } catch (err) {
+                results.innerHTML = `<h3 class="error">✗ Fetch Error</h3><p>${err.message}</p>`;
+            }
+        }
+
+        async function testGuildReportsAPI() {
+            const results = document.getElementById("api-results");
+            results.innerHTML = "<p>Testing guild reports API...</p>";
+            
+            try {
+                const res = await fetchWithAuth(`${API_BASE}/api/users/admin/guild-reports/`);
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    results.innerHTML = `
+                        <h3 class="success">✓ Guild Reports API Success</h3>
+                        <p><strong>Guild reports:</strong> ${data.length}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    const error = await res.text();
+                    results.innerHTML = `<h3 class="error">✗ Guild Reports API Error (${res.status})</h3><pre>${error}</pre>`;
+                }
+            } catch (err) {
+                results.innerHTML = `<h3 class="error">✗ Guild Reports Fetch Error</h3><p>${err.message}</p>`;
+            }
+        }
+
+        // Initialize
+        updateAuthStatus();
+    </script>
+</body>
+</html>

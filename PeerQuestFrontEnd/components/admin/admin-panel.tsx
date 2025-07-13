@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Users, FileText, Flag, Home, X, Search, Trash2, AlertTriangle, Clock } from "lucide-react";
+import { Users, FileText, Flag, Home, X, Search, Trash2, AlertTriangle, Clock, ArrowUpDown, Star, Trophy } from "lucide-react";
 import type { ActionLogEntry } from "@/lib/types";
 import { ReportDetailsModal } from "@/components/modals/report-details-modal";
 import type { User, Quest, Guild } from "@/lib/types";
@@ -57,27 +57,33 @@ const fetchWithAuth = async (url: string, options: any = {}, autoLogout = true) 
 
 interface AdminPanelProps {
   currentUser: User | null
-  users: User[]
-  quests: Quest[]
-  guilds: Guild[]
-  setUsers: (users: User[]) => void
-  setQuests: (quests: Quest[]) => void
-  setGuilds: (guilds: Guild[]) => void
+  users?: User[]
+  quests?: Quest[]
+  guilds?: Guild[]
+  setUsers?: (users: User[]) => void
+  setQuests?: (quests: Quest[]) => void
+  setGuilds?: (guilds: Guild[]) => void
   showToast: (message: string, type?: string) => void
 }
 
 function AdminPanel({
   currentUser,
-  users,
-  quests,
-  guilds,
-  setUsers,
-  setQuests,
-  setGuilds,
+  users = [],
+  quests = [],
+  guilds = [],
+  setUsers = () => {},
+  setQuests = () => {},
+  setGuilds = () => {},
   showToast,
 }: AdminPanelProps) {
-  // Robust admin check (moved to top of function)
-  const [activeTab, setActiveTab] = useState<"overview" | "users" | "quests" | "guilds" | "reports" | "appeals" | "actionlog">("overview")
+  const [activeTab, setActiveTab] = useState<"overview" | "users" | "quests" | "guilds" | "reports" | "appeals" | "actionlog" | "transactions" | "receipts">("overview")
+  
+  // Local state for data to ensure it's available even if props aren't working
+  const [localUsers, setLocalUsers] = useState<User[]>([]);
+  const [localQuests, setLocalQuests] = useState<Quest[]>([]);
+  const [localGuilds, setLocalGuilds] = useState<Guild[]>([]);
+  const [refreshCounter, setRefreshCounter] = useState(0); // Force re-render after updates
+  
   // Action Log State
   const [actionLogs, setActionLogs] = useState<ActionLogEntry[]>([]);
   const [actionLogsLoading, setActionLogsLoading] = useState(false);
@@ -86,23 +92,86 @@ function AdminPanel({
   // Appeals search
   const [appealSearch, setAppealSearch] = useState("");
   
+  // Quest search state
+  const [questSearch, setQuestSearch] = useState("");
+  
+  // Ban Appeals State
+  const [appeals, setAppeals] = useState<any[]>([]);
+  const [appealsLoading, setAppealsLoading] = useState(false);
+  const [appealsError, setAppealsError] = useState("");
+  
+  // Basic state variables
+  const [searchTerm, setSearchTerm] = useState("")
+  const [selectedReport, setSelectedReport] = useState<any>(null)
+  
+  // Transactions State
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+  const [transactionsError, setTransactionsError] = useState("");
+  const [transactionTypeFilter, setTransactionTypeFilter] = useState<string>("all");
+  const [transactionSearch, setTransactionSearch] = useState("");
+  
   // Reports State
   const [reports, setReports] = useState<any[]>([]);
   const [reportTypeFilter, setReportTypeFilter] = useState<string>("all");
-  // Reports search state
   const [reportSearch, setReportSearch] = useState("");
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [reportsError, setReportsError] = useState("");
+
+  // Receipts State
+  const [receipts, setReceipts] = useState<any[]>([]);
+  const [receiptsLoading, setReceiptsLoading] = useState(false);
+  const [receiptsError, setReceiptsError] = useState("");
+  const [receiptSearch, setReceiptSearch] = useState("");
+  const [showFutureReceipts, setShowFutureReceipts] = useState<boolean>(false);
+  const [selectedReceipts, setSelectedReceipts] = useState<number[]>([]);
+  const [receiptStats, setReceiptStats] = useState<any>({});
+  const [batchInfo, setBatchInfo] = useState<any>({});
+  const [selectedReceiptImage, setSelectedReceiptImage] = useState<string | null>(null);
+
+  // State for various modals and actions
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedQuest, setSelectedQuest] = useState<Quest | null>(null);
+  const [selectedGuild, setSelectedGuild] = useState<Guild | null>(null);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [showQuestModal, setShowQuestModal] = useState(false);
+  const [showGuildModal, setShowGuildModal] = useState(false);
+  const [showBanModal, setShowBanModal] = useState(false);
+  const [banReason, setBanReason] = useState("");
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportType, setReportType] = useState<"user" | "quest" | "guild">("user");
+  const [reportTarget, setReportTarget] = useState<any>(null);
+  const [reportReason, setReportReason] = useState("");
+  const [reportMessage, setReportMessage] = useState("");
+
+  // Safe array checks - use local state if props are empty
+  const safeUsers = localUsers.length > 0 ? localUsers : (Array.isArray(users) ? users : []);
+  const safeQuests = localQuests.length > 0 ? localQuests : (Array.isArray(quests) ? quests : []);
+  const safeGuilds = localGuilds.length > 0 ? localGuilds : (Array.isArray(guilds) ? guilds : []);
+
   // Filter and search reports
   const filteredReports = useMemo(() => {
     let filtered = reports;
-    if (reportTypeFilter === "user") filtered = filtered.filter((r) => r.type === "user" || !!r.reported_user);
-    else if (reportTypeFilter === "quest") filtered = filtered.filter((r) => r.type === "quest" || !!r.reported_quest);
+    if (reportTypeFilter === "user") {
+      filtered = filtered.filter((r: any) => 
+        r.type === "user" || !!r.reported_user
+      );
+    } else if (reportTypeFilter === "quest") {
+      filtered = filtered.filter((r: any) => 
+        r.type === "quest" || !!r.reported_quest
+      );
+    } else if (reportTypeFilter === "guild") {
+      filtered = filtered.filter((r: any) => 
+        r.type === "guild" || !!r.reported_guild
+      );
+    }
     if (reportSearch.trim()) {
       const q = reportSearch.trim().toLowerCase();
-      filtered = filtered.filter((r) => {
-        // Search in reported user/quest, reporter, reason, message
+      filtered = filtered.filter((r: any) => {
         return (
           (r.reported_user?.username?.toLowerCase?.().includes(q) || r.reported_user_username?.toLowerCase?.().includes(q)) ||
           (r.reported_quest_title?.toLowerCase?.().includes(q)) ||
+          (r.reported_guild?.name?.toLowerCase?.().includes(q) || r.reported_guild_name?.toLowerCase?.().includes(q)) ||
           (r.reporter?.username?.toLowerCase?.().includes(q) || r.reporter_username?.toLowerCase?.().includes(q)) ||
           (r.reason?.toLowerCase?.().includes(q)) ||
           (r.message?.toLowerCase?.().includes(q))
@@ -111,26 +180,64 @@ function AdminPanel({
     }
     return filtered;
   }, [reports, reportTypeFilter, reportSearch]);
-  const [reportsLoading, setReportsLoading] = useState(false);
-  const [reportsError, setReportsError] = useState("");
 
+  // Filter and search transactions
+  const filteredTransactions = useMemo(() => {
+    let filtered = transactions;
+    if (transactionTypeFilter !== "all") {
+      filtered = filtered.filter((t) => t.type === transactionTypeFilter);
+    }
+    if (transactionSearch.trim()) {
+      const q = transactionSearch.trim().toLowerCase();
+      filtered = filtered.filter((t) => {
+        return (
+          (t.username?.toLowerCase?.().includes(q)) ||
+          (t.quest_title?.toLowerCase?.().includes(q)) ||
+          (t.type_display?.toLowerCase?.().includes(q))
+        );
+      });
+    }
+    return filtered;
+  }, [transactions, transactionTypeFilter, transactionSearch]);
+
+  // Filter and search receipts
+  const filteredReceipts = useMemo(() => {
+    let filtered = receipts;
+    if (receiptSearch.trim()) {
+      const q = receiptSearch.trim().toLowerCase();
+      filtered = filtered.filter((r) => {
+        return (
+          (r.user?.username?.toLowerCase?.().includes(q)) ||
+          (r.payment_reference?.toLowerCase?.().includes(q)) ||
+          (r.batch_id?.toLowerCase?.().includes(q))
+        );
+      });
+    }
+    return filtered;
+  }, [receipts, receiptSearch]);
+
+  // Debug function to test API connectivity
   // Fetch quests for admin panel
   const fetchQuestsForAdmin = async () => {
     try {
-      // Fetch all quests (no filters)
       const data = await QuestAPI.getQuests();
-      // Defensive: support both {results: Quest[]} and Quest[]
+      let questArray: Quest[] = [];
       if (Array.isArray(data)) {
-        setQuests(data);
+        questArray = data;
       } else if (Array.isArray(data.results)) {
-        setQuests(data.results);
+        questArray = data.results;
       } else if (Array.isArray(data.value)) {
-        setQuests(data.value);
+        questArray = data.value;
       } else {
-        setQuests([]);
+        questArray = [];
       }
+      
+      // Set both local state and props
+      setLocalQuests(questArray);
+      setQuests?.(questArray);
     } catch (err: any) {
-      setQuests([]);
+      setLocalQuests([]);
+      setQuests?.([]);
       if (showToast) showToast("Failed to fetch quests: " + (err?.message || err), "error");
     }
   };
@@ -162,9 +269,13 @@ function AdminPanel({
   const fetchReports = async () => {
     setReportsLoading(true);
     setReportsError("");
+    setReports([]); // Clear existing reports to prevent duplication
     try {
       const API_BASE = "http://localhost:8000";
+      
+      // The main reports endpoint already returns all types (user, quest, guild)
       const res = await fetchWithAuth(`${API_BASE}/api/users/admin/reports/`);
+      
       if (!res.ok) {
         const err = await res.text();
         setReportsError(err);
@@ -172,8 +283,18 @@ function AdminPanel({
         setReportsLoading(false);
         return;
       }
-      const data = await res.json();
-      setReports(data);
+      
+      const allReports = await res.json();
+      
+      // Add unique keys but preserve backend type information
+      const reportsWithKeys = allReports.map((report: any, index: number) => ({
+        ...report,
+        // Preserve backend type and add fallback report_type
+        report_type: report.type || 'unknown',
+        unique_key: `${report.type || 'unknown'}-${report.id}-${index}`
+      }));
+      
+      setReports(reportsWithKeys);
     } catch (err: any) {
       setReportsError("Error fetching reports: " + (err?.message || err));
       setReports([]);
@@ -181,119 +302,634 @@ function AdminPanel({
     setReportsLoading(false);
   };
 
+  // Fetch transactions from backend
+  const fetchTransactions = async () => {
+    setTransactionsLoading(true);
+    setTransactionsError("");
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/transactions/transactions/all_transactions/`);
+      if (!res.ok) {
+        const err = await res.text();
+        setTransactionsError(err);
+        setTransactions([]);
+        setTransactionsLoading(false);
+        return;
+      }
+      const data = await res.json();
+      
+      // Handle both paginated and non-paginated responses
+      let transactionData = [];
+      if (Array.isArray(data)) {
+        transactionData = data;
+      } else if (Array.isArray(data.results)) {
+        transactionData = data.results;
+      } else {
+        transactionData = [];
+      }
+      
+      setTransactions(transactionData);
+    } catch (err: any) {
+      setTransactionsError("Error fetching transactions: " + (err?.message || err));
+      setTransactions([]);
+    }
+    setTransactionsLoading(false);
+  };
+
+  // Fetch appeals from backend
+  const fetchAppeals = async () => {
+    setAppealsLoading(true);
+    setAppealsError("");
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/users/ban-appeals/`);
+      if (!res.ok) {
+        const err = await res.text();
+        setAppealsError(`Failed to fetch appeals: ${res.status} - ${err}`);
+        setAppeals([]);
+        setAppealsLoading(false);
+        return;
+      }
+      const data = await res.json();
+      setAppeals(data);
+    } catch (err: any) {
+      setAppealsError("Error fetching appeals: " + (err?.message || err));
+      setAppeals([]);
+    }
+    setAppealsLoading(false);
+  };
+
+  // Fetch users from backend
+  const fetchUsers = async () => {
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/users/admin/users/`);
+      if (!res.ok) {
+        if (showToast) showToast(`Failed to fetch users: ${res.status}`, "error");
+        return;
+      }
+      const data = await res.json();
+      let userArray: User[] = [];
+      if (Array.isArray(data)) {
+        userArray = data;
+      } else if (Array.isArray(data.results)) {
+        userArray = data.results;
+      } else {
+        userArray = [];
+      }
+      
+      // Set both local state and props
+      setLocalUsers(userArray);
+      setUsers?.(userArray);
+    } catch (err: any) {
+      if (showToast) showToast("Error fetching users: " + (err?.message || err), "error");
+    }
+  };
+
+  // Fetch guilds from backend
+  const fetchGuilds = async () => {
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/guilds/`);
+      if (!res.ok) {
+        if (showToast) showToast(`Failed to fetch guilds: ${res.status}`, "error");
+        return;
+      }
+      const data = await res.json();
+      let guildArray: Guild[] = [];
+      if (Array.isArray(data)) {
+        guildArray = data;
+      } else if (Array.isArray(data.results)) {
+        guildArray = data.results;
+      } else {
+        guildArray = [];
+      }
+      
+      // Set both local state and props
+      setLocalGuilds(guildArray);
+      setGuilds?.(guildArray);
+    } catch (err: any) {
+      if (showToast) showToast("Error fetching guilds: " + (err?.message || err), "error");
+    }
+  };
+
+  // Fetch receipts from backend
+  const fetchReceipts = async () => {
+    setReceiptsLoading(true);
+    setReceiptsError("");
+    try {
+      const API_BASE = "http://localhost:8000";
+      const params = new URLSearchParams();
+      if (receiptSearch.trim()) params.append("search", receiptSearch.trim());
+      if (showFutureReceipts) params.append("show_future", "true");
+      
+      const url = `${API_BASE}/api/payments/admin/receipts/${params.toString() ? '?' + params.toString() : ''}`;
+      const res = await fetchWithAuth(url);
+      
+      if (!res.ok) {
+        const err = await res.text();
+        setReceiptsError(err);
+        setReceipts([]);
+        setReceiptsLoading(false);
+        return;
+      }
+      
+      const data = await res.json();
+      if (data.success) {
+        setReceipts(data.receipts || []);
+        setReceiptStats(data.statistics || {});
+        setBatchInfo(data.batch_info || {});
+      } else {
+        setReceiptsError(data.message || "Failed to fetch receipts");
+        setReceipts([]);
+      }
+    } catch (err: any) {
+      setReceiptsError("Error fetching receipts: " + (err?.message || err));
+      setReceipts([]);
+    }
+    setReceiptsLoading(false);
+  };
+
+  // Handle individual receipt actions
+  const handleReceiptAction = async (receiptId: number, action: string, notes: string = '') => {
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/payments/admin/receipts/${receiptId}/action/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, notes })
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message, "success");
+        fetchReceipts(); // Refresh the list
+      } else {
+        showToast(data.message || "Failed to perform action", "error");
+      }
+    } catch (err: any) {
+      showToast("Error performing action: " + (err?.message || err), "error");
+    }
+  };
+
+  // Handle batch receipt actions
+  const handleBatchAction = async (action: string, notes: string = '') => {
+    if (selectedReceipts.length === 0) {
+      showToast("Please select receipts to process", "error");
+      return;
+    }
+    
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/payments/admin/receipts/batch-action/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          action, 
+          receipt_ids: selectedReceipts,
+          notes 
+        })
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message, "success");
+        setSelectedReceipts([]); // Clear selection
+        fetchReceipts(); // Refresh the list
+      } else {
+        showToast(data.message || "Failed to perform batch action", "error");
+      }
+    } catch (err: any) {
+      showToast("Error performing batch action: " + (err?.message || err), "error");
+    }
+  };
+
+  // User management actions
+  const handleBanUser = async (user: User, reason: string) => {
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/users/admin/users/${user.id}/ban/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+      });
+      
+      if (res.ok) {
+        showToast(`User ${user.username || user.id} has been banned`, "success");
+        
+        // Update user in local state immediately for better UX
+        const updatedUser: User = { 
+          ...user, 
+          isBanned: true, 
+          banned: true, 
+          banReason: reason
+        };
+        
+        // Update local users array immediately
+        setLocalUsers(prev => {
+          const newUsers = prev.map(u => u.id === user.id ? updatedUser : u);
+          // Also update props users array with the new array
+          setUsers?.(newUsers);
+          return newUsers;
+        });
+        
+        // Force re-render
+        setRefreshCounter(prev => prev + 1);
+        
+        // Close modal and reset
+        setShowBanModal(false);
+        setBanReason("");
+        setSelectedUser(null);
+        
+        // Fetch fresh data from server to ensure consistency (with shorter delay)
+        setTimeout(() => fetchUsers(), 200);
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to ban user", "error");
+      }
+    } catch (err: any) {
+      showToast("Error banning user: " + (err?.message || err), "error");
+    }
+  };
+
+  const handleUnbanUser = async (user: User) => {
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/users/admin/users/${user.id}/unban/`, {
+        method: 'POST'
+      });
+      
+      if (res.ok) {
+        showToast(`User ${user.username || user.id} has been unbanned`, "success");
+        
+        // Update user in local state immediately for better UX
+        const updatedUser: User = { 
+          ...user, 
+          isBanned: false, 
+          banned: false, 
+          banReason: undefined
+        };
+        
+        // Update local users array immediately
+        setLocalUsers(prev => {
+          const newUsers = prev.map(u => u.id === user.id ? updatedUser : u);
+          // Also update props users array with the new array
+          setUsers?.(newUsers);
+          return newUsers;
+        });
+        
+        // Force re-render
+        setRefreshCounter(prev => prev + 1);
+        
+        // Fetch fresh data from server to ensure consistency (with shorter delay)
+        setTimeout(() => fetchUsers(), 200);
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to unban user", "error");
+      }
+    } catch (err: any) {
+      showToast("Error unbanning user: " + (err?.message || err), "error");
+    }
+  };
+
+  const handleDeleteUser = async (user: User) => {
+    if (!confirm(`Are you sure you want to delete user ${user.username}? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/users/admin/users/${user.id}/delete/`, {
+        method: 'DELETE'
+      });
+      
+      if (res.ok) {
+        showToast(`User ${user.username} has been deleted`, "success");
+        fetchUsers(); // Refresh users list
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to delete user", "error");
+      }
+    } catch (err: any) {
+      showToast("Error deleting user: " + (err?.message || err), "error");
+    }
+  };
+
+  // Quest management actions
+  const handleDeleteQuest = async (quest: Quest) => {
+    if (!confirm(`Are you sure you want to delete quest "${quest.title}"? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/quests/admin/quests/${quest.slug}/`, {
+        method: 'DELETE'
+      });
+      
+      if (res.ok) {
+        showToast(`Quest "${quest.title}" has been deleted`, "success");
+        fetchQuestsForAdmin(); // Refresh quests list
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to delete quest", "error");
+      }
+    } catch (err: any) {
+      showToast("Error deleting quest: " + (err?.message || err), "error");
+    }
+  };
+
+  // Guild management actions
+  const handleWarnGuild = async (guild: Guild, reason: string) => {
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/guilds/${guild.guild_id || guild.id}/warn/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        showToast(data.message || `Guild ${guild.name} has been warned`, "success");
+        fetchGuilds(); // Refresh guilds list
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to warn guild", "error");
+      }
+    } catch (err: any) {
+      showToast("Error warning guild: " + (err?.message || err), "error");
+    }
+  };
+
+  const handleDisableGuild = async (guild: Guild) => {
+    if (!confirm(`Are you sure you want to disable guild ${guild.name}?`)) {
+      return;
+    }
+    
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/guilds/${guild.guild_id || guild.id}/disable/`, {
+        method: 'POST'
+      });
+      
+      if (res.ok) {
+        showToast(`Guild ${guild.name} has been disabled`, "success");
+        fetchGuilds(); // Refresh guilds list
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to disable guild", "error");
+      }
+    } catch (err: any) {
+      showToast("Error disabling guild: " + (err?.message || err), "error");
+    }
+  };
+
+  const handleEnableGuild = async (guild: Guild) => {
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/guilds/${guild.guild_id || guild.id}/enable/`, {
+        method: 'POST'
+      });
+      
+      if (res.ok) {
+        showToast(`Guild ${guild.name} has been enabled`, "success");
+        fetchGuilds(); // Refresh guilds list
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to enable guild", "error");
+      }
+    } catch (err: any) {
+      showToast("Error enabling guild: " + (err?.message || err), "error");
+    }
+  };
+
+  const handleResetGuildWarnings = async (guild: Guild) => {
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/guilds/${guild.guild_id || guild.id}/reset-warnings/`, {
+        method: 'POST'
+      });
+      
+      if (res.ok) {
+        showToast(`Warnings reset for guild ${guild.name}`, "success");
+        fetchGuilds(); // Refresh guilds list
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to reset warnings", "error");
+      }
+    } catch (err: any) {
+      showToast("Error resetting warnings: " + (err?.message || err), "error");
+    }
+  };
+
+  // Report management actions
+  const handleReportUser = async (user: User, reason: string, message: string) => {
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/reports/user/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reported_user: user.id,
+          reason,
+          message
+        })
+      });
+      
+      if (res.ok) {
+        showToast(`User ${user.username} has been reported`, "success");
+        setShowReportModal(false);
+        setReportReason("");
+        setReportMessage("");
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to report user", "error");
+      }
+    } catch (err: any) {
+      showToast("Error reporting user: " + (err?.message || err), "error");
+    }
+  };
+
+  const handleReportQuest = async (quest: Quest, reason: string, message: string) => {
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/reports/quest/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reported_quest: quest.id,
+          reason,
+          message
+        })
+      });
+      
+      if (res.ok) {
+        showToast(`Quest "${quest.title}" has been reported`, "success");
+        setShowReportModal(false);
+        setReportReason("");
+        setReportMessage("");
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to report quest", "error");
+      }
+    } catch (err: any) {
+      showToast("Error reporting quest: " + (err?.message || err), "error");
+    }
+  };
+
+  const handleReportGuild = async (guild: Guild, reason: string, message: string) => {
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/users/guild-report/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reported_guild: guild.guild_id || guild.id,
+          reason,
+          message
+        })
+      });
+      
+      if (res.ok) {
+        showToast(`Guild ${guild.name} has been reported`, "success");
+        setShowReportModal(false);
+        setReportReason("");
+        setReportMessage("");
+      } else {
+        const data = await res.json();
+        showToast(data.message || "Failed to report guild", "error");
+      }
+    } catch (err: any) {
+      showToast("Error reporting guild: " + (err?.message || err), "error");
+    }
+  };
+
+  // Report resolution actions
+  const handleResolveReport = async (report: any, action: string) => {
+    try {
+      const API_BASE = "http://localhost:8000";
+      
+      // Use specific endpoints based on report type - all routes through users app
+      let endpoint = "";
+      if (report.type === 'user') {
+        endpoint = `${API_BASE}/api/users/admin/reports/${report.id}/resolve/`;
+      } else if (report.type === 'quest') {
+        // Quest reports are also handled through the main reports endpoint
+        endpoint = `${API_BASE}/api/users/admin/reports/${report.id}/resolve/`;
+      } else if (report.type === 'guild') {
+        endpoint = `${API_BASE}/api/users/admin/guild-reports/${report.id}/resolve/`;
+      } else {
+        // Fallback to main endpoint
+        endpoint = `${API_BASE}/api/users/admin/reports/${report.id}/resolve/`;
+      }
+      
+      const res = await fetchWithAuth(
+        endpoint,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        }
+      );
+      
+      if (res.ok) {
+        showToast(`Report has been ${action}d successfully`, "success");
+        
+        // Remove the resolved report from the local state immediately for better UX
+        setReports(prevReports => 
+          prevReports.filter(r => r.id !== report.id)
+        );
+        
+        // Also refresh the reports list to ensure consistency
+        setTimeout(() => fetchReports(), 500);
+      } else {
+        const data = await res.json();
+        showToast(data.detail || data.message || "Failed to resolve report", "error");
+      }
+    } catch (err: any) {
+      showToast("Error resolving report: " + (err?.message || err), "error");
+    }
+  };
+
+  // Appeals actions
+  const handleApproveAppeal = async (appeal: any) => {
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/users/ban-appeal/${appeal.id}/review/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          decision: 'lifted',
+          comment: 'Appeal approved by admin'
+        })
+      });
+      
+      if (res.ok) {
+        showToast("Appeal approved and user unbanned", "success");
+        fetchAppeals(); // Refresh appeals list
+        fetchUsers(); // Refresh users list to update ban status
+      } else {
+        const data = await res.json();
+        showToast(data.detail || data.message || "Failed to approve appeal", "error");
+      }
+    } catch (err: any) {
+      showToast("Error approving appeal: " + (err?.message || err), "error");
+    }
+  };
+
+  const handleDenyAppeal = async (appeal: any) => {
+    try {
+      const API_BASE = "http://localhost:8000";
+      const res = await fetchWithAuth(`${API_BASE}/api/users/ban-appeal/${appeal.id}/review/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          decision: 'dismissed',
+          comment: 'Appeal denied by admin'
+        })
+      });
+      
+      if (res.ok) {
+        showToast("Appeal denied", "success");
+        fetchAppeals(); // Refresh appeals list
+      } else {
+        const data = await res.json();
+        showToast(data.detail || data.message || "Failed to deny appeal", "error");
+      }
+    } catch (err: any) {
+      showToast("Error denying appeal: " + (err?.message || err), "error");
+    }
+  };
+
   useEffect(() => {
     if (activeTab === "actionlog") fetchActionLogs();
     if (activeTab === "reports") fetchReports();
     if (activeTab === "quests") fetchQuestsForAdmin();
-  }, [activeTab]);
+    if (activeTab === "transactions") fetchTransactions();
+    if (activeTab === "receipts") fetchReceipts();
+    if (activeTab === "appeals") fetchAppeals();
+    if (activeTab === "users") fetchUsers();
+    if (activeTab === "guilds") fetchGuilds();
+  }, [activeTab, receiptSearch, showFutureReceipts]);
 
-  // Also fetch quests on mount (for overview stats)
+  // Also fetch data on mount (for overview stats and initial load)
   useEffect(() => {
-    fetchQuestsForAdmin();
-    // eslint-disable-next-line
-  }, []);
-  const [searchTerm, setSearchTerm] = useState("")
-  // Accept only UUID string for user IDs
-  const [showBanConfirm, setShowBanConfirm] = useState<string | null>(null)
-  const [showDeleteUserConfirm, setShowDeleteUserConfirm] = useState<string | null>(null)
-  const [banReason, setBanReason] = useState("")
-  const [customBanReason, setCustomBanReason] = useState("")
-  const [banType, setBanType] = useState<"permanent" | "temporary">("permanent")
-  const [banDuration, setBanDuration] = useState({ amount: 1, unit: "days" })
-  const [showDeleteQuestConfirm, setShowDeleteQuestConfirm] = useState<number | null>(null)
-  const [deleteQuestReason, setDeleteQuestReason] = useState("")
-  const [customDeleteQuestReason, setCustomDeleteQuestReason] = useState("")
-  const [showDeleteGuildConfirm, setShowDeleteGuildConfirm] = useState<number | null>(null)
-  const [deleteGuildReason, setDeleteGuildReason] = useState("")
-  const [customDeleteGuildReason, setCustomDeleteGuildReason] = useState("")
-  const [selectedUserDetails, setSelectedUserDetails] = useState<User | null>(null)
-  const [selectedQuestDetails, setSelectedQuestDetails] = useState<Quest | null>(null)
-  const [selectedGuildDetails, setSelectedGuildDetails] = useState<Guild | null>(null)
-  const [selectedReport, setSelectedReport] = useState<any>(null)
-  const [resolvedReports, setResolvedReports] = useState<number[]>([])
-
-  // Inappropriate content detection
-  const inappropriateWords = [
-    "hate", "racist", "nazi", "slur", "offensive", "inappropriate", "spam", "scam", "fraud"
-  ]
-
-  const isInappropriateUsername = (username: string) => {
-    return inappropriateWords.some(word => 
-      username.toLowerCase().includes(word.toLowerCase())
-    )
-  }
-
-
-  // Fetch users from backend on mount (with auth header and token refresh)
-  useEffect(() => {
-    const API_BASE = "http://localhost:8000";
-    async function fetchUsersWithRefresh() {
-      let token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
-      const refresh = typeof window !== 'undefined' ? localStorage.getItem("refresh_token") : null;
-      if (!token) {
-        console.error("[AdminPanel] No access token found in localStorage");
-        return;
+    if (isAdmin(currentUser)) {
+      fetchQuestsForAdmin();
+      fetchUsers();
+      fetchGuilds();
+      // Also fetch receipt stats for overview
+      if (receipts.length === 0) {
+        fetchReceipts();
       }
-      let res = await fetch(`${API_BASE}/api/users/admin/users/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.status === 401 && refresh) {
-        // Try to refresh token
-        const refreshRes = await fetch(`${API_BASE}/api/token/refresh/`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refresh })
-        });
-        if (refreshRes.ok) {
-          const data = await refreshRes.json();
-          if (data.access) {
-            localStorage.setItem("access_token", data.access);
-            token = data.access;
-            // Retry original request
-            res = await fetch(`${API_BASE}/api/users/admin/users/`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-          }
-        } else {
-          // Refresh failed, force logout
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
-          setUsers([]);
-          showToast("Session expired. Please log in again.", "error");
-          return;
-        }
-      }
-      if (!res.ok) {
-        const err = await res.text();
-        console.error(`[AdminPanel] Failed to fetch users: ${res.status} ${res.statusText}`, err);
-        setUsers([]);
-        return;
-      }
-      const data = await res.json();
-      if (!Array.isArray(data)) {
-        console.error("[AdminPanel] Users API did not return an array:", data);
-        setUsers([]);
-        return;
-      }
-      setUsers(
-        data.map((u: any) => ({
-          ...u,
-          isBanned: u.is_banned,
-          banReason: u.ban_reason,
-          banExpiration: u.ban_expires_at,
-          isSuperuser: u.is_superuser,
-          createdAt: u.date_joined,
-        }))
-      );
     }
-    fetchUsersWithRefresh();
-    // eslint-disable-next-line
-  }, []);
+  }, [currentUser]);
 
   // Filtered and searched users
   const filteredUsers = useMemo(() => {
-    return users.filter(user => {
-      // Accept string or non-string username/email for robustness
+    if (!safeUsers || !Array.isArray(safeUsers)) return [];
+    return safeUsers.filter(user => {
       const username = typeof user.username === 'string' ? user.username : String(user.username ?? '');
       const email = typeof user.email === 'string' ? user.email : String(user.email ?? '');
       const matchesSearch = searchTerm === "" || 
@@ -301,19 +937,16 @@ function AdminPanel({
         email.toLowerCase().includes(searchTerm.toLowerCase());
       return matchesSearch;
     });
-  }, [users, searchTerm]);
+  }, [safeUsers, searchTerm, refreshCounter]);
 
   // Count active and banned users
-  const activeUsers = users.filter((user) => !user.isBanned).length
-  const bannedUsers = users.filter((user) => user.isBanned).length
+  const activeUsers = safeUsers.filter((user) => !user.isBanned).length
+  const bannedUsers = safeUsers.filter((user) => user.isBanned).length
 
-  // Count open, completed quests (robust to non-array quests)
-  const safeQuests = Array.isArray(quests) ? quests : [];
+  // Count open, completed quests
   const openQuests = safeQuests.filter((quest) => quest.status === "open").length;
   const completedQuests = safeQuests.filter((quest) => quest.status === "completed").length;
 
-  // Quest search state
-  const [questSearch, setQuestSearch] = useState("");
   // Filtered and searched quests
   const filteredQuests = useMemo(() => {
     if (!questSearch.trim()) return safeQuests;
@@ -329,285 +962,6 @@ function AdminPanel({
       );
     });
   }, [safeQuests, questSearch]);
-
-
-  // Ban Appeals State
-  const [appeals, setAppeals] = useState<any[]>([]);
-  const [appealsLoading, setAppealsLoading] = useState(false);
-  const [appealsError, setAppealsError] = useState("");
-  const [appealActionLoading, setAppealActionLoading] = useState<string | null>(null); // appeal id
-  const [appealActionError, setAppealActionError] = useState("");
-
-  // Fetch appeals from backend (with token refresh)
-  const fetchAppeals = async () => {
-    setAppealsLoading(true);
-    setAppealsError("");
-    try {
-      const API_BASE = "http://localhost:8000";
-      const res = await fetchWithAuth(`${API_BASE}/api/users/ban-appeals/`);
-      if (!res.ok) {
-        const err = await res.text();
-        setAppealsError(err);
-        setAppeals([]);
-        setAppealsLoading(false);
-        return;
-      }
-      const data = await res.json();
-      setAppeals(Array.isArray(data) ? data : (data.results || []));
-    } catch (err: any) {
-      setAppealsError("Error fetching appeals: " + (err?.message || err));
-      setAppeals([]);
-    }
-    setAppealsLoading(false);
-  };
-
-  useEffect(() => {
-    if (activeTab === "appeals") fetchAppeals();
-  }, [activeTab]);
-
-  // Filtered appeals for search
-  const filteredAppeals = useMemo(() => {
-    if (!appealSearch) return appeals;
-    const q = appealSearch.toLowerCase();
-    return appeals.filter((a: any) =>
-      (a.user_email && a.user_email.toLowerCase().includes(q)) ||
-      (a.message && a.message.toLowerCase().includes(q))
-    );
-  }, [appeals, appealSearch]);
-
-  // Appeal Actions
-  // Patch: All appeal actions POST to /api/users/ban-appeal/<appeal_id>/review/ with { decision }
-  const handleAppealAction = async (
-    appealId: string | number,
-    action: "dismiss" | "lift_ban" | "resolve"
-  ) => {
-    setAppealActionLoading(String(appealId));
-    setAppealActionError("");
-    const API_BASE = "http://localhost:8000";
-    const endpoint = `/api/users/ban-appeal/${appealId}/review/`;
-    let decision = "";
-    if (action === "dismiss") {
-      decision = "dismissed";
-    } else if (action === "lift_ban") {
-      decision = "lifted";
-    } else if (action === "resolve") {
-      // If backend supports a separate 'resolved' state, use it; otherwise, fallback to 'dismissed'
-      decision = "dismissed";
-    }
-    try {
-      const res = await fetchWithAuth(`${API_BASE}${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision }),
-      });
-      if (!res.ok) {
-        let err, rawErr;
-        try {
-          rawErr = await res.text();
-          err = JSON.parse(rawErr);
-        } catch {
-          err = rawErr;
-        }
-        setAppealActionError((err && err.detail) || err || "Failed to process appeal action");
-        setAppealActionLoading(null);
-        showToast((err && err.detail) || err || "Failed to process appeal action", "error");
-        return;
-      }
-      showToast(`Appeal action '${action}' successful.`, "success");
-      // Remove the appeal from the list immediately for better UX
-      setAppeals((prevAppeals) => prevAppeals.filter((a) => String(a.id) !== String(appealId)));
-      // Optionally, refetch action logs if on actionlog tab
-      if (activeTab === "actionlog") fetchActionLogs();
-    } catch (e) {
-      setAppealActionError("Failed to process appeal action");
-      showToast("Failed to process appeal action", "error");
-    }
-    setAppealActionLoading(null);
-  };
-
-  const handleBanUser = async (userId: string | null) => {
-    if (!userId) return;
-    const finalReason = banReason === "custom" ? customBanReason : banReason;
-    let expires_at = null;
-    if (banType === "temporary") {
-      const now = new Date();
-      let ms = banDuration.amount * (
-        banDuration.unit === "hours" ? 60 * 60 * 1000 :
-        banDuration.unit === "days" ? 24 * 60 * 60 * 1000 :
-        7 * 24 * 60 * 60 * 1000 // weeks
-      );
-      expires_at = new Date(now.getTime() + ms).toISOString();
-    }
-    try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
-      const API_BASE = "http://localhost:8000";
-      if (!token) {
-        showToast("No access token found. Please log in again.", "error");
-        return;
-      }
-      // Always use UUID string for userId
-      const userUuid = String(userId);
-      const res = await fetch(`${API_BASE}/api/users/admin/users/${userUuid}/ban/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ reason: finalReason, expires_at }),
-      });
-      if (!res.ok) {
-        let err, rawErr;
-        try { rawErr = await res.text(); err = JSON.parse(rawErr); } catch { err = rawErr; }
-        console.error('[AdminPanel] Ban user error:', err, rawErr, res.status, res.statusText);
-        showToast((err && err.detail) || err || "Failed to ban user", "error");
-        return;
-      }
-      setUsers(users.map((user) =>
-        user.id === userUuid ? {
-          ...user,
-          isBanned: true,
-          banReason: finalReason,
-          banExpiration: expires_at,
-        } : user
-      ));
-      const banTypeText = banType === "permanent" ? "permanently" : `temporarily (expires ${expires_at ? new Date(expires_at).toLocaleString() : ""})`;
-      showToast(`User has been banned ${banTypeText}. Reason: ${finalReason}`, "success");
-    } catch (e) {
-      showToast("Failed to ban user", "error");
-    }
-    setShowBanConfirm(null);
-    setBanReason("");
-    setCustomBanReason("");
-    setBanType("permanent");
-    setBanDuration({ amount: 1, unit: "days" });
-  };
-
-  const handleDeleteUser = async (userId: string | null) => {
-    if (!userId) return;
-    try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
-      const API_BASE = "http://localhost:8000";
-      if (!token) {
-        showToast("No access token found. Please log in again.", "error");
-        return;
-      }
-      // Always use UUID string for userId
-      const userUuid = String(userId);
-      const res = await fetch(`${API_BASE}/api/users/admin/users/${userUuid}/delete/`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-      });
-      if (!res.ok) {
-        let err, rawErr;
-        try { rawErr = await res.text(); err = JSON.parse(rawErr); } catch { err = rawErr; }
-        console.error('[AdminPanel] Delete user error:', err, rawErr, res.status, res.statusText);
-        showToast((err && err.detail) || err || "Failed to delete user", "error");
-        return;
-      }
-      setUsers(users.filter((user) => user.id !== userUuid));
-      showToast(`User account has been permanently deleted.`, "success");
-      setShowDeleteUserConfirm(null);
-    } catch (e) {
-      showToast("Failed to delete user", "error");
-    }
-  }
-
-  const handleUnbanUser = async (userId: string | null) => {
-    if (!userId) return;
-    try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
-      const API_BASE = "http://localhost:8000";
-      if (!token) {
-        showToast("No access token found. Please log in again.", "error");
-        return;
-      }
-      // Always use UUID string for userId
-      const userUuid = String(userId);
-      const res = await fetch(`${API_BASE}/api/users/admin/users/${userUuid}/unban/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-      });
-      if (!res.ok) {
-        let err, rawErr;
-        try { rawErr = await res.text(); err = JSON.parse(rawErr); } catch { err = rawErr; }
-        console.error('[AdminPanel] Unban user error:', err, rawErr, res.status, res.statusText);
-        showToast((err && err.detail) || err || "Failed to unban user", "error");
-        return;
-      }
-      setUsers(users.map((user) => (user.id === userUuid ? { ...user, isBanned: false, banReason: undefined, banExpiration: undefined } : user)));
-      showToast(`User has been unbanned.`, "success");
-    } catch (e) {
-      showToast("Failed to unban user", "error");
-    }
-  };
-
-  const handleDeleteQuest = (questId: number) => {
-    const finalReason = deleteQuestReason === "custom" ? customDeleteQuestReason : deleteQuestReason
-    setQuests(quests.filter((quest) => quest.id !== questId))
-    showToast(`Quest has been deleted. Reason: ${finalReason}`, "success")
-    setShowDeleteQuestConfirm(null)
-    setDeleteQuestReason("")
-    setCustomDeleteQuestReason("")
-  }
-
-  const handleDeleteGuild = (guildId: number) => {
-    const finalReason = deleteGuildReason === "custom" ? customDeleteGuildReason : deleteGuildReason
-    setGuilds(guilds.filter((guild) => guild.id !== guildId))
-    showToast(`Guild has been deleted. Reason: ${finalReason}`, "success")
-    setShowDeleteGuildConfirm(null)
-    setDeleteGuildReason("")
-    setCustomDeleteGuildReason("")
-  }
-
-  // Patch: Actually resolve report via API and update UI
-  const handleResolveReport = async (reportId: number, action: string, notes: string) => {
-    console.log('[AdminPanel] handleResolveReport called', { reportId, action, notes });
-    try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
-      const API_BASE = "http://localhost:8000";
-      if (!token) {
-        showToast("No access token found. Please log in again.", "error");
-        return;
-      }
-      // PATCH to backend to resolve report
-      const res = await fetch(`${API_BASE}/api/users/admin/reports/${reportId}/resolve/`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ action, notes }),
-      });
-      console.log('[AdminPanel] resolve report response', res.status, res.statusText);
-      if (!res.ok) {
-        let err, rawErr;
-        try { rawErr = await res.text(); err = JSON.parse(rawErr); } catch { err = rawErr; }
-        console.error('[AdminPanel] Failed to resolve report', err, rawErr, res.status, res.statusText);
-        showToast((err && err.detail) || err || `Failed to resolve report (${res.status})`, "error");
-        return;
-      }
-      // Remove the resolved report from the local reports state immediately
-      setReports((prevReports) => prevReports.filter(r => r.id !== reportId));
-      setResolvedReports((prev) => [...prev, reportId]);
-      showToast(`Report resolved with action: ${action}`, "success");
-      // Optionally, refetch reports from backend for full sync (will not re-add resolved if backend filters them)
-      await fetchReports();
-      if (activeTab === "actionlog") fetchActionLogs();
-    } catch (e) {
-      console.error('[AdminPanel] Exception in handleResolveReport', e);
-      showToast("Failed to resolve report (exception)", "error");
-    }
-  }
-
-  const handleViewReport = (report: any) => {
-    setSelectedReport(report)
-  }
 
   // Robust admin check
   const isAdmin = (user: any) => {
@@ -636,126 +990,77 @@ function AdminPanel({
     );
   }
 
-
-
-  // ...existing code...
-
-  // Delete Report handler for resolved reports (top-level, robust)
-  const handleDeleteReport = async (reportId: number) => {
-    try {
-      const response = await fetchWithAuth(`/api/admin/reports/${reportId}/`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      if (!response.ok) {
-        throw new Error('Failed to delete report');
-      }
-      setReports((prev: any[]) => prev.filter((r: any) => r.id !== reportId));
-      if (showToast) showToast('Report deleted successfully', 'success');
-      setActionLogs((prev: any[]) => [
-        {
-          id: Date.now(),
-          created_at: new Date().toISOString(),
-          admin: currentUser?.username || 'Admin',
-          action: 'delete_report',
-          target_user: reportId?.toString?.() ?? String(reportId),
-          details: 'Deleted report from admin panel',
-        },
-        ...((prev as any[]) || [])
-      ]);
-      if (typeof fetchActionLogs === 'function') fetchActionLogs();
-    } catch (error: any) {
-      if (showToast) showToast(error.message || 'Failed to delete report', 'error');
-    }
-  };
-
   return (
     <>
       <div className="bg-[#F4F0E6] min-h-screen py-8">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="bg-[#8B75AA] rounded-t-lg p-6">
-            <h2 className="text-2xl font-bold text-white">Admin Panel</h2>
-            <p className="text-[#F4F0E6] opacity-80">Manage users, quests, guilds, and reports</p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Admin Panel</h2>
+                <p className="text-[#F4F0E6] opacity-80">Manage users, quests, guilds, and reports</p>
+              </div>
+            </div>
           </div>
 
-        {/* Tab Navigation */}
-        <div className="bg-white border-b border-gray-200 overflow-x-auto">
-          <div className="flex min-w-max">
-            <button
-              onClick={() => setActiveTab("actionlog")}
-              className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
-                activeTab === "actionlog"
-                  ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
-                  : "text-gray-500 hover:text-[#8B75AA]"
-              }`}
-            >
-              <FileText size={18} className="mr-2" />
-              Action Log
-            </button>
-            <button
-              onClick={() => setActiveTab("overview")}
-              className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
-                activeTab === "overview"
-                  ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
-                  : "text-gray-500 hover:text-[#8B75AA]"
-              }`}
-            >
-              <Home size={18} className="mr-2" />
-              Overview
-            </button>
-            <button
-              onClick={() => setActiveTab("users")}
-              className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
-                activeTab === "users"
-                  ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
-                  : "text-gray-500 hover:text-[#8B75AA]"
-              }`}
-            >
-              <Users size={18} className="mr-2" />
-              Users
-            </button>
-            <button
-              onClick={() => setActiveTab("quests")}
-              className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
-                activeTab === "quests"
-                  ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
-                  : "text-gray-500 hover:text-[#8B75AA]"
-              }`}
-            >
-              <FileText size={18} className="mr-2" />
-              Quests
-            </button>
-            <button
-              onClick={() => setActiveTab("guilds")}
-              className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
-                activeTab === "guilds"
-                  ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
-                  : "text-gray-500 hover:text-[#8B75AA]"
-              }`}
-            >
-              <Users size={18} className="mr-2" />
-              Guilds
-            </button>
-            <button
-              onClick={() => setActiveTab("reports")}
-              className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
-                activeTab === "reports"
-                  ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
-                  : "text-gray-500 hover:text-[#8B75AA]"
-              }`}
-            >
-              <Flag size={18} className="mr-2" />
-              Reports
-              {appealsLoading ? (
-                <span className="ml-2 bg-gray-400 text-white text-xs px-1.5 rounded-full">...</span>
-              ) : appeals.length > 0 ? (
-                <span className="ml-2 bg-red-500 text-white text-xs px-1.5 rounded-full">{appeals.length}</span>
-              ) : null}
-            </button>
-            {/* Appeals Tab - only for staff/superusers */}
-            {(currentUser.is_staff || currentUser.isSuperuser || currentUser.is_superuser) && (
+          {/* Tab Navigation */}
+          <div className="bg-white border-b border-gray-200 overflow-x-auto">
+            <div className="flex min-w-max">
+              <button
+                onClick={() => setActiveTab("overview")}
+                className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
+                  activeTab === "overview"
+                    ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
+                    : "text-gray-500 hover:text-[#8B75AA]"
+                }`}
+              >
+                <Home size={18} className="mr-2" />
+                Overview
+              </button>
+              <button
+                onClick={() => setActiveTab("users")}
+                className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
+                  activeTab === "users"
+                    ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
+                    : "text-gray-500 hover:text-[#8B75AA]"
+                }`}
+              >
+                <Users size={18} className="mr-2" />
+                Users
+              </button>
+              <button
+                onClick={() => setActiveTab("quests")}
+                className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
+                  activeTab === "quests"
+                    ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
+                    : "text-gray-500 hover:text-[#8B75AA]"
+                }`}
+              >
+                <FileText size={18} className="mr-2" />
+                Quests
+              </button>
+              <button
+                onClick={() => setActiveTab("guilds")}
+                className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
+                  activeTab === "guilds"
+                    ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
+                    : "text-gray-500 hover:text-[#8B75AA]"
+                }`}
+              >
+                <Users size={18} className="mr-2" />
+                Guilds
+              </button>
+              <button
+                onClick={() => setActiveTab("reports")}
+                className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
+                  activeTab === "reports"
+                    ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
+                    : "text-gray-500 hover:text-[#8B75AA]"
+                }`}
+              >
+                <Flag size={18} className="mr-2" />
+                Reports
+              </button>
               <button
                 onClick={() => setActiveTab("appeals")}
                 className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
@@ -764,416 +1069,749 @@ function AdminPanel({
                     : "text-gray-500 hover:text-[#8B75AA]"
                 }`}
               >
-                <Flag size={18} className="mr-2" />
+                <AlertTriangle size={18} className="mr-2" />
                 Appeals
-                {appealsLoading ? (
-                  <span className="ml-2 bg-gray-400 text-white text-xs px-1.5 rounded-full">...</span>
-                ) : appeals.length > 0 ? (
-                  <span className="ml-2 bg-red-500 text-white text-xs px-1.5 rounded-full">{appeals.length}</span>
-                ) : null}
               </button>
-            )}
-          </div>
-        </div>
-
-        {/* Tab Content Area */}
-        {activeTab === "appeals" && (
-          <div className="py-8">
-            <h3 className="text-xl font-bold text-[#2C1A1D] mb-8 text-center">Ban Appeals</h3>
-            <div className="flex justify-end mb-4">
-              <input
-                type="text"
-                placeholder="Search appeals by email or message..."
-                value={appealSearch}
-                onChange={e => setAppealSearch(e.target.value)}
-                className="border border-gray-300 rounded px-3 py-2 w-full max-w-xs focus:ring-2 focus:ring-[#8B75AA] focus:border-transparent"
-              />
+              <button
+                onClick={() => setActiveTab("actionlog")}
+                className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
+                  activeTab === "actionlog"
+                    ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
+                    : "text-gray-500 hover:text-[#8B75AA]"
+                }`}
+              >
+                <FileText size={18} className="mr-2" />
+                Action Log
+              </button>
+              <button
+                onClick={() => setActiveTab("transactions")}
+                className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
+                  activeTab === "transactions"
+                    ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
+                    : "text-gray-500 hover:text-[#8B75AA]"
+                }`}
+              >
+                <ArrowUpDown size={18} className="mr-2" />
+                Transactions
+              </button>
+              <button
+                onClick={() => setActiveTab("receipts")}
+                className={`flex items-center px-4 sm:px-6 py-4 text-sm font-medium whitespace-nowrap ${
+                  activeTab === "receipts"
+                    ? "border-b-2 border-[#8B75AA] text-[#8B75AA]"
+                    : "text-gray-500 hover:text-[#8B75AA]"
+                }`}
+              >
+                <FileText size={18} className="mr-2" />
+                Receipts
+              </button>
             </div>
-            {appealsLoading ? (
-              <div className="flex justify-center items-center min-h-[200px]">
-                <span className="text-[#8B75AA] text-lg animate-pulse">Loading appeals...</span>
-              </div>
-            ) : appealsError ? (
-              <div className="flex justify-center items-center min-h-[200px]">
-                <span className="text-red-500 text-lg">{appealsError}</span>
-              </div>
-            ) : appeals.length === 0 ? (
-              <div className="flex flex-col items-center justify-center min-h-[200px]">
-                <svg width="48" height="48" fill="none" viewBox="0 0 24 24" className="mb-2 text-gray-300"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Zm-1-7h2v2h-2v-2Zm0-8h2v6h-2V7Z" fill="currentColor"/></svg>
-                <span className="text-gray-500 text-base">No ban appeals found.</span>
-                <span className="text-xs text-gray-400 mt-1">All clear! No users have submitted appeals.</span>
-              </div>
-            ) : (
-              <div className="bg-white rounded-lg shadow border border-gray-200 p-0 sm:p-4">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full bg-white rounded-lg">
-                    <thead>
-                      <tr className="bg-gray-50">
-                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">User</th>
-                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Ban Details</th>
-                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Appeal Message</th>
-                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Evidence</th>
-                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredAppeals.map((appeal) => (
-                        <tr key={appeal.id} className="hover:bg-gray-50">
-                          <td className="py-3 px-4 border-b align-top min-w-[140px]">
-                            <div className="flex flex-col gap-1">
-                              <span className="font-medium text-gray-900">{appeal.user_email || "Unknown"}</span>
-                              <span className="text-xs text-gray-500">Email</span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 border-b align-top min-w-[160px]">
-                            <div className="flex flex-col gap-1">
-                              <span className="text-xs text-gray-700">Reason: <span className="font-medium">{appeal.ban_reason || "-"}</span></span>
-                              <span className="text-xs text-gray-700">{appeal.ban_expires_at ? `Until ${new Date(appeal.ban_expires_at).toLocaleString()}` : "Permanent"}</span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 border-b align-top max-w-xs min-w-[180px]">
-                            <div className="text-sm text-gray-900 whitespace-pre-line break-words">{appeal.message}</div>
-                          </td>
-                          <td className="py-3 px-4 border-b align-top min-w-[120px]">
-                            {appeal.files && appeal.files.length > 0 ? (
-                              <div className="flex flex-col gap-1">
-                                {appeal.files.map((file: any, idx: number) => (
-                                  <a
-                                    key={file.id || file.url || idx}
-                                    href={file.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:underline text-xs truncate max-w-[120px]"
-                                  >
-                                    {file.name || `Evidence ${idx + 1}`}
-                                  </a>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-400">No files</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 border-b align-top min-w-[140px]">
-                            <div className="flex flex-col gap-2">
-                              <button
-                                onClick={() => handleAppealAction(appeal.id, "dismiss")}
-                                disabled={appealActionLoading === String(appeal.id)}
-                                className="px-3 py-1 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 text-xs font-medium disabled:opacity-60"
-                              >
-                                Dismiss Appeal
-                              </button>
-                              <button
-                                onClick={() => handleAppealAction(appeal.id, "lift_ban")}
-                                disabled={appealActionLoading === String(appeal.id)}
-                                className="px-3 py-1 bg-green-200 text-green-800 rounded hover:bg-green-300 text-xs font-medium disabled:opacity-60"
-                              >
-                                Lift Ban
-                              </button>
-                              <button
-                                onClick={() => handleAppealAction(appeal.id, "resolve")}
-                                disabled={appealActionLoading === String(appeal.id)}
-                                className="px-3 py-1 bg-blue-200 text-blue-800 rounded hover:bg-blue-300 text-xs font-medium disabled:opacity-60"
-                              >
-                                Mark as Resolved
-                              </button>
-                              {appealActionLoading === String(appeal.id) && (
-                                <span className="text-xs text-gray-400 mt-1">Processing...</span>
-                              )}
-                              {appealActionError && appealActionLoading === String(appeal.id) && (
-                                <span className="text-xs text-red-500 mt-1">{appealActionError}</span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
           </div>
-        )}
 
-
-        {/* Action Log Tab */}
-        {activeTab === "actionlog" && (
-          <div className="py-8">
-            <h3 className="text-xl font-bold text-[#2C1A1D] mb-8 text-center">Admin Action Log</h3>
-            {actionLogsLoading ? (
-              <div className="flex justify-center items-center min-h-[200px]">
-                <span className="text-[#8B75AA] text-lg animate-pulse">Loading action logs...</span>
-              </div>
-            ) : actionLogsError ? (
-              <div className="flex justify-center items-center min-h-[200px]">
-                <span className="text-red-500 text-lg">{actionLogsError}</span>
-              </div>
-            ) : actionLogs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center min-h-[200px]">
-                <span className="text-gray-500 text-base">No admin actions found.</span>
-                <span className="text-xs text-gray-400 mt-1">No actions have been logged yet.</span>
-              </div>
-            ) : (
-              <div className="bg-white rounded-lg shadow border border-gray-200 p-0 sm:p-4">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full bg-white rounded-lg">
-                    <thead>
-                      <tr className="bg-gray-50">
-                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Time</th>
-                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Admin</th>
-                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Action</th>
-                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Target User</th>
-                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Details</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {actionLogs.map((log) => (
-                        <tr key={log.id} className="hover:bg-gray-50">
-                          <td className="py-3 px-4 border-b align-top min-w-[120px]">{new Date(log.created_at).toLocaleString()}</td>
-                          <td className="py-3 px-4 border-b align-top min-w-[120px]">{log.admin || "Unknown"}</td>
-                          <td className="py-3 px-4 border-b align-top min-w-[120px]">{log.action.replace(/_/g, " ")}</td>
-                          <td className="py-3 px-4 border-b align-top min-w-[120px]">{log.target_user || "Unknown"}</td>
-                          <td className="py-3 px-4 border-b align-top min-w-[200px]">{log.details}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-
-        {/* Content Area */}
-        <div className={`rounded-b-lg p-6${activeTab === "appeals" ? '' : ' bg-white'}`}> 
+          {/* Overview Tab */}
           {activeTab === "overview" && (
-            <div>
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-                {/* Total Users */}
+            <div className="rounded-b-lg p-6 bg-white">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-6 sm:mb-8">
                 <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-bold text-[#2C1A1D]">Total Users</h3>
                     <Users size={18} className="text-[#8B75AA]" />
                   </div>
-                  <div className="text-3xl font-bold text-[#2C1A1D]">{users.length}</div>
+                  <div className="text-3xl font-bold text-[#2C1A1D]">{safeUsers.length}</div>
                   <div className="text-sm text-[#8B75AA] mt-2">
                     <span className="font-medium">{activeUsers} active</span> •{" "}
                     <span className="text-red-500">{bannedUsers} banned</span>
                   </div>
                 </div>
 
-                {/* Total Quests */}
                 <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-bold text-[#2C1A1D]">Total Quests</h3>
                     <FileText size={18} className="text-[#8B75AA]" />
                   </div>
-                  <div className="text-3xl font-bold text-[#2C1A1D]">{quests.length}</div>
+                  <div className="text-3xl font-bold text-[#2C1A1D]">{safeQuests.length}</div>
                   <div className="text-sm text-[#8B75AA] mt-2">
                     <span className="font-medium">{openQuests} open</span> •{" "}
                     <span className="text-green-500">{completedQuests} completed</span>
                   </div>
                 </div>
 
-                {/* Total Guilds */}
                 <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-bold text-[#2C1A1D]">Total Guilds</h3>
-                    <Users size={18} className="text-[#8B75AA]" />
-                  </div>
-                  <div className="text-3xl font-bold text-[#2C1A1D]">{guilds.length}</div>
-                </div>
-
-                {/* Pending Reports */}
-                <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-bold text-[#2C1A1D]">Pending Reports</h3>
+                    <h3 className="font-bold text-[#2C1A1D]">Reports</h3>
                     <Flag size={18} className="text-[#8B75AA]" />
                   </div>
-                  <div className="text-3xl font-bold text-[#2C1A1D]">{reports.filter(r => !r.resolved).length}</div>
+                  <div className="text-3xl font-bold text-[#2C1A1D]">{reports.length}</div>
                   <div className="text-sm text-[#8B75AA] mt-2">
-                    <button onClick={() => setActiveTab("reports")} className="text-[#8B75AA] hover:underline">
-                      View reports
-                    </button>
+                    <span className="font-medium">Pending review</span>
                   </div>
                 </div>
-              </div>
 
-              {/* Action Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                <div
-                  className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                  onClick={() => setActiveTab("users")}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold text-[#2C1A1D]">Manage Users</h3>
-                    <Users size={24} className="text-[#8B75AA]" />
+                <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-bold text-[#2C1A1D]">Transactions</h3>
+                    <ArrowUpDown size={18} className="text-[#8B75AA]" />
                   </div>
-                  <p className="text-[#8B75AA] text-sm">View and manage user accounts, roles, and permissions</p>
+                  <div className="text-3xl font-bold text-[#2C1A1D]">{transactions.length}</div>
+                  <div className="text-sm text-[#8B75AA] mt-2">
+                    <span className="font-medium">All time</span>
+                  </div>
                 </div>
 
-                <div
-                  className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                  onClick={() => setActiveTab("quests")}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold text-[#2C1A1D]">Manage Quests</h3>
-                    <FileText size={24} className="text-[#8B75AA]" />
+                <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-bold text-[#2C1A1D]">Receipts</h3>
+                    <FileText size={18} className="text-[#8B75AA]" />
                   </div>
-                  <p className="text-[#8B75AA] text-sm">Monitor and moderate quest postings and activities</p>
-                </div>
-
-                <div
-                  className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                  onClick={() => setActiveTab("guilds")}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold text-[#2C1A1D]">Manage Guilds</h3>
-                    <Users size={24} className="text-[#8B75AA]" />
+                  <div className="text-3xl font-bold text-[#2C1A1D]">{receiptStats.total || 0}</div>
+                  <div className="text-sm text-[#8B75AA] mt-2">
+                    <span className="font-medium text-yellow-600">{(receiptStats.queued_ready || 0) + (receiptStats.queued_future || 0)} total queued</span> •{" "}
+                    <span className="font-medium text-green-600">{receiptStats.verified || 0} verified</span>
                   </div>
-                  <p className="text-[#8B75AA] text-sm">Oversee guild activities and manage guild settings</p>
-                </div>
-
-                <div
-                  className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                  onClick={() => setActiveTab("reports")}
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold text-[#2C1A1D]">Manage Reports</h3>
-                    <Flag size={24} className="text-[#8B75AA]" />
-                  </div>
-                  <p className="text-[#8B75AA] text-sm">Review and resolve user reports and violations</p>
-                  {reports.filter(r => !r.resolved).length > 0 && (
-                    <span className="inline-block mt-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                      {reports.filter(r => !r.resolved).length} pending
-                    </span>
-                  )}
-                </div>
-
-                <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold text-[#2C1A1D]">Recent Users</h3>
-                    <Users size={24} className="text-[#8B75AA]" />
-                  </div>
-                  <p className="text-[#8B75AA] text-sm">View recently registered users and their activity</p>
-                </div>
-
-                <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-bold text-[#2C1A1D]">Recent Reports</h3>
-                    <Flag size={24} className="text-[#8B75AA]" />
-                  </div>
-                  <p className="text-[#8B75AA] text-sm">Latest reports requiring admin attention</p>
                 </div>
               </div>
             </div>
           )}
 
+          {/* Transactions Tab */}
+          {activeTab === "transactions" && (
+            <div className="rounded-b-lg p-6 bg-white">
+              <h3 className="text-xl font-bold text-[#2C1A1D] mb-8 text-center">All User Transactions</h3>
+              
+              {/* Filters */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  {/* Transaction Type Filter */}
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Type</label>
+                    <select
+                      value={transactionTypeFilter}
+                      onChange={(e) => setTransactionTypeFilter(e.target.value)}
+                      aria-label="Filter transactions by type"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                    >
+                      <option value="all">All Types</option>
+                      <option value="PURCHASE">Purchase</option>
+                      <option value="REWARD">Reward</option>
+                      <option value="TRANSFER">Transfer</option>
+                      <option value="REFUND">Refund</option>
+                      <option value="CASHOUT">Cashout</option>
+                    </select>
+                  </div>
+                  
+                  {/* Search */}
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                      <input
+                        type="text"
+                        placeholder="Search by user, quest..."
+                        value={transactionSearch}
+                        onChange={(e) => setTransactionSearch(e.target.value)}
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Loading State */}
+              {transactionsLoading && (
+                <div className="flex flex-col items-center justify-center min-h-[200px]">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#8B75AA]"></div>
+                  <span className="text-gray-500 mt-2">Loading transactions...</span>
+                </div>
+              )}
+
+              {/* Error State */}
+              {transactionsError && (
+                <div className="flex flex-col items-center justify-center min-h-[200px]">
+                  <AlertTriangle className="h-8 w-8 text-red-500 mb-2" />
+                  <span className="text-red-500 text-center">{transactionsError}</span>
+                </div>
+              )}
+
+              {/* No Transactions */}
+              {!transactionsLoading && !transactionsError && filteredTransactions.length === 0 && (
+                <div className="flex flex-col items-center justify-center min-h-[200px]">
+                  <span className="text-gray-500 text-base">No transactions found.</span>
+                  <span className="text-xs text-gray-400 mt-1">No transactions match your current filters.</span>
+                </div>
+              )}
+
+              {/* Transactions Table */}
+              {!transactionsLoading && !transactionsError && filteredTransactions.length > 0 && (
+                <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full bg-white">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">User</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Type</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Amount</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Commission</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Quest</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(filteredTransactions || []).map((transaction) => (
+                          <tr key={transaction?.transaction_id || Math.random()} className="hover:bg-gray-50">
+                            <td className="py-3 px-4 border-b align-top min-w-[120px]">
+                              <div className="font-medium text-gray-900">{transaction.username || 'Unknown'}</div>
+                            </td>
+                            <td className="py-3 px-4 border-b align-top min-w-[100px]">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                transaction.type === 'PURCHASE' ? 'bg-blue-100 text-blue-800' :
+                                transaction.type === 'REWARD' ? 'bg-green-100 text-green-800' :
+                                transaction.type === 'TRANSFER' ? 'bg-purple-100 text-purple-800' :
+                                transaction.type === 'REFUND' ? 'bg-yellow-100 text-yellow-800' :
+                                transaction.type === 'CASHOUT' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {transaction.type_display || transaction.type}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 border-b align-top min-w-[100px]">
+                              <div className={`font-medium ${parseFloat(transaction.amount) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {parseFloat(transaction.amount) >= 0 ? '+' : ''}{transaction.amount} Gold
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 border-b align-top min-w-[100px]">
+                              {(() => {
+                                // Handle commission fee - API returns string values like "5.00"
+                                const commissionFee = transaction.commission_fee;
+                                if (commissionFee && commissionFee !== '0.00' && commissionFee !== '0') {
+                                  const commissionValue = parseFloat(commissionFee);
+                                  if (!isNaN(commissionValue) && commissionValue > 0) {
+                                    return (
+                                      <div className="font-medium text-orange-600">
+                                        {commissionValue.toFixed(2)} Gold
+                                      </div>
+                                    );
+                                  }
+                                }
+                                return <span className="text-gray-400">-</span>;
+                              })()}
+                            </td>
+                            <td className="py-3 px-4 border-b align-top min-w-[150px]">
+                              {transaction.quest_title ? (
+                                <div className="text-blue-600 text-sm font-medium">
+                                  {transaction.quest_title}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 border-b align-top min-w-[150px]">
+                              <div className="text-gray-600 text-sm">
+                                {new Date(transaction.created_at).toLocaleString()}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  {/* Transaction Summary */}
+                  <div className="mt-4 p-4 bg-gray-50 rounded-b-lg">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium text-gray-700">Total Transactions: </span>
+                        <span className="text-gray-900">{filteredTransactions.length}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Total Commission: </span>
+                        <span className="text-orange-600">
+                          {filteredTransactions.reduce((sum, t) => {
+                            const commissionFee = t.commission_fee;
+                            if (commissionFee && commissionFee !== '0.00' && commissionFee !== '0') {
+                              const commissionValue = parseFloat(commissionFee);
+                              if (!isNaN(commissionValue) && commissionValue > 0) {
+                                return sum + commissionValue;
+                              }
+                            }
+                            return sum;
+                          }, 0).toFixed(2)} Gold
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Receipts Tab */}
+          {activeTab === "receipts" && (
+            <div className="rounded-b-lg p-6 bg-white">
+              <h3 className="text-xl font-bold text-[#2C1A1D] mb-8 text-center">Gold Purchase Receipt Management</h3>
+              
+              {/* Statistics Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-yellow-800">{receiptStats.queued_ready || 0}</div>
+                  <div className="text-sm text-yellow-600">Ready for Review</div>
+                </div>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-gray-800">{receiptStats.queued_future || 0}</div>
+                  <div className="text-sm text-gray-600">Waiting for Batch</div>
+                </div>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-green-800">{receiptStats.verified || 0}</div>
+                  <div className="text-sm text-green-600">Verified</div>
+                </div>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-red-800">{receiptStats.rejected || 0}</div>
+                  <div className="text-sm text-red-600">Rejected</div>
+                </div>
+              </div>
+
+              {/* Batch Info */}
+              {batchInfo.next_batch_time && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="font-semibold text-blue-800">Next Batch Processing</h4>
+                      <p className="text-blue-600 text-sm">
+                        {new Date(batchInfo.next_batch_time).toLocaleString()} ({batchInfo.next_batch_name})
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-blue-800">{receiptStats.queued_ready || 0}</div>
+                      <div className="text-sm text-blue-600">Ready to Process</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Search and Actions */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="flex flex-col lg:flex-row gap-4">
+                  {/* Search */}
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                      <input
+                        type="text"
+                        placeholder="Search by reference, user, batch ID..."
+                        value={receiptSearch}
+                        onChange={(e) => setReceiptSearch(e.target.value)}
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Admin Debug Toggle */}
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 text-sm text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={showFutureReceipts}
+                        onChange={(e) => setShowFutureReceipts(e.target.checked)}
+                        className="rounded"
+                      />
+                      Show future receipts (Debug)
+                    </label>
+                  </div>
+                  
+                  {/* Batch Actions */}
+                  {selectedReceipts.length > 0 && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleBatchAction('approve_batch')}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                      >
+                        Approve Selected ({selectedReceipts.length})
+                      </button>
+                      <button
+                        onClick={() => handleBatchAction('reject_batch')}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+                      >
+                        Reject Selected
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Loading State */}
+              {receiptsLoading && (
+                <div className="flex flex-col items-center justify-center min-h-[200px]">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#8B75AA]"></div>
+                  <span className="text-gray-500 mt-2">Loading receipts...</span>
+                </div>
+              )}
+
+              {/* Error State */}
+              {receiptsError && (
+                <div className="flex flex-col items-center justify-center min-h-[200px]">
+                  <AlertTriangle className="h-8 w-8 text-red-500 mb-2" />
+                  <span className="text-red-500 text-center">{receiptsError}</span>
+                </div>
+              )}
+
+              {/* No Receipts */}
+              {!receiptsLoading && !receiptsError && filteredReceipts.length === 0 && (
+                <div className="flex flex-col items-center justify-center min-h-[200px]">
+                  <span className="text-gray-500 text-base">No receipts found.</span>
+                  <span className="text-xs text-gray-400 mt-1">No receipts match your current filters.</span>
+                </div>
+              )}
+
+              {/* Receipts Table */}
+              {!receiptsLoading && !receiptsError && filteredReceipts.length > 0 && (
+                <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full bg-white">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="py-3 px-4 border-b text-left">
+                            <input
+                              type="checkbox"
+                              checked={selectedReceipts.length === filteredReceipts.length}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedReceipts(filteredReceipts.map(r => r.id));
+                                } else {
+                                  setSelectedReceipts([]);
+                                }
+                              }}
+                              aria-label="Select all receipts"
+                              className="rounded"
+                            />
+                          </th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">User</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Reference</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Package</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Status</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Batch</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Receipt</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Date</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(filteredReceipts || []).map((receipt) => (
+                          <tr key={receipt?.id || Math.random()} className="hover:bg-gray-50">
+                            <td className="py-3 px-4 border-b">
+                              <input
+                                type="checkbox"
+                                checked={selectedReceipts.includes(receipt.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedReceipts([...selectedReceipts, receipt.id]);
+                                  } else {
+                                    setSelectedReceipts(selectedReceipts.filter(id => id !== receipt.id));
+                                  }
+                                }}
+                                aria-label={`Select receipt ${receipt.payment_reference}`}
+                                className="rounded"
+                              />
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="font-medium text-gray-900">{receipt.user?.username || 'Unknown'}</div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="text-sm font-mono text-blue-600">{receipt.payment_reference}</div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="text-sm">
+                                <div className="font-medium">{receipt.package_amount} Gold</div>
+                                <div className="text-gray-500">₱{receipt.package_price}</div>
+                                {receipt.bonus && (
+                                  <div className="text-green-600 text-xs">{receipt.bonus}</div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                receipt.status === 'queued' ? 'bg-yellow-100 text-yellow-800' :
+                                receipt.status === 'processing' ? 'bg-blue-100 text-blue-800' :
+                                receipt.status === 'verified' ? 'bg-green-100 text-green-800' :
+                                receipt.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {receipt.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="text-sm">
+                                {receipt.scheduled_batch && (
+                                  <div className="capitalize">{receipt.scheduled_batch.replace('_', ' ')}</div>
+                                )}
+                                {receipt.next_processing_time && (
+                                  <div className="text-gray-500 text-xs">
+                                    {new Date(receipt.next_processing_time).toLocaleString()}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              {receipt.receipt_image ? (
+                                <button
+                                  onClick={() => {
+                                    // Handle both relative and absolute URLs
+                                    const imageUrl = receipt.receipt_image.startsWith('http') 
+                                      ? receipt.receipt_image 
+                                      : `http://localhost:8000${receipt.receipt_image}`;
+                                    setSelectedReceiptImage(imageUrl);
+                                  }}
+                                  className="text-blue-600 hover:text-blue-800 text-sm underline"
+                                >
+                                  View Receipt
+                                </button>
+                              ) : (
+                                <span className="text-gray-400 text-sm">No image</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="text-gray-600 text-sm">
+                                {new Date(receipt.created_at).toLocaleString()}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="flex gap-1">
+                                {receipt.status === 'queued' || receipt.status === 'processing' ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleReceiptAction(receipt.id, 'approve')}
+                                      className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      onClick={() => handleReceiptAction(receipt.id, 'reject')}
+                                      className="px-2 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700"
+                                    >
+                                      Reject
+                                    </button>
+                                  </>
+                                ) : receipt.status === 'rejected' ? (
+                                  <button
+                                    onClick={() => handleReceiptAction(receipt.id, 'requeue')}
+                                    className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                                  >
+                                    Requeue
+                                  </button>
+                                ) : (
+                                  <span className="text-gray-400 text-xs">No actions</span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Users Tab */}
           {activeTab === "users" && (
-            <div>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
-                <h3 className="text-xl font-bold text-[#2C1A1D] mb-4 sm:mb-0">Manage Users</h3>
+            <div className="rounded-b-lg p-6 bg-white">
+              <h3 className="text-xl font-bold text-[#2C1A1D] mb-8 text-center">User Management</h3>
+              
+              {/* User Search */}
+              <div className="mb-6">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
                   <input
                     type="text"
-                    placeholder="Search users by name or email..."
+                    placeholder="Search users by username or email..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B75AA] focus:border-transparent w-full sm:w-80"
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
                   />
                 </div>
               </div>
-              
-              <div className="overflow-x-auto -mx-4 sm:mx-0">
-                <div className="min-w-full inline-block align-middle">
-                  <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
+
+              {/* Users Table */}
+              <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+                {filteredUsers.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <p className="text-gray-500">No users found. {safeUsers.length === 0 ? 'Data may not be loaded yet.' : 'Try adjusting your search.'}</p>
+                    <button 
+                      onClick={fetchUsers}
+                      className="mt-2 px-4 py-2 bg-[#8B75AA] text-white rounded hover:bg-[#7A6B9A] text-sm"
+                    >
+                      Retry Loading Users
+                    </button>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                  <table className="min-w-full bg-white">
                     <thead>
                       <tr className="bg-gray-50">
                         <th className="py-3 px-4 border-b text-left font-medium text-gray-900">User</th>
                         <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Email</th>
-                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Role</th>
                         <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Status</th>
                         <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Joined</th>
                         <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredUsers.map((user) => (
-                        <tr key={user.id} className={`hover:bg-gray-50 ${isInappropriateUsername(user.username || '') ? 'bg-red-50 border-l-4 border-red-400' : ''}`}>
+                      {(filteredUsers || []).map((user) => (
+                        <tr key={user?.id || Math.random()} className="hover:bg-gray-50">
                           <td className="py-3 px-4 border-b">
                             <div className="flex items-center">
-                              <div className="w-8 h-8 rounded-full bg-[#8B75AA] flex items-center justify-center text-white font-medium">
-                                {user.avatar || user.username?.charAt(0).toUpperCase() || "U"}
-                              </div>
                               <div className="ml-3">
-                                <div className="flex items-center">
-                                  <span className="font-medium text-gray-900">{user.username}</span>
-                                  {isInappropriateUsername(user.username || '') && (
-                                    <AlertTriangle className="ml-2 text-red-500" size={16} />
-                                  )}
-                                </div>
+                                <div className="font-medium text-gray-900">{user.username}</div>
+                                <div className="text-sm text-gray-500">ID: {user.id}</div>
                               </div>
                             </div>
                           </td>
-                          <td className="py-3 px-4 border-b text-gray-900">{user.email}</td>
                           <td className="py-3 px-4 border-b">
-                            {user.isSuperuser || user.is_superuser ? (
-                              <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full font-medium">Super Admin</span>
-                            ) : user.is_staff ? (
-                              <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">Staff</span>
-                            ) : (
-                              <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full font-medium">User</span>
-                            )}
+                            <div className="text-gray-900">{user.email}</div>
                           </td>
                           <td className="py-3 px-4 border-b">
-                            {user.isBanned ? (
-                              <div className="flex flex-col">
-                                <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-medium mb-1">Banned</span>
-                                {user.banReason && (
-                                  <span className="text-xs text-gray-700">Reason: <span className="font-medium">{user.banReason}</span></span>
-                                )}
-                                {user.banExpiration && (
-                                  <span className="text-xs text-gray-700">{user.banExpiration ? `Until ${new Date(user.banExpiration).toLocaleString()}` : "Permanent"}</span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">Active</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 border-b text-gray-900">
-                            {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A"}
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              (user.isBanned || user.banned) ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                            }`}>
+                              {(user.isBanned || user.banned) ? 'Banned' : 'Active'}
+                            </span>
                           </td>
                           <td className="py-3 px-4 border-b">
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={() => setSelectedUserDetails(user)}
-                                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                              >
-                                View
-                              </button>
-                              {user.isBanned ? (
+                            <div className="text-gray-600 text-sm">
+                              {user.date_joined ? new Date(user.date_joined).toLocaleDateString() : 'Unknown'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 border-b">
+                            <div className="flex gap-2">
+                              {!(user.isBanned || user.banned) ? (
                                 <button
-                                  onClick={() => handleUnbanUser(String(user.id))}
-                                  className="text-green-600 hover:text-green-800 text-sm font-medium"
-                                >
-                                  Unban
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => setShowBanConfirm(String(user.id))}
-                                  className="text-orange-600 hover:text-orange-800 text-sm font-medium"
+                                  onClick={() => {
+                                    setSelectedUser(user);
+                                    setShowBanModal(true);
+                                  }}
+                                  className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
                                 >
                                   Ban
                                 </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleUnbanUser(user)}
+                                  className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                                >
+                                  Unban
+                                </button>
                               )}
                               <button
-                                onClick={() => setShowDeleteUserConfirm(String(user.id))}
-                                className="text-red-600 hover:text-red-800 text-sm font-medium"
+                                onClick={() => {
+                                  setSelectedUser(user);
+                                  setShowUserModal(true);
+                                }}
+                                className="inline-flex items-center px-3 py-1.5 bg-[#8B75AA] text-white text-sm font-medium rounded-md hover:bg-[#7A6B9A] focus:outline-none focus:ring-2 focus:ring-[#8B75AA] focus:ring-offset-1 transition-colors"
                               >
-                                Delete
+                                <Users size={14} className="mr-1" />
+                                Details
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUser(user)}
+                                className="px-3 py-1 bg-red-800 text-white rounded text-sm hover:bg-red-900"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>                        ))}
+                    </tbody>
+                  </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Quests Tab */}
+          {activeTab === "quests" && (
+            <div className="rounded-b-lg p-6 bg-white">
+              <h3 className="text-xl font-bold text-[#2C1A1D] mb-8 text-center">Quest Management</h3>
+              
+              {/* Quest Search */}
+              <div className="mb-6">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Search quests by title, author, or category..."
+                    value={questSearch}
+                    onChange={(e) => setQuestSearch(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                  />
+                </div>
+              </div>
+
+              {/* Quests Table */}
+              <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full bg-white">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Quest</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Creator</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Category</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Status</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Reward</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Created</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(filteredQuests || []).map((quest) => (
+                        <tr key={quest?.id || Math.random()} className="hover:bg-gray-50">
+                          <td className="py-3 px-4 border-b">
+                            <div className="font-medium text-gray-900">{quest.title}</div>
+                            <div className="text-sm text-gray-500">ID: {quest.id}</div>
+                          </td>
+                          <td className="py-3 px-4 border-b">
+                            <div className="text-gray-900">{quest.creator?.username || 'Unknown'}</div>
+                          </td>
+                          <td className="py-3 px-4 border-b">
+                            <div className="text-gray-900">
+                              {typeof quest.category === 'string' ? quest.category : quest.category?.name || 'Unknown'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 border-b">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              quest.status === 'open' ? 'bg-green-100 text-green-800' :
+                              quest.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                              quest.status === 'in-progress' || quest.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {quest.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 border-b">
+                            <div className="text-gray-900">{(quest as any).total_reward || (quest as any).reward || 0} Gold</div>
+                          </td>
+                          <td className="py-3 px-4 border-b">
+                            <div className="text-gray-600 text-sm">
+                              {quest.created_at ? new Date(quest.created_at).toLocaleDateString() : 'Unknown'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 border-b">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => {
+                                  setSelectedQuest(quest);
+                                  setShowQuestModal(true);
+                                }}
+                                className="inline-flex items-center px-3 py-1.5 bg-[#8B75AA] text-white text-sm font-medium rounded-md hover:bg-[#7A6B9A] focus:outline-none focus:ring-2 focus:ring-[#8B75AA] focus:ring-offset-1 transition-colors"
+                              >
+                                <FileText size={14} className="mr-1" />
+                                Details
+                              </button>
+                              <button
+                                onClick={() => handleDeleteQuest(quest)}
+                                className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                              >
+                                <Trash2 size={14} />
                               </button>
                             </div>
                           </td>
@@ -1186,411 +1824,485 @@ function AdminPanel({
             </div>
           )}
 
-          {/* Quests Tab */}
-          {activeTab === "quests" && (
-            <div className="py-8">
-              <h3 className="text-xl font-bold text-[#2C1A1D] mb-8 text-center">Quest Management</h3>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-                <div></div>
-                <div className="relative w-full sm:w-80">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+          {/* Guilds Tab */}
+          {activeTab === "guilds" && (
+            <div className="rounded-b-lg p-6 bg-white">
+              <h3 className="text-xl font-bold text-[#2C1A1D] mb-8 text-center">Guild Management</h3>
+              
+              {/* Guild Search */}
+              <div className="mb-6">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
                   <input
                     type="text"
-                    placeholder="Search quests by title, author, or category..."
-                    value={questSearch}
-                    onChange={e => setQuestSearch(e.target.value)}
-                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B75AA] focus:border-transparent w-full"
+                    placeholder="Search guilds by name or leader..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
                   />
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Title</th>
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Category</th>
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Author</th>
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Created</th>
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Status</th>
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Reports</th>
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredQuests.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="py-6 text-center text-gray-400">No quests found.</td>
+
+              {/* Guilds Table */}
+              <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+                {safeGuilds.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <p className="text-gray-500">No guilds found. Data may not be loaded yet.</p>
+                    <button 
+                      onClick={fetchGuilds}
+                      className="mt-2 px-4 py-2 bg-[#8B75AA] text-white rounded hover:bg-[#7A6B9A] text-sm"
+                    >
+                      Retry Loading Guilds
+                    </button>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                  <table className="min-w-full bg-white">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Guild</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Leader</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Members</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Status</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Created</th>
+                        <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Actions</th>
                       </tr>
-                    ) : (
-                      filteredQuests.map((quest) => (
-                        <tr key={quest.id} className="hover:bg-gray-50">
-                          <td className="py-3 px-4 border-b text-gray-900 font-medium cursor-pointer underline" onClick={() => setSelectedQuestDetails(quest)}>{quest.title}</td>
-                          <td className="py-3 px-4 border-b">{typeof quest.category === 'string' ? quest.category : quest.category?.name ?? '-'}</td>
-                          <td className="py-3 px-4 border-b">{quest.creator && typeof quest.creator === 'object' ? quest.creator.username : '-'}</td>
-                          <td className="py-3 px-4 border-b">{quest.created_at ? new Date(quest.created_at).toLocaleString() : '-'}</td>
-                          <td className="py-3 px-4 border-b capitalize">{quest.status}</td>
-                          <td className="py-3 px-4 border-b text-center">{typeof quest.reports_count === 'number' ? quest.reports_count : 0}</td>
+                    </thead>
+                    <tbody>
+                      {(safeGuilds || []).map((guild) => (
+                        <tr key={guild?.id || Math.random()} className="hover:bg-gray-50">
                           <td className="py-3 px-4 border-b">
-                            <button onClick={() => setSelectedQuestDetails(quest)} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium mr-2">View</button>
-                            <button onClick={() => setShowDeleteQuestConfirm(quest.id)} className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-medium mr-2">Delete</button>
-                            <button className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">Disable</button>
+                            <div className="font-medium text-gray-900">{guild.name}</div>
+                            <div className="text-sm text-gray-500">ID: {guild.guild_id || guild.id}</div>
+                          </td>
+                          <td className="py-3 px-4 border-b">
+                            <div className="text-gray-900">{guild.owner?.username || (guild as any).leader_name || 'Unknown Quest Master'}</div>
+                          </td>
+                          <td className="py-3 px-4 border-b">
+                            <div className="text-gray-900">{guild.member_count || 0}</div>
+                          </td>
+                          <td className="py-3 px-4 border-b">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              !guild.is_disabled ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {!guild.is_disabled ? 'Active' : 'Disabled'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 border-b">
+                            <div className="text-gray-600 text-sm">
+                              {guild.created_at ? new Date(guild.created_at).toLocaleDateString() : 'Unknown'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 border-b">
+                            <div className="flex gap-2 flex-wrap">
+                              <button
+                                onClick={() => {
+                                  const reason = prompt("Enter warning reason:");
+                                  if (reason) handleWarnGuild(guild, reason);
+                                }}
+                                className="px-3 py-1 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700"
+                              >
+                                Warn
+                              </button>
+                              {!guild.is_disabled ? (
+                                <button
+                                  onClick={() => handleDisableGuild(guild)}
+                                  className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                                >
+                                  Disable
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleEnableGuild(guild)}
+                                  className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                                >
+                                  Enable
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setSelectedGuild(guild);
+                                  setShowGuildModal(true);
+                                }}
+                                className="inline-flex items-center px-3 py-1.5 bg-[#8B75AA] text-white text-sm font-medium rounded-md hover:bg-[#7A6B9A] focus:outline-none focus:ring-2 focus:ring-[#8B75AA] focus:ring-offset-1 transition-colors"
+                              >
+                                <Users size={14} className="mr-1" />
+                                Details
+                              </button>
+                              <button
+                                onClick={() => handleResetGuildWarnings(guild)}
+                                className="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700"
+                              >
+                                Reset Warnings
+                              </button>
+                            </div>
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Guilds Tab */}
-          {activeTab === "guilds" && (
-            <div className="text-center py-16">
-              <div className="max-w-md mx-auto">
-                <div className="bg-white rounded-lg shadow-lg p-8 border border-gray-200">
-                  <div className="text-6xl mb-4">🏰</div>
-                  <h3 className="text-2xl font-bold text-[#2C1A1D] mb-4">Guild Management</h3>
-                  <p className="text-gray-600 mb-4">
-                    Guild moderation and management tools are coming soon!
-                  </p>
-                                   <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-sm text-gray-500">
-                      Features in development:
-                    </p>
-                    <ul className="text-sm text-gray-600 mt-2 space-y-1">
-                      <li>• Guild oversight</li>
-                      <li>• Member management</li>
-                      <li>• Guild analytics</li>
-                      <li>• Dispute resolution</li>
-                    </ul>
+                      ))}
+                    </tbody>
+                  </table>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}
 
           {/* Reports Tab */}
           {activeTab === "reports" && (
-            <div className="py-8">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
-                <h3 className="text-xl font-bold text-[#2C1A1D]">Reports</h3>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
-                  <div className="flex items-center gap-2 mb-2 sm:mb-0">
-                    <label className="text-sm font-medium text-[#2C1A1D] mr-2">Filter:</label>
+            <div className="rounded-b-lg p-6 bg-white">
+              <h3 className="text-xl font-bold text-[#2C1A1D] mb-8 text-center">Report Management</h3>
+              
+              {/* Report Filters */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Type</label>
                     <select
-                      className="border border-gray-300 rounded px-2 py-1 text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA]"
                       value={reportTypeFilter}
-                      onChange={e => setReportTypeFilter(e.target.value)}
+                      onChange={(e) => setReportTypeFilter(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
                     >
-                      <option value="all">All</option>
+                      <option value="all">All Reports</option>
                       <option value="user">User Reports</option>
                       <option value="quest">Quest Reports</option>
+                      <option value="guild">Guild Reports</option>
                     </select>
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Search reports..."
-                    value={reportSearch}
-                    onChange={e => setReportSearch(e.target.value)}
-                    className="border border-gray-300 rounded px-2 py-1 text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] w-full sm:w-64"
-                  />
-                  {reportsLoading && <span className="text-[#8B75AA] ml-4">Loading reports...</span>}
-                  {reportsError && <span className="text-red-500 ml-4">Error: {reportsError}</span>}
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                      <input
+                        type="text"
+                        placeholder="Search reports..."
+                        value={reportSearch}
+                        onChange={(e) => setReportSearch(e.target.value)}
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full bg-white border border-gray-200 rounded-lg shadow-sm">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Type</th>
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Reported</th>
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Reporter</th>
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Reason</th>
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Message</th>
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Date</th>
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Status</th>
-                      <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredReports.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="py-8 text-center text-gray-500">
-                          {reportsLoading ? "Loading reports..." : "No reports found."}
-                        </td>
-                      </tr>
-                    ) : (
-                      // Sort: unresolved first, then resolved
-                      [...filteredReports].sort((a, b) => (a.resolved === b.resolved ? 0 : a.resolved ? 1 : -1)).map((report: any) => {
-                        let createdAtString = '-';
-                        if (report.created_at) {
-                          try {
-                            const dateObj = new Date(report.created_at);
-                            if (!isNaN(dateObj.getTime())) {
-                              createdAtString = dateObj.toLocaleString();
-                            }
-                          } catch {}
-                        }
-                        const isUserReport = report.type === "user" || !!report.reported_user;
-                        // Use a unique key for each report type
-                        const reportKey = isUserReport
-                          ? `user-${report.id}`
-                          : `quest-${report.id}`;
-                        return (
-                          <tr key={reportKey} className="hover:bg-gray-50">
-                            <td className="py-3 px-4 border-b font-medium">
-                              {isUserReport ? (
-                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">User</span>
-                              ) : (
-                                <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs">Quest</span>
-                              )}
-                            </td>
+
+              {/* Loading/Error States */}
+              {reportsLoading && (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#8B75AA]"></div>
+                </div>
+              )}
+
+              {reportsError && (
+                <div className="text-red-600 text-center py-8">{reportsError}</div>
+              )}
+
+              {/* Reports Table */}
+              {!reportsLoading && !reportsError && (
+                <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full bg-white">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Reporter</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Reported</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Type</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Reason</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Status</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Date</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(filteredReports || []).map((report, index) => (
+                          <tr key={report?.unique_key || `report-${index}`} className="hover:bg-gray-50">
                             <td className="py-3 px-4 border-b">
-                              {isUserReport ? (
-                                <div>
-                                  <div className="font-medium text-[#2C1A1D]">{report.reported_user?.username || report.reported_user_username || 'Unknown User'}</div>
-                                  <div className="text-sm text-gray-500">{report.reported_user?.email || ''}</div>
-                                </div>
-                              ) : (
-                                <div>
-                                  <div className="font-medium text-[#2C1A1D]">{report.reported_quest_title || 'Unknown Quest'}</div>
-                                  <div className="text-sm text-gray-500">Quest ID: {report.reported_quest}</div>
-                                </div>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 border-b">
-                              <div>
-                                <div className="font-medium text-[#2C1A1D]">{report.reporter?.username || report.reporter_username || 'Unknown Reporter'}</div>
-                                <div className="text-sm text-gray-500">{report.reporter?.email || ''}</div>
+                              <div className="text-gray-900">
+                                {report.reporter?.username || report.reporter_username || 'Unknown'}
                               </div>
                             </td>
                             <td className="py-3 px-4 border-b">
-                              <span className="inline-block px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
-                                {report.reason || 'No reason provided'}
+                              <div className="text-gray-900">
+                                {report.reported_user?.username || report.reported_user_username || 
+                                 report.reported_guild?.name || report.reported_guild_name ||
+                                 report.reported_quest_title || 'Unknown'}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                report.type === 'user' ? 'bg-blue-100 text-blue-800' : 
+                                report.type === 'guild' ? 'bg-purple-100 text-purple-800' :
+                                report.type === 'quest' ? 'bg-green-100 text-green-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {report.type === 'user' ? 'User' : 
+                                 report.type === 'guild' ? 'Guild' :
+                                 report.type === 'quest' ? 'Quest' :
+                                 'Unknown'}
                               </span>
                             </td>
-                            <td className="py-3 px-4 border-b max-w-xs">
-                              <div className="truncate text-sm text-gray-600" title={report.message}>
-                                {report.message || 'No additional message'}
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 border-b text-sm text-gray-500">
-                              {createdAtString}
+                            <td className="py-3 px-4 border-b">
+                              <div className="text-gray-900 text-sm">{report.reason || 'No reason provided'}</div>
                             </td>
                             <td className="py-3 px-4 border-b">
-                              <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
-                                report.resolved 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : 'bg-yellow-100 text-yellow-800'
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                report.resolved ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
                               }`}>
                                 {report.resolved ? 'Resolved' : 'Pending'}
                               </span>
                             </td>
                             <td className="py-3 px-4 border-b">
-                              <div className="flex gap-2">
-                                {!report.resolved && (
-                                  <button 
-                                    onClick={() => handleResolveReport(report.id, 'resolve', 'Marked as resolved by admin')}
-                                    className="px-3 py-1 bg-green-100 text-green-800 rounded text-xs font-medium hover:bg-green-200 transition-colors"
-                                  >
-                                    Resolve
-                                  </button>
-                                )}
-                                <button 
+                              <div className="text-gray-600 text-sm">
+                                {report.created_at ? new Date(report.created_at).toLocaleDateString() : 'Unknown'}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="flex gap-2 flex-wrap">
+                                <button
                                   onClick={() => setSelectedReport(report)}
-                                  className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium hover:bg-blue-200 transition-colors"
+                                  className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
                                 >
-                                  View Details
+                                  View
                                 </button>
-                                {isUserReport && !report.resolved && (
-                                  <button 
-                                    onClick={() => setShowBanConfirm(report.reported_user.id)}
-                                    className="px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-medium hover:bg-red-200 transition-colors"
-                                  >
-                                    Ban User
-                                  </button>
+                                {!report.resolved && (
+                                  <>
+                                    {report.type === 'user' && (
+                                      <button
+                                        onClick={() => handleResolveReport(report, 'ban')}
+                                        className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                                      >
+                                        Ban User
+                                      </button>
+                                    )}
+                                    {report.type === 'quest' && (
+                                      <button
+                                        onClick={() => handleResolveReport(report, 'delete')}
+                                        className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                                      >
+                                        Delete Quest
+                                      </button>
+                                    )}
+                                    {report.type === 'guild' && (
+                                      <button
+                                        onClick={() => handleResolveReport(report, 'warn')}
+                                        className="px-3 py-1 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700"
+                                      >
+                                        Warn Guild
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => handleResolveReport(report, 'resolve')}
+                                      className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                                    >
+                                      Resolve
+                                    </button>
+                                    <button
+                                      onClick={() => handleResolveReport(report, 'dismiss')}
+                                      className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
+                                    >
+                                      Dismiss
+                                    </button>
+                                  </>
                                 )}
-                                {/* New: Delete and Disable actions for all reports */}
-                                <button
-                                  onClick={() => handleDeleteReport(report.id)}
-                                  className="px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-medium hover:bg-red-200 transition-colors"
-                                >
-                                  Delete
-                                </button>
-                                <button
-                                  onClick={() => alert('Disable action coming soon!')}
-                                  className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium hover:bg-yellow-200 transition-colors"
-                                  disabled={!!report.resolved}
-                                >
-                                  Disable
-                                </button>
                               </div>
                             </td>
                           </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Appeals Tab */}
+          {activeTab === "appeals" && (
+            <div className="rounded-b-lg p-6 bg-white">
+              <h3 className="text-xl font-bold text-[#2C1A1D] mb-8 text-center">Ban Appeals Management</h3>
+              
+              {/* Appeal Search */}
+              <div className="mb-6">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Search appeals by username..."
+                    value={appealSearch}
+                    onChange={(e) => setAppealSearch(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                  />
+                </div>
               </div>
+
+              {/* Loading/Error States */}
+              {appealsLoading && (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#8B75AA]"></div>
+                </div>
+              )}
+
+              {appealsError && (
+                <div className="text-red-600 text-center py-8">{appealsError}</div>
+              )}
+
+              {/* Appeals Table */}
+              {!appealsLoading && !appealsError && (
+                <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full bg-white">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">User</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Email</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Appeal Reason</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Status</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Submitted</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(appeals || []).map((appeal) => (
+                          <tr key={appeal?.id || Math.random()} className="hover:bg-gray-50">
+                            <td className="py-3 px-4 border-b">
+                              <div className="font-medium text-gray-900">{appeal.user?.username || 'Unknown'}</div>
+                              <div className="text-sm text-gray-500">ID: {appeal.user?.id}</div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="text-gray-900 text-sm">
+                                {appeal.user?.email || 'No email'}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="text-gray-900 text-sm max-w-xs">
+                                <div className="break-words">
+                                  {appeal.message || appeal.appeal_reason || 'No reason provided'}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                appeal.status === 'pending' || !appeal.reviewed ? 'bg-yellow-100 text-yellow-800' :
+                                appeal.review_decision === 'lifted' ? 'bg-green-100 text-green-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                {appeal.reviewed ? 
+                                  (appeal.review_decision === 'lifted' ? 'Approved' : 'Denied') : 
+                                  'Pending'
+                                }
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="text-gray-600 text-sm">
+                                {appeal.created_at ? new Date(appeal.created_at).toLocaleDateString() : 'Unknown'}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              {(!appeal.reviewed || appeal.status === 'pending') && (
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => handleApproveAppeal(appeal)}
+                                    className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                                  >
+                                    Lift Ban
+                                  </button>
+                                  <button
+                                    onClick={() => handleDenyAppeal(appeal)}
+                                    className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                                  >
+                                    Deny
+                                  </button>
+                                </div>
+                              )}
+                              {appeal.reviewed && (
+                                <div className="text-sm text-gray-500">
+                                  {appeal.review_decision === 'lifted' ? 'Ban lifted' : 'Appeal denied'}
+                                  {appeal.reviewed_at && (
+                                    <div className="text-xs">
+                                      {new Date(appeal.reviewed_at).toLocaleDateString()}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Action Log Tab */}
+          {activeTab === "actionlog" && (
+            <div className="rounded-b-lg p-6 bg-white">
+              <h3 className="text-xl font-bold text-[#2C1A1D] mb-8 text-center">Administrator Action Log</h3>
+              
+              {/* Loading/Error States */}
+              {actionLogsLoading && (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#8B75AA]"></div>
+                </div>
+              )}
+
+              {actionLogsError && (
+                <div className="text-red-600 text-center py-8">{actionLogsError}</div>
+              )}
+
+              {/* Action Logs Table */}
+              {!actionLogsLoading && !actionLogsError && (
+                <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full bg-white">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Admin</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Action</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Target</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Details</th>
+                          <th className="py-3 px-4 border-b text-left font-medium text-gray-900">Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(actionLogs || []).map((log) => (
+                          <tr key={log?.id || Math.random()} className="hover:bg-gray-50">
+                            <td className="py-3 px-4 border-b">
+                              <div className="font-medium text-gray-900">{typeof log.admin === 'string' ? log.admin : (log as any).performer || 'Unknown'}</div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                log.action === 'ban' ? 'bg-red-100 text-red-800' :
+                                log.action === 'unban' ? 'bg-green-100 text-green-800' :
+                                log.action === 'delete' ? 'bg-red-100 text-red-800' :
+                                'bg-blue-100 text-blue-800'
+                              }`}>
+                                {log.action}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="text-gray-900">{typeof log.target_user === 'string' ? log.target_user : (log as any).target || 'Unknown'}</div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="text-gray-900 text-sm max-w-xs truncate">
+                                {log.details || (log as any).description || 'No details provided'}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 border-b">
+                              <div className="text-gray-600 text-sm">
+                                {log.created_at ? new Date(log.created_at).toLocaleString() : 'Unknown'}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
-
-      {/* All existing modals remain the same... */}
-      {/* Ban Confirmation Modal */}
-      {showBanConfirm !== null && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-md p-6">
-            <h3 className="text-xl font-bold text-[#2C1A1D] mb-4">Confirm Ban</h3>
-            <p className="text-[#2C1A1D] mb-4">Are you sure you want to ban this user?</p>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-[#2C1A1D] mb-2">Ban Type:</label>
-              <div className="flex gap-4 mb-4">
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    value="permanent"
-                    checked={banType === "permanent"}
-                    onChange={(e) => setBanType(e.target.value as "permanent" | "temporary")}
-                    className="mr-2"
-                  />
-                  Permanent
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    value="temporary"
-                    checked={banType === "temporary"}
-                    onChange={(e) => setBanType(e.target.value as "permanent" | "temporary")}
-                    className="mr-2"
-                  />
-                  Temporary
-                </label>
-              </div>
-
-              {banType === "temporary" && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">Duration:</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      min="1"
-                      value={banDuration.amount}
-                      onChange={(e) => setBanDuration({...banDuration, amount: parseInt(e.target.value)})}
-                      className="w-20 border border-[#CDAA7D] rounded px-2 py-1 text-[#2C1A1D]"
-                    />
-                    <select
-                      value={banDuration.unit}
-                      onChange={(e) => setBanDuration({...banDuration, unit: e.target.value})}
-                      className="border border-[#CDAA7D] rounded px-2 py-1 text-[#2C1A1D]"
-                    >
-                      <option value="hours">Hours</option>
-                      <option value="days">Days</option>
-                      <option value="weeks">Weeks</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              <label className="block text-sm font-medium text-[#2C1A1D] mb-2">Reason for ban:</label>
-              <select
-                value={banReason}
-                onChange={(e) => setBanReason(e.target.value)}
-                className="w-full border border-[#CDAA7D] rounded px-3 py-2 text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] mb-2"
-              >
-                <option value="">Select a reason...</option>
-                <option value="Inappropriate behavior">Inappropriate behavior</option>
-                <option value="Spam or harassment">Spam or harassment</option>
-                <option value="Violation of terms">Violation of terms</option>
-                <option value="Fraudulent activity">Fraudulent activity</option>
-                <option value="Inappropriate username">Inappropriate username</option>
-                <option value="custom">Custom reason</option>
-              </select>
-
-              {banReason === "custom" && (
-                <textarea
-                  value={customBanReason}
-                  onChange={(e) => setCustomBanReason(e.target.value)}
-                  placeholder="Enter custom reason..."
-                  className="w-full border border-[#CDAA7D] rounded px-3 py-2 text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] h-20 resize-none"
-                />
-              )}
-            </div>
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setShowBanConfirm(null)
-                  setBanReason("")
-                  setCustomBanReason("")
-                  setBanType("permanent")
-                  setBanDuration({ amount: 1, unit: "days" })
-                }}
-                className="px-4 py-2 border border-[#CDAA7D] rounded text-[#2C1A1D] hover:bg-[#CDAA7D] hover:text-white transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleBanUser(showBanConfirm)}
-                disabled={!banReason || (banReason === "custom" && !customBanReason.trim())}
-                className={`px-4 py-2 rounded transition-colors ${
-                  banReason && (banReason !== "custom" || customBanReason.trim())
-                    ? "bg-red-500 text-white hover:bg-red-600"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                }`}
-              >
-                {banType === "permanent" ? "Ban Permanently" : "Ban Temporarily"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete User Confirmation Modal */}
-      {showDeleteUserConfirm !== null && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-md p-6">
-            <div className="flex items-center mb-4">
-              <AlertTriangle className="text-red-500 mr-3" size={24} />
-              <h3 className="text-xl font-bold text-[#2C1A1D]">Delete User Account</h3>
-            </div>
-            <p className="text-[#2C1A1D] mb-4">
-              Are you sure you want to permanently delete this user account? This action cannot be undone.
-            </p>
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-              <p className="text-red-800 text-sm">
-                ⚠️ This will permanently remove:
-              </p>
-              <ul className="text-red-800 text-sm mt-2 list-disc list-inside">
-                <li>User profile and data</li>
-                <li>All posted quests</li>
-                <li>Guild memberships</li>
-                <li>Messages and comments</li>
-              </ul>
-            </div>
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowDeleteUserConfirm(null)}
-                className="px-4 py-2 border border-[#CDAA7D] rounded text-[#2C1A1D] hover:bg-[#CDAA7D] hover:text-white transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDeleteUser(showDeleteUserConfirm as any)}
-                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors flex items-center"
-              >
-                <Trash2 size={16} className="mr-2" />
-                Delete Permanently
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Report Details Modal */}
       {selectedReport && (
@@ -1598,165 +2310,516 @@ function AdminPanel({
           isOpen={!!selectedReport}
           onClose={() => setSelectedReport(null)}
           report={selectedReport}
-          users={users}
-          onResolve={handleResolveReport}
+          users={safeUsers}
+          onResolve={() => {}}
           showToast={showToast}
         />
       )}
 
-      {/* User Details Modal - Profile Card Revamp */}
-      {selectedUserDetails && (
+      {/* Ban User Modal */}
+      {showBanModal && selectedUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl p-0 shadow-2xl relative">
-            <div className="relative h-40 bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] rounded-t-2xl flex items-end justify-center">
-              <div className="absolute top-4 right-4">
-                <button onClick={() => setSelectedUserDetails(null)} className="text-white bg-black bg-opacity-30 hover:bg-opacity-60 rounded-full p-2 transition-colors">
-                  <X size={22} />
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="text-lg font-semibold">Ban User: {selectedUser.username || selectedUser.display_name || selectedUser.id}</h3>
+              <button
+                onClick={() => {
+                  setShowBanModal(false);
+                  setSelectedUser(null);
+                  setBanReason("");
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-4">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for ban
+                </label>
+                <textarea
+                  value={banReason}
+                  onChange={(e) => setBanReason(e.target.value)}
+                  placeholder="Enter the reason for banning this user..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                  rows={3}
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => {
+                    setShowBanModal(false);
+                    setSelectedUser(null);
+                    setBanReason("");
+                  }}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleBanUser(selectedUser, banReason)}
+                  disabled={!banReason.trim()}
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Ban User
                 </button>
               </div>
-              <div className="absolute left-1/2 -bottom-12 transform -translate-x-1/2">
-                <div className="w-28 h-28 rounded-full border-4 border-white shadow-lg bg-[#8B75AA] flex items-center justify-center text-white text-4xl font-bold overflow-hidden">
-                  {selectedUserDetails.avatar || selectedUserDetails.username?.charAt(0).toUpperCase() || "U"}
-                </div>
-              </div>
             </div>
-            <div className="pt-20 pb-8 px-8">
-              <div className="flex flex-col items-center text-center mb-6">
-                <h3 className="text-2xl font-extrabold text-[#2C1A1D] flex items-center gap-2">
-                  {selectedUserDetails.username}
-                  {selectedUserDetails.isSuperuser || selectedUserDetails.is_superuser ? (
-                    <span className="ml-2 bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full font-medium">Super Admin</span>
-                  ) : selectedUserDetails.is_staff ? (
-                    <span className="ml-2 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">Staff</span>
-                  ) : null}
-                </h3>
-                <p className="text-[#8B75AA] text-sm mt-1">{selectedUserDetails.email}</p>
-                <div className="flex flex-wrap gap-2 mt-2 justify-center">
-                  {selectedUserDetails.isBanned ? (
-                    <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full font-medium">Banned{selectedUserDetails.banExpiration ? ` until ${new Date(selectedUserDetails.banExpiration).toLocaleDateString()}` : ''}</span>
+          </div>
+        </div>
+      )}
+
+      {/* User Details Modal - Profile-based Design */}
+      {showUserModal && selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-[#CDAA7D] max-w-3xl w-full max-h-[90vh] overflow-y-auto transition-all">
+            {/* Header/Profile Section */}
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-0 md:gap-6 bg-gradient-to-r from-[#CDAA7D] to-[#8B75AA] p-8 rounded-t-2xl relative">
+              {/* Avatar */}
+              <div className="flex-shrink-0 flex items-center justify-center md:items-start md:justify-start w-full md:w-48 mb-4 md:mb-0">
+                <div className="w-32 h-32 rounded-full border-4 border-white shadow-lg bg-[#8B75AA] flex items-center justify-center text-5xl text-white overflow-hidden">
+                  {selectedUser.avatar && typeof selectedUser.avatar === 'string' && selectedUser.avatar.match(/^https?:\//) ? (
+                    <img
+                      src={selectedUser.avatar}
+                      alt={selectedUser.displayName || selectedUser.username}
+                      className="w-full h-full object-cover rounded-full"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
                   ) : (
-                    <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">Active</span>
+                    <span>
+                      {selectedUser.displayName 
+                        ? selectedUser.displayName.charAt(0).toUpperCase()
+                        : (selectedUser.username || selectedUser.id).charAt(0).toUpperCase()
+                      }
+                    </span>
                   )}
-                  {selectedUserDetails.banReason && (
-                    <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-medium">Ban Reason: {selectedUserDetails.banReason}</span>
-                  )}
                 </div>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-3 flex flex-col items-center">
-                  <span className="text-xs text-gray-500">Level</span>
-                  <span className="text-lg font-bold text-[#8B75AA]">{selectedUserDetails.level ?? "-"}</span>
-                </div>
-                <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-3 flex flex-col items-center">
-                  <span className="text-xs text-gray-500">XP</span>
-                  <span className="text-lg font-bold text-[#8B75AA]">{selectedUserDetails.xp ?? "-"}</span>
-                </div>
-                <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-3 flex flex-col items-center">
-                  <span className="text-xs text-gray-500">Gold</span>
-                  <span className="text-lg font-bold text-[#8B75AA]">{selectedUserDetails.gold ?? "-"}</span>
-                </div>
-                <div className="bg-[#F4F0E6] border border-[#CDAA7D] rounded-lg p-3 flex flex-col items-center">
-                  <span className="text-xs text-gray-500">Joined</span>
-                  <span className="text-lg font-bold text-[#8B75AA]">{selectedUserDetails.createdAt ? new Date(selectedUserDetails.createdAt).toLocaleDateString() : "-"}</span>
+              
+              {/* User Info */}
+              <div className="flex-1 flex flex-col items-center md:items-start w-full">
+                <button
+                  onClick={() => {
+                    setShowUserModal(false);
+                    setSelectedUser(null);
+                  }}
+                  className="absolute top-4 right-4 text-[#2C1A1D] hover:text-[#fff] bg-white/40 hover:bg-[#CDAA7D] rounded-full p-1 transition"
+                  aria-label="Close"
+                >
+                  <X size={28} />
+                </button>
+                
+                <h2 className="text-3xl font-extrabold text-white drop-shadow-sm text-center md:text-left">
+                  {selectedUser.displayName || selectedUser.username || selectedUser.id}
+                </h2>
+                <p className="text-white/80 text-lg mb-1">@{selectedUser.username || selectedUser.id}</p>
+                
+                <div className="flex flex-col gap-2 w-full max-w-xs mt-2">
+                  <div className="flex flex-wrap justify-center md:justify-start gap-2">
+                    <span className={`text-white text-sm px-4 py-1 rounded-full font-semibold shadow ${
+                      selectedUser.isBanned ? 'bg-red-600' : 'bg-green-600'
+                    }`}>
+                      {selectedUser.isBanned ? 'Banned' : 'Active'}
+                    </span>
+                    <span className="bg-[#2C1A1D] text-white text-sm px-4 py-1 rounded-full font-semibold shadow">
+                      ID: {selectedUser.id}
+                    </span>
+                    {selectedUser.is_staff && (
+                      <span className="bg-[#CDAA7D] text-[#2C1A1D] text-sm px-4 py-1 rounded-full font-semibold shadow">
+                        Staff
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-[#F4F0E6] rounded-lg p-3 flex flex-col items-center">
-                  <span className="text-xs text-gray-500">Completed Quests</span>
-                  <span className="text-lg font-bold text-[#8B75AA]">{selectedUserDetails.completedQuests ?? 0}</span>
-                </div>
-                <div className="bg-[#F4F0E6] rounded-lg p-3 flex flex-col items-center">
-                  <span className="text-xs text-gray-500">Created Quests</span>
-                  <span className="text-lg font-bold text-[#8B75AA]">{selectedUserDetails.createdQuests ?? 0}</span>
-                </div>
-                <div className="bg-[#F4F0E6] rounded-lg p-3 flex flex-col items-center">
-                  <span className="text-xs text-gray-500">Joined Guilds</span>
-                  <span className="text-lg font-bold text-[#8B75AA]">{selectedUserDetails.joinedGuilds ?? 0}</span>
-                </div>
-                <div className="bg-[#F4F0E6] rounded-lg p-3 flex flex-col items-center">
-                  <span className="text-xs text-gray-500">Created Guilds</span>
-                  <span className="text-lg font-bold text-[#8B75AA]">{selectedUserDetails.createdGuilds ?? 0}</span>
+            </div>
+
+            {/* Content Sections */}
+            <div className="p-6">
+              {/* Basic Information */}
+              <div className="bg-[#F9F7F2] rounded-lg p-4 mb-6">
+                <h3 className="text-lg font-bold text-[#2C1A1D] mb-4 flex items-center">
+                  <Users size={20} className="mr-2 text-[#8B75AA]" />
+                  Basic Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Email</label>
+                    <p className="text-[#2C1A1D] font-medium">{selectedUser.email}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Date Joined</label>
+                    <p className="text-[#2C1A1D] font-medium">
+                      {selectedUser.date_joined ? new Date(selectedUser.date_joined).toLocaleDateString() : 'Unknown'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Total Gold</label>
+                    <p className="text-[#2C1A1D] font-medium">{(selectedUser as any).total_gold || 0}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">XP Points</label>
+                    <p className="text-[#2C1A1D] font-medium">{(selectedUser as any).xp || 0}</p>
+                  </div>
                 </div>
               </div>
-              {selectedUserDetails.bio && (
-                <div className="bg-white rounded-lg shadow p-4 mb-4">
-                  <label className="text-sm font-medium text-gray-600 mb-1 block">Bio</label>
-                  <p className="text-[#2C1A1D] text-sm whitespace-pre-line">{selectedUserDetails.bio}</p>
+
+              {/* Account Status */}
+              <div className="bg-[#F9F7F2] rounded-lg p-4 mb-6">
+                <h3 className="text-lg font-bold text-[#2C1A1D] mb-4 flex items-center">
+                  <Star size={20} className="mr-2 text-[#8B75AA]" />
+                  Account Status
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Account Status</label>
+                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                      selectedUser.isBanned ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                    }`}>
+                      {selectedUser.isBanned ? 'Banned' : 'Active'}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">User Type</label>
+                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                      selectedUser.is_staff ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {selectedUser.is_staff ? 'Staff Member' : 'Regular User'}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Email Verified</label>
+                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                      selectedUser.email_verified ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                    }`}>
+                      {selectedUser.email_verified ? 'Verified' : 'Not Verified'}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Last Seen</label>
+                    <p className="text-[#2C1A1D] font-medium">
+                      {selectedUser.lastSeen ? new Date(selectedUser.lastSeen).toLocaleDateString() : 'Unknown'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ban Information */}
+              {selectedUser.isBanned && (selectedUser as any).ban_reason && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                  <h3 className="text-lg font-bold text-red-800 mb-4 flex items-center">
+                    <AlertTriangle size={20} className="mr-2" />
+                    Ban Information
+                  </h3>
+                  <div>
+                    <label className="block text-sm font-medium text-red-700 mb-1">Ban Reason</label>
+                    <p className="text-red-800 font-medium bg-red-100 p-3 rounded">
+                      {(selectedUser as any).ban_reason}
+                    </p>
+                  </div>
                 </div>
               )}
-              <div className="flex flex-wrap gap-2 mt-2 justify-center">
-                {selectedUserDetails.isSuperuser || selectedUserDetails.is_superuser ? (
-                  <span className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full font-medium">Superuser</span>
-                ) : null}
-                {selectedUserDetails.is_staff ? (
-                  <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">Staff</span>
-                ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quest Details Modal - Revamped Design */}
+      {showQuestModal && selectedQuest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-[#CDAA7D] max-w-4xl w-full max-h-[90vh] overflow-y-auto transition-all">
+            {/* Header Section */}
+            <div className="bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] p-6 rounded-t-2xl relative">
+              <button
+                onClick={() => {
+                  setShowQuestModal(false);
+                  setSelectedQuest(null);
+                }}
+                className="absolute top-4 right-4 text-white hover:text-[#2C1A1D] bg-white/20 hover:bg-white/80 rounded-full p-2 transition"
+                aria-label="Close"
+              >
+                <X size={24} />
+              </button>
+              
+              <div className="flex items-start gap-4">
+                <div className="w-16 h-16 bg-white/20 rounded-lg flex items-center justify-center text-2xl text-white font-bold">
+                  {selectedQuest.title.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold text-white mb-2">{selectedQuest.title}</h2>
+                  <div className="flex flex-wrap gap-2">
+                    <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                      selectedQuest.status === 'open' ? 'bg-green-500 text-white' :
+                      selectedQuest.status === 'completed' ? 'bg-blue-500 text-white' :
+                      'bg-yellow-500 text-white'
+                    }`}>
+                      {selectedQuest.status?.charAt(0).toUpperCase() + selectedQuest.status?.slice(1)}
+                    </span>
+                    <span className="bg-white/20 text-white px-3 py-1 rounded-full text-sm font-semibold">
+                      ID: {selectedQuest.id}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              {/* Basic Information */}
+              <div className="bg-[#F9F7F2] rounded-lg p-4 mb-6">
+                <h3 className="text-lg font-bold text-[#2C1A1D] mb-4 flex items-center">
+                  <FileText size={20} className="mr-2 text-[#8B75AA]" />
+                  Quest Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Creator</label>
+                    <p className="text-[#2C1A1D] font-medium">{selectedQuest.creator?.username || 'Unknown'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Category</label>
+                    <p className="text-[#2C1A1D] font-medium">
+                      {typeof selectedQuest.category === 'string' ? selectedQuest.category : selectedQuest.category?.name || 'Unknown'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Reward</label>
+                    <p className="text-[#2C1A1D] font-medium">
+                      {(selectedQuest as any).total_reward || (selectedQuest as any).reward || 0} Gold
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Created Date</label>
+                    <p className="text-[#2C1A1D] font-medium">
+                      {selectedQuest.created_at ? new Date(selectedQuest.created_at).toLocaleDateString() : 'Unknown'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="bg-[#F9F7F2] rounded-lg p-4 mb-6">
+                <h3 className="text-lg font-bold text-[#2C1A1D] mb-4 flex items-center">
+                  <FileText size={20} className="mr-2 text-[#8B75AA]" />
+                  Description
+                </h3>
+                <div className="bg-white p-4 rounded-lg border border-[#E9E1F5]">
+                  <p className="text-[#2C1A1D] whitespace-pre-wrap">
+                    {selectedQuest.description || 'No description provided'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Quest Details */}
+              <div className="bg-[#F9F7F2] rounded-lg p-4 mb-6">
+                <h3 className="text-lg font-bold text-[#2C1A1D] mb-4 flex items-center">
+                  <Trophy size={20} className="mr-2 text-[#8B75AA]" />
+                  Quest Details
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Participants</label>
+                    <p className="text-[#2C1A1D] font-medium">{(selectedQuest as any).participants_count || 0}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Submissions</label>
+                    <p className="text-[#2C1A1D] font-medium">{(selectedQuest as any).submissions_count || 0}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Deadline</label>
+                    <p className="text-[#2C1A1D] font-medium">
+                      {(selectedQuest as any).deadline ? new Date((selectedQuest as any).deadline).toLocaleDateString() : 'No deadline'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Information */}
+              <div className={`rounded-lg p-4 border ${
+                selectedQuest.status === 'open' ? 'bg-green-50 border-green-200' :
+                selectedQuest.status === 'completed' ? 'bg-blue-50 border-blue-200' :
+                'bg-yellow-50 border-yellow-200'
+              }`}>
+                <h3 className={`text-lg font-bold mb-2 flex items-center ${
+                  selectedQuest.status === 'open' ? 'text-green-800' :
+                  selectedQuest.status === 'completed' ? 'text-blue-800' :
+                  'text-yellow-800'
+                }`}>
+                  <Star size={20} className="mr-2" />
+                  Quest Status
+                </h3>
+                <p className={`font-medium ${
+                  selectedQuest.status === 'open' ? 'text-green-700' :
+                  selectedQuest.status === 'completed' ? 'text-blue-700' :
+                  'text-yellow-700'
+                }`}>
+                  This quest is currently <strong>{selectedQuest.status}</strong>
+                  {selectedQuest.status === 'open' && ' and accepting participants.'}
+                  {selectedQuest.status === 'completed' && ' and no longer accepting participants.'}
+                  {selectedQuest.status === 'in_progress' && ' with active participants working on it.'}
+                </p>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Quest Details Modal */}
-      {selectedQuestDetails && (
+      {/* Guild Details Modal - Revamped Design */}
+      {showGuildModal && selectedGuild && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-2xl p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-[#2C1A1D]">Quest Details</h3>
-              <button onClick={() => setSelectedQuestDetails(null)} className="text-gray-400 hover:text-gray-600">
-                <X size={20} />
+          <div className="bg-white rounded-2xl shadow-2xl border border-[#CDAA7D] max-w-4xl w-full max-h-[90vh] overflow-y-auto transition-all">
+            {/* Header Section */}
+            <div className="bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] p-6 rounded-t-2xl relative">
+              <button
+                onClick={() => {
+                  setShowGuildModal(false);
+                  setSelectedGuild(null);
+                }}
+                className="absolute top-4 right-4 text-white hover:text-[#2C1A1D] bg-white/20 hover:bg-white/80 rounded-full p-2 transition"
+                aria-label="Close"
+              >
+                <X size={24} />
               </button>
+              
+              <div className="flex items-start gap-4">
+                <div className="w-16 h-16 bg-white/20 rounded-lg flex items-center justify-center text-2xl text-white font-bold">
+                  {selectedGuild.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold text-white mb-2">{selectedGuild.name}</h2>
+                  <div className="flex flex-wrap gap-2">
+                    <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                      !selectedGuild.is_disabled ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+                    }`}>
+                      {!selectedGuild.is_disabled ? 'Active' : 'Disabled'}
+                    </span>
+                    <span className="bg-white/20 text-white px-3 py-1 rounded-full text-sm font-semibold">
+                      ID: {selectedGuild.guild_id || selectedGuild.id}
+                    </span>
+                    {(selectedGuild as any).warning_count > 0 && (
+                      <span className="bg-yellow-500 text-white px-3 py-1 rounded-full text-sm font-semibold">
+                        {(selectedGuild as any).warning_count} Warning{(selectedGuild as any).warning_count > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="text-lg font-bold text-[#2C1A1D] mb-4">{selectedQuestDetails.title}</h4>
-                <div className="space-y-3">
+            {/* Content */}
+            <div className="p-6">
+              {/* Basic Information */}
+              <div className="bg-[#F9F7F2] rounded-lg p-4 mb-6">
+                <h3 className="text-lg font-bold text-[#2C1A1D] mb-4 flex items-center">
+                  <Users size={20} className="mr-2 text-[#8B75AA]" />
+                  Guild Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Category</label>
-                    <p className="text-[#2C1A1D]">{selectedQuestDetails.category?.name || '-'}</p>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Quest Master (Leader)</label>
+                    <p className="text-[#2C1A1D] font-medium">
+                      {selectedGuild.owner?.username || (selectedGuild as any).leader_name || 'Unknown'}
+                    </p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Status</label>
-                    <p className="text-[#2C1A1D]">{selectedQuestDetails.status || '-'}</p>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Members</label>
+                    <p className="text-[#2C1A1D] font-medium">{selectedGuild.member_count || 0}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Reward</label>
-                    <p className="text-[#2C1A1D]">{selectedQuestDetails.reward ?? '-'} Gold</p>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Specialization</label>
+                    <p className="text-[#2C1A1D] font-medium">{(selectedGuild as any).specialization || 'General'}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Created</label>
-                    <p className="text-[#2C1A1D]">
-                      {selectedQuestDetails.created_at ? new Date(selectedQuestDetails.created_at).toLocaleString() : '-'}
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Created Date</label>
+                    <p className="text-[#2C1A1D] font-medium">
+                      {selectedGuild.created_at ? new Date(selectedGuild.created_at).toLocaleDateString() : 'Unknown'}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div>
-                <h5 className="font-medium text-[#2C1A1D] mb-3">Posted By</h5>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-[#8B75AA] rounded-full flex items-center justify-center text-white font-bold">
-                    {selectedQuestDetails.poster?.avatar}
+              {/* Guild Description */}
+              {selectedGuild.description && (
+                <div className="bg-[#F9F7F2] rounded-lg p-4 mb-6">
+                  <h3 className="text-lg font-bold text-[#2C1A1D] mb-4 flex items-center">
+                    <FileText size={20} className="mr-2 text-[#8B75AA]" />
+                    Description
+                  </h3>
+                  <div className="bg-white p-4 rounded-lg border border-[#E9E1F5]">
+                    <p className="text-[#2C1A1D] whitespace-pre-wrap">{selectedGuild.description}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Guild Settings */}
+              <div className="bg-[#F9F7F2] rounded-lg p-4 mb-6">
+                <h3 className="text-lg font-bold text-[#2C1A1D] mb-4 flex items-center">
+                  <Star size={20} className="mr-2 text-[#8B75AA]" />
+                  Guild Settings
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Privacy</label>
+                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                      (selectedGuild as any).privacy === 'public' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                    }`}>
+                      {(selectedGuild as any).privacy === 'public' ? 'Public' : 'Private'}
+                    </span>
                   </div>
                   <div>
-                    <p className="font-medium text-[#2C1A1D]">{selectedQuestDetails.poster?.username}</p>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Minimum Level</label>
+                    <p className="text-[#2C1A1D] font-medium">{(selectedGuild as any).minimum_level || 1}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Approval Required</label>
+                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                      (selectedGuild as any).require_approval ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'
+                    }`}>
+                      {(selectedGuild as any).require_approval ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#8B75AA] mb-1">Allow Discovery</label>
+                    <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                      (selectedGuild as any).allow_discovery ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {(selectedGuild as any).allow_discovery ? 'Yes' : 'No'}
+                    </span>
                   </div>
                 </div>
+              </div>
 
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Description</label>
-                  <p className="text-[#2C1A1D] text-sm mt-1">{selectedQuestDetails.description}</p>
+              {/* Moderation Status */}
+              <div className={`rounded-lg p-4 border ${
+                !selectedGuild.is_disabled ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+              }`}>
+                <h3 className={`text-lg font-bold mb-2 flex items-center ${
+                  !selectedGuild.is_disabled ? 'text-green-800' : 'text-red-800'
+                }`}>
+                  <AlertTriangle size={20} className="mr-2" />
+                  Moderation Status
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className={`font-medium ${
+                      !selectedGuild.is_disabled ? 'text-green-700' : 'text-red-700'
+                    }`}>
+                      Status: <strong>{!selectedGuild.is_disabled ? 'Active' : 'Disabled'}</strong>
+                    </p>
+                  </div>
+                  <div>
+                    <p className={`font-medium ${
+                      !selectedGuild.is_disabled ? 'text-green-700' : 'text-red-700'
+                    }`}>
+                      Warnings: <strong>{(selectedGuild as any).warning_count || 0}</strong>
+                    </p>
+                  </div>
                 </div>
-
-                {selectedQuestDetails.requirements && (
-                  <div className="mt-4">
-                    <label className="text-sm font-medium text-gray-600">Requirements</label>
-                    <ul className="text-[#2C1A1D] text-sm mt-1 list-disc list-inside">
-                      {selectedQuestDetails.requirements.map((req: string, index: number) => (
-                        <li key={index}>{req}</li>
-                      ))}
-                    </ul>
+                {selectedGuild.is_disabled && (selectedGuild as any).disable_reason && (
+                  <div className="mt-3 p-3 bg-red-100 rounded">
+                    <label className="block text-sm font-medium text-red-700 mb-1">Disable Reason</label>
+                    <p className="text-red-800">{(selectedGuild as any).disable_reason}</p>
                   </div>
                 )}
               </div>
@@ -1765,202 +2828,118 @@ function AdminPanel({
         </div>
       )}
 
-      {/* Guild Details Modal */}
-      {selectedGuildDetails && (
+      {/* Report Modal */}
+      {showReportModal && reportTarget && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-md p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-[#2C1A1D]">Guild Details</h3>
-              <button onClick={() => setSelectedGuildDetails(null)} className="text-gray-400 hover:text-gray-600">
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-16 h-16 bg-[#CDAA7D] rounded-lg flex items-center justify-center text-2xl">
-                    {selectedGuildDetails.emblem}
-                  </div>
-                  <div>
-                    <h4 className="text-lg font-bold text-[#2C1A1D]">
-                      {selectedGuildDetails.poster?.username || selectedGuildDetails.poster?.name || "Unknown"}
-                    </h4>
-                    <p className="text-[#8B75AA]">{selectedGuildDetails.specialization}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Members</label>
-                    <p className="text-[#2C1A1D]">{selectedGuildDetails.members}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Funds</label>
-                    <p className="text-[#2C1A1D]">{selectedGuildDetails.funds || 0} Gold</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Created</label>
-                    <p className="text-[#2C1A1D]">
-                      {selectedGuildDetails.createdAt
-                        ? new Date(selectedGuildDetails.createdAt).toLocaleDateString()
-                        : "N/A"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h5 className="font-medium text-[#2C1A1D] mb-3">Owner</h5>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-[#8B75AA] rounded-full flex items-center justify-center text-white font-bold">
-                    {selectedGuildDetails.poster?.avatar}
-                  </div>
-                  <div>
-                    <p className="font-medium text-[#2C1A1D]">{selectedGuildDetails.poster?.username}</p>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Description</label>
-                  <p className="text-[#2C1A1D] text-sm mt-1">{selectedGuildDetails.description}</p>
-                </div>
-
-                {selectedGuildDetails.requirements && (
-                  <div className="mt-4">
-                    <label className="text-sm font-medium text-gray-600">Requirements</label>
-                    <ul className="text-[#2C1A1D] text-sm mt-1 list-disc list-inside">
-                      {selectedGuildDetails.requirements.map((req: string, index: number) => (
-                        <li key={index}>{req}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Quest Confirmation Modal */}
-      {showDeleteQuestConfirm !== null && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-md p-6">
-            <h3 className="text-xl font-bold text-[#2C1A1D] mb-4">Confirm Quest Deletion</h3>
-            <p className="text-[#2C1A1D] mb-4">Are you sure you want to delete this quest?</p>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-[#2C1A1D] mb-2">Reason for deletion:</label>
-              <select
-                value={deleteQuestReason}
-                onChange={(e) => setDeleteQuestReason(e.target.value)}
-                className="w-full border border-[#CDAA7D] rounded px-3 py-2 text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] mb-2"
-              >
-                <option value="">Select a reason...</option>
-                <option value="Inappropriate content">Inappropriate content</option>
-                <option value="Misleading information">Misleading information</option>
-                <option value="Spam or duplicate">Spam or duplicate</option>
-                <option value="Violation of guidelines">Violation of guidelines</option>
-                <option value="custom">Custom reason</option>
-              </select>
-
-              {deleteQuestReason === "custom" && (
-                <textarea
-                  value={customDeleteQuestReason}
-                  onChange={(e) => setCustomDeleteQuestReason(e.target.value)}
-                  placeholder="Enter custom reason..."
-                  className="w-full border border-[#CDAA7D] rounded px-3 py-2 text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] h-20 resize-none"
-                />
-              )}
-            </div>
-
-            <div className="flex justify-end gap-3">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="text-lg font-semibold">
+                Report {reportType === 'user' ? 'User' : reportType === 'quest' ? 'Quest' : 'Guild'}
+              </h3>
               <button
                 onClick={() => {
-                  setShowDeleteQuestConfirm(null)
-                  setDeleteQuestReason("")
-                  setCustomDeleteQuestReason("")
+                  setShowReportModal(false);
+                  setReportTarget(null);
+                  setReportReason("");
+                  setReportMessage("");
                 }}
-                className="px-4 py-2 border border-[#CDAA7D] rounded text-[#2C1A1D] hover:bg-[#CDAA7D] hover:text-white transition-colors"
+                className="text-gray-500 hover:text-gray-700"
               >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDeleteQuest(showDeleteQuestConfirm)}
-                disabled={!deleteQuestReason || (deleteQuestReason === "custom" && !customDeleteQuestReason.trim())}
-                className={`px-4 py-2 rounded transition-colors ${
-                  deleteQuestReason && (deleteQuestReason !== "custom" || customDeleteQuestReason.trim())
-                    ? "bg-red-500 text-white hover:bg-red-600"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                }`}
-              >
-                Delete Quest
+                <X size={24} />
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Guild Confirmation Modal */}
-      {showDeleteGuildConfirm !== null && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-md p-6">
-            <h3 className="text-xl font-bold text-[#2C1A1D] mb-4">Confirm Guild Deletion</h3>
-            <p className="text-[#2C1A1D] mb-4">Are you sure you want to delete this guild?</p>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-[#2C1A1D] mb-2">Reason for deletion:</label>
-              <select
-                value={deleteGuildReason}
-                onChange={(e) => setDeleteGuildReason(e.target.value)}
-                className="w-full border border-[#CDAA7D] rounded px-3 py-2 text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] mb-2"
-              >
-                <option value="">Select a reason...</option>
-                <option value="Inappropriate content">Inappropriate content</option>
-                <option value="Inactive or abandoned">Inactive or abandoned</option>
-                <option value="Violation of guidelines">Violation of guidelines</option>
-                <option value="Fraudulent activity">Fraudulent activity</option>
-                <option value="custom">Custom reason</option>
-              </select>
-
-              {deleteGuildReason === "custom" && (
+            <div className="p-4">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reporting: {reportType === 'user' ? reportTarget.username : reportType === 'quest' ? reportTarget.title : reportTarget.name}
+                </label>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason
+                </label>
+                <select
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                >
+                  <option value="">Select a reason...</option>
+                  <option value="spam">Spam</option>
+                  <option value="harassment">Harassment</option>
+                  <option value="inappropriate">Inappropriate Content</option>
+                  <option value="fraud">Fraud</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Additional Details
+                </label>
                 <textarea
-                  value={customDeleteGuildReason}
-                  onChange={(e) => setCustomDeleteGuildReason(e.target.value)}
-                  placeholder="Enter custom reason..."
-                  className="w-full border border-[#CDAA7D] rounded px-3 py-2 text-[#2C1A1D] focus:outline-none focus:border-[#8B75AA] h-20 resize-none"
+                  value={reportMessage}
+                  onChange={(e) => setReportMessage(e.target.value)}
+                  placeholder="Provide additional details about this report..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B75AA]"
+                  rows={3}
                 />
-              )}
-            </div>
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setShowDeleteGuildConfirm(null)
-                  setDeleteGuildReason("")
-                  setCustomDeleteGuildReason("")
-                }}
-                className="px-4 py-2 border border-[#CDAA7D] rounded text-[#2C1A1D] hover:bg-[#CDAA7D] hover:text-white transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDeleteGuild(showDeleteGuildConfirm)}
-                disabled={!deleteGuildReason || (deleteGuildReason === "custom" && !customDeleteGuildReason.trim())}
-                className={`px-4 py-2 rounded transition-colors ${
-                  deleteGuildReason && (deleteGuildReason !== "custom" || customDeleteGuildReason.trim())
-                    ? "bg-red-500 text-white hover:bg-red-600"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                }`}
-              >
-                Delete Guild
-              </button>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => {
+                    setShowReportModal(false);
+                    setReportTarget(null);
+                    setReportReason("");
+                    setReportMessage("");
+                  }}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (reportType === 'user') {
+                      handleReportUser(reportTarget, reportReason, reportMessage);
+                    } else if (reportType === 'quest') {
+                      handleReportQuest(reportTarget, reportReason, reportMessage);
+                    } else {
+                      handleReportGuild(reportTarget, reportReason, reportMessage);
+                    }
+                  }}
+                  disabled={!reportReason}
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Submit Report
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      </div>
+      {/* Receipt Image Modal */}
+      {selectedReceiptImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl max-h-full overflow-auto">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="text-lg font-semibold">Receipt Image</h3>
+              <button
+                onClick={() => setSelectedReceiptImage(null)}
+                className="text-gray-500 hover:text-gray-700"
+                aria-label="Close receipt image"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-4">
+              <img
+                src={selectedReceiptImage}
+                alt="Payment Receipt"
+                className="max-w-full h-auto rounded-lg shadow-lg max-h-[70vh]"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

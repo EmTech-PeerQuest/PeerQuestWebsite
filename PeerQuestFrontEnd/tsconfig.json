@@ -21,8 +21,7 @@
     "types": [
       "node",
       "react",
-      "react-dom",
-      "next"
+      "react-dom"
     ],
     "incremental": true,
     "baseUrl": ".", // ✅ Needed for "@/..." alias

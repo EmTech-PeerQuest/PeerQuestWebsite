@@ -518,7 +518,7 @@ export function AdminPanel({
                             </span>
                           </td>
                           <td className="py-2 px-4 border-b">
-                            {guild.createdAt ? new Date(guild.createdAt).toLocaleDateString() : "N/A"}
+                            {guild.created_at ? new Date(guild.created_at).toLocaleDateString() : "N/A"}
                           </td>
                           <td className="py-2 px-4 border-b">
                             <div className="flex space-x-2">
@@ -883,8 +883,8 @@ export function AdminPanel({
                   <div>
                     <label className="text-sm font-medium text-gray-600">Created</label>
                     <p className="text-[#2C1A1D]">
-                      {selectedGuildDetails?.createdAt
-                        ? new Date(selectedGuildDetails.createdAt).toLocaleDateString()
+                      {selectedGuildDetails?.created_at
+                        ? new Date(selectedGuildDetails.created_at).toLocaleDateString()
                         : "N/A"}
                     </p>
                   </div>
