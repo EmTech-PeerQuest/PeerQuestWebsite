@@ -15,4 +15,3 @@ RUN python manage.py collectstatic --noinput
 
 # Start using Daphne
 CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]
-
