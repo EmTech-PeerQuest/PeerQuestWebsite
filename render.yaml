@@ -1,0 +1,60 @@
+services:
+  - type: web
+    name: peerquest-frontend
+    env: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: true
+    staticPublishPath: .next/static
+    buildFilter:
+      paths:
+        - PeerQuestFrontEnd/**
+    repo: https://github.com/your-org/your-repo
+    branch: main
+    rootDir: PeerQuestFrontEnd
+    autoDeploy: true
+
+  - type: web
+    name: peerquest-backend
+    env: python
+    plan: starter
+    buildCommand: |
+      pip install -r requirements.txt
+      python manage.py collectstatic --noinput
+    startCommand: daphne -b 0.0.0.0 -p 8000 core.asgi:application
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: core.settings
+      - key: PYTHONUNBUFFERED
+        value: 1
+      - key: PYTHONDONTWRITEBYTECODE
+        value: 1
+    buildFilter:
+      paths:
+        - PeerQuestBackEnd/**
+    repo: https://github.com/your-org/your-repo
+    branch: main
+    rootDir: PeerQuestBackEnd
+    autoDeploy: true
+
+  - type: redis
+    name: peerquest-redis
+    plan: starter
+
+  - type: mysql
+    name: peerquest-mysql
+    plan: starter
+    envVars:
+      - key: MYSQL_ROOT_PASSWORD
+        sync: false
+      - key: MYSQL_DATABASE
+        value: peerquestdb
+      - key: MYSQL_USER
+        value: peerquestuser
+      - key: MYSQL_PASSWORD
+        sync: false
