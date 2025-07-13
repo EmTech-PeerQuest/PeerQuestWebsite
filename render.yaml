@@ -5,16 +5,16 @@ services:
     plan: starter
     buildCommand: npm install && npm run build
     startCommand: npm run start
+    staticPublishPath: .next/static
     envVars:
       - key: NODE_ENV
         value: production
       - key: NEXT_TELEMETRY_DISABLED
         value: true
-    staticPublishPath: .next/static
     buildFilter:
       paths:
         - PeerQuestFrontEnd/**
-    repo: https://github.com/your-org/your-repo
+    repo: https://github.com/EmTech-PeerQuest/PeerQuestWebsite.git
     branch: main
     rootDir: PeerQuestFrontEnd
     autoDeploy: true
@@ -34,6 +34,18 @@ services:
         value: 1
       - key: PYTHONDONTWRITEBYTECODE
         value: 1
+      - key: DB_NAME
+        value: railway
+      - key: DB_USER
+        value: root
+      - key: DB_PASSWORD
+        value: eDSQimrlTQUYHUfLAUafONopsFQCwxem
+      - key: DB_HOST
+        value: mysql.railway.internal
+      - key: DB_PORT
+        value: 3306
+      - key: REDIS_URL
+        value: redis://default:your_redis_password@peerquest-redis.internal:6379
     buildFilter:
       paths:
         - PeerQuestBackEnd/**
@@ -45,16 +57,3 @@ services:
   - type: redis
     name: peerquest-redis
     plan: starter
-
-  - type: mysql
-    name: peerquest-mysql
-    plan: starter
-    envVars:
-      - key: MYSQL_ROOT_PASSWORD
-        sync: false
-      - key: MYSQL_DATABASE
-        value: peerquestdb
-      - key: MYSQL_USER
-        value: peerquestuser
-      - key: MYSQL_PASSWORD
-        sync: false
