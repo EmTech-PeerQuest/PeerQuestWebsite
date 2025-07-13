@@ -1,3 +1,4 @@
+import type { User } from "@/lib/types";
 // --- fetchWithAuth utility for authenticated fetch requests ---
 export async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
@@ -280,7 +281,7 @@ export const fetchUser = async (token: string): Promise<User> => {
     
     console.log('👤 fetchUser response:', response.data);
     
-    return response;
+    return response.data;
   } catch (error: any) {
     console.error("Fetch user API error:", error.response?.data)
 
