@@ -1,35 +1,27 @@
-# Use official Node.js image as the base
-FROM node:20-alpine
+# PeerQuestFrontEnd/Dockerfile
 
-# Install pnpm globally
-RUN npm install -g pnpm
+FROM node:18-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Install pnpm globally
-RUN npm install -g pnpm
+# Enable PNPM via Corepack
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Set environment variables
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV FORCE_COLOR=1
+# Copy only lockfile and package definition for install caching
+COPY pnpm-lock.yaml package.json ./
 
-# Copy package.json and package-lock.json
-COPY package*.json ./
-
-# Copy Tailwind and PostCSS config files before install (for build cache efficiency)
-COPY tailwind.config.js ./
-COPY postcss.config.js ./
-
-# Install dependencies using pnpm
+# Install deps
 RUN pnpm install
 
-# Copy the rest of the application code
+# Copy rest of the frontend files
 COPY . .
 
-# Expose the port the app runs on
+# Build the production frontend
+RUN pnpm build
+
+# Expose Next.js default port
 EXPOSE 3000
-ENV WATCHPACK_POLLING=true
-# Start the Next.js app
-#CMD ["npm", "start"]
-CMD ["npm", "run", "dev"]
+
+# Start Next.js in production
+CMD ["pnpm", "start"]
