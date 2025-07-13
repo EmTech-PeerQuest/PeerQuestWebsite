@@ -62,8 +62,8 @@ export function About() {
       name: "Jenel Esteron",
       role: "API/Database",
       avatar: "J",
-      portfolio: "https://github.com/https://jenelportfolio.netlify.app",
-      linkedin: "https://linkedin.com/in/https://www.linkedin.com/in/jenel-esteron-83459b2a2/",
+      portfolio: "https://jenelportfolio.netlify.app",
+      linkedin: "https://www.linkedin.com/in/jenel-esteron-83459b2a2/",
     },
     {
       name: "Amry Judith Gutlay",
