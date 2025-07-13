@@ -8,6 +8,8 @@ interface KYCVerificationModalProps {
   onClose: () => void
   onComplete: () => void
   cashoutAmount: number
+  paymentMethod?: string
+  paymentPhoneNumber?: string
   showToast?: (message: string, type?: string) => void
 }
 
@@ -16,6 +18,8 @@ export function KYCVerificationModal({
   onClose,
   onComplete,
   cashoutAmount,
+  paymentMethod,
+  paymentPhoneNumber,
   showToast,
 }: KYCVerificationModalProps) {
   const [step, setStep] = useState(1)
@@ -23,7 +27,7 @@ export function KYCVerificationModal({
     fullName: "",
     birthDate: "",
     address: "",
-    phoneNumber: "",
+    phoneNumber: paymentPhoneNumber || "", // Pre-populate with payment method phone number
     idType: "national-id",
     idFront: null as File | null,
     idBack: null as File | null,
@@ -65,7 +69,7 @@ export function KYCVerificationModal({
       <div className="bg-[#F4F0E6] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-hidden relative">
         {/* Header */}
         <div className="bg-[#CDAA7D] px-6 py-4 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-[#2C1A1D]">KYC Verification Required</h2>
+          <h2 className="text-xl font-bold text-[#2C1A1D]">Identity Verification Required</h2>
           <button onClick={onClose} className="text-[#2C1A1D] hover:text-[#8B75AA] transition-colors">
             <X size={20} />
           </button>
@@ -79,11 +83,11 @@ export function KYCVerificationModal({
               <span className="font-semibold text-yellow-800">Verification Required</span>
             </div>
             <p className="text-sm text-yellow-700">
-              Cashouts of ₱1,000 or more require identity verification to comply with financial regulations and prevent
+              Withdrawals of ₱1,000 or more require identity verification to comply with financial regulations and prevent
               fraud.
             </p>
             <p className="text-sm text-yellow-700 mt-1">
-              <strong>Cashout Amount:</strong> {cashoutAmount.toLocaleString()} coins (₱
+              <strong>Withdrawal Amount:</strong> {cashoutAmount.toLocaleString()} coins (₱
               {(cashoutAmount * 0.07).toFixed(2)})
             </p>
           </div>
@@ -155,6 +159,13 @@ export function KYCVerificationModal({
                     className="w-full px-3 py-2 border border-[#CDAA7D] rounded focus:outline-none focus:border-[#8B75AA]"
                     placeholder="+63 9XX XXX XXXX"
                   />
+                  {paymentPhoneNumber && paymentMethod && (
+                    <div className="mt-1 text-xs text-[#8B75AA]">
+                      {paymentMethod === "gcash" && "✓ Using your GCash number for verification"}
+                      {paymentMethod === "paymaya" && "✓ Using your PayMaya number for verification"}
+                      {paymentMethod === "bank" && "Enter your primary mobile number"}
+                    </div>
+                  )}
                 </div>
 
                 <button

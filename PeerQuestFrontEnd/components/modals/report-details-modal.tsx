@@ -31,8 +31,9 @@ export function ReportDetailsModal({ isOpen, onClose, report, users, onResolve, 
 
   if (!isOpen || !report) return null
 
-  const reportedByUser = users.find((u) => u.id === report.reportedBy)
-  const reportedUser = report.type === "user" ? users.find((u) => u.id === report.reportedId) : null
+  // UserType.id is string, report.reportedBy is number. Convert for comparison.
+  const reportedByUser = users.find((u) => String(u.id) === String(report.reportedBy))
+  const reportedUser = report.type === "user" ? users.find((u) => String(u.id) === String(report.reportedId)) : null
 
   const handleResolve = () => {
     if (!action) {
@@ -43,6 +44,19 @@ export function ReportDetailsModal({ isOpen, onClose, report, users, onResolve, 
     onResolve(report.id, action, notes)
     showToast(`Report resolved with action: ${action}`, "success")
     onClose()
+  }
+
+  // Helper to safely format date
+  function formatDate(date: unknown): string {
+    if (!date) return "N/A"
+    try {
+      // Accepts Date or string
+      const d = typeof date === "string" ? new Date(date) : date instanceof Date ? date : null
+      if (!d || isNaN(d.getTime())) return "N/A"
+      return d.toLocaleDateString()
+    } catch {
+      return "N/A"
+    }
   }
 
   return (
@@ -95,7 +109,7 @@ export function ReportDetailsModal({ isOpen, onClose, report, users, onResolve, 
               </h3>
               <div className="space-y-2 text-sm">
                 <div>
-                  <span className="font-medium">Date:</span> {report.createdAt.toLocaleDateString()}
+                  <span className="font-medium">Date:</span> {formatDate(report.createdAt)}
                 </div>
                 <div>
                   <span className="font-medium">Type:</span>{" "}

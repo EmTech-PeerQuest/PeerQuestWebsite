@@ -1,0 +1,72 @@
+services:
+  redis:
+    image: redis:7
+    container_name: peerquest-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./PeerQuestBackEnd
+    container_name: peerquest-backend
+    # Use Django dev server for hot reload in development
+    command: >
+      sh -c "if [ \"$USE_DJANGO_DEV_SERVER\" = 'true' ]; then python manage.py runserver 0.0.0.0:8000; else daphne -b 0.0.0.0 -p 8000 core.asgi:application; fi"
+    volumes:
+      - ./PeerQuestBackEnd:/app
+      - ./PeerQuestBackEnd/core:/app/core  # Ensures code changes in core/ reload
+      - ./PeerQuestBackEnd/blog:/app/blog  # Ensures code changes in blog/ reload
+      - ./PeerQuestBackEnd/blog_api:/app/blog_api  # Ensures code changes in blog_api/ reload
+      - ./PeerQuestBackEnd/users:/app/users  # Ensures code changes in users/ reload
+      - ./PeerQuestBackEnd/media:/app/media  # For media uploads
+      # - ./PeerQuestBackEnd/venv:/app/venv  # Optional: pip cache
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    env_file:
+      - ./PeerQuestBackEnd/.env
+    environment:
+      - DJANGO_SETTINGS_MODULE=core.settings
+      - USE_DJANGO_DEV_SERVER=true
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      # Add any other env vars you need
+  frontend:
+    build:
+      context: ./PeerQuestFrontEnd
+    container_name: peerquest-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./PeerQuestFrontEnd:/app
+      - /app/node_modules
+      - ./PeerQuestFrontEnd/pages:/app/pages  # Hot reload for Next.js pages
+      - ./PeerQuestFrontEnd/components:/app/components  # Hot reload for components
+      - ./PeerQuestFrontEnd/public:/app/public  # Hot reload for static assets
+    depends_on:
+      - backend
+    env_file:
+      - ./PeerQuestFrontEnd/.env.local
+    environment:
+      - NODE_ENV=development
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true  # Ensures hot reload works in Docker
+      - NEXT_TELEMETRY_DISABLED=1
+
+  mysql:
+    image: mysql:8
+    container_name: peerquest-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: peerquestdb
+      MYSQL_USER: peerquestuser
+      MYSQL_PASSWORD: peerquestpass
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:

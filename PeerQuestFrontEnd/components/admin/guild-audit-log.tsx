@@ -25,6 +25,7 @@ export function GuildAuditLog({ guild, currentUser }: GuildAuditLogProps) {
   const [dateRange, setDateRange] = useState("all")
   const [filterBy, setFilterBy] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
 
   // Mock audit log data
   const auditEntries: AuditLogEntry[] = [
@@ -90,7 +91,29 @@ export function GuildAuditLog({ guild, currentUser }: GuildAuditLogProps) {
       entry.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       entry.event.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesFilter = filterBy === "all" || entry.category === filterBy
-    return matchesSearch && matchesFilter
+    
+    // Date filtering logic
+    let matchesDate = true
+    if (dateRange !== "all") {
+      const now = new Date()
+      const entryDate = entry.date
+      
+      switch (dateRange) {
+        case "today":
+          matchesDate = entryDate.toDateString() === now.toDateString()
+          break
+        case "week":
+          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+          matchesDate = entryDate >= weekAgo
+          break
+        case "month":
+          const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+          matchesDate = entryDate >= monthAgo
+          break
+      }
+    }
+    
+    return matchesSearch && matchesFilter && matchesDate
   })
 
   return (
@@ -104,6 +127,7 @@ export function GuildAuditLog({ guild, currentUser }: GuildAuditLogProps) {
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
+            aria-label="Filter by date range"
             className="bg-[#3D2A2F] border border-[#CDAA7D] rounded px-3 py-2 text-[#F4F0E6] focus:outline-none focus:border-[#8B75AA]"
           >
             <option value="all">All Time</option>
@@ -118,6 +142,7 @@ export function GuildAuditLog({ guild, currentUser }: GuildAuditLogProps) {
           <select
             value={filterBy}
             onChange={(e) => setFilterBy(e.target.value)}
+            aria-label="Filter by event type"
             className="bg-[#3D2A2F] border border-[#CDAA7D] rounded px-3 py-2 text-[#F4F0E6] focus:outline-none focus:border-[#8B75AA]"
           >
             <option value="all">All Events</option>
@@ -143,50 +168,61 @@ export function GuildAuditLog({ guild, currentUser }: GuildAuditLogProps) {
       </div>
 
       {/* Activity Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-[#3D2A2F]">
-              <th className="text-left py-3 px-4 font-medium text-gray-300">Event</th>
-              <th className="text-left py-3 px-4 font-medium text-gray-300">Changed By</th>
-              <th className="text-left py-3 px-4 font-medium text-gray-300">Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredEntries.map((entry) => (
-              <tr key={entry.id} className="border-b border-[#3D2A2F]/50 hover:bg-[#3D2A2F]/30">
-                <td className="py-4 px-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 mt-1">{getCategoryIcon(entry.category)}</div>
-                    <div>
-                      <p className="font-medium text-[#F4F0E6]">{entry.event}</p>
-                      <p className="text-sm text-gray-400">{entry.description}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="py-4 px-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 bg-[#8B75AA] rounded-full flex items-center justify-center text-white text-xs">
-                      {entry.changedBy.avatar}
-                    </div>
-                    <span className="text-[#8B75AA] text-sm">{entry.changedBy.username}</span>
-                  </div>
-                </td>
-                <td className="py-4 px-4">
-                  <div className="text-sm text-gray-400">
-                    <p>{entry.date.toLocaleDateString()}</p>
-                    <p>{entry.date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
-                  </div>
-                </td>
+      {isLoading ? (
+        <div className="flex justify-center items-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#8B75AA]"></div>
+          <span className="ml-2 text-gray-400">Loading activity...</span>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-[#3D2A2F]">
+                <th className="text-left py-3 px-4 font-medium text-gray-300">Event</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-300">Changed By</th>
+                <th className="text-left py-3 px-4 font-medium text-gray-300">Date</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {filteredEntries.map((entry) => (
+                <tr key={entry.id} className="border-b border-[#3D2A2F]/50 hover:bg-[#3D2A2F]/30 transition-colors">
+                  <td className="py-4 px-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 mt-1">{getCategoryIcon(entry.category)}</div>
+                      <div>
+                        <p className="font-medium text-[#F4F0E6]">{entry.event}</p>
+                        <p className="text-sm text-gray-400">{entry.description}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-4 px-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 bg-[#8B75AA] rounded-full flex items-center justify-center text-white text-xs">
+                        {entry.changedBy.avatar?.charAt(0)?.toUpperCase() || 
+                         entry.changedBy.username?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                      <span className="text-[#8B75AA] text-sm">{entry.changedBy.username || 'Unknown User'}</span>
+                    </div>
+                  </td>
+                  <td className="py-4 px-4">
+                    <div className="text-sm text-gray-400">
+                      <p>{entry.date?.toLocaleDateString?.() || 'Invalid Date'}</p>
+                      <p>{entry.date?.toLocaleTimeString?.([], { hour: "2-digit", minute: "2-digit" }) || '--:--'}</p>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      {filteredEntries.length === 0 && (
+      {!isLoading && filteredEntries.length === 0 && (
         <div className="text-center py-8">
           <p className="text-gray-400">No activity found matching your criteria</p>
+          {(searchQuery || filterBy !== "all" || dateRange !== "all") && (
+            <p className="text-sm text-gray-500 mt-2">Try adjusting your filters or search terms</p>
+          )}
         </div>
       )}
     </div>

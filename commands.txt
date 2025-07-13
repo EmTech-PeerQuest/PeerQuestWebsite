@@ -1,22 +1,129 @@
+////////// Docker Command Setup//////////
+docker-compose up --build
+
+docker-compose exec backend python manage.py makemigrations
+docker-compose exec backend python manage.py migrate
+docker-compose exec backend python manage.py createsuperuser
+
+//////////If done edits in the Docker files///////////
+docker-compose down --volumes  # Clear containers & volumes
+docker-compose build           # Force rebuild with new Dockerfile
+docker-compose up              # Run with updated config
+
+(In a separate terminal)
+docker-compose exec backend python manage.py migrate
+docker-compose exec backend python manage.py createsuperuser
+
+
+////////// Docker START ONLY //////////
+docker-compose up
+
+/////// IF CHANGED DEPENDENCIES /////////////////
+docker-compose build --no-cache; docker-compose up
+
+/////// DELETE ALL DOCKER /////////////////
+docker system prune -a --volumes -f
+
+
+/////// GOLD PACKAGES //////////////////////// ACHIEVEMENTS /////////////////
+docker-compose exec backend python manage.py create_gold_packages
+docker-compose exec backend python manage.py loaddata users/achievement_fixtures.json
+
+
+////////// Copy-Paste Friendly Setup Commands //////////
+# Backend (Windows, PowerShell):
+py -m venv venv
+.\venv\Scripts\activate
+python.exe -m pip install --upgrade pip
+pip install -r requirements.txt
+
+py manage.py makemigrations
+py manage.py makemigrations notifications  # create migration for new field
+py manage.py migrate
+py manage.py collectstatic  # Collect static files for admin and static assets
+py manage.py createsuperuser  # (optional, for admin access)
+
+-------- For running the Backend ---------
+# py manage.py runserver  # Use this for HTTP-only development
+
+daphne -b 0.0.0.0 -p 8000 core.asgi:application  # Use this for Channels/WebSockets
+
+daphne core.asgi:application # Use this for local development
+
+############ Frontend ############
+npm install --legacy-peer-deps
+npm run dev
+
+############ Bash/Linux Setup ############
+# Backend (Linux/Bash)
+python3 -m venv venv
+source venv/bin/activate
+python3 -m pip install --upgrade pip
+pip install -r requirements.txt
+
+python3 manage.py makemigrations
+python3 manage.py migrate
+python3 manage.py collectstatic  # Collect static files for admin and static assets
+python3 manage.py createsuperuser  # (optional, for admin access)
+
+# Start Redis server (if not already running)
+redis-server &  # Start Redis in the background
+
+# For running the Backend
+# python3 manage.py runserver  # Use this for HTTP-only development
+
+daphne -b 0.0.0.0 -p 8000 core.asgi:application  # Use this for Channels/WebSockets
+
+daphne core.asgi:application # Use this for local development
+
+# Frontend (Linux/Bash)
+npm install --legacy-peer-deps
+npm install next-i18next --legacy-peer-deps
+npm run dev
+
+# To add a new Python package:
+pip install <package-name>
+pip freeze > requirements.txt
+
+# To add a new Node package:
+npm install <package-name>
+
+
 ////////// Start Backend //////////
+# Create and activate virtual environment
 py -m venv venv
 .\venv\Scripts\activate
 pip install -r requirements.txt
 python.exe -m pip install --upgrade pip
-pip install django
-pip install djangorestframework
-pip install django-cors-headers
-pip install drf-yasg
-pip install django-oauth-toolkit
-pip install drf-social-oauth2
-pip install google-auth
-pip install Pillow
-py manage.py runserver
+pip install -r requirements.txt
+
+# To add new dependencies, use:
+# pip install <package-name>
+
+# Then update requirements.txt:
+# pip freeze > requirements.txt
+
+
+# Database setup (Django):
+py manage.py makemigrations
+py manage.py migrate
+py manage.py collectstatic  # Collect static files for admin and static assets
+py manage.py createsuperuser  # (optional, for admin access)
+# py manage.py runserver  # Use this for HTTP-only development
+daphne -b 0.0.0.0 -p 8000 core.asgi:application  # Use this for Channels/WebSockets
+
+# Run the Django server
+# py manage.py runserver  # Use this for HTTP-only development
+daphne -b 0.0.0.0 -p 8000 core.asgi:application  # Use this for Channels/WebSockets
 
 
 
 ////////// Start Frontend //////////
-npm install --legacy-peer-deps
+# Install all frontend dependencies
+npm install
+# If you encounter peer dependency issues, use:
+# npm install --legacy-peer-deps
+# Start the frontend development server
 npm run dev
 
 
@@ -25,7 +132,7 @@ npm run dev
 git checkout dev_Esteron
 git add .
 git commit -m "TEXT TEXT"   
-git push -u origin dev_Esteron
+git push -u origin dev_Esteron/AuthProfile
 
 
 
@@ -44,4 +151,8 @@ git pull origin your-branch
 git fetch origin
 git merge origin/main
 
+# Add XP to a user (Docker):
+docker-compose exec backend python manage.py add_xp <username_or_id> <amount>
+# Example:
+docker-compose exec backend python manage.py add_xp admin 100
 

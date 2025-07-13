@@ -3,6 +3,7 @@
 import { X, AlertTriangle, Coins } from "lucide-react"
 import type { User } from "@/lib/types"
 import { canSpend, getDailySpending, getWeeklySpending } from "@/lib/spending-utils"
+import { Button } from "@/components/ui/button"
 
 interface ConfirmationModalProps {
   isOpen: boolean
@@ -45,9 +46,15 @@ export function ConfirmationModal({
             <AlertTriangle size={24} className="text-orange-500" />
             <h3 className="text-lg font-bold text-gray-900">{title}</h3>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <Button 
+            onClick={onClose} 
+            variant="ghost"
+            size="icon"
+            className="text-gray-400 hover:text-gray-600"
+            soundType="modal"
+          >
             <X size={20} />
-          </button>
+          </Button>
         </div>
 
         <div className="mb-6">
@@ -99,23 +106,27 @@ export function ConfirmationModal({
         </div>
 
         <div className="flex gap-3">
-          <button
+          <Button
             onClick={onClose}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50 transition-colors"
+            variant="secondary"
+            className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold border-2 border-gray-300 hover:border-gray-400 transition-all duration-200 shadow-sm hover:shadow-md"
+            soundType="soft"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleConfirm}
             disabled={!spendingCheck.canSpend}
-            className={`flex-1 px-4 py-2 rounded font-medium transition-colors ${
+            variant="default"
+            className={`flex-1 font-semibold shadow-sm hover:shadow-md transition-all duration-200 ${
               spendingCheck.canSpend
-                ? "bg-orange-500 text-white hover:bg-orange-600"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                ? "bg-orange-500 hover:bg-orange-600 border-2 border-orange-500 hover:border-orange-600"
+                : ""
             }`}
+            soundType={spendingCheck.canSpend ? "success" : "error"}
           >
             {confirmText}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

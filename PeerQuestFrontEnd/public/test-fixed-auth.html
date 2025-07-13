@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Fixed Auth Flow</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { margin: 5px; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Test Fixed Authentication Flow</h1>
+    
+    <div>
+        <button onclick="clearAndTest()">Clear Tokens & Test Transactions</button>
+        <button onclick="loginAndTest()">Login & Test Transactions</button>
+        <button onclick="checkTokens()">Check Current Tokens</button>
+    </div>
+    
+    <div id="results"></div>
+    
+    <script type="module">
+        const API_BASE_URL = 'http://localhost:8000/api';
+        
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            results.appendChild(div);
+            console.log(message);
+        }
+        
+        // Copy the auth functions from the actual auth.ts file
+        async function refreshAccessToken() {
+            const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null;
+            if (!refreshToken) {
+                console.warn('🔄 No refresh token available. User needs to log in.');
+                if (typeof window !== 'undefined') {
+                    localStorage.removeItem('access_token');
+                }
+                throw new Error('No refresh token available.');
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/token/refresh/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refresh: refreshToken }),
+                });
+                
+                if (!response.ok) {
+                    console.error(`🔄 Token refresh failed: ${response.status} ${response.statusText}`);
+                    if (typeof window !== 'undefined') {
+                        localStorage.removeItem('access_token');
+                        localStorage.removeItem('refresh_token');
+                    }
+                    throw new Error('Failed to refresh access token.');
+                }
+                
+                const data = await response.json();
+                if (data.access) {
+                    localStorage.setItem('access_token', data.access);
+                    return data.access;
+                }
+                throw new Error('No access token returned.');
+            } catch (error) {
+                console.error('🔄 Token refresh error:', error);
+                throw error;
+            }
+        }
+        
+        async function fetchWithAuth(input, init = {}, retry = true) {
+            if (typeof window === 'undefined') {
+                throw new Error('fetchWithAuth can only be called in browser environment');
+            }
+            
+            let token = localStorage.getItem('access_token');
+            let tokenRefreshedAlready = false;
+            
+            if (!init.headers) {
+                init.headers = {};
+            }
+            
+            if (!init.headers.hasOwnProperty('Content-Type') && !init.body?.toString().includes('FormData')) {
+                init.headers['Content-Type'] = 'application/json';
+            }
+            
+            if (token) {
+                init.headers['Authorization'] = `Bearer ${token}`;
+                log('🔑 Using existing token for request', 'info');
+            } else {
+                log('⚠️ No access token available for request', 'info');
+                
+                let urlString = typeof input === 'string' ? input : input.url || input.toString();
+                
+                if (urlString.includes('/transactions/') || urlString.includes('/users/profile/')) {
+                    log('🔄 No token available for authenticated endpoint, attempting refresh...', 'info');
+                    try {
+                        token = await refreshAccessToken();
+                        log('✅ Token refreshed successfully, retrying request', 'success');
+                        init.headers['Authorization'] = `Bearer ${token}`;
+                        tokenRefreshedAlready = true;
+                    } catch (e) {
+                        log(`❌ Token refresh failed: ${e.message}`, 'error');
+                        return new Response(JSON.stringify({ 
+                            detail: "Authentication credentials were not provided." 
+                        }), { 
+                            status: 401,
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    }
+                }
+            }
+            
+            try {
+                let response = await fetch(input, init);
+                log(`🔶 Response: ${response.status} ${response.statusText}`, 'info');
+                
+                if ((response.status === 401 || response.status === 403) && retry && !tokenRefreshedAlready) {
+                    log('🔄 Token expired, attempting refresh...', 'info');
+                    try {
+                        token = await refreshAccessToken();
+                        log('✅ Token refreshed successfully', 'success');
+                        if (!init.headers) init.headers = {};
+                        init.headers['Authorization'] = `Bearer ${token}`;
+                        log('🔁 Retrying original request with new token', 'info');
+                        response = await fetch(input, init);
+                        log(`🔶 Retry response: ${response.status} ${response.statusText}`, 'info');
+                    } catch (e) {
+                        log(`❌ Token refresh failed: ${e.message}`, 'error');
+                        if (typeof window !== 'undefined') {
+                            localStorage.removeItem('access_token');
+                            localStorage.removeItem('refresh_token');
+                        }
+                        throw new Error('Session expired. Please log in again.');
+                    }
+                }
+                
+                return response;
+            } catch (error) {
+                log(`❌ Fetch error: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+        
+        window.clearAndTest = async function() {
+            log('🗑️ Clearing all tokens...', 'info');
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user');
+            
+            // First, let's get a refresh token
+            log('🔑 Logging in to get refresh token...', 'info');
+            try {
+                const loginResponse = await fetch(`${API_BASE_URL}/token/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+                
+                if (loginResponse.ok) {
+                    const data = await loginResponse.json();
+                    // Only store refresh token, NOT access token
+                    localStorage.setItem('refresh_token', data.refresh);
+                    log('✅ Login successful! Only stored refresh token (simulating expired access token)', 'success');
+                } else {
+                    const errorText = await loginResponse.text();
+                    log(`❌ Login failed: ${loginResponse.status} ${errorText}`, 'error');
+                    return;
+                }
+            } catch (error) {
+                log(`❌ Login error: ${error.message}`, 'error');
+                return;
+            }
+            
+            // Now test transactions API (this should trigger token refresh)
+            log('💰 Testing transactions API (should trigger refresh)...', 'info');
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/transactions/transactions/`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ Transactions API successful! Found ${data.results ? data.results.length : 0} transactions.`, 'success');
+                } else {
+                    const errorText = await response.text();
+                    log(`❌ Transactions API failed: ${response.status} ${errorText}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Transactions API error: ${error.message}`, 'error');
+            }
+        };
+        
+        window.loginAndTest = async function() {
+            log('🔑 Full login and test...', 'info');
+            try {
+                const loginResponse = await fetch(`${API_BASE_URL}/token/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: 'admin',
+                        password: 'admin123'
+                    })
+                });
+                
+                if (loginResponse.ok) {
+                    const data = await loginResponse.json();
+                    localStorage.setItem('access_token', data.access);
+                    localStorage.setItem('refresh_token', data.refresh);
+                    log('✅ Login successful! Stored both tokens', 'success');
+                } else {
+                    const errorText = await loginResponse.text();
+                    log(`❌ Login failed: ${loginResponse.status} ${errorText}`, 'error');
+                    return;
+                }
+            } catch (error) {
+                log(`❌ Login error: ${error.message}`, 'error');
+                return;
+            }
+            
+            // Test transactions API
+            log('💰 Testing transactions API with valid token...', 'info');
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/transactions/transactions/`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ Transactions API successful! Found ${data.results ? data.results.length : 0} transactions.`, 'success');
+                } else {
+                    const errorText = await response.text();
+                    log(`❌ Transactions API failed: ${response.status} ${errorText}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Transactions API error: ${error.message}`, 'error');
+            }
+        };
+        
+        window.checkTokens = function() {
+            const accessToken = localStorage.getItem('access_token');
+            const refreshToken = localStorage.getItem('refresh_token');
+            
+            log(`Access Token: ${accessToken ? 'Present (' + accessToken.substring(0, 20) + '...)' : 'Not found'}`, accessToken ? 'success' : 'info');
+            log(`Refresh Token: ${refreshToken ? 'Present (' + refreshToken.substring(0, 20) + '...)' : 'Not found'}`, refreshToken ? 'success' : 'info');
+        };
+    </script>
+</body>
+</html>

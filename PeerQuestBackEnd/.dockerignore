@@ -1,0 +1,10 @@
+node_modules
+PeerQuestFrontEnd/node_modules
+*.pyc
+__pycache__
+.env
+.git
+.gitignore
+Dockerfile
+.dockerignore
+npm-debug.log

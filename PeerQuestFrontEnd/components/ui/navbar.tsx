@@ -1,44 +1,163 @@
 "use client"
 
-import { useState } from "react"
-import { Star, Menu, X, User, Settings, LogOut, Shield, Search, Bell, MessageSquare, Plus } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Star, Menu, X, User, Settings, LogOut, Shield, Search, Bell, MessageSquare, Plus, Loader2 } from "lucide-react"
 import { Notifications } from '@/components/notifications/notifications'
+import { useAuth } from '@/context/AuthContext';
+import { useTranslation } from 'react-i18next';
+import { LanguageSwitcher } from '@/components/ui/language-switcher';
+import { useRouter } from 'next/navigation';
+import { useClickSound } from '@/hooks/use-click-sound';
+import { useAudioContext } from '@/context/audio-context';
+import QuestForm from '@/components/quests/quest-form'
+import { GoldBalance } from '@/components/ui/gold-balance'
 
 interface NavbarProps {
-  currentUser: any
+  activeSection: string
   setActiveSection: (section: string) => void
   handleLogout: () => void
   openAuthModal: () => void
   openGoldPurchaseModal: () => void
-  openPostQuestModal: () => void
+  openPostQuestModal?: () => void
   openCreateGuildModal: () => void
+  onQuestCreated?: () => void
 }
 
 export function Navbar({
-  currentUser,
+  activeSection,
   setActiveSection,
   handleLogout,
   openAuthModal,
   openGoldPurchaseModal,
   openPostQuestModal,
   openCreateGuildModal,
-}: NavbarProps) {
+  onQuestCreated,
+}: Omit<NavbarProps, 'currentUser'>) {
+  const { user: currentUser } = useAuth(); // Use context directly
+  
+  // Debug: Log user admin fields whenever user changes
+  useEffect(() => {
+    if (currentUser) {
+      console.log('[Navbar] Current user admin fields:', JSON.stringify({
+        is_staff: currentUser.is_staff,
+        is_superuser: currentUser.is_superuser,
+        isSuperuser: currentUser.isSuperuser,
+        showAdminButton: !!(currentUser.is_staff || currentUser.isSuperuser || currentUser.is_superuser),
+        userKeys: Object.keys(currentUser)
+      }, null, 2));
+    }
+  }, [currentUser]);
+  const { t } = useTranslation();
+  // TEMPORARILY DISABLE ROUTER FOR DEBUGGING
+  // const router = useRouter();
+  const { soundEnabled, volume } = useAudioContext();
+  const { playSound } = useClickSound({ enabled: soundEnabled, volume });
+  
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
-  const [unreadMessages, setUnreadMessages] = useState(2)
-  const [unreadNotifications, setUnreadNotifications] = useState(3)
+  const [unreadMessages, setUnreadMessages] = useState(0)
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [quickActionsOpen, setQuickActionsOpen] = useState(false)
-  const activeSection = "" // Declare the activeSection variable
+  const [showQuestForm, setShowQuestForm] = useState(false)
+  const [avatarError, setAvatarError] = useState(false)
+  const [loadingMessages, setLoadingMessages] = useState(false)
+  // Robust avatar getter
+  const getAvatar = (u: any) => {
+    let avatar = u?.avatar || u?.avatar_url;
+    if (!avatar && typeof u?.avatar_data === 'string' && u.avatar_data.startsWith('data:')) {
+      avatar = u.avatar_data;
+    }
+    if (typeof avatar !== 'string' || !(avatar.startsWith('http') || avatar.startsWith('data:'))) {
+      avatar = '/default-avatar.png';
+    }
+    return avatar;
+  };
 
   const handleNavigation = (section: string) => {
-    setActiveSection(section)
-    setMobileMenuOpen(false)
-    // Close any open dropdowns when navigating
-    setUserDropdownOpen(false)
-    setNotificationsOpen(false)
-    setQuickActionsOpen(false)
+    playSound('nav');
+    if (
+      section === "profile" ||
+      section === "settings" ||
+      section === "quest-management" ||
+      section === "admin"
+    ) {
+      setActiveSection(section);
+    } else if (section === "messages") {
+      setActiveSection("messages");
+      setLoadingMessages(false);
+    } else if (section === "search") {
+      setActiveSection("search");
+    } else {
+      setActiveSection(section);
+    }
+    setMobileMenuOpen(false);
+    setUserDropdownOpen(false);
+    setNotificationsOpen(false);
+    setQuickActionsOpen(false);
   }
+
+  // Reset loading state when route changes away from /messages
+  useEffect(() => {
+    if (!loadingMessages) return;
+    const handleRouteChange = () => {
+      setLoadingMessages(false);
+    };
+    window.addEventListener('popstate', handleRouteChange);
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange);
+    };
+  }, [loadingMessages]);
+
+  const handleOpenQuestForm = () => {
+    setShowQuestForm(true)
+    setQuickActionsOpen(false)
+    setMobileMenuOpen(false)
+  }
+
+  const handleQuestFormSuccess = (quest: any) => {
+    setShowQuestForm(false)
+    // Call the callback to refresh quest board data silently
+    if (onQuestCreated) {
+      onQuestCreated()
+    }
+    // Don't navigate automatically - let user stay on current page
+  }
+
+  // Fetch notifications count from backend
+  useEffect(() => {
+    if (!currentUser) return;
+    const fetchNotifications = async () => {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      if (!token) {
+        console.warn('[Navbar] No access token found in localStorage. User may not be logged in.');
+        setUnreadNotifications(0);
+        return;
+      }
+      try {
+        const res = await fetch(`/api/notifications-proxy`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        if (res.status === 401) {
+          console.warn('[Navbar] Access token is invalid or expired. Logging out user.');
+          setUnreadNotifications(0);
+          // Optionally, call handleLogout() here if you want to auto-logout
+          return;
+        }
+        if (!res.ok) throw new Error(`Failed to fetch notifications (status ${res.status})`);
+        const data = await res.json();
+        setUnreadNotifications(data.filter((n: any) => !n.read).length);
+      } catch (err) {
+        console.error('[Navbar] Failed to fetch notifications:', err);
+        setUnreadNotifications(0);
+      }
+    };
+    fetchNotifications();
+  }, [currentUser]);
 
   return (
     <nav className="bg-[#2C1A1D] text-[#F4F0E6] px-6 py-4 shadow-lg sticky top-0 z-40">
@@ -59,7 +178,7 @@ export function Navbar({
                 : "text-[#F4F0E6] hover:text-[#CDAA7D]"
             }`}
           >
-            Home
+            {t('navbar.home')}
           </button>
           <button
             onClick={() => handleNavigation("quest-board")}
@@ -69,7 +188,7 @@ export function Navbar({
                 : "text-[#F4F0E6] hover:text-[#CDAA7D]"
             }`}
           >
-            Quest Board
+            {t('navbar.questBoard')}
           </button>
           <button
             onClick={() => handleNavigation("guild-hall")}
@@ -79,7 +198,7 @@ export function Navbar({
                 : "text-[#F4F0E6] hover:text-[#CDAA7D]"
             }`}
           >
-            Guild Hall
+            {t('navbar.guildHall')}
           </button>
           <button
             onClick={() => handleNavigation("about")}
@@ -89,7 +208,7 @@ export function Navbar({
                 : "text-[#F4F0E6] hover:text-[#CDAA7D]"
             }`}
           >
-            About
+            {t('navbar.about')}
           </button>
         </div>
 
@@ -97,21 +216,16 @@ export function Navbar({
           {currentUser ? (
             <>
               <div className="hidden md:flex items-center space-x-2 mr-4">
-                <div className="bg-[#CDAA7D]/10 px-3 py-1 rounded-full flex items-center">
-                  <span className="text-[#CDAA7D] font-medium">{currentUser.gold} Gold</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      openGoldPurchaseModal()
-                    }}
-                    className="ml-2 text-xs bg-[#CDAA7D] text-white px-2 py-0.5 rounded hover:bg-[#B89A6D] transition-colors"
-                  >
-                    +
-                  </button>
+                <div onClick={(e) => {
+                  // Prevent any event bubbling from GoldBalance to navbar
+                  e.stopPropagation();
+                }}>
+                  <GoldBalance openGoldPurchaseModal={openGoldPurchaseModal} />
                 </div>
               </div>
 
               <div className="hidden md:flex items-center space-x-4">
+                <LanguageSwitcher />
                 <div className="relative">
                   <button
                     onClick={() => {
@@ -121,6 +235,7 @@ export function Navbar({
                       setNotificationsOpen(false)
                     }}
                     className="w-8 h-8 bg-[#CDAA7D] rounded-full flex items-center justify-center text-[#2C1A1D] hover:bg-[#B89A6D] transition-colors"
+                    aria-label="Open quick actions menu"
                   >
                     <Plus size={18} />
                   </button>
@@ -128,24 +243,26 @@ export function Navbar({
                   {quickActionsOpen && (
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
                       <button
-                        onClick={() => {
-                          setQuickActionsOpen(false)
-                          openPostQuestModal()
-                        }}
+                        onClick={handleOpenQuestForm}
                         className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                       >
                         <Plus size={16} className="mr-2" />
-                        Post a Quest
+                        {t('navbar.postQuest')}
                       </button>
                       <button
                         onClick={() => {
-                          setQuickActionsOpen(false)
-                          openCreateGuildModal()
+                          setQuickActionsOpen(false);
+                          console.log('Create a Guild button pressed!');
+                          if (typeof openCreateGuildModal === 'function') {
+                            openCreateGuildModal();
+                          } else {
+                            alert('Create Guild modal function is not available.');
+                          }
                         }}
                         className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                       >
                         <Plus size={16} className="mr-2" />
-                        Create a Guild
+                        {t('navbar.createGuild')}
                       </button>
                     </div>
                   )}
@@ -154,15 +271,21 @@ export function Navbar({
                 <button
                   onClick={() => handleNavigation("search")}
                   className="text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors"
+                  aria-label="Search"
                 >
                   <Search size={20} />
                 </button>
                 <button
                   onClick={() => handleNavigation("messages")}
                   className="text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors relative"
+                  disabled={loadingMessages}
                 >
-                  <MessageSquare size={20} />
-                  {unreadMessages > 0 && (
+                  {loadingMessages ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : (
+                    <MessageSquare size={20} />
+                  )}
+                  {unreadMessages > 0 && !loadingMessages && (
                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-4 h-4 flex items-center justify-center rounded-full">
                       {unreadMessages}
                     </span>
@@ -189,8 +312,25 @@ export function Navbar({
                     }}
                     className="flex items-center focus:outline-none"
                   >
-                    <div className="w-8 h-8 bg-[#8B75AA] rounded-full flex items-center justify-center text-white">
-                      {currentUser.avatar}
+                    <div className="w-8 h-8 bg-[#8B75AA] rounded-full flex items-center justify-center text-white overflow-hidden">
+                      {(() => {
+                        const avatar = getAvatar(currentUser);
+                        if ((avatar.startsWith('http') || avatar.startsWith('data:')) && !avatarError) {
+                          return (
+                            <img
+                              src={avatar}
+                              alt="Profile"
+                              className="w-full h-full object-cover"
+                              onError={() => setAvatarError(true)}
+                            />
+                          );
+                        }
+                        return (
+                          <span className="text-white select-none">
+                            {currentUser.username?.[0]?.toUpperCase() || "👤"}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </button>
 
@@ -198,17 +338,17 @@ export function Navbar({
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
                       <div className="px-4 py-2 border-b border-gray-200">
                         <p className="text-sm font-medium text-[#2C1A1D]">{currentUser.username}</p>
-                        <p className="text-xs text-[#2C1A1D]/60">Level {currentUser.level}</p>
+                        <p className="text-xs text-[#2C1A1D]/60">{t('navbar.level')} {(currentUser as any).level || 1}</p>
                       </div>
                       <button
                         onClick={() => {
-                          handleNavigation("profile")
-                          setUserDropdownOpen(false)
+                          handleNavigation("profile");
+                          setUserDropdownOpen(false);
                         }}
                         className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                       >
                         <User size={16} className="mr-2" />
-                        Profile
+                        {t('navbar.profile')}
                       </button>
                       <button
                         onClick={() => {
@@ -218,7 +358,7 @@ export function Navbar({
                         className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                       >
                         <Search size={16} className="mr-2" />
-                        Quest Management
+                        {t('navbar.questManagement')}
                       </button>
                       <button
                         onClick={() => {
@@ -228,7 +368,7 @@ export function Navbar({
                         className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                       >
                         <Search size={16} className="mr-2" />
-                        Guild Management
+                        {t('navbar.guildManagement')}
                       </button>
                       <button
                         onClick={() => {
@@ -238,9 +378,10 @@ export function Navbar({
                         className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                       >
                         <Settings size={16} className="mr-2" />
-                        Settings
+                        {t('navbar.settings')}
                       </button>
-                      {currentUser.roles && currentUser.roles.includes("admin") && (
+                      {/* Debug box removed */}
+                      {currentUser && (currentUser.is_staff || currentUser.isSuperuser || currentUser.is_superuser) && (
                         <button
                           onClick={() => {
                             handleNavigation("admin")
@@ -249,7 +390,7 @@ export function Navbar({
                           className="flex items-center px-4 py-2 text-sm text-[#2C1A1D] hover:bg-[#F4F0E6] w-full text-left"
                         >
                           <Shield size={16} className="mr-2" />
-                          Admin Panel
+                          {t('navbar.adminPanel')}
                         </button>
                       )}
                       <button
@@ -257,7 +398,7 @@ export function Navbar({
                         className="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left"
                       >
                         <LogOut size={16} className="mr-2" />
-                        Logout
+                        {t('navbar.logout')}
                       </button>
                     </div>
                   )}
@@ -265,31 +406,29 @@ export function Navbar({
               </div>
             </>
           ) : (
-            <div className="hidden md:block">
+            <div className="hidden md:flex items-center space-x-4">
+              <LanguageSwitcher />
               <button
-                onClick={openAuthModal}
+                onClick={() => {
+                  playSound('button');
+                  openAuthModal();
+                }}
                 className="bg-[#CDAA7D] text-[#2C1A1D] px-4 py-2 rounded hover:bg-[#B8941F] transition-colors uppercase font-medium"
               >
-                Enter Tavern
+                {t('navbar.enterTavern')}
               </button>
             </div>
           )}
 
           {/* Mobile menu button */}
-          <div className="md:hidden flex items-center">
-            {currentUser && (
-              <div className="flex items-center mr-4">
-                <div className="bg-[#CDAA7D]/10 px-2 py-1 rounded-full flex items-center">
-                  <span className="text-[#CDAA7D] text-sm font-medium">{currentUser.gold}</span>
-                  <button
-                    onClick={openGoldPurchaseModal}
-                    className="ml-1 text-xs bg-[#CDAA7D] text-white px-1.5 py-0.5 rounded hover:bg-[#B89A6D] transition-colors"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            )}
+          <div className="md:hidden flex items-center space-x-2">
+            <LanguageSwitcher />
+          {/* Hide gold button for banned users (user should never be set if banned, but double check) */}
+          {currentUser && !currentUser.isBanned && (
+            <div className="flex items-center mr-4">
+              <GoldBalance openGoldPurchaseModal={openGoldPurchaseModal} />
+            </div>
+          )}
             <button
               onClick={() => {
                 setMobileMenuOpen(!mobileMenuOpen)
@@ -314,39 +453,36 @@ export function Navbar({
               onClick={() => handleNavigation("home")}
               className="text-left py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors uppercase"
             >
-              Home
+              {t('navbar.home')}
             </button>
             <button
               onClick={() => handleNavigation("quest-board")}
               className="text-left py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors uppercase"
             >
-              Quest Board
+              {t('navbar.questBoard')}
             </button>
             <button
               onClick={() => handleNavigation("guild-hall")}
               className="text-left py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors uppercase"
             >
-              Guild Hall
+              {t('navbar.guildHall')}
             </button>
             <button
               onClick={() => handleNavigation("about")}
               className="text-left py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors uppercase"
             >
-              About
+              {t('navbar.about')}
             </button>
 
             {currentUser ? (
               <>
                 <div className="border-t border-[#CDAA7D]/30 pt-2 mt-2">
                   <button
-                    onClick={() => {
-                      setMobileMenuOpen(false)
-                      openPostQuestModal()
-                    }}
+                    onClick={handleOpenQuestForm}
                     className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
                   >
                     <Plus size={16} className="mr-2" />
-                    Post a Quest
+                    {t('navbar.postQuest')}
                   </button>
                   <button
                     onClick={() => {
@@ -356,7 +492,7 @@ export function Navbar({
                     className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
                   >
                     <Plus size={16} className="mr-2" />
-                    Create a Guild
+                    {t('navbar.createGuild')}
                   </button>
                   <button
                     onClick={() => handleNavigation("search")}
@@ -388,43 +524,46 @@ export function Navbar({
                       <span className="ml-2 bg-red-500 text-white text-xs px-1.5 rounded-full">
                         {unreadNotifications}
                       </span>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleNavigation("profile")}
-                    className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
-                  >
-                    <User size={16} className="mr-2" />
-                    Profile
-                  </button>
+                    )}                </button>
+                {/* Gold balance for mobile view */}
+                <div className="py-2 text-[#CDAA7D] font-medium flex items-center w-full">
+                  <GoldBalance openGoldPurchaseModal={openGoldPurchaseModal} />
+                </div>
+                <button
+                  onClick={() => handleNavigation("profile")}
+                  className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
+                >
+                  <User size={16} className="mr-2" />
+                  {t('navbar.profile')}
+                </button>
                   <button
                     onClick={() => handleNavigation("quest-management")}
                     className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
                   >
                     <Search size={16} className="mr-2" />
-                    Quest Management
+                    {t('navbar.questManagement')}
                   </button>
                   <button
                     onClick={() => handleNavigation("guild-management")}
                     className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
                   >
                     <Search size={16} className="mr-2" />
-                    Guild Management
+                    {t('navbar.guildManagement')}
                   </button>
                   <button
                     onClick={() => handleNavigation("settings")}
                     className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
                   >
                     <Settings size={16} className="mr-2" />
-                    Settings
+                    {t('navbar.settings')}
                   </button>
-                  {currentUser.roles && currentUser.roles.includes("admin") && (
+                  {currentUser && (currentUser.is_staff || currentUser.isSuperuser || currentUser.is_superuser) && (
                     <button
                       onClick={() => handleNavigation("admin")}
                       className="flex items-center py-2 text-[#F4F0E6] hover:text-[#CDAA7D] transition-colors w-full text-left"
                     >
                       <Shield size={16} className="mr-2" />
-                      Admin Panel
+                      {t('navbar.adminPanel')}
                     </button>
                   )}
                   <button
@@ -432,7 +571,7 @@ export function Navbar({
                     className="flex items-center py-2 text-red-400 hover:text-red-300 transition-colors w-full text-left"
                   >
                     <LogOut size={16} className="mr-2" />
-                    Logout
+                    {t('navbar.logout')}
                   </button>
                 </div>
               </>
@@ -444,7 +583,7 @@ export function Navbar({
                 }}
                 className="mt-2 bg-[#CDAA7D] text-[#2C1A1D] px-4 py-2 rounded hover:bg-[#B8941F] transition-colors uppercase font-medium w-full"
               >
-                Enter Tavern
+                {t('navbar.enterTavern')}
               </button>
             )}
           </div>
@@ -452,15 +591,29 @@ export function Navbar({
       )}
 
       {/* Notifications dropdown */}
-      {notificationsOpen && (
+      {notificationsOpen && typeof window !== 'undefined' && (
         <div className="absolute right-4 md:right-24 top-16 w-80 bg-white rounded-md shadow-lg py-1 z-50">
           <Notifications
             currentUser={currentUser}
             onClose={() => setNotificationsOpen(false)}
-            setActiveSection={handleNavigation}
           />
         </div>
+      )}
+
+      {/* Quest Form Modal */}
+      {typeof window !== 'undefined' && (
+        <QuestForm
+          quest={null}
+          isOpen={showQuestForm}
+          onClose={() => {
+            setShowQuestForm(false)
+          }}
+          onSuccess={handleQuestFormSuccess}
+          isEditing={false}
+          currentUser={currentUser}
+        />
       )}
     </nav>
   )
 }
+

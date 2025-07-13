@@ -1,0 +1,5 @@
+<!-- This is a placeholder. Replace this file with your actual GCash QR code image -->
+<!-- Recommended filename: gcash-qr.png -->
+<!-- Recommended size: 256x256 to 512x512 pixels -->
+
+<!-- For now, you can use any QR code image or I can help you create a placeholder -->

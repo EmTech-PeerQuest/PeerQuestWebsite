@@ -78,7 +78,7 @@ export function AdminPanel({
 
   const handleBanUser = (userId: number) => {
     const finalReason = banReason === "custom" ? customBanReason : banReason
-    setUsers(users.map((user) => (user.id === userId ? { ...user, banned: true, banReason: finalReason } : user)))
+    setUsers(users.map((user) => (user.id === String(userId) ? { ...user, banned: true, banReason: finalReason } : user)))
     showToast(`User has been banned. Reason: ${finalReason}`, "success")
     setShowBanConfirm(null)
     setBanReason("")
@@ -86,7 +86,7 @@ export function AdminPanel({
   }
 
   const handleUnbanUser = (userId: number) => {
-    setUsers(users.map((user) => (user.id === userId ? { ...user, banned: false } : user)))
+    setUsers(users.map((user) => (user.id === String(userId) ? { ...user, banned: false } : user)))
     showToast(`User has been unbanned.`, "success")
   }
 
@@ -433,7 +433,7 @@ export function AdminPanel({
                           </td>
                           <td className="py-2 px-4 border-b">
                             <span className="bg-gray-200 text-gray-700 text-xs px-2 py-1 rounded">
-                              {quest.category}
+                              {quest.category.name}
                             </span>
                           </td>
                           <td className="py-2 px-4 border-b">
@@ -518,7 +518,7 @@ export function AdminPanel({
                             </span>
                           </td>
                           <td className="py-2 px-4 border-b">
-                            {guild.createdAt ? new Date(guild.createdAt).toLocaleDateString() : "N/A"}
+                            {guild.created_at ? new Date(guild.created_at).toLocaleDateString() : "N/A"}
                           </td>
                           <td className="py-2 px-4 border-b">
                             <div className="flex space-x-2">
@@ -671,7 +671,7 @@ export function AdminPanel({
                 No
               </button>
               <button
-                onClick={() => handleBanUser(showBanConfirm)}
+                onClick={() => handleBanUser(showBanConfirm!)}
                 disabled={!banReason || (banReason === "custom" && !customBanReason.trim())}
                 className={`px-4 py-2 rounded transition-colors ${
                   banReason && (banReason !== "custom" || customBanReason.trim())
@@ -713,31 +713,31 @@ export function AdminPanel({
               <div>
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-16 h-16 bg-[#8B75AA] rounded-full flex items-center justify-center text-white text-xl font-bold">
-                    {selectedUserDetails.avatar}
+                    {selectedUserDetails?.avatar}
                   </div>
                   <div>
-                    <h4 className="text-lg font-bold text-[#2C1A1D]">{selectedUserDetails.username}</h4>
-                    <p className="text-[#8B75AA]">{selectedUserDetails.email}</p>
+                    <h4 className="text-lg font-bold text-[#2C1A1D]">{selectedUserDetails?.username}</h4>
+                    <p className="text-[#8B75AA]">{selectedUserDetails?.email}</p>
                   </div>
                 </div>
 
                 <div className="space-y-3">
                   <div>
                     <label className="text-sm font-medium text-gray-600">Level</label>
-                    <p className="text-[#2C1A1D]">{selectedUserDetails.level}</p>
+                    <p className="text-[#2C1A1D]">{selectedUserDetails?.level}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">XP</label>
-                    <p className="text-[#2C1A1D]">{selectedUserDetails.xp}</p>
+                    <p className="text-[#2C1A1D]">{selectedUserDetails?.xp}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Gold</label>
-                    <p className="text-[#2C1A1D]">{selectedUserDetails.gold}</p>
+                    <p className="text-[#2C1A1D]">{selectedUserDetails?.gold}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Joined</label>
                     <p className="text-[#2C1A1D]">
-                      {selectedUserDetails.createdAt
+                      {selectedUserDetails?.createdAt
                         ? new Date(selectedUserDetails.createdAt).toLocaleDateString()
                         : "N/A"}
                     </p>
@@ -750,23 +750,23 @@ export function AdminPanel({
                 <div className="space-y-3">
                   <div>
                     <label className="text-sm font-medium text-gray-600">Completed Quests</label>
-                    <p className="text-[#2C1A1D]">{selectedUserDetails.completedQuests}</p>
+                    <p className="text-[#2C1A1D]">{selectedUserDetails?.completedQuests}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Created Quests</label>
-                    <p className="text-[#2C1A1D]">{selectedUserDetails.createdQuests}</p>
+                    <p className="text-[#2C1A1D]">{selectedUserDetails?.createdQuests}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Joined Guilds</label>
-                    <p className="text-[#2C1A1D]">{selectedUserDetails.joinedGuilds}</p>
+                    <p className="text-[#2C1A1D]">{selectedUserDetails?.joinedGuilds}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Created Guilds</label>
-                    <p className="text-[#2C1A1D]">{selectedUserDetails.createdGuilds}</p>
+                    <p className="text-[#2C1A1D]">{selectedUserDetails?.createdGuilds}</p>
                   </div>
                 </div>
 
-                {selectedUserDetails.bio && (
+                {selectedUserDetails?.bio && (
                   <div className="mt-4">
                     <label className="text-sm font-medium text-gray-600">Bio</label>
                     <p className="text-[#2C1A1D] text-sm">{selectedUserDetails.bio}</p>
@@ -791,24 +791,24 @@ export function AdminPanel({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h4 className="text-lg font-bold text-[#2C1A1D] mb-4">{selectedQuestDetails.title}</h4>
+                <h4 className="text-lg font-bold text-[#2C1A1D] mb-4">{selectedQuestDetails?.title}</h4>
                 <div className="space-y-3">
                   <div>
                     <label className="text-sm font-medium text-gray-600">Category</label>
-                    <p className="text-[#2C1A1D]">{selectedQuestDetails.category}</p>
+                    <p className="text-[#2C1A1D]">{selectedQuestDetails?.category?.name}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Status</label>
-                    <p className="text-[#2C1A1D]">{selectedQuestDetails.status}</p>
+                    <p className="text-[#2C1A1D]">{selectedQuestDetails?.status}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Reward</label>
-                    <p className="text-[#2C1A1D]">{selectedQuestDetails.reward} Gold</p>
+                    <p className="text-[#2C1A1D]">{selectedQuestDetails?.reward} Gold</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Created</label>
                     <p className="text-[#2C1A1D]">
-                      {selectedQuestDetails.createdAt
+                      {selectedQuestDetails?.createdAt
                         ? new Date(selectedQuestDetails.createdAt).toLocaleDateString()
                         : "N/A"}
                     </p>
@@ -820,19 +820,19 @@ export function AdminPanel({
                 <h5 className="font-medium text-[#2C1A1D] mb-3">Posted By</h5>
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-12 h-12 bg-[#8B75AA] rounded-full flex items-center justify-center text-white font-bold">
-                    {selectedQuestDetails.poster?.avatar}
+                    {selectedQuestDetails?.poster?.avatar}
                   </div>
                   <div>
-                    <p className="font-medium text-[#2C1A1D]">{selectedQuestDetails.poster?.username}</p>
+                    <p className="font-medium text-[#2C1A1D]">{selectedQuestDetails?.poster?.username}</p>
                   </div>
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-600">Description</label>
-                  <p className="text-[#2C1A1D] text-sm mt-1">{selectedQuestDetails.description}</p>
+                  <p className="text-[#2C1A1D] text-sm mt-1">{selectedQuestDetails?.description}</p>
                 </div>
 
-                {selectedQuestDetails.requirements && (
+                {selectedQuestDetails?.requirements && (
                   <div className="mt-4">
                     <label className="text-sm font-medium text-gray-600">Requirements</label>
                     <ul className="text-[#2C1A1D] text-sm mt-1 list-disc list-inside">
@@ -863,28 +863,28 @@ export function AdminPanel({
               <div>
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-16 h-16 bg-[#CDAA7D] rounded-lg flex items-center justify-center text-2xl">
-                    {selectedGuildDetails.emblem}
+                    {selectedGuildDetails?.emblem}
                   </div>
                   <div>
-                    <h4 className="text-lg font-bold text-[#2C1A1D]">{selectedGuildDetails.username}</h4>
-                    <p className="text-[#8B75AA]">{selectedGuildDetails.specialization}</p>
+                    <h4 className="text-lg font-bold text-[#2C1A1D]">{selectedGuildDetails?.username}</h4>
+                    <p className="text-[#8B75AA]">{selectedGuildDetails?.specialization}</p>
                   </div>
                 </div>
 
                 <div className="space-y-3">
                   <div>
                     <label className="text-sm font-medium text-gray-600">Members</label>
-                    <p className="text-[#2C1A1D]">{selectedGuildDetails.members}</p>
+                    <p className="text-[#2C1A1D]">{selectedGuildDetails?.members}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Funds</label>
-                    <p className="text-[#2C1A1D]">{selectedGuildDetails.funds || 0} Gold</p>
+                    <p className="text-[#2C1A1D]">{selectedGuildDetails?.funds || 0} Gold</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Created</label>
                     <p className="text-[#2C1A1D]">
-                      {selectedGuildDetails.createdAt
-                        ? new Date(selectedGuildDetails.createdAt).toLocaleDateString()
+                      {selectedGuildDetails?.created_at
+                        ? new Date(selectedGuildDetails.created_at).toLocaleDateString()
                         : "N/A"}
                     </p>
                   </div>
@@ -895,19 +895,19 @@ export function AdminPanel({
                 <h5 className="font-medium text-[#2C1A1D] mb-3">Owner</h5>
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-12 h-12 bg-[#8B75AA] rounded-full flex items-center justify-center text-white font-bold">
-                    {selectedGuildDetails.poster?.avatar}
+                    {selectedGuildDetails?.poster?.avatar}
                   </div>
                   <div>
-                    <p className="font-medium text-[#2C1A1D]">{selectedGuildDetails.poster?.username}</p>
+                    <p className="font-medium text-[#2C1A1D]">{selectedGuildDetails?.poster?.username}</p>
                   </div>
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-gray-600">Description</label>
-                  <p className="text-[#2C1A1D] text-sm mt-1">{selectedGuildDetails.description}</p>
+                  <p className="text-[#2C1A1D] text-sm mt-1">{selectedGuildDetails?.description}</p>
                 </div>
 
-                {selectedGuildDetails.requirements && (
+                {selectedGuildDetails?.requirements && (
                   <div className="mt-4">
                     <label className="text-sm font-medium text-gray-600">Requirements</label>
                     <ul className="text-[#2C1A1D] text-sm mt-1 list-disc list-inside">
@@ -967,7 +967,7 @@ export function AdminPanel({
                 Cancel
               </button>
               <button
-                onClick={() => handleDeleteQuest(showDeleteQuestConfirm)}
+                onClick={() => handleDeleteQuest(showDeleteQuestConfirm!)}
                 disabled={!deleteQuestReason || (deleteQuestReason === "custom" && !customDeleteQuestReason.trim())}
                 className={`px-4 py-2 rounded transition-colors ${
                   deleteQuestReason && (deleteQuestReason !== "custom" || customDeleteQuestReason.trim())
@@ -1026,7 +1026,7 @@ export function AdminPanel({
                 Cancel
               </button>
               <button
-                onClick={() => handleDeleteGuild(showDeleteGuildConfirm)}
+                onClick={() => handleDeleteGuild(showDeleteGuildConfirm!)}
                 disabled={!deleteGuildReason || (deleteGuildReason === "custom" && !customDeleteGuildReason.trim())}
                 className={`px-4 py-2 rounded transition-colors ${
                   deleteGuildReason && (deleteGuildReason !== "custom" || customDeleteGuildReason.trim())

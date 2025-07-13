@@ -12,9 +12,10 @@ interface MessagingModalProps {
   recipient: UserType
   currentUser: UserType
   showToast: (message: string, type?: string) => void
+  onlineUsers?: Map<string, "online" | "idle" | "offline"> // Pass onlineUsers map for real-time status
 }
 
-export function MessagingModal({ isOpen, onClose, recipient, currentUser, showToast }: MessagingModalProps) {
+export function MessagingModal({ isOpen, onClose, recipient, currentUser, showToast, onlineUsers }: MessagingModalProps) {
   const [message, setMessage] = useState("")
   const [messages, setMessages] = useState([
     {
@@ -30,6 +31,31 @@ export function MessagingModal({ isOpen, onClose, recipient, currentUser, showTo
       timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000),
     },
   ])
+
+  // Only use onlineUsers map for recipient online status (no backend fallback)
+  // Support all online/idle/offline states. If not in map, treat as offline.
+  let presence: "online" | "idle" | "offline" = "offline";
+  if (onlineUsers && onlineUsers.has(recipient.id)) {
+    presence = onlineUsers.get(recipient.id) as "online" | "idle" | "offline";
+  }
+  // Dot color and label by presence
+  let dotColor = "bg-gray-300";
+  let dotLabel = "Offline";
+  let dotText = "text-gray-400";
+  if (presence === "online") {
+    dotColor = "bg-green-500";
+    dotLabel = "Online";
+    dotText = "text-green-500";
+  } else if (presence === "idle") {
+    dotColor = "bg-amber-400";
+    dotLabel = "Idle";
+    dotText = "text-amber-500";
+  }
+  // Always show Online if presence is online, never show Offline if user is online
+  if (presence === "online") {
+    dotLabel = "Online";
+    dotText = "text-green-500";
+  }
 
   if (!isOpen) return null
 
@@ -62,8 +88,26 @@ export function MessagingModal({ isOpen, onClose, recipient, currentUser, showTo
         <div className="bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] text-white p-4 rounded-t-lg">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#2C1A1D] rounded-full flex items-center justify-center text-white font-bold">
-                {recipient.avatar || recipient.username?.[0]?.toUpperCase() || "U"}
+              <div className="relative w-10 h-10">
+                <div className="w-10 h-10 bg-[#2C1A1D] rounded-full flex items-center justify-center text-white font-bold relative">
+                  {recipient.avatar ? (
+                    <img
+                      src={recipient.avatar}
+                      alt={recipient.username}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    recipient.username?.[0]?.toUpperCase() || "U"
+                  )}
+                  {/* Online status dot with label - always render, color by presence */}
+                  <span
+                    className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white z-10 ${dotColor}`}
+                    title={dotLabel}
+                  />
+                </div>
+                <span className={`ml-2 text-xs font-semibold ${dotText}`}>
+                  {dotLabel}
+                </span>
               </div>
               <div>
                 <h2 className="font-bold">{recipient.username}</h2>
