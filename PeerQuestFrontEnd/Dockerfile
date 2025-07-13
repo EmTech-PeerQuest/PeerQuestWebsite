@@ -35,3 +35,5 @@ ENV NODE_ENV=production
 EXPOSE 3000
 
 CMD ["pnpm", "start"]
+RUN echo "API: $NEXT_PUBLIC_API_BASE_URL"
+RUN echo "API: $NEXT_PUBLIC_MEDIA_URL"
