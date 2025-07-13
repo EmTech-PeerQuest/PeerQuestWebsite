@@ -22,4 +22,5 @@ RUN pip install --no-cache-dir -r requirements.txt && pip install watchdog
 COPY . .
 
 # Command to run your Django app with faked migration
-CMD ["sh", "-c", "python manage.py migrate users --fake-initial && python manage.py migrate && gunicorn core.wsgi:application --bind 0.0.0.0:8000"]
+CMD ["sh", "-c", "python manage.py makemigrations --noinput && python manage.py migrate --fake-initial && gunicorn core.wsgi:application --bind 0.0.0.0:8000"]
+
