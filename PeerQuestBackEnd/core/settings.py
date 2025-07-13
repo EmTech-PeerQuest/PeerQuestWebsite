@@ -141,13 +141,14 @@ else:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.mysql',
-            'NAME': os.environ.get('DB_NAME', 'peerquestdb'),
-            'USER': os.environ.get('DB_USER', 'peerquestuser'),
-            'PASSWORD': os.environ.get('DB_PASSWORD', 'peerquestpass'),
-            'HOST': os.environ.get('DB_HOST', 'mysql'),
-            'PORT': os.environ.get('DB_PORT', '3306'),
+            'NAME': os.environ.get('MYSQLDATABASE', 'railway'),
+            'USER': os.environ.get('MYSQLUSER', 'root'),
+            'PASSWORD': os.environ.get('MYSQLPASSWORD'),
+            'HOST': os.environ.get('MYSQLHOST', 'mysql.railway.internal'),
+            'PORT': os.environ.get('MYSQLPORT', '3306'),
         }
     }
+
 
 # Enhanced Password validation with superadmin exemption
 AUTH_PASSWORD_VALIDATORS = [
