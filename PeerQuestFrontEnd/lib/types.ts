@@ -26,6 +26,7 @@ export interface User {
   email_verified?: boolean;
   username?: string;
   avatar?: string;
+  avatar_url?: string;
   isOnline?: boolean
   lastSeen?: string
   isBanned?: boolean;
@@ -398,6 +399,7 @@ export interface Conversation {
   last_message_date?: string
   created_at?: string
   guildId?: string
+  hasUnreadMessages?: boolean;
 }
 
 export interface Message {

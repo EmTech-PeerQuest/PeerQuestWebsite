@@ -6,11 +6,11 @@ User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
     is_online = serializers.SerializerMethodField()
-    avatar = serializers.SerializerMethodField()
+    avatar_url = serializers.SerializerMethodField()
     
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'avatar', 'is_online']
+        fields = ['id', 'username', 'email', 'is_online', 'avatar_url']
     
     def get_is_online(self, obj):
         try:
@@ -18,11 +18,17 @@ class UserSerializer(serializers.ModelSerializer):
         except UserPresence.DoesNotExist:
             return False
     
-    def get_avatar(self, obj):
+    def get_avatar_url(self, obj):
         try:
-            return obj.avatar.url if obj.avatar else None
-        except Exception:
-            return None
+            # Use avatar_url field (from Google OAuth or similar)
+            avatar_url = getattr(obj, 'avatar_url', None)
+            if avatar_url:
+                return avatar_url
+            username = getattr(obj, 'username', None) or 'U'
+            return f'https://ui-avatars.com/api/?name={username}&background=8b75aa&color=fff&size=128'
+        except Exception as e:
+            print("get_avatar_url error:", e)
+            return 'https://ui-avatars.com/api/?name=U&background=8b75aa&color=fff&size=128'
 
 
 class MessageAttachmentSerializer(serializers.ModelSerializer):

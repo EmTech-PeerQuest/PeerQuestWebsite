@@ -447,6 +447,20 @@ def my_join_requests(request, guild_id):
     else:
         return Response({'message': 'No join requests found'}, status=status.HTTP_404_NOT_FOUND)
 
+# --- Guild Chat Messages API ---
+from .models import GuildChatMessage
+from .serializers import GuildChatMessageSerializer
+
+class GuildChatMessageListView(generics.ListAPIView):
+    serializer_class = GuildChatMessageSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        guild_id = self.kwargs['guild_id']
+        return GuildChatMessage.objects.filter(
+            guild__guild_id=guild_id
+        ).order_by('created_at')
+
 
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated])

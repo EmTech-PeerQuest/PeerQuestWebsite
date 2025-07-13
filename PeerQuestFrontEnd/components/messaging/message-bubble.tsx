@@ -3,9 +3,6 @@
 import type React from "react";
 import type { Message, User, Attachment, MessageStatus } from "@/lib/types";
 import {
-  Check,
-  CheckCheck,
-  AlertCircle,
   File,
   FileText,
   ImageIcon,
@@ -23,16 +20,7 @@ export interface MessageBubbleProps {
   onlineUsers?: Map<string, "online" | "idle" | "offline">;
 }
 
-const getStatusIcon = (status: MessageStatus) => {
-  const icons: Record<MessageStatus, JSX.Element> = {
-    sending: <Check className="w-3 h-3" style={{ color: "var(--tavern-purple)" }} />,
-    sent: <Check className="w-3 h-3" style={{ color: "var(--tavern-gold)" }} />,
-    delivered: <CheckCheck className="w-3 h-3" style={{ color: "var(--tavern-gold)" }} />,
-    read: <CheckCheck className="w-3 h-3" style={{ color: "var(--tavern-purple)" }} />,
-    failed: <AlertCircle className="w-3 h-3 text-red-500" />,
-  };
-  return icons[status] ?? null;
-};
+// Removed getStatusIcon and all check icon logic. Only text will be shown for status.
 
 const getFileIcon = (a: Attachment) =>
   a.is_image ? (
@@ -207,7 +195,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             )}
           >
             <span>{time}</span>
-            {isOwnMessage && message.status && getStatusIcon(message.status)}
+            {isOwnMessage && message.status && (
+              <span style={{ marginLeft: 8, fontWeight: 600, color: message.status === "read" ? "var(--tavern-purple)" : "var(--tavern-gold)" }}>
+                {message.status === "read" ? "Read" : "Sent"}
+              </span>
+            )}
           </div>
         )}
       </div>

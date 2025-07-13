@@ -90,11 +90,7 @@ class MessageListView(APIView):
                 conversation=conversation
             ).select_related('sender', 'recipient').prefetch_related('attachments').order_by('timestamp')
 
-            Message.objects.filter(
-                conversation=conversation,
-                recipient=user,
-                is_read=False
-            ).update(is_read=True, read_at=timezone.now())
+            # Do NOT mark messages as read here. Read status should only be updated via WebSocket read_receipt event.
 
             logger.info(f"[DEBUG] Found {messages.count()} messages")
 

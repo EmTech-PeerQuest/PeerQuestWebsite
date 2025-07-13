@@ -168,7 +168,7 @@ export default function ConversationList({
                 </div>
               )}
               {!isSearchingUsers &&
-                userSearchResults.map((user) => {
+                Array.isArray(userSearchResults) && userSearchResults.length > 0 && userSearchResults.map((user) => {
                   // Only use onlineStatusMap for search results (no fallback)
                   const isOnline = onlineStatusMap.get(user.id) === "online";
                   return (
@@ -195,7 +195,7 @@ export default function ConversationList({
                       whileTap={{ scale: 0.98 }}
                       layout
                     >
-                      renderAvatar(user, "md")
+                      {renderAvatar(user, "md")}
                       <div className="ml-3 flex-1">
                         <p className="font-semibold transition-colors" style={{ color: "#2c1a1d" }}>
                           ⚔️ {user.username}

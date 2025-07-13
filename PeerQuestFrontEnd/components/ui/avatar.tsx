@@ -1,50 +1,46 @@
-"use client"
+import React from "react";
+import type { User } from "@/lib/types";
 
-import * as React from "react"
-import * as AvatarPrimitive from "@radix-ui/react-avatar"
+interface AvatarProps {
+  user: User;
+  size?: "sm" | "md" | "lg";
+  className?: string;
+}
 
-import { cn } from "@/lib/utils"
+const sizeMap = {
+  sm: "w-6 h-6",
+  md: "w-8 h-8",
+  lg: "w-12 h-12",
+};
 
-const Avatar = React.forwardRef<
-  React.ElementRef<typeof AvatarPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>
->(({ className, ...props }, ref) => (
-  <AvatarPrimitive.Root
-    ref={ref}
-    className={cn(
-      "relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full",
-      className
-    )}
-    {...props}
-  />
-))
-Avatar.displayName = AvatarPrimitive.Root.displayName
+export const Avatar: React.FC<AvatarProps> = ({ user, size = "md", className = "" }) => {
+  let avatarUrl = user.avatar_url;
+  if (avatarUrl && typeof avatarUrl === "string") {
+    // ui-avatars.com and most URLs are already absolute, but keep this for legacy support
+    if (!avatarUrl.startsWith("http")) {
+      avatarUrl = process.env.NEXT_PUBLIC_MEDIA_URL
+        ? process.env.NEXT_PUBLIC_MEDIA_URL.replace(/\/$/, "") + (avatarUrl.startsWith("/") ? avatarUrl : "/" + avatarUrl)
+        : avatarUrl;
+    }
+  } else {
+    avatarUrl = undefined;
+  }
+  // Debug log
+  console.log("[Avatar] user:", user, "avatarUrl:", avatarUrl);
+  return (
+    <div className={`relative rounded-full bg-gray-400 text-white flex items-center justify-center font-bold overflow-hidden ${sizeMap[size]} ${className}`}>
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt={user.username || "?"}
+          className="w-full h-full rounded-full object-cover"
+          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        />
+      ) : (
+        <span>{user.username ? user.username[0].toUpperCase() : "?"}</span>
+      )}
+    </div>
+  );
+};
 
-const AvatarImage = React.forwardRef<
-  React.ElementRef<typeof AvatarPrimitive.Image>,
-  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
->(({ className, ...props }, ref) => (
-  <AvatarPrimitive.Image
-    ref={ref}
-    className={cn("aspect-square h-full w-full", className)}
-    {...props}
-  />
-))
-AvatarImage.displayName = AvatarPrimitive.Image.displayName
-
-const AvatarFallback = React.forwardRef<
-  React.ElementRef<typeof AvatarPrimitive.Fallback>,
-  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>
->(({ className, ...props }, ref) => (
-  <AvatarPrimitive.Fallback
-    ref={ref}
-    className={cn(
-      "flex h-full w-full items-center justify-center rounded-full bg-muted",
-      className
-    )}
-    {...props}
-  />
-))
-AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName
-
-export { Avatar, AvatarImage, AvatarFallback }
+export default Avatar;

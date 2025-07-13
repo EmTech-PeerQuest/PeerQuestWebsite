@@ -310,7 +310,7 @@ function ChatWindow({
                             message.status
                           ) && (
                             <span style={{ color: "var(--tavern-purple)" }}>
-                              {message.status === "sent" ? "✓" : "✓✓"}
+                              {message.status === "read" ? "Read" : "Sent"}
                             </span>
                           )}
                         </>

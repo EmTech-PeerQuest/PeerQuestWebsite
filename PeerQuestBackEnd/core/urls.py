@@ -40,8 +40,6 @@ urlpatterns = [
 
     # Users app
     path('api/users/', include('users.urls')),
-    # PeerQuest frontend user list endpoint (direct, not nested)
-    path('api/users/', __import__('users.views').views.UserListForFrontendView.as_view(), name='frontend-user-list'),
     # Direct Google login callback for /api/google-login-callback/
     path('api/google-login-callback/', GoogleLoginCallbackView.as_view(), name='google-login-callback'),
     

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { reportUser } from "@/lib/api/user-report"
 import { X, Mail, Calendar, MapPin, Star, Trophy, Users } from "lucide-react"
 import type { User, Quest, Guild } from "@/lib/types"
@@ -15,6 +15,24 @@ interface UserProfileModalProps {
   showToast?: (message: string, type?: string) => void
 }
 
+
+// Extend User type to allow achievements for modal display
+interface Achievement {
+  id: string | number;
+  achievement_type?: string;
+  achievement_name?: string;
+  name?: string;
+  description?: string;
+  earned_at?: string;
+  icon?: string;
+}
+interface UserWithAchievements extends User {
+  achievements?: Achievement[];
+}
+
+import api from "@/lib/api";
+
+
 export function UserProfileModal({ isOpen, onClose, user, quests, guilds, currentUser }: UserProfileModalProps) {
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportReason, setReportReason] = useState("");
@@ -23,15 +41,52 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
   const [reportSuccess, setReportSuccess] = useState<string | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'about' | 'skills' | 'badges' | 'quests' | 'guilds'>('about');
-  if (!isOpen) return null
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [achievementsLoading, setAchievementsLoading] = useState(false);
+  const [achievementsError, setAchievementsError] = useState<string | null>(null);
+
+  // Fetch achievements when modal opens or user changes
+  useEffect(() => {
+    if (!isOpen || !user?.id) return;
+    setAchievementsLoading(true);
+    setAchievementsError(null);
+    const fetchAchievements = async () => {
+      try {
+        let res;
+        try {
+          res = await api.get(`/users/${user.id}/achievements-full/`);
+        } catch (err) {
+          res = await api.get(`/api/achievements/?user_id=${user.id}`);
+        }
+        // Accept both {owned: [], unowned: []} and flat array
+        let owned: Achievement[] = [];
+        if (Array.isArray(res.data?.owned)) {
+          owned = res.data.owned;
+        } else if (Array.isArray(res.data)) {
+          owned = res.data;
+        } else if (Array.isArray(res.data?.achievements)) {
+          owned = res.data.achievements;
+        }
+        setAchievements(owned);
+      } catch (err) {
+        setAchievementsError("Could not load achievements.");
+        setAchievements([]);
+      } finally {
+        setAchievementsLoading(false);
+      }
+    };
+    fetchAchievements();
+  }, [isOpen, user?.id]);
+
+  if (!isOpen) return null;
 
   // Get user's completed quests
   const userQuests = quests.filter(quest => 
     (quest.poster && quest.poster.id === user.id) || quest.status === 'completed'
-  ).slice(0, 5) // Show only first 5
+  ).slice(0, 5); // Show only first 5
 
   // Get user's guilds
-  const userGuilds = user.guilds?.slice(0, 3) || [] // Show only first 3
+  const userGuilds = user.guilds?.slice(0, 3) || [];
 
   // Helper to get avatar initials (matches user grid logic)
   function getAvatarInitials(user: User) {
@@ -50,10 +105,14 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
     }
     return "?";
   }
-  // XP/Level calculation (same as integrated-profile)
+
+  // Dynamic XP/Level logic from backend profile (supports both xp and experience_points fields)
+  const userXp = typeof user.xp === 'number' ? user.xp : (typeof user.experience_points === 'number' ? user.experience_points : 0);
+  // If backend provides level, use it, else calculate
+  const userLevel = typeof user.level === 'number' && user.level > 0
+    ? user.level
+    : (userXp > 0 ? Math.floor(userXp / 1000) + 1 : 1);
   const xpForNextLevel = 1000;
-  const userXp = typeof user.xp === 'number' && user.xp > 0 ? user.xp : 0;
-  const userLevel = Math.floor(userXp / xpForNextLevel) + 1;
   const xpThisLevel = userXp % xpForNextLevel;
   const xpProgress = (xpThisLevel / xpForNextLevel) * 100;
 
@@ -65,9 +124,9 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
           {/* Avatar Left */}
           <div className="flex-shrink-0 flex items-center justify-center md:items-start md:justify-start w-full md:w-48 mb-4 md:mb-0">
             <div className="w-32 h-32 rounded-full border-4 border-white shadow-lg bg-[#8B75AA] flex items-center justify-center text-5xl text-white overflow-hidden">
-              {typeof user.avatar === 'string' && user.avatar.match(/^https?:\//) ? (
+              {typeof user.avatar_url === 'string' && user.avatar_url.match(/^https?:\//) ? (
                 <img
-                  src={user.avatar}
+                  src={user.avatar_url}
                   alt={user.displayName || user.username}
                   className="w-full h-full object-cover rounded-full"
                   onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -265,14 +324,24 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
               <h3 className="text-lg font-semibold text-[#2C1A1D] mb-3">Skills</h3>
               <div className="flex flex-wrap gap-2">
                 {user.skills?.length ? (
-                  user.skills?.map((skill, index) => (
-                    <span
-                      key={skill.id || index}
-                      className="px-3 py-1 bg-[#8B75AA]/10 text-[#8B75AA] rounded-full text-sm"
-                    >
-                      {typeof skill === 'object' && 'name' in skill ? skill.name : String(skill)}
-                    </span>
-                  ))
+                  user.skills?.map((skill, index) => {
+                    let label = '';
+                    if (typeof skill === 'object' && skill !== null) {
+                      if ('name' in skill && typeof skill.name === 'string') label = skill.name;
+                      else if ('skill_name' in skill && typeof skill.skill_name === 'string') label = skill.skill_name;
+                      else label = JSON.stringify(skill);
+                    } else {
+                      label = String(skill);
+                    }
+                    return (
+                      <span
+                        key={typeof skill === 'object' && skill !== null ? (('id' in skill && skill.id) || ('skill_name' in skill && skill.skill_name) || index) : index}
+                        className="px-3 py-1 bg-[#8B75AA]/10 text-[#8B75AA] rounded-full text-sm"
+                      >
+                        {label}
+                      </span>
+                    );
+                  })
                 ) : (
                   <span className="text-sm text-gray-500 italic">No skills listed</span>
                 )}
@@ -282,27 +351,33 @@ export function UserProfileModal({ isOpen, onClose, user, quests, guilds, curren
 
           {activeTab === 'badges' && (
             <div className="mb-6">
-              <h3 className="text-lg font-semibold text-[#2C1A1D] mb-3">Badges</h3>
-              <div className="grid grid-cols-2 gap-3">
-                {user.badges?.length ? (
-                  user.badges?.map((badge, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center gap-3 p-3 bg-[#F4F0E6] rounded-lg"
-                    >
-                      <span className="text-2xl">{badge.icon}</span>
-                      <div>
-                        <div className="font-medium text-[#2C1A1D]">{badge.name}</div>
-                        {badge.description && (
-                          <div className="text-sm text-[#8B75AA]">{badge.description}</div>
-                        )}
+              <h3 className="text-lg font-semibold text-[#2C1A1D] mb-3">Achievements</h3>
+              {achievementsLoading ? (
+                <div className="text-sm text-gray-500 italic">Loading achievements...</div>
+              ) : achievementsError ? (
+                <div className="text-sm text-red-500 italic">{achievementsError}</div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {Array.isArray(achievements) && achievements.length > 0 ? (
+                    achievements.map((achievement: any, index: number) => (
+                      <div
+                        key={achievement.id || index}
+                        className="flex items-center gap-3 p-3 bg-[#F4F0E6] rounded-lg"
+                      >
+                        <span className="text-2xl">{achievement.icon || "🏅"}</span>
+                        <div>
+                          <div className="font-medium text-[#2C1A1D]">{achievement.achievement_name || achievement.name}</div>
+                          {achievement.description && (
+                            <div className="text-sm text-[#8B75AA]">{achievement.description}</div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))
-                ) : (
-                  <span className="text-sm text-gray-500 italic">No badges earned</span>
-                )}
-              </div>
+                    ))
+                  ) : (
+                    <span className="text-sm text-gray-500 italic">No achievements unlocked</span>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

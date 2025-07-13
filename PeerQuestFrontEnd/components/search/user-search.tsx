@@ -31,8 +31,8 @@ export function UserSearch({ quests, guilds, currentUser, showToast }: UserSearc
       setUsersError(null);
       try {
         // Try Django backend first, fallback to Next.js API route if 404
-        console.log("[UserSearch] Fetching users from:", "http://localhost:8000/api/users/api/users/");
-        let res = await fetch("http://localhost:8000/api/users/api/users/");
+        console.log("[UserSearch] Fetching users from:", "http://localhost:8000/api/users/search/");
+        let res = await fetch("http://localhost:8000/api/users/search/");
         console.log("[UserSearch] Response status:", res.status);
         if (res.status === 404) {
           console.log("[UserSearch] Fallback to /api/users");
@@ -43,8 +43,16 @@ export function UserSearch({ quests, guilds, currentUser, showToast }: UserSearc
           throw new Error("Failed to fetch users");
         }
         const data = await res.json();
-        console.log("[UserSearch] Data received:", data);
-        setUsers(Array.isArray(data.users) ? data.users : data);
+        // Defensive: handle both array and object API responses
+        if (Array.isArray(data)) {
+          setUsers(data);
+        } else if (Array.isArray(data.users)) {
+          setUsers(data.users);
+        } else if (Array.isArray(data.results)) {
+          setUsers(data.results);
+        } else {
+          setUsers([]);
+        }
       } catch (err: any) {
         setUsersError(err.message || "Failed to load users");
       } finally {
@@ -54,12 +62,19 @@ export function UserSearch({ quests, guilds, currentUser, showToast }: UserSearc
     fetchUsers();
   }, []);
 
-  // Get all unique skills from users (deduplicated by id)
-  const skillMap = new Map<string, { id: string; name: string; description?: string }>();
+  // Get all unique skills from users (deduplicated by skill_name)
+  const skillMap = new Map<string, { id?: string; name: string; description?: string }>();
   users.forEach(user => {
-    (user.skills || []).forEach(skill => {
-      if (skill && skill.id && !skillMap.has(skill.id)) {
-        skillMap.set(skill.id, skill);
+    (user.skills || []).forEach((skill: any) => {
+      // Support both {skill_name, category, ...} and {id, name, ...}
+      const skillId = skill.id || skill.skill_id || skill.skill_name || skill.name;
+      const skillName = skill.name || skill.skill_name;
+      if (skillName && !skillMap.has(skillName)) {
+        skillMap.set(skillName, {
+          id: skillId,
+          name: skillName,
+          description: skill.description || '',
+        });
       }
     });
   });
@@ -76,14 +91,19 @@ export function UserSearch({ quests, guilds, currentUser, showToast }: UserSearc
       user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (user.displayName && user.displayName.toLowerCase().includes(searchQuery.toLowerCase()));
 
-    // Defensive: ensure user.skills is always an array of objects with id and name
+    // Defensive: ensure user.skills is always an array of objects with id/skill_name and name
     const skillsArr = Array.isArray(user.skills)
-      ? user.skills.filter(s => s && typeof s === 'object' && 'id' in s && 'name' in s)
+      ? user.skills.filter(s => s && typeof s === 'object' && (('id' in s && 'name' in s) || ('skill_name' in s)))
       : [];
 
     const matchesSkill =
       selectedSkill === "all" ||
-      skillsArr.some(skill => skill.id === selectedSkill);
+      skillsArr.some(skill => {
+        // Accept both id and skill_name for matching
+        if ('id' in skill && skill.id === selectedSkill) return true;
+        if ('skill_name' in skill && skill.skill_name === selectedSkill) return true;
+        return false;
+      });
 
     return matchesSearch && matchesSkill;
   });
@@ -233,9 +253,9 @@ export function UserSearch({ quests, guilds, currentUser, showToast }: UserSearc
                 {/* Top: Banner/Avatar/Name */}
                 <div className="relative bg-gradient-to-r from-[#F4F0E6] to-[#E9E1F5] rounded-t-xl flex items-center gap-4 p-4 pb-2">
                   <div className="w-16 h-16 rounded-full border-4 border-[#CDAA7D] bg-[#8B75AA] flex items-center justify-center text-2xl text-white overflow-hidden shadow-md">
-                    {typeof user.avatar === 'string' && user.avatar.match(/^https?:\//) ? (
+                    {typeof user.avatar_url === 'string' && user.avatar_url.match(/^https?:\//) ? (
                       <img
-                        src={user.avatar}
+                        src={user.avatar_url}
                         alt={user.displayName || user.username}
                         className="w-full h-full object-cover rounded-full"
                         onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -269,12 +289,13 @@ export function UserSearch({ quests, guilds, currentUser, showToast }: UserSearc
                         let label = '';
                         if (typeof skill === 'object' && skill !== null) {
                           if (typeof skill.name === 'string') label = skill.name;
+                          else if (typeof skill.skill_name === 'string') label = skill.skill_name;
                           else label = JSON.stringify(skill);
                         } else {
                           label = String(skill);
                         }
                         return (
-                          <span key={skill.id || idx} className="px-2 py-1 bg-[#8B75AA]/10 text-[#8B75AA] rounded text-xs">
+                          <span key={skill.id || skill.skill_name || idx} className="px-2 py-1 bg-[#8B75AA]/10 text-[#8B75AA] rounded text-xs">
                             {label}
                           </span>
                         );

@@ -48,8 +48,8 @@ urlpatterns = [
     path("sessions/", UserSessionsView.as_view(), name="user-sessions"),
     path("revoke-session/", RevokeSessionView.as_view(), name="revoke-session"),
 
-    # PeerQuest frontend user list endpoint
-    path("api/users/", UserListForFrontendView.as_view(), name="frontend-user-list"),
+    # PeerQuest frontend user list endpoint (reroute to real user search)
+    path("api/users/", UserSearchView.as_view(), name="frontend-user-list"),
     # User Report API
     path("user-report/", UserReportView.as_view(), name="user-report"),
     path("quest-report/", QuestReportView.as_view(), name="quest-report"),
