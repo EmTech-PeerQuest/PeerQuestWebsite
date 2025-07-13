@@ -37,7 +37,7 @@ services:
     buildFilter:
       paths:
         - PeerQuestBackEnd/**
-    repo: https://github.com/your-org/your-repo
+    repo: https://github.com/EmTech-PeerQuest/PeerQuestWebsite.git
     branch: main
     rootDir: PeerQuestBackEnd
     autoDeploy: true
