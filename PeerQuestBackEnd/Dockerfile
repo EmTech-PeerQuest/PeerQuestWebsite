@@ -1,19 +1,25 @@
-# PeerQuestBackEnd/Dockerfile
+# backend/Dockerfile
 
 FROM python:3.11-slim
 
-# Set working directory
+# Add system dependencies for mysqlclient
+RUN apt-get update && apt-get install -y \
+    gcc \
+    default-libmysqlclient-dev \
+    pkg-config \
+    build-essential \
+    libssl-dev \
+    libffi-dev \
+    python3-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt && pip install watchdog
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
 
-# Copy project files
 COPY . .
 
-# Expose port for Railway (optional but safe)
-EXPOSE 8000
-
-# Start the ASGI server using Daphne
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]
+CMD ["gunicorn", "peerquest.wsgi:application", "--bind", "0.0.0.0:8000"]
