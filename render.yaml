@@ -5,7 +5,6 @@ services:
     plan: starter
     buildCommand: npm install && npm run build
     startCommand: npm run start
-    staticPublishPath: .next/static
     envVars:
       - key: NODE_ENV
         value: production
@@ -57,3 +56,6 @@ services:
   - type: redis
     name: peerquest-redis
     plan: starter
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: allow all internal services
