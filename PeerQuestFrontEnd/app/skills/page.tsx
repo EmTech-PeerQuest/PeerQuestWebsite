@@ -60,7 +60,7 @@ export default function SkillsPage() {
         years_experience: 0
       }));
 
-      const response = await skillsApi.updateUserSkills(skillsToSave);
+      const response = await skillsApi.updateUserSkills({ skills: skillsToSave });
       if (response.success) {
         alert("Skills updated successfully!");
         loadData(); // Reload to get updated data
