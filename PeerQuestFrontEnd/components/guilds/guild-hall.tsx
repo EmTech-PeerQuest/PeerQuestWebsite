@@ -661,14 +661,6 @@ export function GuildHall({
           </div>
         )}
 
-        {/* DEBUG: Show modal state */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="fixed bottom-4 right-4 bg-black text-white p-2 rounded text-xs z-50">
-            Modal State: {showWarningModal ? 'OPEN' : 'CLOSED'}<br/>
-            Selected Guild: {selectedGuild?.name || 'NONE'}
-          </div>
-        )}
-
         {/* Features Section */}
         <section>
           <h2 className="text-4xl font-bold text-center mb-4 text-[#2C1A1D] font-serif">Why Join Our Tavern?</h2>

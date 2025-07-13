@@ -725,15 +725,14 @@ export default function Home() {
             );
           })()
         )}
-
         {activeSection === "about" && (
-          <div className="max-w-3xl mx-auto px-4 py-12">
+          <div className="max-w-5xl mx-auto px-6 py-16">
             <h2 className="text-4xl font-bold text-center mb-4 font-medieval">About PeerQuest Tavern</h2>
-            <p className="text-center max-w-2xl mx-auto mb-8 text-tavern-brown/80">
+            <p className="text-center max-w-3xl mx-auto mb-8 text-tavern-brown/80">
               Learn more about our platform and the team behind it.
             </p>
-            <div className="card mb-8">
-              <div className="p-10">
+            <div className="card mb-10">
+              <div className="p-12">
                 <h3 className="text-2xl font-bold mb-6 font-medieval">Our Story</h3>
                 <p className="mb-5 leading-relaxed">
                   PeerQuest Tavern is a fantasy-themed peer learning platform where coding and collaboration become an epic adventure. Our mission is to transform the often solitary experience of learning to code into a collaborative and engaging journey.
@@ -747,19 +746,36 @@ export default function Home() {
               </div>
             </div>
             <div className="card">
-              <div className="p-10">
+              <div className="p-12">
                 <h3 className="text-2xl font-bold mb-8 font-medieval text-center">The Team</h3>
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {[
-                    { name: "Jenel Esteron", role: "API/Database", avatar: "J", portfolio: "https://jenelportfolio.netlify.app", linkedin: "https://www.linkedin.com/in/jenel-esteron-83459b2a2/" },
+                    { name: "Jenel Esteron", role: "API/Database", avatar: "Jenelpic.jpg", portfolio: "https://jenelportfolio.netlify.app", linkedin: "https://www.linkedin.com/in/jenel-esteron-83459b2a2/", isPhoto: true },
                     { name: "Amry Judith Gutlay", role: "Middleware/Frontend", avatar: "A", portfolio: "https://gutlay-portfolio.vercel.app/", linkedin: "https://www.linkedin.com/in/amry-judith-gutlay-9829962b3/" },
                     { name: "Michael Liam San Diego", role: "API/Frontend", avatar: "ML", portfolio: "https://sandiego-portfolio.vercel.app", linkedin: "https://www.linkedin.com/in/michael-liam-san-diego-5a18b7287/" },
                     { name: "Mark John Wayne Yabes", role: "API/Database", avatar: "MJ", portfolio: "https://markyabesportfolio.netlify.app/", linkedin: "https://www.linkedin.com/in/mark-yabes-602026253/" },
                     { name: "Tristan Von Ceazar Yanoria", role: "Documentation/Frontend", avatar: "T", portfolio: "http://insantics.netlify.app/#about", linkedin: "https://www.linkedin.com/in/tristan-von-ceazar-yanoria-57b133302/" },
                     { name: "John Odysseus Lim", role: "Documentation/Middleware", avatar: "J", portfolio: "https://odysseus-droid.github.io/limportfolio", linkedin: "https://www.linkedin.com/in/jhndyssslm/" },
                   ].map((member, index) => (
-                    <div key={index} className="text-center bg-white border border-[#CDAA7D] rounded-lg p-6">
-                      <div className="avatar avatar-xl mx-auto mb-4">{member.avatar}</div>
+                    <div key={index} className="text-center bg-white border border-[#CDAA7D] rounded-lg p-8">
+                      <div className="avatar avatar-xl mx-auto mb-4">
+                        {member.isPhoto ? (
+                          <div className="w-24 h-24 rounded-full mx-auto border-4 border-[#CDAA7D] bg-white flex items-center justify-center overflow-hidden">
+                            <img
+                              src={`/` + member.avatar}
+                              alt={member.name}
+                              className="w-full h-full object-cover"
+                              style={{ objectFit: 'cover', objectPosition: 'center' }}
+                              onError={e => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = '/default-avatar.png';
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <span className="flex items-center justify-center w-24 h-24 rounded-full bg-purple-400 text-white text-3xl font-bold mx-auto">{member.avatar}</span>
+                        )}
+                      </div>
                       <h4 className="text-xl font-bold mb-2 font-medieval">{member.name}</h4>
                       <p className="text-tavern-brown/70 mb-4">{member.role}</p>
                       <div className="flex justify-center gap-3">
