@@ -22,5 +22,5 @@ RUN pip install --no-cache-dir -r requirements.txt && pip install watchdog
 COPY . .
 
 # Command to run your Django app with Daphne (ASGI, WebSocket support)
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]
+CMD ["sh", "-c", "daphne -b 0.0.0.0 -p ${PORT:-8000} core.asgi:application"]
 

@@ -5,15 +5,17 @@ import { X, Coins, Clock, Target, Users } from "lucide-react"
 import type { User, Quest, Guild } from "@/lib/types"
 import { ConfirmationModal } from '@/components/modals/confirmation-modal'
 
+
 interface PostQuestModalProps {
   isOpen: boolean
   onClose: () => void
   currentUser?: User | null
   onSubmit?: (questData: Partial<Quest>) => void
   guilds?: Guild[]
+  showToast?: (message: string, type?: string) => void
 }
 
-export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds = [] }: PostQuestModalProps) {
+export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds = [], showToast }: PostQuestModalProps) {
   const [questForm, setQuestForm] = useState({
     title: "",
     description: "",
@@ -52,26 +54,36 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
 
   const handleSubmit = () => {
     if (!currentUser) {
-      alert("Please log in to post quests")
-      return
+      if (showToast) {
+        showToast("Please log in to post quests", "error");
+      } else {
+        alert("Please log in to post quests");
+      }
+      return;
     }
 
     if (!questForm.title || !questForm.description || !questForm.category || !questForm.reward || !questForm.deadline) {
-      alert("Please fill in all required fields")
-      return
+      if (showToast) {
+        showToast("Please fill in all required fields", "error");
+      } else {
+        alert("Please fill in all required fields");
+      }
+      return;
     }
 
     // Check if user has enough gold for the reward
-    const rewardAmount = Number.parseInt(questForm.reward)
+    const rewardAmount = Number.parseInt(questForm.reward);
     if ((currentUser.gold || 0) < rewardAmount) {
-      alert(
-        `Insufficient gold. You need ${rewardAmount} gold to post this quest but only have ${currentUser.gold || 0} gold.`,
-      )
-      return
+      if (showToast) {
+        showToast(`Insufficient gold. You need ${rewardAmount} gold to post this quest but only have ${currentUser.gold || 0} gold.`, "error");
+      } else {
+        alert(`Insufficient gold. You need ${rewardAmount} gold to post this quest but only have ${currentUser.gold || 0} gold.`);
+      }
+      return;
     }
 
     // Show confirmation modal instead of submitting directly
-    setShowConfirmation(true)
+    setShowConfirmation(true);
   }
 
   const handleConfirmSubmit = () => {
