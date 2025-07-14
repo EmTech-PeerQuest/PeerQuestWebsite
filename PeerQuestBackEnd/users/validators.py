@@ -105,15 +105,24 @@ def normalize_username(value):
     to detect hidden profanity and inappropriate content.
     Enhanced to better catch 'q' for 'g' substitutions and other obfuscations.
     """
+    # Always treat input as string, handle None and non-string
+    try:
+        if value is None:
+            value = ""
+        value = str(value)
+    except Exception:
+        value = ""
+
     if not value:
         return ""
-    
+
     # First normalize unicode
+    import unicodedata
     value = unicodedata.normalize('NFKC', value)
     value = ''.join(c for c in value if not unicodedata.combining(c))
     value = value.encode('ascii', 'ignore').decode('ascii')
     value = value.lower()
-    
+
     # Apply substitution patterns (multi-character replacements first)
     # Do this multiple times to catch nested patterns
     for _ in range(3):

@@ -11,24 +11,59 @@ from .serializers import UserReportSerializer
 
 User = get_user_model()
 
+import logging
+
 class AdminUserListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # Only staff or superusers can access
-        if not (request.user.is_superuser or request.user.is_staff):
-            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
-        search = request.query_params.get('search', '').strip()
-        # Only regular users (not staff or superusers)
-        users = User.objects.filter(is_superuser=False, is_staff=False)
-        if search:
-            users = users.filter(username__icontains=search)
-        data = AdminUserSerializer(users, many=True).data
-        # Flag inappropriate usernames
-        for user in data:
-            normalized = normalize_username(user['username'])
-            user['flagged'] = any(word in normalized for word in PROFANITY_LIST)
-        return Response(data)
+        try:
+            # Only staff or superusers can access
+            if not (request.user.is_superuser or request.user.is_staff):
+                return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+            search = request.query_params.get('search', '').strip()
+            # Only regular users (not staff or superusers)
+            users = User.objects.filter(is_superuser=False, is_staff=False)
+            if search:
+                users = users.filter(username__icontains=search)
+            data = AdminUserSerializer(users, many=True).data
+            # Flag inappropriate usernames
+            for user in data:
+                try:
+                    username = user.get('username', '')
+                    if username is None:
+                        username = ''
+                    normalized = normalize_username(username)
+                    user['flagged'] = any(word in normalized for word in PROFANITY_LIST)
+                except Exception as e:
+                    user['flagged'] = False
+                    logging.error(f"Error normalizing username for user {user.get('id', 'unknown')}: {e}")
+            return Response(data)
+        except Exception as e:
+            logging.error(f"AdminUserListView GET error: {e}")
+            print(f"AdminUserListView GET error: {e}")
+            return Response({'detail': 'Internal server error in admin user list.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# --- Safe AdminUserSerializer ---
+from rest_framework import serializers
+
+class AdminUserSerializer(serializers.ModelSerializer):
+    username = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
+    is_active = serializers.BooleanField(default=True)
+    date_joined = serializers.DateTimeField(default=None)
+    is_banned = serializers.BooleanField(default=False)
+    ban_reason = serializers.CharField(default='', allow_blank=True)
+
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'is_active', 'date_joined', 'is_banned', 'ban_reason']
+
+    def get_username(self, obj):
+        return getattr(obj, 'username', '') or ''
+
+    def get_email(self, obj):
+        return getattr(obj, 'email', '') or ''
 
 class AdminUserBanView(APIView):
     permission_classes = [IsAuthenticated]
