@@ -683,32 +683,43 @@ export default function MessagingSystem({
 
   // WebSocket lifecycle with improved reconnect UI
   useEffect(() => {
-    if (!mounted || !activeId) return
-    let shouldReconnect = true
-    let reconnectTimeout: NodeJS.Timeout | null = null
+    if (!mounted || !activeId) return;
+    let shouldReconnect = true;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
 
-
-    // --- Dynamic WebSocket URL construction ---
-    // Use wss:// if served over HTTPS, otherwise ws://
-    // Use NEXT_PUBLIC_WS_BASE_URL if defined, else fallback to window.location.host
+    // --- Safe Dynamic WebSocket URL Construction ---
     let wsProtocol = 'ws:';
     let wsHost = '';
+
     if (typeof window !== 'undefined') {
       wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      wsHost = process.env.NEXT_PUBLIC_WS_BASE_URL?.trim()
-        ? process.env.NEXT_PUBLIC_WS_BASE_URL.trim().replace(/\/$/, '')
-        : window.location.host;
+
+      const rawHost = process.env.NEXT_PUBLIC_WS_BASE_URL?.trim();
+      if (rawHost) {
+        try {
+          const url = new URL(rawHost.startsWith('http') ? rawHost : `https://${rawHost}`);
+          wsHost = url.host; // ✅ Strip protocol, keep only hostname
+        } catch {
+          wsHost = rawHost.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        }
+      } else {
+        wsHost = window.location.host;
+      }
     } else {
-      // SSR fallback (should not connect on server, but just in case)
-      wsProtocol = process.env.NEXT_PUBLIC_WS_BASE_URL?.startsWith('https') ? 'wss:' : 'ws:';
-      wsHost = process.env.NEXT_PUBLIC_WS_BASE_URL?.trim() || 'localhost:8000';
+      const rawHost = process.env.NEXT_PUBLIC_WS_BASE_URL?.trim();
+      if (rawHost) {
+        wsProtocol = rawHost.startsWith('https') ? 'wss:' : 'ws:';
+        wsHost = rawHost.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      } else {
+        wsProtocol = 'ws:';
+        wsHost = 'localhost:8000';
+      }
     }
+
     const wsUrl = `${wsProtocol}//${wsHost}/ws/chat/${activeId}/?token=${token}`;
 
     function connect() {
-      // Debug log for WebSocket URL
       if (typeof window !== 'undefined') {
-        // eslint-disable-next-line no-console
         console.debug('[WS] Connecting to:', wsUrl, {
           wsProtocol,
           wsHost,
@@ -716,9 +727,9 @@ export default function MessagingSystem({
           location: window.location.href,
         });
       }
-      setWsStatus(reconnectAttempt > 0 ? "reconnecting" : "connecting")
 
-      // 🔥 Force cleanup of any existing WebSocket
+      setWsStatus(reconnectAttempt > 0 ? 'reconnecting' : 'connecting');
+
       if (wsRef.current) {
         try {
           wsRef.current.onopen = null;
@@ -732,71 +743,68 @@ export default function MessagingSystem({
             wsRef.current.close();
           }
         } catch (e) {
-          console.warn("Error cleaning up old WebSocket", e);
+          console.warn('Error cleaning up old WebSocket', e);
         }
         wsRef.current = null;
       }
 
-      const ws = new WebSocket(wsUrl)
-      wsRef.current = ws
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
       ws.onopen = () => {
-        setWsStatus("connected")
-        setReconnectAttempt(0)
-        reconnectingRef.current = false
-      }
+        setWsStatus('connected');
+        setReconnectAttempt(0);
+        reconnectingRef.current = false;
+      };
+
       ws.onmessage = (e) => {
         try {
           if (handleWsMessageRef.current) {
-            handleWsMessageRef.current(JSON.parse(e.data))
+            handleWsMessageRef.current(JSON.parse(e.data));
           }
         } catch (err) {
-          // Defensive: log and do not close socket on handler error
-          console.error("WebSocket message handler error", err)
-        }
-      }
-      ws.onclose = (event) => {
-        console.warn("WebSocket closed", event)
-        setWsStatus("disconnected")
-        if (shouldReconnect) {
-          reconnectingRef.current = true
-          setReconnectAttempt((prev) => prev + 1)
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttempt), 10000)
-          reconnectTimeout = setTimeout(connect, delay)
-        }
-      }
-      ws.onerror = (event) => {
-        console.error("WebSocket error", event)
-        setWsStatus("disconnected")
-        // Do not call ws.close() here; let onclose handle reconnection
-      }
-    }
-    connect()
-      return () => {
-        shouldReconnect = false;
-
-        if (reconnectTimeout) clearTimeout(reconnectTimeout);
-
-        if (wsRef.current) {
-          // 🧹 Properly cleanup
-          wsRef.current.onopen = null;
-          wsRef.current.onmessage = null;
-          wsRef.current.onerror = null;
-          wsRef.current.onclose = null;
-
-          if (
-            wsRef.current.readyState === WebSocket.OPEN ||
-            wsRef.current.readyState === WebSocket.CONNECTING
-          ) {
-            wsRef.current.close();
-          }
-
-          wsRef.current = null;
+          console.error('WebSocket message handler error', err);
         }
       };
 
-    // Only rerun if wsUrl, mounted, or reconnectAttempt changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeId, token, mounted, reconnectAttempt])
+      ws.onclose = (event) => {
+        console.warn('WebSocket closed', event);
+        setWsStatus('disconnected');
+        if (shouldReconnect) {
+          reconnectingRef.current = true;
+          setReconnectAttempt((prev) => prev + 1);
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempt), 10000);
+          reconnectTimeout = setTimeout(connect, delay);
+        }
+      };
+
+      ws.onerror = (event) => {
+        console.error('WebSocket error', event);
+        setWsStatus('disconnected');
+      };
+    }
+
+    connect();
+
+    return () => {
+      shouldReconnect = false;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (wsRef.current) {
+        wsRef.current.onopen = null;
+        wsRef.current.onmessage = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onclose = null;
+        if (
+          wsRef.current.readyState === WebSocket.OPEN ||
+          wsRef.current.readyState === WebSocket.CONNECTING
+        ) {
+          wsRef.current.close();
+        }
+        wsRef.current = null;
+      }
+    };
+  }, [activeId, token, mounted, reconnectAttempt]);
+
 
   // Manual reconnect handler
   const handleManualReconnect = useCallback(() => {
