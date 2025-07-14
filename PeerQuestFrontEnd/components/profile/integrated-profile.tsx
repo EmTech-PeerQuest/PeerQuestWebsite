@@ -64,7 +64,8 @@ function AchievementsSection({ userId }: { userId: string | number }) {
       setError(null);
       try {
         const apiBase = getApiBaseUrl();
-        const achievementsUrl = apiBase ? `${apiBase.replace(/\/$/, '')}/users/${userId}/achievements-full/` : `/users/${userId}/achievements-full/`;
+        // Use /api/users/ as the base path for achievements endpoints
+        const achievementsUrl = apiBase ? `${apiBase.replace(/\/$/, '')}/api/users/${userId}/achievements-full/` : `/api/users/${userId}/achievements-full/`;
         let res;
         try {
           res = await api.get(achievementsUrl);
