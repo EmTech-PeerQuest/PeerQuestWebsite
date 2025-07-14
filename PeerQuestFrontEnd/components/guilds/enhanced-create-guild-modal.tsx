@@ -132,15 +132,20 @@ export function EnhancedCreateGuildModal({
     }))
   }
 
+  // Set the guild creation cost
+  const GUILD_CREATION_COST = 100
+
   const handleSubmit = () => {
     if (!currentUser) {
       showToast?.("Please log in to create a guild", "error")
       return
     }
 
-    const GUILD_CREATION_COST = 0
-
-    // Guild creation is now free - no gold check needed
+    // Check if user has enough gold
+    if (typeof currentUser.gold === "number" && currentUser.gold < GUILD_CREATION_COST) {
+      showToast?.(`You need at least ${GUILD_CREATION_COST} gold to create a guild.`, "error")
+      return
+    }
 
     if (!guildForm.name || !guildForm.description || !guildForm.specialization) {
       showToast?.("Please fill in all required fields", "error")
@@ -152,8 +157,6 @@ export function EnhancedCreateGuildModal({
   }
 
   const handleConfirmSubmit = () => {
-    const GUILD_CREATION_COST = 0
-
     const newGuild: Partial<Guild> = {
       name: guildForm.name,
       description: guildForm.description,
@@ -685,8 +688,8 @@ export function EnhancedCreateGuildModal({
           onClose={() => setShowConfirmation(false)}
           onConfirm={handleConfirmSubmit}
           title="Confirm Guild Creation"
-          message={`Are you sure you want to create "${guildForm.name}" guild?`}
-          goldAmount={0}
+          message={`Are you sure you want to create \"${guildForm.name}\" guild?`}
+          goldAmount={GUILD_CREATION_COST}
           confirmText="Create Guild"
         />
       </div>
