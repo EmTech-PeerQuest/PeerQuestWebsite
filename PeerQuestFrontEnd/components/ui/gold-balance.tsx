@@ -10,20 +10,15 @@ interface GoldBalanceProps {
 
 // Function to format numbers with k/M abbreviations
 function formatLargeNumber(num: number): string {
-  // Debug logging - remove this after testing
-  console.log('formatLargeNumber called with:', num, typeof num);
-  
+  // Only format if needed, and avoid logging in production
   if (num >= 1000000) {
     const millions = Math.floor(num / 100000) / 10; // Truncate to 1 decimal place
-    console.log('Using millions format:', millions);
     return millions % 1 === 0 ? millions.toString() + 'M' : millions.toFixed(1) + 'M';
   }
   if (num >= 10000) {
     const thousands = Math.floor(num / 100) / 10; // Truncate to 1 decimal place  
-    console.log('Using thousands format:', thousands);
     return thousands % 1 === 0 ? thousands.toString() + 'k' : thousands.toFixed(1) + 'k';
   }
-  console.log('Using normal format');
   return num.toLocaleString();
 }
 

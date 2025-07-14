@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
+import { createPeerQuestWebSocket } from "@/components/auth/auth-modal";
 import Avatar from "@/components/ui/avatar";
 import type {
   Conversation,
@@ -805,6 +806,7 @@ export default function MessagingSystem({
       }
     };
   }, [activeId, token, mounted, reconnectAttempt]);
+
 
 
 
