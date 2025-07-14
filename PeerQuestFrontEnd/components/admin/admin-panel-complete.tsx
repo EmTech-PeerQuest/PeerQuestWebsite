@@ -1,3 +1,15 @@
+// --- Dynamic API base URL getter ---
+const getApiBaseUrl = () => {
+  let apiBase = '';
+  if (typeof window !== 'undefined' && (window as any).PEERQUEST_API_BASE_URL) {
+    apiBase = (window as any).PEERQUEST_API_BASE_URL;
+  } else if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+  } else {
+    apiBase = '';
+  }
+  return apiBase.replace(/\/$/, '');
+};
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -175,7 +187,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user }) => {
   };
 
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-    const API_BASE = "http://localhost:8000";
+    const API_BASE = getApiBaseUrl();
     let token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
     const refresh = typeof window !== 'undefined' ? localStorage.getItem("refresh_token") : null;
 
@@ -226,41 +238,34 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user }) => {
     setReportsLoading(true);
     setReportsError("");
     try {
-      const API_BASE = "http://localhost:8000";
-      
+      const API_BASE = getApiBaseUrl();
       // Fetch user reports
       const userReportsRes = await fetchWithAuth(`${API_BASE}/api/reports/user/`);
       let userReports: UserReport[] = [];
-      
       if (userReportsRes.ok) {
         userReports = await userReportsRes.json();
       } else {
         const err = await userReportsRes.text();
         console.error("Failed to fetch user reports:", err);
       }
-      
       // Fetch guild reports
       const guildReportsRes = await fetchWithAuth(`${API_BASE}/api/reports/guild/`);
       let guildReports: GuildReport[] = [];
-      
       if (guildReportsRes.ok) {
         guildReports = await guildReportsRes.json();
       } else {
         const err = await guildReportsRes.text();
         console.error("Failed to fetch guild reports:", err);
       }
-      
       // Fetch quest reports
       const questReportsRes = await fetchWithAuth(`${API_BASE}/api/reports/quest/`);
       let questReports: QuestReport[] = [];
-      
       if (questReportsRes.ok) {
         questReports = await questReportsRes.json();
       } else {
         const err = await questReportsRes.text();
         console.error("Failed to fetch quest reports:", err);
       }
-      
       // Combine all reports
       const allReports: Report[] = [...userReports, ...guildReports, ...questReports];
       setReports(allReports);
@@ -278,7 +283,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user }) => {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetchWithAuth("http://localhost:8000/api/users/admin/users/");
+      const API_BASE = getApiBaseUrl();
+      const response = await fetchWithAuth(`${API_BASE}/api/users/admin/users/`);
       if (response.ok) {
         const data = await response.json();
         setUsers(data);
@@ -296,7 +302,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user }) => {
     setGuildsLoading(true);
     setGuildsError("");
     try {
-      const response = await fetchWithAuth("http://localhost:8000/api/guilds/");
+      const API_BASE = getApiBaseUrl();
+      const response = await fetchWithAuth(`${API_BASE}/api/guilds/`);
       if (response.ok) {
         const data = await response.json();
         setGuilds(data);
@@ -316,7 +323,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user }) => {
     setActionLogsLoading(true);
     setActionLogsError("");
     try {
-      const response = await fetchWithAuth('http://localhost:8000/api/admin/action-logs/');
+      const API_BASE = getApiBaseUrl();
+      const response = await fetchWithAuth(`${API_BASE}/api/admin/action-logs/`);
       if (response.ok) {
         const data = await response.json();
         setActionLogs(data);
@@ -334,7 +342,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user }) => {
 
   const fetchQuests = async () => {
     try {
-      const response = await fetchWithAuth("http://localhost:8000/api/quests/");
+      const API_BASE = getApiBaseUrl();
+      const response = await fetchWithAuth(`${API_BASE}/api/quests/`);
       if (response.ok) {
         const data = await response.json();
         setQuests(data);

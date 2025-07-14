@@ -1,3 +1,15 @@
+// --- Dynamic API base URL getter ---
+const getApiBaseUrl = () => {
+  let apiBase = '';
+  if (typeof window !== 'undefined' && (window as any).PEERQUEST_API_BASE_URL) {
+    apiBase = (window as any).PEERQUEST_API_BASE_URL;
+  } else if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+  } else {
+    apiBase = '';
+  }
+  return apiBase.replace(/\/$/, '');
+};
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -10,7 +22,7 @@ import { QuestAPI } from "../../lib/api/quests";
 // --- Helper: fetchWithAuth ---
 // Handles token refresh for all API calls
 const fetchWithAuth = async (url: string, options: any = {}, autoLogout = true) => {
-  const API_BASE = "http://localhost:8000";
+  const API_BASE = getApiBaseUrl();
   let token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
   const refresh = typeof window !== 'undefined' ? localStorage.getItem("refresh_token") : null;
   if (!token) throw new Error("No access token found");

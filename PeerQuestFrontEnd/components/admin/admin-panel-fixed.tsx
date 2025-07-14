@@ -146,6 +146,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     return inappropriateWords.some(word => username.toLowerCase().includes(word));
   };
 
+
+  // Dynamic API base URL getter
+  function getApiBaseUrl() {
+    if (typeof window !== 'undefined' && (window as any).API_BASE_URL) {
+      return (window as any).API_BASE_URL;
+    }
+    if (typeof global !== 'undefined' && (global as any).API_BASE_URL) {
+      return (global as any).API_BASE_URL;
+    }
+    if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+      return process.env.NEXT_PUBLIC_API_BASE_URL;
+    }
+    return '';
+  }
+
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     const token = localStorage.getItem('access_token');
     return fetch(url, {
@@ -163,7 +178,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     setGuildsLoading(true);
     setGuildsError("");
     try {
-      const response = await fetchWithAuth('http://localhost:8000/api/guilds/admin/');
+      const response = await fetchWithAuth(`${getApiBaseUrl()}/api/guilds/admin/`);
       if (response.ok) {
         const data = await response.json();
         setGuilds(data);
@@ -181,7 +196,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     setActionLogsLoading(true);
     setActionLogsError("");
     try {
-      const response = await fetchWithAuth('http://localhost:8000/api/admin/action-logs/');
+      const response = await fetchWithAuth(`${getApiBaseUrl()}/api/admin/action-logs/`);
       if (response.ok) {
         const data = await response.json();
         setActionLogs(data);
@@ -467,7 +482,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                       onClick={async () => {
                                         if (window.confirm(`Re-enable guild "${guild.name}"?`)) {
                                           try {
-                                            const response = await fetchWithAuth(`http://localhost:8000/api/guilds/${guild.guild_id || guild.id}/enable/`, {
+                                            const response = await fetchWithAuth(`${getApiBaseUrl()}/api/guilds/${guild.guild_id || guild.id}/enable/`, {
                                               method: 'POST',
                                               headers: { 'Content-Type': 'application/json' },
                                             });
@@ -490,7 +505,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                       onClick={async () => {
                                         if (window.confirm(`Reset warnings for guild "${guild.name}"?`)) {
                                           try {
-                                            const response = await fetchWithAuth(`http://localhost:8000/api/guilds/${guild.guild_id || guild.id}/reset_warnings/`, {
+                                            const response = await fetchWithAuth(`${getApiBaseUrl()}/api/guilds/${guild.guild_id || guild.id}/reset_warnings/`, {
                                               method: 'POST',
                                               headers: { 'Content-Type': 'application/json' },
                                             });
@@ -516,7 +531,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                       const reason = prompt("Enter reason for disabling guild:");
                                       if (reason && window.confirm(`Are you sure you want to disable the guild "${guild.name}"?`)) {
                                         try {
-                                          const response = await fetchWithAuth(`http://localhost:8000/api/guilds/${guild.guild_id || guild.id}/disable/`, {
+                                          const response = await fetchWithAuth(`${getApiBaseUrl()}/api/guilds/${guild.guild_id || guild.id}/disable/`, {
                                             method: 'POST',
                                             headers: { 'Content-Type': 'application/json' },
                                             body: JSON.stringify({ reason })

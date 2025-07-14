@@ -174,8 +174,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user }) => {
     }, 5000);
   };
 
+
+  // Dynamic API base URL getter
+  function getApiBaseUrl() {
+    if (typeof window !== 'undefined' && (window as any).API_BASE_URL) {
+      return (window as any).API_BASE_URL;
+    }
+    if (typeof global !== 'undefined' && (global as any).API_BASE_URL) {
+      return (global as any).API_BASE_URL;
+    }
+    if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+      return process.env.NEXT_PUBLIC_API_BASE_URL;
+    }
+    return '';
+  }
+
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-    const API_BASE = "http://localhost:8000";
     let token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
     const refresh = typeof window !== 'undefined' ? localStorage.getItem("refresh_token") : null;
 
@@ -189,17 +203,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user }) => {
     });
 
     if (res.status === 401 && refresh && typeof window !== 'undefined') {
-      const refreshRes = await fetch(`${API_BASE}/api/token/refresh/`, {
+      const refreshRes = await fetch(`${getApiBaseUrl()}/api/token/refresh/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh }),
       });
-      
+
       if (refreshRes.ok) {
         const data = await refreshRes.json();
         localStorage.setItem("access_token", data.access);
         token = data.access;
-        
+
         res = await fetch(url, {
           ...options,
           headers: {
@@ -226,41 +240,41 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user }) => {
     setReportsLoading(true);
     setReportsError("");
     try {
-      const API_BASE = "http://localhost:8000";
-      
+      const API_BASE = getApiBaseUrl();
+
       // Fetch user reports
       const userReportsRes = await fetchWithAuth(`${API_BASE}/api/reports/user/`);
       let userReports: UserReport[] = [];
-      
+
       if (userReportsRes.ok) {
         userReports = await userReportsRes.json();
       } else {
         const err = await userReportsRes.text();
         console.error("Failed to fetch user reports:", err);
       }
-      
+
       // Fetch guild reports
       const guildReportsRes = await fetchWithAuth(`${API_BASE}/api/reports/guild/`);
       let guildReports: GuildReport[] = [];
-      
+
       if (guildReportsRes.ok) {
         guildReports = await guildReportsRes.json();
       } else {
         const err = await guildReportsRes.text();
         console.error("Failed to fetch guild reports:", err);
       }
-      
+
       // Fetch quest reports
       const questReportsRes = await fetchWithAuth(`${API_BASE}/api/reports/quest/`);
       let questReports: QuestReport[] = [];
-      
+
       if (questReportsRes.ok) {
         questReports = await questReportsRes.json();
       } else {
         const err = await questReportsRes.text();
         console.error("Failed to fetch quest reports:", err);
       }
-      
+
       // Combine all reports
       const allReports: Report[] = [...userReports, ...guildReports, ...questReports];
       setReports(allReports);
@@ -278,7 +292,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user }) => {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetchWithAuth("http://localhost:8000/api/users/admin/users/");
+      const response = await fetchWithAuth(`${getApiBaseUrl()}/api/users/admin/users/`);
       if (response.ok) {
         const data = await response.json();
         setUsers(data);
@@ -296,7 +310,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user }) => {
     setGuildsLoading(true);
     setGuildsError("");
     try {
-      const response = await fetchWithAuth("http://localhost:8000/api/guilds/");
+      const response = await fetchWithAuth(`${getApiBaseUrl()}/api/guilds/`);
       if (response.ok) {
         const data = await response.json();
         setGuilds(data);
@@ -316,7 +330,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user }) => {
     setActionLogsLoading(true);
     setActionLogsError("");
     try {
-      const response = await fetchWithAuth('http://localhost:8000/api/admin/action-logs/');
+      const response = await fetchWithAuth(`${getApiBaseUrl()}/api/admin/action-logs/`);
       if (response.ok) {
         const data = await response.json();
         setActionLogs(data);
@@ -334,7 +348,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ user }) => {
 
   const fetchQuests = async () => {
     try {
-      const response = await fetchWithAuth("http://localhost:8000/api/quests/");
+      const response = await fetchWithAuth(`${getApiBaseUrl()}/api/quests/`);
       if (response.ok) {
         const data = await response.json();
         setQuests(data);

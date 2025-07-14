@@ -1,3 +1,15 @@
+// --- Dynamic API base URL getter ---
+const getApiBaseUrl = () => {
+  let apiBase = '';
+  if (typeof window !== 'undefined' && (window as any).PEERQUEST_API_BASE_URL) {
+    apiBase = (window as any).PEERQUEST_API_BASE_URL;
+  } else if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+  } else {
+    apiBase = '';
+  }
+  return apiBase.replace(/\/$/, '');
+};
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
@@ -10,7 +22,7 @@ import { QuestAPI } from "@/lib/api/quests";
 // --- Helper: fetchWithAuth ---
 // Handles token refresh for all API calls
 const fetchWithAuth = async (url: string, options: any = {}, autoLogout = true) => {
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+  const API_BASE = getApiBaseUrl();
   let token = typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
   const refresh = typeof window !== 'undefined' ? localStorage.getItem("refresh_token") : null;
   if (!token) throw new Error("No access token found");
@@ -247,8 +259,7 @@ function AdminPanel({
     setActionLogsLoading(true);
     setActionLogsError("");
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-      const res = await fetchWithAuth(`${API_BASE}/api/users/action-log/`);
+      const res = await fetchWithAuth(`${getApiBaseUrl()}/api/users/action-log/`);
       if (!res.ok) {
         const err = await res.text();
         setActionLogsError(err);
@@ -271,11 +282,8 @@ function AdminPanel({
     setReportsError("");
     setReports([]); // Clear existing reports to prevent duplication
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-      
       // The main reports endpoint already returns all types (user, quest, guild)
-      const res = await fetchWithAuth(`${API_BASE}/api/users/admin/reports/`);
-      
+      const res = await fetchWithAuth(`${getApiBaseUrl()}/api/users/admin/reports/`);
       if (!res.ok) {
         const err = await res.text();
         setReportsError(err);
@@ -283,9 +291,7 @@ function AdminPanel({
         setReportsLoading(false);
         return;
       }
-      
       const allReports = await res.json();
-      
       // Add unique keys but preserve backend type information
       const reportsWithKeys = allReports.map((report: any, index: number) => ({
         ...report,
@@ -293,7 +299,6 @@ function AdminPanel({
         report_type: report.type || 'unknown',
         unique_key: `${report.type || 'unknown'}-${report.id}-${index}`
       }));
-      
       setReports(reportsWithKeys);
     } catch (err: any) {
       setReportsError("Error fetching reports: " + (err?.message || err));
@@ -307,8 +312,7 @@ function AdminPanel({
     setTransactionsLoading(true);
     setTransactionsError("");
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-      const res = await fetchWithAuth(`${API_BASE}/api/transactions/transactions/all_transactions/`);
+      const res = await fetchWithAuth(`${getApiBaseUrl()}/api/transactions/transactions/all_transactions/`);
       if (!res.ok) {
         const err = await res.text();
         setTransactionsError(err);
@@ -317,7 +321,6 @@ function AdminPanel({
         return;
       }
       const data = await res.json();
-      
       // Handle both paginated and non-paginated responses
       let transactionData = [];
       if (Array.isArray(data)) {
@@ -327,7 +330,6 @@ function AdminPanel({
       } else {
         transactionData = [];
       }
-      
       setTransactions(transactionData);
     } catch (err: any) {
       setTransactionsError("Error fetching transactions: " + (err?.message || err));
@@ -341,8 +343,7 @@ function AdminPanel({
     setAppealsLoading(true);
     setAppealsError("");
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-      const res = await fetchWithAuth(`${API_BASE}/api/users/ban-appeals/`);
+      const res = await fetchWithAuth(`${getApiBaseUrl()}/api/users/ban-appeals/`);
       if (!res.ok) {
         const err = await res.text();
         setAppealsError(`Failed to fetch appeals: ${res.status} - ${err}`);
@@ -362,8 +363,7 @@ function AdminPanel({
   // Fetch users from backend
   const fetchUsers = async () => {
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-      const res = await fetchWithAuth(`${API_BASE}/api/users/admin/users/`);
+      const res = await fetchWithAuth(`${getApiBaseUrl()}/api/users/admin/users/`);
       if (!res.ok) {
         if (showToast) showToast(`Failed to fetch users: ${res.status}`, "error");
         return;
@@ -377,7 +377,6 @@ function AdminPanel({
       } else {
         userArray = [];
       }
-      
       // Set both local state and props
       setLocalUsers(userArray);
       setUsers?.(userArray);
@@ -389,8 +388,7 @@ function AdminPanel({
   // Fetch guilds from backend
   const fetchGuilds = async () => {
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-      const res = await fetchWithAuth(`${API_BASE}/api/guilds/`);
+      const res = await fetchWithAuth(`${getApiBaseUrl()}/api/guilds/`);
       if (!res.ok) {
         if (showToast) showToast(`Failed to fetch guilds: ${res.status}`, "error");
         return;
@@ -404,7 +402,6 @@ function AdminPanel({
       } else {
         guildArray = [];
       }
-      
       // Set both local state and props
       setLocalGuilds(guildArray);
       setGuilds?.(guildArray);
@@ -418,14 +415,11 @@ function AdminPanel({
     setReceiptsLoading(true);
     setReceiptsError("");
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
       const params = new URLSearchParams();
       if (receiptSearch.trim()) params.append("search", receiptSearch.trim());
       if (showFutureReceipts) params.append("show_future", "true");
-      
-      const url = `${API_BASE}/api/payments/admin/receipts/${params.toString() ? '?' + params.toString() : ''}`;
+      const url = `${getApiBaseUrl()}/api/payments/admin/receipts/${params.toString() ? '?' + params.toString() : ''}`;
       const res = await fetchWithAuth(url);
-      
       if (!res.ok) {
         const err = await res.text();
         setReceiptsError(err);
@@ -433,7 +427,6 @@ function AdminPanel({
         setReceiptsLoading(false);
         return;
       }
-      
       const data = await res.json();
       if (data.success) {
         setReceipts(data.receipts || []);
@@ -453,13 +446,11 @@ function AdminPanel({
   // Handle individual receipt actions
   const handleReceiptAction = async (receiptId: number, action: string, notes: string = '') => {
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-      const res = await fetchWithAuth(`${API_BASE}/api/payments/admin/receipts/${receiptId}/action/`, {
+      const res = await fetchWithAuth(`${getApiBaseUrl()}/api/payments/admin/receipts/${receiptId}/action/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, notes })
       });
-      
       const data = await res.json();
       if (data.success) {
         showToast(data.message, "success");
@@ -478,10 +469,8 @@ function AdminPanel({
       showToast("Please select receipts to process", "error");
       return;
     }
-    
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-      const res = await fetchWithAuth(`${API_BASE}/api/payments/admin/receipts/batch-action/`, {
+      const res = await fetchWithAuth(`${getApiBaseUrl()}/api/payments/admin/receipts/batch-action/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -490,7 +479,6 @@ function AdminPanel({
           notes 
         })
       });
-      
       const data = await res.json();
       if (data.success) {
         showToast(data.message, "success");
@@ -507,16 +495,13 @@ function AdminPanel({
   // User management actions
   const handleBanUser = async (user: User, reason: string) => {
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-      const res = await fetchWithAuth(`${API_BASE}/api/users/admin/users/${user.id}/ban/`, {
+      const res = await fetchWithAuth(`${getApiBaseUrl()}/api/users/admin/users/${user.id}/ban/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason })
       });
-      
       if (res.ok) {
         showToast(`User ${user.username || user.id} has been banned`, "success");
-        
         // Update user in local state immediately for better UX
         const updatedUser: User = { 
           ...user, 
@@ -524,7 +509,6 @@ function AdminPanel({
           banned: true, 
           banReason: reason
         };
-        
         // Update local users array immediately
         setLocalUsers(prev => {
           const newUsers = prev.map(u => u.id === user.id ? updatedUser : u);
@@ -532,15 +516,12 @@ function AdminPanel({
           setUsers?.(newUsers);
           return newUsers;
         });
-        
         // Force re-render
         setRefreshCounter(prev => prev + 1);
-        
         // Close modal and reset
         setShowBanModal(false);
         setBanReason("");
         setSelectedUser(null);
-        
         // Fetch fresh data from server to ensure consistency (with shorter delay)
         setTimeout(() => fetchUsers(), 200);
       } else {
