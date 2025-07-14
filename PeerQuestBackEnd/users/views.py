@@ -883,7 +883,8 @@ class PasswordResetView(APIView):
         uid = urlsafe_base64_encode(force_bytes(user.pk))
         
         # Create password reset link
-        frontend_url = "http://localhost:3000"  # This should be configurable via environment variable
+        import os
+        frontend_url = os.environ.get("FRONTEND_URL") or os.environ.get("NEXT_PUBLIC_FRONTEND_URL") or "http://localhost:3000"  # Configurable via env var
         reset_link = f"{frontend_url}/reset-password?uid={uid}&token={token}"
         
         # Send email (you'll need to configure email settings)
