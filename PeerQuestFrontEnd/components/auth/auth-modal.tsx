@@ -811,9 +811,53 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
             )}
 
             {mode === "forgot" && (
-              <div className="space-y-4">
-                {/* ...forgot password form fields as in the SearchUser version... */}
-              </div>
+              <form
+                className="space-y-4"
+                onSubmit={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleForgotPassword();
+                }}
+              >
+                <div>
+                  <label className="block text-sm font-medium text-[#2C1A1D] mb-2">EMAIL</label>
+                  <input
+                    type="email"
+                    className={`w-full px-3 py-2 border ${formErrors.email ? "border-red-500" : forgotForm.email && !validateEmail(forgotForm.email) ? "border-orange-500" : forgotForm.email && validateEmail(forgotForm.email) ? "border-green-500" : "border-[#CDAA7D]"} rounded bg-white text-[#2C1A1D] placeholder-[#8B75AA] focus:outline-none focus:border-[#8B75AA]`}
+                    placeholder="ENTER YOUR EMAIL"
+                    value={forgotForm.email}
+                    onChange={e => setForgotForm({ email: e.target.value })}
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); handleForgotPassword(); } }}
+                  />
+                  {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
+                  {!formErrors.email && forgotForm.email && !validateEmail(forgotForm.email) && (
+                    <p className="text-orange-500 text-xs mt-1">Please enter a valid email address</p>
+                  )}
+                  {!formErrors.email && forgotForm.email && validateEmail(forgotForm.email) && (
+                    <p className="text-green-500 text-xs mt-1">✓ Valid email format</p>
+                  )}
+                </div>
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="w-full bg-[#8B75AA] text-white py-3 rounded font-medium hover:bg-[#7A6699] transition-colors"
+                  >
+                    SEND PASSWORD RESET EMAIL
+                  </button>
+                </div>
+                <div className="text-center">
+                  <button
+                    type="button"
+                    className="text-[#8B75AA] hover:underline text-sm"
+                    onClick={() => {
+                      setMode("login");
+                      setFormErrors({});
+                    }}
+                  >
+                    Back to Login
+                  </button>
+                </div>
+              </form>
             )}
           </div>
         </div>
