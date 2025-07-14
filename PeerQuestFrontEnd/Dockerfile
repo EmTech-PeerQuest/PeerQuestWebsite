@@ -35,5 +35,5 @@ ENV NODE_ENV=production
 # Expose the correct port
 EXPOSE 3000
 
-# Start the Next.js app on port 3000
-CMD ["pnpm", "start"]
+# Print environment variables for debugging
+CMD ["sh", "-c", "echo '--- ENV VARS ---' && env | grep NEXT_PUBLIC_ && echo '----------------' && pnpm start"]
