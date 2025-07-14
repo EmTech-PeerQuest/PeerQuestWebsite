@@ -145,7 +145,19 @@ export default function SecurityTab({
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch('http://localhost:8000/api/users/change-password/', {
+
+      // Use env var for API base, fallback to relative if not set
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+      if (typeof window !== 'undefined') {
+        // eslint-disable-next-line no-console
+        console.debug('[PeerQuest][SecurityTab] NEXT_PUBLIC_API_BASE_URL:', apiBase);
+      }
+      const changePasswordUrl = `${apiBase.replace(/\/$/, '')}/api/users/change-password/`;
+      if (typeof window !== 'undefined') {
+        // eslint-disable-next-line no-console
+        console.debug('[PeerQuest][SecurityTab] Change password endpoint:', changePasswordUrl);
+      }
+      const response = await fetch(changePasswordUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -210,7 +222,19 @@ export default function SecurityTab({
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch('http://localhost:8000/api/users/profile/', {
+
+      // Use env var for API base, fallback to relative if not set
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+      if (typeof window !== 'undefined') {
+        // eslint-disable-next-line no-console
+        console.debug('[PeerQuest][SecurityTab] NEXT_PUBLIC_API_BASE_URL:', apiBase);
+      }
+      const profileUrl = `${apiBase.replace(/\/$/, '')}/api/users/profile/`;
+      if (typeof window !== 'undefined') {
+        // eslint-disable-next-line no-console
+        console.debug('[PeerQuest][SecurityTab] Profile endpoint:', profileUrl);
+      }
+      const response = await fetch(profileUrl, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -266,7 +290,18 @@ export default function SecurityTab({
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch('http://localhost:8000/api/users/profile/', {
+      // Use env var for API base, fallback to relative if not set
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+      if (typeof window !== 'undefined') {
+        // eslint-disable-next-line no-console
+        console.debug('[PeerQuest][SecurityTab] NEXT_PUBLIC_API_BASE_URL:', apiBase);
+      }
+      const profileUrl = `${apiBase.replace(/\/$/, '')}/api/users/profile/`;
+      if (typeof window !== 'undefined') {
+        // eslint-disable-next-line no-console
+        console.debug('[PeerQuest][SecurityTab] Profile endpoint:', profileUrl);
+      }
+      const response = await fetch(profileUrl, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

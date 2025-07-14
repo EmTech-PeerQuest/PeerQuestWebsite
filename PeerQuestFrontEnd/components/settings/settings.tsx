@@ -85,7 +85,18 @@ export function Settings() {
       
       if (!accessToken && refreshToken) {
         try {
-          const response = await fetch('http://localhost:8000/api/token/refresh/', {
+          // Use env var for API base, fallback to relative if not set
+          const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+          if (typeof window !== 'undefined') {
+            // eslint-disable-next-line no-console
+            console.debug('[PeerQuest][Settings] NEXT_PUBLIC_API_BASE_URL:', apiBase);
+          }
+          const url = `${apiBase.replace(/\/$/, '')}/api/token/refresh/`;
+          if (typeof window !== 'undefined') {
+            // eslint-disable-next-line no-console
+            console.debug('[PeerQuest][Settings] Refresh token endpoint:', url);
+          }
+          const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ refresh: refreshToken }),

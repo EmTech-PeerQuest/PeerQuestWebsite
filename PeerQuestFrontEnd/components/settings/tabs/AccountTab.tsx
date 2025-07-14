@@ -10,7 +10,15 @@ import { DebouncedButton, SubmitButton, DangerButton } from "@/components/ui/deb
 import { useUserInfo } from "@/hooks/use-api-request";
 import axios from "axios";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+// Robust API base URL getter
+const getApiBaseUrl = () => {
+  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+  if (typeof window !== 'undefined') {
+    // eslint-disable-next-line no-console
+    console.debug('[PeerQuest][AccountTab] NEXT_PUBLIC_API_BASE_URL:', apiBase);
+  }
+  return apiBase.replace(/\/$/, '');
+};
 
 // Client-side username validation - enhanced to match backend
 function validateUsernameClient(username: string): boolean {
@@ -100,7 +108,14 @@ export async function fetchUserInfo() {
       throw new Error("No access token found. Please log in.");
     }
     
-    const res = await axios.get(`${API_BASE_URL}/api/users/settings/`, {
+
+    const apiBase = getApiBaseUrl();
+    const url = `${apiBase}/api/users/settings/`;
+    if (typeof window !== 'undefined') {
+      // eslint-disable-next-line no-console
+      console.debug('[PeerQuest][AccountTab] GET user settings endpoint:', url);
+    }
+    const res = await axios.get(url, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -133,8 +148,14 @@ export async function fetchUserInfo() {
 async function updateUserProfile(data: any) {
   try {
     const token = localStorage.getItem('access_token');
+    const apiBase = getApiBaseUrl();
+    const url = `${apiBase}/api/users/settings/`;
+    if (typeof window !== 'undefined') {
+      // eslint-disable-next-line no-console
+      console.debug('[PeerQuest][AccountTab] PATCH user settings endpoint:', url);
+    }
     const res = await axios.patch(
-      `${API_BASE_URL}/api/users/settings/`,
+      url,
       data,
       {
         headers: { 
@@ -177,8 +198,14 @@ async function updateUserProfile(data: any) {
 async function deleteUserAccount() {
   try {
     const token = localStorage.getItem('access_token');
+    const apiBase = getApiBaseUrl();
+    const url = `${apiBase}/api/users/settings/`;
+    if (typeof window !== 'undefined') {
+      // eslint-disable-next-line no-console
+      console.debug('[PeerQuest][AccountTab] DELETE user settings endpoint:', url);
+    }
     await axios.delete(
-      `${API_BASE_URL}/api/users/settings/`,
+      url,
       {
         headers: { 
           "Content-Type": "application/json",
