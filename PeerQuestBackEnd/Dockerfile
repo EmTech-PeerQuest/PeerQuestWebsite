@@ -28,4 +28,5 @@ COPY . .
 EXPOSE 8000
 
 # Run app with Gunicorn and UvicornWorker
-CMD ["gunicorn", "core.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:${PORT:-8000}"]
+CMD ["sh", "-c", "gunicorn core.asgi:application -k uvicorn.workers.UvicornWorker -b 0.0.0.0:${PORT:-8000}"]
+
