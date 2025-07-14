@@ -49,31 +49,39 @@ export function GuildHall({
   useEffect(() => {
     if (currentUser && guilds.length > 0) {
       (async () => {
-        const memberships: {[guildId: string]: boolean} = {}
+        const memberships: { [guildId: string]: boolean } = {};
+        const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
         for (const g of guilds) {
           // Dynamic API base
-          const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || ''
+          const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
           const url = apiBase
             ? `${apiBase.replace(/\/$/, '')}/api/guilds/${g.guild_id}/members/`
-            : `/api/guilds/${g.guild_id}/members/`
+            : `/api/guilds/${g.guild_id}/members/`;
           try {
-            const res = await fetch(url)
-            const members = await res.json()
-            memberships[g.guild_id] = Array.isArray(members) && members.some((m: any) => String(m.user?.id) === String(currentUser.id) && m.status === 'approved' && m.is_active)
+            const res = await fetch(url, {
+              headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+            });
+            if (res.status === 401) {
+              memberships[g.guild_id] = false;
+              continue;
+            }
+            const members = await res.json();
+            memberships[g.guild_id] = Array.isArray(members) && members.some((m: any) => String(m.user?.id) === String(currentUser.id) && m.status === 'approved' && m.is_active);
           } catch (e) {
-            memberships[g.guild_id] = false
+            memberships[g.guild_id] = false;
           }
         }
-        setUserMemberships(memberships)
-      })()
+        setUserMemberships(memberships);
+      })();
     }
-  }, [currentUser, guilds])
+  }, [currentUser, guilds]);
 
   // Dynamic: check user join requests for all guilds
   useEffect(() => {
     if (!currentUser) return
     (async () => {
       const joinRequests: Record<string, 'pending' | 'approved' | 'declined' | null> = {}
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
       for (const g of guilds) {
         // Dynamic API base
         const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || ''
@@ -81,7 +89,19 @@ export function GuildHall({
           ? `${apiBase.replace(/\/$/, '')}/api/guilds/${g.guild_id}/join-requests/?user_id=${currentUser.id}`
           : `/api/guilds/${g.guild_id}/join-requests/?user_id=${currentUser.id}`
         try {
-          const res = await fetch(url)
+          const res = await fetch(url, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          });
+          if (res.status === 401) {
+            joinRequests[g.guild_id] = null;
+            continue;
+          }
+          if (res.status === 403) {
+            joinRequests[g.guild_id] = null;
+            // Optionally, show a toast or log for forbidden access
+            // showToast && showToast('You do not have permission to view join requests for this guild.', 'error');
+            continue;
+          }
           if (res.ok) {
             const requests = await res.json()
             const userRequest = Array.isArray(requests) && requests.find((req: any) => req.user?.id === currentUser.id || req.user?.username === currentUser.username)
