@@ -225,7 +225,7 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
       try {
         // Use dynamic API URL from environment variable, fallback to localhost
         const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
-        const response = await fetch(`${apiBaseUrl}/payments/packages/`)
+        const response = await fetch(`${apiBaseUrl}/api/payments/packages/`)
         const data = await response.json()
         
         if (data.success && data.packages) {
