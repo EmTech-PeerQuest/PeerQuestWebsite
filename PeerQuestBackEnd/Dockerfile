@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y \
     default-libmysqlclient-dev \
     pkg-config \
     curl \
-    netcat-openbsd \  # ✅ Replaced 'netcat' with 'netcat-openbsd'
+    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
 # Environment
@@ -27,5 +27,5 @@ COPY . .
 # Expose port
 EXPOSE 8000
 
-# Run app with Gunicorn and UvicornWorker (for ASGI/Django Channels)
+# Run app with Gunicorn and UvicornWorker
 CMD ["gunicorn", "core.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:${PORT:-8000}"]
