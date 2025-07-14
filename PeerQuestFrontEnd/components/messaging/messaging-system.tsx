@@ -105,13 +105,25 @@ export default function MessagingSystem({
 
 
   const API = useMemo(
-    () =>
-      axios.create({
-        baseURL: "http://localhost:8000/api",
+    () => {
+      // Use env var for API base, fallback to relative if not set
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+      if (typeof window !== 'undefined') {
+        // eslint-disable-next-line no-console
+        console.debug('[PeerQuest][MessagingSystem] NEXT_PUBLIC_API_BASE_URL:', apiBase);
+      }
+      const baseURL = `${apiBase.replace(/\/$/, '')}/api`;
+      if (typeof window !== 'undefined') {
+        // eslint-disable-next-line no-console
+        console.debug('[PeerQuest][MessagingSystem] Axios baseURL:', baseURL);
+      }
+      return axios.create({
+        baseURL,
         headers: { Authorization: `Bearer ${token}` },
-      }),
+      });
+    },
     [token]
-  )
+  );
 
   // --- USER SEARCH FUNCTIONALITY ---
   useEffect(() => {

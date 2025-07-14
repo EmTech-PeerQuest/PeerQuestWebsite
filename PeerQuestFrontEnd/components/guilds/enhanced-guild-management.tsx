@@ -98,77 +98,129 @@ export function EnhancedGuildManagement({
   const fetchUserMemberGuilds = async () => {
     setLoadingUserGuilds(true)
     try {
-      const memberGuilds: Guild[] = []
-      
+      const memberGuilds: Guild[] = [];
+      // Use NEXT_PUBLIC_API_BASE_URL if set, else fallback to default API
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+      // Debug log for env
+      if (typeof window !== 'undefined') {
+        // eslint-disable-next-line no-console
+        console.debug('[PeerQuest][EnhancedGuildManagement] NEXT_PUBLIC_API_BASE_URL:', apiBase);
+      }
       // Check each guild to see if user is a member
       const membershipChecks = guilds.map(async (guild) => {
         try {
-          const members = await guildApi.getGuildMembers(guild.guild_id)
-          const isMember = members.some(membership => 
+          // Dynamically build endpoint if needed
+          const guildId = guild.guild_id;
+          let members;
+          if (apiBase) {
+            // Always use /api/guilds for dynamic API
+            const url = `${apiBase.replace(/\/$/, '')}/api/guilds/${guildId}/members/`;
+            if (typeof window !== 'undefined') {
+              // eslint-disable-next-line no-console
+              console.debug('[PeerQuest][EnhancedGuildManagement] Fetching guild members from:', url);
+            }
+            const res = await fetch(url);
+            members = await res.json();
+          } else {
+            members = await guildApi.getGuildMembers(guildId);
+          }
+          const isMember = members.some((membership: any) => 
             String(membership.user.id) === String(currentUser.id) && 
             membership.status === 'approved' && 
             membership.is_active &&
             membership.role !== 'owner' // Exclude owned guilds
-          )
+          );
           if (isMember) {
-            memberGuilds.push(guild)
+            memberGuilds.push(guild);
           }
         } catch (error) {
-          console.error(`Failed to check membership for guild ${guild.guild_id}:`, error)
+          console.error(`Failed to check membership for guild ${guild.guild_id}:`, error);
         }
-      })
-      
-      await Promise.all(membershipChecks)
-      setUserMemberGuilds(memberGuilds)
+      });
+      await Promise.all(membershipChecks);
+      setUserMemberGuilds(memberGuilds);
     } catch (error) {
-      console.error('Failed to fetch user member guilds:', error)
+      console.error('Failed to fetch user member guilds:', error);
     } finally {
-      setLoadingUserGuilds(false)
+      setLoadingUserGuilds(false);
     }
   }
 
   const fetchGuildData = async () => {
-    if (!selectedGuild) return
+    if (!selectedGuild) return;
 
     // Fetch members first
-    setLoadingMembers(true)
+    setLoadingMembers(true);
     try {
-      const members = await guildApi.getGuildMembers(selectedGuild.guild_id)
-      setGuildMembers(members)
-      
+      // Use NEXT_PUBLIC_API_BASE_URL if set, else fallback to default API
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+      if (typeof window !== 'undefined') {
+        // eslint-disable-next-line no-console
+        console.debug('[PeerQuest][EnhancedGuildManagement] NEXT_PUBLIC_API_BASE_URL:', apiBase);
+      }
+      let members;
+      if (apiBase) {
+        // Always use /api/guilds for dynamic API
+        const url = `${apiBase.replace(/\/$/, '')}/api/guilds/${selectedGuild.guild_id}/members/`;
+        if (typeof window !== 'undefined') {
+          // eslint-disable-next-line no-console
+          console.debug('[PeerQuest][EnhancedGuildManagement] Fetching guild members from:', url);
+        }
+        const res = await fetch(url);
+        members = await res.json();
+      } else {
+        members = await guildApi.getGuildMembers(selectedGuild.guild_id);
+      }
+      setGuildMembers(members);
+
       // After members are loaded, check permissions and fetch requests if needed
-      const isOwner = String(selectedGuild.owner?.id) === String(currentUser.id) || 
-                     selectedGuild.poster?.username === currentUser.username
-      
+      const isOwner = String(selectedGuild.owner?.id) === String(currentUser.id) ||
+        selectedGuild.poster?.username === currentUser.username;
+
       // Check if user is an admin in this guild
-      const userMembership = members.find(membership => 
+      const userMembership = members.find((membership: any) =>
         String(membership.user.id) === String(currentUser.id) && membership.is_active
-      )
-      const isAdmin = userMembership?.role === 'admin'
-      const isOwnerOrAdmin = isOwner || isAdmin
-      
+      );
+      const isAdmin = userMembership?.role === 'admin';
+      const isOwnerOrAdmin = isOwner || isAdmin;
+
       // Fetch join requests if user has permissions
       if (isOwnerOrAdmin) {
-        setLoadingRequests(true)
+        setLoadingRequests(true);
         try {
           // Fetch both pending and processed requests
-          const [pendingRequests, processedRequestsData] = await Promise.all([
-            guildApi.getGuildJoinRequests(selectedGuild.guild_id, 'pending'),
-            guildApi.getGuildJoinRequests(selectedGuild.guild_id, 'processed')
-          ]);
-          
-          setJoinRequests(pendingRequests)
-          setProcessedRequests(processedRequestsData)
+          let pendingRequests, processedRequestsData;
+          if (apiBase) {
+            const pendingUrl = `${apiBase.replace(/\/$/, '')}/api/guilds/${selectedGuild.guild_id}/join-requests/?status=pending`;
+            const processedUrl = `${apiBase.replace(/\/$/, '')}/api/guilds/${selectedGuild.guild_id}/join-requests/?status=processed`;
+            if (typeof window !== 'undefined') {
+              // eslint-disable-next-line no-console
+              console.debug('[PeerQuest][EnhancedGuildManagement] Fetching join requests from:', pendingUrl, processedUrl);
+            }
+            const [pendingRes, processedRes] = await Promise.all([
+              fetch(pendingUrl),
+              fetch(processedUrl)
+            ]);
+            pendingRequests = await pendingRes.json();
+            processedRequestsData = await processedRes.json();
+          } else {
+            [pendingRequests, processedRequestsData] = await Promise.all([
+              guildApi.getGuildJoinRequests(selectedGuild.guild_id, 'pending'),
+              guildApi.getGuildJoinRequests(selectedGuild.guild_id, 'processed')
+            ]);
+          }
+          setJoinRequests(pendingRequests);
+          setProcessedRequests(processedRequestsData);
         } catch (error) {
-          console.error('Failed to fetch join requests:', error)
+          console.error('Failed to fetch join requests:', error);
         } finally {
-          setLoadingRequests(false)
+          setLoadingRequests(false);
         }
       }
     } catch (error) {
-      console.error('Failed to fetch guild members:', error)
+      console.error('Failed to fetch guild members:', error);
     } finally {
-      setLoadingMembers(false)
+      setLoadingMembers(false);
     }
   }
 

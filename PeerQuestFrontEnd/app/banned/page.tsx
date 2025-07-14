@@ -20,14 +20,24 @@ export default function BannedPage() {
     setSubmitting(true);
     setError(undefined);
     try {
-      const API_BASE = "http://localhost:8000";
+      // Use env var for API base, fallback to relative if not set
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+      if (typeof window !== 'undefined') {
+        // eslint-disable-next-line no-console
+        console.debug('[PeerQuest][BannedPage] NEXT_PUBLIC_API_BASE_URL:', apiBase);
+      }
+      const url = `${apiBase.replace(/\/$/, '')}/api/users/ban-appeal/submit/`;
+      if (typeof window !== 'undefined') {
+        // eslint-disable-next-line no-console
+        console.debug('[PeerQuest][BannedPage] Submitting ban appeal to:', url);
+      }
       const formData = new FormData();
       formData.append("email", email);
       formData.append("message", reason);
       files.forEach((file, idx) => {
         formData.append("files", file);
       });
-      const res = await fetch(`${API_BASE}/api/users/ban-appeal/submit/`, {
+      const res = await fetch(url, {
         method: "POST",
         body: formData
       });
