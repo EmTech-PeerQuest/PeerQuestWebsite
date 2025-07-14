@@ -20,8 +20,9 @@ class JWTAuthMiddleware(BaseMiddleware):
         if token:
             token = token[0]
             try:
-                validated_token = UntypedToken(token)
-                user = await sync_to_async(JWTAuthentication().get_user)(validated_token)
+                jwt_auth = JWTAuthentication()
+                validated_token = await sync_to_async(jwt_auth.get_validated_token)(token)
+                user = await sync_to_async(jwt_auth.get_user)(validated_token)
                 logger.info(f"WebSocket user authenticated: {user} (is_authenticated={user.is_authenticated})")
                 scope['user'] = user
             except Exception as e:
