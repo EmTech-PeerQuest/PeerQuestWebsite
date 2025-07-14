@@ -1,3 +1,5 @@
+
+"use client";
 // --- Dynamic API base URL getter ---
 const getApiBaseUrl = () => {
   let apiBase = '';
@@ -10,7 +12,6 @@ const getApiBaseUrl = () => {
   }
   return apiBase.replace(/\/$/, '');
 };
-"use client";
 
 import { useState, useMemo, useEffect } from "react";
 import { Users, FileText, Flag, Home, X, Search, Trash2, AlertTriangle, Clock, ArrowUpDown, Star, Trophy } from "lucide-react";
