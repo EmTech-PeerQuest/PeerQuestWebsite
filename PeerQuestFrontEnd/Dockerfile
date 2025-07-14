@@ -1,10 +1,18 @@
 # ---- Build Stage ----
 FROM node:20-alpine AS builder
 
+# Accept build-time environment variables from Railway
+ARG NEXT_PUBLIC_API_BASE_URL
+ARG NEXT_PUBLIC_MEDIA_URL
+ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID
+
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_MEDIA_URL=$NEXT_PUBLIC_MEDIA_URL
+ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID
+
 # Install pnpm
 RUN npm install -g pnpm
 
-# Set working directory
 WORKDIR /app
 
 # Copy dependency files
@@ -16,8 +24,9 @@ RUN pnpm install --no-frozen-lockfile
 # Copy project files
 COPY . .
 
-# Build the Next.js app (Railway injects runtime env vars during build)
-RUN pnpm build
+# Build with env vars available
+RUN echo "Building with NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL" \
+  && pnpm build
 
 # ---- Production Stage ----
 FROM node:20-alpine AS runner
@@ -35,5 +44,5 @@ ENV NODE_ENV=production
 # Expose the correct port
 EXPOSE 3000
 
-# Print environment variables for debugging
+# Print environment variables and start
 CMD ["sh", "-c", "echo '--- ENV VARS ---' && env | grep NEXT_PUBLIC_ && echo '----------------' && pnpm start"]
