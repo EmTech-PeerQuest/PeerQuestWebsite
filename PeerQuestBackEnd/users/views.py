@@ -863,12 +863,11 @@ class PasswordResetView(APIView):
     
     def post(self, request):
         email = request.data.get('email')
-        
         if not email:
             return Response({
                 'detail': 'Email is required.'
             }, status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
@@ -876,48 +875,30 @@ class PasswordResetView(APIView):
             return Response({
                 'detail': 'If an account with this email exists, you will receive a password reset link shortly.'
             }, status=status.HTTP_200_OK)
-        
+
         # Generate password reset token
         token_generator = PasswordResetTokenGenerator()
         token = token_generator.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(user.pk))
-        
-        # Create password reset link
+
+        # Determine frontend URL dynamically from environment
         import os
-        frontend_url = os.environ.get("FRONTEND_URL") or os.environ.get("NEXT_PUBLIC_FRONTEND_URL") or "http://localhost:3000"  # Configurable via env var
-        reset_link = f"{frontend_url}/reset-password?uid={uid}&token={token}"
-        
-        # Send email (you'll need to configure email settings)
+        frontend_url = os.environ.get("FRONTEND_URL") or os.environ.get("NEXT_PUBLIC_FRONTEND_URL") or "http://localhost:3000"
+        reset_url = f"{frontend_url.rstrip('/')}/reset-password?uid={uid}&token={token}"
+
+        # Use the custom HTML email utility
+        from .email_utils import send_password_reset_email
         try:
-            email_subject = 'Password Reset - PeerQuest Tavern'
-            email_message = f'''
-Hello,
-
-You requested a password reset for your PeerQuest Tavern account.
-
-Click the link below to reset your password:
-{reset_link}
-
-If you didn't request this password reset, please ignore this email.
-
-This link will expire in 24 hours for security reasons.
-
-Best regards,
-The PeerQuest Tavern Team
-'''
-            
-            send_mail(
-                subject=email_subject,
-                message=email_message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=False,
-            )
+            email_sent = send_password_reset_email(user, reset_url)
+            if not email_sent:
+                return Response({
+                    'detail': 'Failed to send password reset email. Please try again later.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         except Exception as e:
             return Response({
                 'detail': 'Failed to send password reset email. Please try again later.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
         return Response({
             'detail': 'If an account with this email exists, you will receive a password reset link shortly.'
         }, status=status.HTTP_200_OK)
