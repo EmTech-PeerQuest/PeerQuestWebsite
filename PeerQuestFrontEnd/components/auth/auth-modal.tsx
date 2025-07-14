@@ -74,7 +74,6 @@ export function createPeerQuestWebSocket({ roomId, onMessage, onOpen, onError, o
     getSocket: () => socket,
   };
 }
-"use client"
 
 import { useState, useEffect } from "react"
 import { X, Eye, EyeOff, AlertCircle } from "lucide-react"
