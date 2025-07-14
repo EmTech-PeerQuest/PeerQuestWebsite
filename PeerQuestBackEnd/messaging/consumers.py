@@ -2,19 +2,14 @@ import json
 import logging
 import uuid
 
-from urllib.parse import parse_qs
 from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
-from django.db import close_old_connections
-from rest_framework_simplejwt.tokens import UntypedToken
-from rest_framework_simplejwt.authentication import JWTAuthentication
-from django.contrib.auth.models import AnonymousUser
 from messaging.models import Message, Conversation, UserPresence
 from messaging.serializers import MessageSerializer
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(_name_)
 User = get_user_model()
 
 
@@ -80,7 +75,7 @@ def create_message(conversation_id, sender_id, content, message_type="text"):
 def create_message_with_attachment(conversation_id, sender_id, content, message_type, attachment_data):
     """
     Create a message and attach a file (image or generic file).
-    `attachment_data` should include:
+    attachment_data should include:
         - file_url: path or full URL of uploaded file (already handled by frontend HTTP)
         - filename
         - file_size
@@ -141,28 +136,6 @@ def is_user_online(user_id):
 
 class ChatConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
-        # 🔐 Step 1: Extract token from query string
-        query_string = self.scope.get("query_string", b"").decode()
-        query_params = parse_qs(query_string)
-        token = query_params.get("token", [None])[0]
-
-        if not token:
-            logger.warning("WebSocket rejected: No token in query params.")
-            await self.close(code=4001)
-            return
-
-        try:
-            # Step 2: Validate and decode JWT
-            UntypedToken(token)  # Raises error if token invalid
-            validated_token = JWTAuthentication().get_validated_token(token)
-            user = JWTAuthentication().get_user(validated_token)
-            self.scope["user"] = user  # ✅ Inject authenticated user
-            close_old_connections()
-        except Exception as e:
-            logger.warning(f"WebSocket token validation failed: {e}")
-            await self.close(code=4001)
-            return
-
         # ✅ After token processing, proceed as before
         user = self.scope["user"]
         if not user or not user.is_authenticated:
