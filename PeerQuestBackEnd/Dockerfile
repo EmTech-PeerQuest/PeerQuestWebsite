@@ -5,8 +5,6 @@ RUN apt-get update && apt-get install -y \
     gcc \
     default-libmysqlclient-dev \
     pkg-config \
-    curl \
-    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
 # Environment
@@ -18,15 +16,11 @@ WORKDIR /app
 
 # Install Python dependencies
 COPY requirements.txt .
-RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt && pip install watchdog gunicorn uvicorn[standard]
+RUN pip install --no-cache-dir -r requirements.txt && pip install watchdog
 
 # Copy project
 COPY . .
 
-# Expose port
-EXPOSE 8000
-
-# Run app with Gunicorn and UvicornWorker
-CMD ["sh", "-c", "gunicorn core.asgi:application -k uvicorn.workers.UvicornWorker -b 0.0.0.0:${PORT:-8000}"]
+# Command to run your Django app with Daphne (ASGI, WebSocket support)
+CMD ["sh", "-c", "daphne -b 0.0.0.0 -p ${PORT:-8000} core.asgi:application"]
 
