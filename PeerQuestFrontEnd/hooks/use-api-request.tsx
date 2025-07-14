@@ -1,4 +1,27 @@
+
 'use client'
+
+// Dynamic API base URL getter
+function getApiBaseUrl() {
+  let apiBase = '';
+  if (typeof window !== 'undefined' && (window as any).PEERQUEST_API_BASE_URL) {
+    apiBase = (window as any).PEERQUEST_API_BASE_URL;
+    // eslint-disable-next-line no-console
+    console.debug('[PeerQuest][use-api-request] Using window.PEERQUEST_API_BASE_URL:', apiBase);
+  } else if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+    if (typeof window !== 'undefined') {
+      // eslint-disable-next-line no-console
+      console.debug('[PeerQuest][use-api-request] Using NEXT_PUBLIC_API_BASE_URL:', apiBase);
+    }
+  } else {
+    apiBase = '';
+    if (typeof window !== 'undefined') {
+      console.debug('[PeerQuest][use-api-request] No API base URL set, using relative path.');
+    }
+  }
+  return apiBase.replace(/\/$/, '');
+}
 
 import { useCallback, useRef, useState } from 'react'
 import axios, { AxiosError } from 'axios'
@@ -144,7 +167,7 @@ export function useAPIRequest() {
     }
     
     try {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const API_BASE_URL = getApiBaseUrl();
       const response = await axios.post(`${API_BASE_URL}/api/token/refresh/`, {
         refresh: refreshToken,
       }, {
@@ -199,8 +222,7 @@ export function useUserInfo() {
   const { makeRequest, isLoading, error, clearError } = useAPIRequest()
 
   const fetchUserInfo = useCallback(async () => {
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-    
+    const API_BASE_URL = getApiBaseUrl();
     return makeRequest({
       url: `${API_BASE_URL}/api/users/settings/`,
       method: 'GET',
@@ -211,8 +233,7 @@ export function useUserInfo() {
   }, [makeRequest])
 
   const updateUserInfo = useCallback(async (data: any) => {
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-    
+    const API_BASE_URL = getApiBaseUrl();
     return makeRequest({
       url: `${API_BASE_URL}/api/users/settings/`,
       method: 'PUT',
