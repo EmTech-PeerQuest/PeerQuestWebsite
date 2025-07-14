@@ -755,7 +755,7 @@ export default function Home() {
                     { name: "Michael Liam San Diego", role: "Full-stack/UI/UX", avatar: "Liampic.jpg", portfolio: "https://sandiego-portfolio.vercel.app", linkedin: "https://www.linkedin.com/in/michael-liam-san-diego-5a18b7287/", isPhoto: true },
                     { name: "Mark John Wayne Yabes", role: "Full-Stack/Database", avatar: "Yabespic.jpg", portfolio: "https://markyabesportfolio.netlify.app/", linkedin: "https://www.linkedin.com/in/mark-yabes-602026253/", isPhoto: true },
                     { name: "Tristan Von Ceazar Yanoria", role: "Full-Stack/Documentation", avatar: "Tristanpic.webp", portfolio: "http://insantics.netlify.app/#about", linkedin: "https://www.linkedin.com/in/tristan-von-ceazar-yanoria-57b133302/", isPhoto: true },
-                    { name: "John Odysseus Lim", role: "Full-Stack/Documentation", avatar: "J", portfolio: "https://odysseus-droid.github.io/limportfolio", linkedin: "https://www.linkedin.com/in/jhndyssslm/", isPhoto: true },
+                    { name: "John Odysseus Lim", role: "Full-Stack/Documentation", avatar: "Yabespic2.jpg", portfolio: "https://odysseus-droid.github.io/limportfolio", linkedin: "https://www.linkedin.com/in/jhndyssslm/", isPhoto: true },
                   ].map((member, index) => (
                     <div key={index} className="text-center bg-white border border-[#CDAA7D] rounded-lg p-8">
                       <div className="avatar avatar-xl mx-auto mb-4">

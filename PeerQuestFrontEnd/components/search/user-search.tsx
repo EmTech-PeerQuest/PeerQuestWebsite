@@ -44,11 +44,14 @@ export function UserSearch({ quests, guilds, currentUser, showToast }: UserSearc
       setLoadingUsers(true);
       setUsersError(null);
       try {
-        // Try Django backend first, fallback to Next.js API route if 404
-        console.log("[UserSearch] Fetching users from:", "http://localhost:8000/api/users/search/");
-        let res = await fetch("http://localhost:8000/api/users/search/");
+        // Use NEXT_PUBLIC_API_BASE_URL if set, else fallback to relative API route
+        const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+        const backendUrl = apiBase ? `${apiBase.replace(/\/$/, '')}/api/users/search/` : '/api/users/search/';
+        console.log("[UserSearch] Fetching users from:", backendUrl);
+        let res = await fetch(backendUrl);
         console.log("[UserSearch] Response status:", res.status);
-        if (res.status === 404) {
+        if (res.status === 404 && !apiBase) {
+          // Only fallback if not using explicit API base
           console.log("[UserSearch] Fallback to /api/users");
           res = await fetch("/api/users");
         }

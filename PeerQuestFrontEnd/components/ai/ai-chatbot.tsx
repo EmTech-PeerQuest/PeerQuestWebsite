@@ -83,8 +83,12 @@ export function AIChatbot({ currentUser }: AIChatbotProps) {
     try {
       // Limit messages to last 5 to prevent payload too large error
       const recentMessages = messages.slice(-5);
-      
-      const res = await fetch("http://localhost:8000/api/users/ai-chat/", {
+
+      // Use NEXT_PUBLIC_API_BASE_URL if set, else fallback to relative API route
+      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+      const aiChatUrl = apiBase ? `${apiBase.replace(/\/$/, '')}/api/users/ai-chat/` : '/api/users/ai-chat/';
+      console.log('[AIChatbot] Posting to:', aiChatUrl);
+      const res = await fetch(aiChatUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -92,7 +96,7 @@ export function AIChatbot({ currentUser }: AIChatbotProps) {
           user: currentUser 
         }),
       });
-      
+
       const data = await res.json();
       
       const aiResponse: Message = {
