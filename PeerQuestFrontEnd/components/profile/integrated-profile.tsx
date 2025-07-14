@@ -41,13 +41,16 @@ function AchievementsSection({ userId }: { userId: string | number }) {
       setLoading(true);
       setError(null);
       try {
-        // Connect to Achievements API (robust: try /users/:id/achievements-full/ and fallback to /api/achievements/)
+        // Use NEXT_PUBLIC_API_BASE_URL if set, else fallback to relative API route
+        const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+        const achievementsUrl = apiBase ? `${apiBase.replace(/\/$/, '')}/users/${userId}/achievements-full/` : `/users/${userId}/achievements-full/`;
         let res;
         try {
-          res = await api.get(`/users/${userId}/achievements-full/`);
+          res = await api.get(achievementsUrl);
         } catch (err) {
           // fallback endpoint if needed
-          res = await api.get(`/api/achievements/?user_id=${userId}`);
+          const fallbackUrl = apiBase ? `${apiBase.replace(/\/$/, '')}/api/achievements/?user_id=${userId}` : `/api/achievements/?user_id=${userId}`;
+          res = await api.get(fallbackUrl);
         }
         // Debug: log API response
         console.log('[Achievements] API response:', res.data);
