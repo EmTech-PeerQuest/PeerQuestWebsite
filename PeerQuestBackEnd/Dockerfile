@@ -1,4 +1,9 @@
+
 FROM python:3.11-slim
+
+# Railway cache refresher
+ARG CACHEBUST=1
+ENV CACHEBUST=${CACHEBUST}
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \

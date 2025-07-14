@@ -1,5 +1,10 @@
+
 # ---- Build Stage ----
 FROM node:20-alpine AS builder
+
+# Railway cache refresher
+ARG CACHEBUST=1
+ENV CACHEBUST=${CACHEBUST}
 
 # Accept build-time environment variables from Railway
 ARG NEXT_PUBLIC_API_BASE_URL

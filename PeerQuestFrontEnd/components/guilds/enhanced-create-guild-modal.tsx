@@ -52,31 +52,20 @@ export function EnhancedCreateGuildModal({
   const [currentSocialUrl, setCurrentSocialUrl] = useState<string>("")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showConfirmation, setShowConfirmation] = useState<boolean>(false)
-  // Gold state
-  const [userGold, setUserGold] = useState<number | null>(null)
-  const [loadingGold, setLoadingGold] = useState(false)
-  // Always call the hook (not the function type check)
+
+  // Gold state (navbar logic)
+  const [userGold, setUserGold] = useState<number | null>(null);
+  const [loadingGold, setLoadingGold] = useState(false);
+  const [goldError, setGoldError] = useState(false);
   const goldBalance = useGoldBalance();
 
-  // Dynamic emblem and specialization options (can be extended)
-  const emblems = ["🧪", "🌙", "🔥", "🌿", "🥕", "🍂", "🔮", "💎", "⚔️", "🏰", "🛡️", "🎯", "🎨", "💻", "📚", "🎵"]
-  const specializations = [
-    { value: "alchemy", label: "Alchemy", icon: "🧪" },
-    { value: "protection", label: "Protection", icon: "🛡️" },
-    { value: "design", label: "Art & Design", icon: "🎨" },
-    { value: "development", label: "Development", icon: "💻" },
-    { value: "writing", label: "Writing", icon: "📚" },
-    { value: "music", label: "Music", icon: "🎵" },
-    { value: "research", label: "Research", icon: "🔍" },
-    { value: "marketing", label: "Marketing", icon: "📢" },
-    // Add more dynamically if needed
-  ]
-
-  // Fetch user's gold from API when modal opens
+  // Only one gold-fetching effect (removes duplicate)
   useEffect(() => {
     const fetchGold = async () => {
+      setGoldError(false);
       if (!currentUser || !currentUser.id) {
         setUserGold(null)
+        setGoldError(true)
         console.log("[GUILD] No currentUser or user id, cannot fetch gold.")
         return
       }
@@ -130,6 +119,7 @@ export function EnhancedCreateGuildModal({
         }
         if (typeof goldValue === "number") {
           setUserGold(goldValue)
+          setGoldError(false)
           console.log("📊 Gold value set:", goldValue)
         } else {
           // Fallback to context gold, then currentUser.gold, then 0
@@ -137,20 +127,135 @@ export function EnhancedCreateGuildModal({
                             : typeof currentUser.gold === "number" ? currentUser.gold
                             : 0;
           setUserGold(fallbackGold)
-          console.log("⚠️ Gold API failed, falling back to context or currentUser.gold:", fallbackGold)
           if (fallbackGold === 0) {
+            setGoldError(true)
             console.log("❗ [GUILD] All gold lookups failed, userGold=0. User may not have gold field in API response or is missing gold.")
+          } else {
+            setGoldError(false)
           }
+          console.log("⚠️ Gold API failed, falling back to context or currentUser.gold:", fallbackGold)
         }
       } catch (e) {
         let fallbackGold = typeof goldBalance === "number" ? goldBalance
                           : typeof currentUser.gold === "number" ? currentUser.gold
                           : 0;
         setUserGold(fallbackGold)
-        console.log("⚠️ Gold API error, falling back to context or currentUser.gold:", fallbackGold)
         if (fallbackGold === 0) {
+          setGoldError(true)
           console.log("❗ [GUILD] Exception and fallback gold is 0. User may not have gold field in API response or is missing gold.")
+        } else {
+          setGoldError(false)
         }
+        console.log("⚠️ Gold API error, falling back to context or currentUser.gold:", fallbackGold)
+      } finally {
+        setLoadingGold(false)
+      }
+    }
+    if (isOpen) fetchGold()
+  }, [isOpen, currentUser, goldBalance])
+
+  // Dynamic emblem and specialization options (can be extended)
+  const emblems = ["🧪", "🌙", "🔥", "🌿", "🥕", "🍂", "🔮", "💎", "⚔️", "🏰", "🛡️", "🎯", "🎨", "💻", "📚", "🎵"]
+  const specializations = [
+    { value: "alchemy", label: "Alchemy", icon: "🧪" },
+    { value: "protection", label: "Protection", icon: "🛡️" },
+    { value: "design", label: "Art & Design", icon: "🎨" },
+    { value: "development", label: "Development", icon: "💻" },
+    { value: "writing", label: "Writing", icon: "📚" },
+    { value: "music", label: "Music", icon: "🎵" },
+    { value: "research", label: "Research", icon: "🔍" },
+    { value: "marketing", label: "Marketing", icon: "📢" },
+    // Add more dynamically if needed
+  ]
+
+  // Fetch user's gold from API when modal opens
+  useEffect(() => {
+    const fetchGold = async () => {
+      setGoldError(false);
+      if (!currentUser || !currentUser.id) {
+        setUserGold(null)
+        setGoldError(true)
+        console.log("[GUILD] No currentUser or user id, cannot fetch gold.")
+        return
+      }
+      setLoadingGold(true)
+      try {
+        let base = ""
+        if (typeof window !== "undefined") {
+          base = (window as any).API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ""
+        } else {
+          base = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+        }
+        const apiBaseUrl = base || "http://localhost:8000/api"
+        const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+        // Try /users/{id}/gold/ endpoint first
+        let url = `${apiBaseUrl}/users/${currentUser.id}/gold/`
+        let res, data, goldValue: number | null = null
+        try {
+          console.log(`[GUILD] Fetching gold from: ${url}`)
+          res = await fetch(url, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          })
+          if (res.ok) {
+            data = await res.json()
+            console.log("[GUILD] /gold/ endpoint response:", data)
+            if (typeof data.gold === "number") goldValue = data.gold
+            else if (typeof data.amount === "number") goldValue = data.amount
+            else if (typeof data.balance === "number") goldValue = data.balance
+            else goldValue = null
+          } else if (res.status === 404) {
+            // Try fallback to /users/{id}/ endpoint
+            url = `${apiBaseUrl}/users/${currentUser.id}/`
+            console.log(`[GUILD] /gold/ endpoint 404, trying fallback: ${url}`)
+            res = await fetch(url, {
+              headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+            })
+            if (res.ok) {
+              data = await res.json()
+              console.log("[GUILD] /users/{id}/ endpoint response:", data)
+              if (typeof data.gold === "number") goldValue = data.gold
+              else if (typeof data.amount === "number") goldValue = data.amount
+              else if (typeof data.balance === "number") goldValue = data.balance
+              else goldValue = null
+            } else {
+              console.log(`[GUILD] Fallback /users/{id}/ endpoint failed with status:`, res.status)
+            }
+          } else {
+            console.log(`[GUILD] /gold/ endpoint failed with status:`, res.status)
+          }
+        } catch (err) {
+          console.log(`[GUILD] Error fetching gold:`, err)
+        }
+        if (typeof goldValue === "number") {
+          setUserGold(goldValue)
+          setGoldError(false)
+          console.log("📊 Gold value set:", goldValue)
+        } else {
+          // Fallback to context gold, then currentUser.gold, then 0
+          let fallbackGold = typeof goldBalance === "number" ? goldBalance
+                            : typeof currentUser.gold === "number" ? currentUser.gold
+                            : 0;
+          setUserGold(fallbackGold)
+          if (fallbackGold === 0) {
+            setGoldError(true)
+            console.log("❗ [GUILD] All gold lookups failed, userGold=0. User may not have gold field in API response or is missing gold.")
+          } else {
+            setGoldError(false)
+          }
+          console.log("⚠️ Gold API failed, falling back to context or currentUser.gold:", fallbackGold)
+        }
+      } catch (e) {
+        let fallbackGold = typeof goldBalance === "number" ? goldBalance
+                          : typeof currentUser.gold === "number" ? currentUser.gold
+                          : 0;
+        setUserGold(fallbackGold)
+        if (fallbackGold === 0) {
+          setGoldError(true)
+          console.log("❗ [GUILD] Exception and fallback gold is 0. User may not have gold field in API response or is missing gold.")
+        } else {
+          setGoldError(false)
+        }
+        console.log("⚠️ Gold API error, falling back to context or currentUser.gold:", fallbackGold)
       } finally {
         setLoadingGold(false)
       }
@@ -234,6 +339,10 @@ export function EnhancedCreateGuildModal({
     }
     if (loadingGold) {
       showToast?.("Checking your gold...", "info")
+      return
+    }
+    if (goldError) {
+      showToast?.("Unable to determine your gold balance. Please check your profile or try again later.", "error")
       return
     }
     // Check if user has enough gold
@@ -348,6 +457,23 @@ export function EnhancedCreateGuildModal({
               ></div>
             </div>
           </div>
+        </div>
+
+        {/* Gold status UI */}
+        <div className="px-6 pt-4">
+          {loadingGold ? (
+            <div className="text-[#8B75AA] text-sm font-medium flex items-center gap-2">
+              <span className="animate-spin">⏳</span> Checking your gold balance...
+            </div>
+          ) : goldError ? (
+            <div className="text-red-600 text-sm font-medium flex items-center gap-2">
+              <span>⚠️</span> Unable to determine your gold balance. You may not be able to create a guild.
+            </div>
+          ) : (
+            <div className="text-[#8B75AA] text-sm font-medium flex items-center gap-2">
+              <span>💰</span> Your gold: <span className="font-bold">{typeof userGold === "number" ? userGold : "?"}</span>
+            </div>
+          )}
         </div>
 
         {/* Form Content */}
