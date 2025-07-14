@@ -10,12 +10,27 @@ import { DebouncedButton, SubmitButton, DangerButton } from "@/components/ui/deb
 import { useUserInfo } from "@/hooks/use-api-request";
 import axios from "axios";
 
-// Robust API base URL getter
+// Robust and dynamic API base URL getter
 const getApiBaseUrl = () => {
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
-  if (typeof window !== 'undefined') {
+  let apiBase = '';
+  // 1. Check for a global config (set at runtime, e.g., <script> or window object)
+  if (typeof window !== 'undefined' && (window as any).PEERQUEST_API_BASE_URL) {
+    apiBase = (window as any).PEERQUEST_API_BASE_URL;
     // eslint-disable-next-line no-console
-    console.debug('[PeerQuest][AccountTab] NEXT_PUBLIC_API_BASE_URL:', apiBase);
+    console.debug('[PeerQuest][AccountTab] Using window.PEERQUEST_API_BASE_URL:', apiBase);
+  } else if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    // 2. Check environment variable
+    apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+    // eslint-disable-next-line no-console
+    if (typeof window !== 'undefined') {
+      console.debug('[PeerQuest][AccountTab] Using NEXT_PUBLIC_API_BASE_URL:', apiBase);
+    }
+  } else {
+    // 3. Fallback to relative path
+    apiBase = '';
+    if (typeof window !== 'undefined') {
+      console.debug('[PeerQuest][AccountTab] No API base URL set, using relative path.');
+    }
   }
   return apiBase.replace(/\/$/, '');
 };
