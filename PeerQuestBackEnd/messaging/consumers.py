@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from messaging.models import Message, Conversation, UserPresence
 from messaging.serializers import MessageSerializer
 
-logger = logging.getLogger(_name_)
+logger = logging.getLogger(__name__)
 User = get_user_model()
 
 

@@ -11,9 +11,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'your-secret-key' # IMPORTANT: Change this to a strong, random key in production!
 DEBUG = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-
 
 ALLOWED_HOSTS = [
     'localhost',
@@ -385,10 +382,6 @@ CSRF_TRUSTED_ORIGINS = [
 
 # Session and CSRF cookie settings for cross-origin authentication
 # IMPORTANT: Adjust SESSION_COOKIE_SECURE and CSRF_COOKIE_SECURE to True in production with HTTPS!
-SESSION_COOKIE_SAMESITE = "Lax" 
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SAMESITE = "Lax"
-CSRF_COOKIE_SECURE = False
 
 # Email settings - Use environment variables for flexibility
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
