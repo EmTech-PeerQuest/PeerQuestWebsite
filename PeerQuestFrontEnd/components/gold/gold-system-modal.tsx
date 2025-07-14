@@ -425,9 +425,12 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
       return
     }
 
-    if (!selectedPackage.id) {
+    // Debug: Log selectedPackage
+    console.log('Submitting payment proof with package:', selectedPackage);
+
+    if (!selectedPackage.id || typeof selectedPackage.id !== 'number') {
       if (showToast) {
-        showToast('Invalid package selected. Please try again.', 'error')
+        showToast('Invalid or missing package. Please select a valid gold package and try again.', 'error')
       }
       return
     }
@@ -440,18 +443,27 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
         gold_package: selectedPackage.id,
         receipt: receiptImage
       })
-      
+
       console.log('Payment submission result:', result)
-      
+
       // Store result for success modal
       setSubmissionResult(result)
-      
+
       // Show success step
       setPurchaseStep("success")
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting payment proof:', error)
-      if (showToast) {
-        showToast(error instanceof Error ? error.message : 'Failed to submit payment proof', 'error')
+      // Show backend validation error for gold_package if present
+      if (error && error.message && error.message.includes('gold_package')) {
+        if (showToast) {
+          showToast('The selected gold package is invalid or no longer available. Please refresh and try again.', 'error')
+        }
+      } else if (error && error.message) {
+        if (showToast) {
+          showToast(error.message, 'error')
+        }
+      } else if (showToast) {
+        showToast('Failed to submit payment proof. Please try again.', 'error')
       }
     } finally {
       setUploading(false)
@@ -2013,9 +2025,9 @@ export function GoldSystemModal({ isOpen, onClose, currentUser, setCurrentUser, 
                       </button>
                       <button
                         onClick={submitPaymentProof}
-                        disabled={!receiptImage || uploading}
+                        disabled={!receiptImage || uploading || !selectedPackage?.id || typeof selectedPackage.id !== 'number'}
                         className={`flex-1 py-3 px-4 rounded font-semibold transition-colors ${
-                          receiptImage && !uploading
+                          receiptImage && !uploading && selectedPackage?.id && typeof selectedPackage.id === 'number'
                             ? "bg-[#8B75AA] text-white hover:bg-[#7A6699]"
                             : "bg-gray-300 text-gray-500 cursor-not-allowed"
                         }`}
