@@ -143,13 +143,15 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         user = self.scope["user"]
         if not user or not user.is_authenticated:
+            logger.warning(f"WebSocket connect failed: user not authenticated. Scope: {self.scope}")
             await self.close(code=4001)
             return
 
-        self.conversation_id = self.scope["url_route"]["kwargs"]["conversation_id"]
+        self.conversation_id = self.scope["url_route"]["kwargs"].get("conversation_id")
         self.room_group = f"chat_{self.conversation_id}"
 
         if not await user_in_conversation(user.id, self.conversation_id):
+            logger.warning(f"WebSocket connect failed: user {user.id} not in conversation {self.conversation_id}")
             await self.close(code=4003)
             return
 
@@ -164,20 +166,26 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         await self.accept()
 
         # Fetch and send initial messages
-        initial = await fetch_initial_messages(self.conversation_id)
-        await self.send_json({"type": "initial_messages", "messages": initial})
+        try:
+            initial = await fetch_initial_messages(self.conversation_id)
+            await self.send_json({"type": "initial_messages", "messages": initial})
+        except Exception as e:
+            logger.error(f"Error fetching initial messages for conversation {self.conversation_id}: {e}")
 
         # Broadcast presence to others
-        pids = await get_participant_ids(self.conversation_id)
-        for pid in pids:
-            if str(pid) != str(user.id):
-                await self.channel_layer.group_send(
-                    f"user_{pid}",
-                    {"type": "presence_update", "user_id": str(user.id), "is_online": True},
-                )
-        
-        # Notify current user about others' presence
-        for pid in pids:
+        try:
+            pids = await get_participant_ids(self.conversation_id)
+            for pid in pids:
+                if str(pid) != str(user.id):
+                    await self.channel_layer.group_send(
+                        f"user_{pid}",
+                        {"type": "presence_update", "user_id": str(user.id), "is_online": True},
+                    )
+            # Notify current user about others' presence
+            for pid in pids:
+                pass  # (existing logic continues)
+        except Exception as e:
+            logger.error(f"Error broadcasting presence for conversation {self.conversation_id}: {e}")
             if str(pid) != str(user.id):
                 online = await is_user_online(pid)
                 await self.channel_layer.group_send(

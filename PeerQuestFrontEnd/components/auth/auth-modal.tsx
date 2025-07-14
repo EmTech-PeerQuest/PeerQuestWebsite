@@ -1,3 +1,77 @@
+// --- WebSocket Utility for PeerQuest Chat ---
+type WebSocketOptions = {
+  roomId: string;
+  onMessage: (msg: any) => void;
+  onOpen?: () => void;
+  onError?: (err: Event) => void;
+  onClose?: (ev: CloseEvent) => void;
+  maxReconnects?: number;
+};
+
+export function createPeerQuestWebSocket({ roomId, onMessage, onOpen, onError, onClose, maxReconnects = 5 }: WebSocketOptions) {
+  let socket: WebSocket | null = null;
+  let reconnectAttempts = 0;
+  let closedByUser = false;
+
+  function getToken() {
+    return typeof window !== 'undefined' ? localStorage.getItem("access_token") : null;
+  }
+
+  function getSocketUrl(roomId: string, token: string | null) {
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const host = "peerquest.up.railway.app";
+    return `${protocol}://${host}/ws/chat/${roomId}/?token=${token}`;
+  }
+
+  function connect() {
+    const token = getToken();
+    if (!token) {
+      console.error("No access token found for WebSocket connection.");
+      if (onError) onError(new Event("NoToken"));
+      return;
+    }
+    const url = getSocketUrl(roomId, token);
+    socket = new WebSocket(url);
+
+    socket.onopen = () => {
+      reconnectAttempts = 0;
+      if (onOpen) onOpen();
+      console.log("✅ WebSocket connected");
+    };
+    socket.onmessage = (event) => {
+      onMessage(event.data);
+    };
+    socket.onerror = (error) => {
+      console.error("❌ WebSocket error:", error);
+      if (onError) onError(error);
+    };
+    socket.onclose = (event) => {
+      if (onClose) onClose(event);
+      if (!closedByUser && reconnectAttempts < maxReconnects) {
+        const delay = 1000 * Math.pow(2, reconnectAttempts);
+        setTimeout(connect, delay);
+        reconnectAttempts++;
+        console.warn(`⚠️ WebSocket closed. Attempting reconnect #${reconnectAttempts} in ${delay / 1000}s`);
+      } else if (!closedByUser) {
+        console.error("Max reconnect attempts reached.");
+      }
+    };
+  }
+
+  connect();
+  return {
+    close: () => {
+      closedByUser = true;
+      if (socket) socket.close();
+    },
+    send: (data: any) => {
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(data);
+      }
+    },
+    getSocket: () => socket,
+  };
+}
 "use client"
 
 import { useState, useEffect } from "react"

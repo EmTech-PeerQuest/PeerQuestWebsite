@@ -15,7 +15,7 @@ class JWTAuthMiddleware(BaseMiddleware):
         query_string = scope.get('query_string', b'').decode()
         token = parse_qs(query_string).get('token')
         logger.info(f"WebSocket token received: {token[0][:8]+'...' if token else None}")
-        
+
         scope['user'] = AnonymousUser()
         if token:
             token = token[0]
@@ -26,6 +26,9 @@ class JWTAuthMiddleware(BaseMiddleware):
                 scope['user'] = user
             except Exception as e:
                 logger.warning(f"WebSocket JWT authentication failed: {e}")
-        
+                # Optionally, add more details for debugging:
+                import traceback
+                logger.debug(traceback.format_exc())
+
         close_old_connections()
         return await super().__call__(scope, receive, send)
