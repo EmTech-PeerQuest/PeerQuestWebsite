@@ -141,6 +141,29 @@ def is_user_online(user_id):
 
 class ChatConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
+        # 🔐 Step 1: Extract token from query string
+        query_string = self.scope.get("query_string", b"").decode()
+        query_params = parse_qs(query_string)
+        token = query_params.get("token", [None])[0]
+
+        if not token:
+            logger.warning("WebSocket rejected: No token in query params.")
+            await self.close(code=4001)
+            return
+
+        try:
+            # Step 2: Validate and decode JWT
+            UntypedToken(token)  # Raises error if token invalid
+            validated_token = JWTAuthentication().get_validated_token(token)
+            user = JWTAuthentication().get_user(validated_token)
+            self.scope["user"] = user  # ✅ Inject authenticated user
+            close_old_connections()
+        except Exception as e:
+            logger.warning(f"WebSocket token validation failed: {e}")
+            await self.close(code=4001)
+            return
+
+        # ✅ After token processing, proceed as before
         user = self.scope["user"]
         if not user or not user.is_authenticated:
             logger.warning(f"WebSocket connect failed: user not authenticated. Scope: {self.scope}")
@@ -157,22 +180,19 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
         await mark_user_online(user)
 
-        # ✅ Join personal user group (needed for presence updates)
         await self.channel_layer.group_add(f"user_{user.id}", self.channel_name)
-
-        # ✅ Join conversation group
         await self.channel_layer.group_add(self.room_group, self.channel_name)
 
         await self.accept()
 
-        # Fetch and send initial messages
+        # ✅ Fetch and send initial messages
         try:
             initial = await fetch_initial_messages(self.conversation_id)
             await self.send_json({"type": "initial_messages", "messages": initial})
         except Exception as e:
             logger.error(f"Error fetching initial messages for conversation {self.conversation_id}: {e}")
 
-        # Broadcast presence to others
+        # ✅ Send presence info
         try:
             pids = await get_participant_ids(self.conversation_id)
             for pid in pids:
@@ -181,21 +201,29 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
                         f"user_{pid}",
                         {"type": "presence_update", "user_id": str(user.id), "is_online": True},
                     )
-            # Notify current user about others' presence
             for pid in pids:
-                pass  # (existing logic continues)
+                if str(pid) != str(user.id):
+                    online = await is_user_online(pid)
+                    await self.channel_layer.group_send(
+                        f"user_{user.id}",
+                        {
+                            "type": "presence_update",
+                            "user_id": str(pid),
+                            "is_online": online,
+                        },
+                    )
         except Exception as e:
             logger.error(f"Error broadcasting presence for conversation {self.conversation_id}: {e}")
-            if str(pid) != str(user.id):
-                online = await is_user_online(pid)
-                await self.channel_layer.group_send(
-                    f"user_{user.id}",  # Send presence info to yourself
-                    {
-                        "type": "presence_update",
-                        "user_id": str(pid),
-                        "is_online": online,
-                    },
-                )
+
+        await self.channel_layer.group_send(
+            f"user_{user.id}",
+            {
+                "type": "presence_update",
+                "user_id": str(user.id),
+                "is_online": True,
+            },
+        )
+
         # ✅ Also send own presence status to self
         await self.channel_layer.group_send(
             f"user_{user.id}",
