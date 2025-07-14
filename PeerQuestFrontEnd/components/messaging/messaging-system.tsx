@@ -684,51 +684,21 @@ export default function MessagingSystem({
 
   useEffect(() => {
     if (!mounted || !activeId || !token) return;
+
     let shouldReconnect = true;
     let reconnectTimeout: NodeJS.Timeout | null = null;
 
+    // ✅ Simplified: Always connect to current frontend host
     const buildWsUrl = () => {
-      let protocol = "ws";
-      let host = "";
-
-      const rawHost = process.env.NEXT_PUBLIC_WS_BASE_URL?.trim();
-
-      if (typeof window !== "undefined") {
-        protocol = window.location.protocol === "https:" ? "wss" : "ws";
-        host = window.location.host;
-
-        if (rawHost) {
-          try {
-            const url = new URL(rawHost.startsWith("http") ? rawHost : `https://${rawHost}`);
-            host = url.host;
-            protocol = url.protocol === "https:" ? "wss" : "ws";
-          } catch {
-            host = rawHost.replace(/^https?:\/\//, "").replace(/\/$/, "");
-          }
-        }
-      } else {
-        // Server-side fallback
-        if (rawHost) {
-          protocol = rawHost.startsWith("https") ? "wss" : "ws";
-          host = rawHost.replace(/^https?:\/\//, "").replace(/\/$/, "");
-        } else {
-          host = "localhost:8000";
-          protocol = "ws";
-        }
-      }
-
+      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+      const host = window.location.host;
       return `${protocol}://${host}/ws/chat/${activeId}/?token=${token}`;
     };
 
     const wsUrl = buildWsUrl();
 
     function connect() {
-      if (typeof window !== "undefined") {
-        console.debug("[WS] Connecting to:", wsUrl, {
-          NEXT_PUBLIC_WS_BASE_URL: process.env.NEXT_PUBLIC_WS_BASE_URL,
-          location: window.location.href,
-        });
-      }
+      console.debug("[WS] Connecting to:", wsUrl);
 
       setWsStatus(reconnectAttempt > 0 ? "reconnecting" : "connecting");
 

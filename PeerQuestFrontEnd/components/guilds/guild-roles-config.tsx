@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Plus, Shield, Users, Settings, DollarSign, BarChart3 } from "lucide-react"
 import type { Guild, User } from "@/lib/types"
 
@@ -28,16 +28,48 @@ interface Permission {
 export function GuildRolesConfig({ guild, currentUser, showToast }: GuildRolesConfigProps) {
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
   const [activeTab, setActiveTab] = useState<"permissions" | "members" | "settings">("permissions")
+  const [roles, setRoles] = useState<Role[]>([])
+  const [loadingRoles, setLoadingRoles] = useState(false)
+  const [apiBaseUrl, setApiBaseUrl] = useState<string>("")
+  const [error, setError] = useState<string>("")
 
-  // Mock roles data
-  const roles: Role[] = [
-    { id: 1, name: "Owner", color: "#FFD700", permissions: ["all"], memberCount: 1 },
-    { id: 2, name: "Admin", color: "#FF6B6B", permissions: ["manage_members", "manage_roles"], memberCount: 2 },
-    { id: 3, name: "Quest Leader", color: "#4ECDC4", permissions: ["create_quests", "manage_quests"], memberCount: 5 },
-    { id: 4, name: "Member", color: "#95E1D3", permissions: ["view_guild"], memberCount: 15 },
-  ]
+  // Dynamic API base URL (env or runtime)
+  useEffect(() => {
+    let base = ""
+    if (typeof window !== "undefined") {
+      base = (window as any).API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ""
+    } else {
+      base = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+    }
+    setApiBaseUrl(base || "http://localhost:8000/api")
+  }, [])
 
-  // Mock permissions
+  // Dynamic, robust role loading
+  const fetchRoles = useCallback(async () => {
+    setLoadingRoles(true)
+    setError("")
+    try {
+      const url = `${apiBaseUrl}/guilds/${guild.guild_id}/roles/`
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+      const res = await fetch(url, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new Error(`Failed to load roles: ${res.status}`)
+      const data = await res.json()
+      setRoles(Array.isArray(data) ? data : data.results || [])
+    } catch (err: any) {
+      setError("Failed to load roles")
+      showToast("Failed to load roles", "error")
+    } finally {
+      setLoadingRoles(false)
+    }
+  }, [apiBaseUrl, guild.guild_id, showToast])
+
+  useEffect(() => {
+    if (guild.guild_id) fetchRoles()
+  }, [guild.guild_id, fetchRoles])
+
+  // Dynamic permissions (could be loaded from API in future)
   const permissions: Permission[] = [
     {
       id: "add_remove_members",

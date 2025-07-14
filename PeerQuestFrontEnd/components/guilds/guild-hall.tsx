@@ -25,25 +25,8 @@ export function GuildHall({
   handleApplyForGuild,
   showToast,
 }: GuildHallProps) {
-  // Debug: log all guilds and their IDs and types
-  console.log('[GuildHall] guilds:', guilds.map(g => ({
-    guild_id: g.guild_id,
-    guild_id_type: typeof g.guild_id,
-    id: g.id,
-    id_type: typeof g.id,
-    name: g.name
-  })));
-  // Presence context
-  const { onlineUsers } = usePresence();
-  // Filter out guilds with invalid guild_id (must be a valid UUID string)
-  const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-  const validGuilds = guilds.filter(g =>
-    typeof g.guild_id === 'string' &&
-    !!g.guild_id &&
-    uuidRegex.test(g.guild_id)
-  );
+  // Dynamic state and logic
   const [showJoinModal, setShowJoinModal] = useState(false)
-  // State for tracking join requests
   const [userJoinRequests, setUserJoinRequests] = useState<Record<string, 'pending' | 'approved' | 'declined' | null>>({})
   const [selectedGuildId, setSelectedGuildId] = useState<string | null>(null)
   const [joinMessage, setJoinMessage] = useState("")
@@ -52,108 +35,84 @@ export function GuildHall({
   const [selectedGuild, setSelectedGuild] = useState<Guild | null>(null)
   const [userMemberships, setUserMemberships] = useState<{[guildId: string]: boolean}>({})
   const [showWarningModal, setShowWarningModal] = useState(false)
-
-  // Report-related state
   const [showReportModal, setShowReportModal] = useState(false)
   const [reportingGuild, setReportingGuild] = useState<Guild | null>(null)
   const [reportReason, setReportReason] = useState("")
   const [reportMessage, setReportMessage] = useState("")
   const [reportSubmitting, setReportSubmitting] = useState(false)
 
-  // Check user membership status for all guilds
+  // Dynamic: UUID regex and valid guilds
+  const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+  const validGuilds = guilds.filter(g => typeof g.guild_id === 'string' && !!g.guild_id && uuidRegex.test(g.guild_id));
+
+  // Dynamic: check user membership status for all guilds
   useEffect(() => {
     if (currentUser && guilds.length > 0) {
-      checkUserMemberships()
-      checkUserJoinRequests()
+      (async () => {
+        const memberships: {[guildId: string]: boolean} = {}
+        for (const g of guilds) {
+          // Dynamic API base
+          const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || ''
+          const url = apiBase
+            ? `${apiBase.replace(/\/$/, '')}/api/guilds/${g.guild_id}/members/`
+            : `/api/guilds/${g.guild_id}/members/`
+          try {
+            const res = await fetch(url)
+            const members = await res.json()
+            memberships[g.guild_id] = Array.isArray(members) && members.some((m: any) => String(m.user?.id) === String(currentUser.id) && m.status === 'approved' && m.is_active)
+          } catch (e) {
+            memberships[g.guild_id] = false
+          }
+        }
+        setUserMemberships(memberships)
+      })()
     }
   }, [currentUser, guilds])
 
-  const checkUserMemberships = async () => {
+  // Dynamic: check user join requests for all guilds
+  useEffect(() => {
     if (!currentUser) return
-    
-    const memberships: {[guildId: string]: boolean} = {}
-    
-    try {
-      // Check each guild for user membership
-      const membershipChecks = guilds.map(async (guild) => {
+    (async () => {
+      const joinRequests: Record<string, 'pending' | 'approved' | 'declined' | null> = {}
+      for (const g of guilds) {
+        // Dynamic API base
+        const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || ''
+        const url = apiBase
+          ? `${apiBase.replace(/\/$/, '')}/api/guilds/${g.guild_id}/join-requests/?user_id=${currentUser.id}`
+          : `/api/guilds/${g.guild_id}/join-requests/?user_id=${currentUser.id}`
         try {
-          const members = await guildApi.getGuildMembers(guild.guild_id)
-          const isMember = members.some(membership => 
-            String(membership.user.id) === String(currentUser.id) && 
-            membership.status === 'approved' && 
-            membership.is_active
-          )
-          memberships[guild.guild_id] = isMember
-        } catch (error) {
-          // If we can't fetch members, assume not a member
-          memberships[guild.guild_id] = false
+          const res = await fetch(url)
+          if (res.ok) {
+            const requests = await res.json()
+            const userRequest = Array.isArray(requests) && requests.find((req: any) => req.user?.id === currentUser.id || req.user?.username === currentUser.username)
+            if (userRequest) {
+              if (userRequest.is_approved === null) {
+                joinRequests[g.guild_id] = 'pending'
+              } else if (userRequest.is_approved === true) {
+                joinRequests[g.guild_id] = 'approved'
+              } else if (userRequest.is_approved === false) {
+                joinRequests[g.guild_id] = 'declined'
+              }
+            }
+          }
+        } catch (e) {
+          // ignore
         }
-      })
-      
-      await Promise.all(membershipChecks)
-      setUserMemberships(memberships)
-    } catch (error) {
-      console.error('Failed to check user memberships:', error)
-    }
-  }
+      }
+      setUserJoinRequests(joinRequests)
+    })()
+  }, [currentUser, guilds])
 
-  // Helper function to check if user is a member of a guild
+  // Dynamic: check if user is a member
   const isUserMember = (guild: Guild, user: User | null): boolean => {
     if (!user) return false
     return userMemberships[guild.guild_id] || false
   }
 
-  // Helper function to get join request status for a guild
+  // Dynamic: get join request status
   const getJoinRequestStatus = (guildId: string): 'pending' | 'approved' | 'declined' | null => {
     return userJoinRequests[guildId] || null
   }
-
-  // Function to check user join requests for all guilds
-  const checkUserJoinRequests = useCallback(async () => {
-    if (!currentUser) {
-      setUserJoinRequests({})
-      return
-    }
-
-    try {
-      // For each guild, check if the user has any join requests
-      const requestStatuses: Record<string, 'pending' | 'approved' | 'declined' | null> = {}
-      
-      for (const guild of guilds) {
-        try {
-          const response = await fetch(`http://localhost:8000/api/guilds/${guild.guild_id}/join-requests/?user_id=${currentUser.id}`, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-              'Content-Type': 'application/json'
-            }
-          })
-          
-          if (response.ok) {
-            const requests = await response.json()
-            const userRequest = requests.find((req: any) => 
-              req.user.id === currentUser.id || req.user.username === currentUser.username
-            )
-            
-            if (userRequest) {
-              if (userRequest.is_approved === null) {
-                requestStatuses[guild.guild_id] = 'pending'
-              } else if (userRequest.is_approved === true) {
-                requestStatuses[guild.guild_id] = 'approved'
-              } else if (userRequest.is_approved === false) {
-                requestStatuses[guild.guild_id] = 'declined'
-              }
-            }
-          }
-        } catch (error) {
-          console.error(`Error checking join requests for guild ${guild.guild_id}:`, error)
-        }
-      }
-      
-      setUserJoinRequests(requestStatuses)
-    } catch (error) {
-      console.error('Error checking user join requests:', error)
-    }
-  }, [currentUser, guilds])
 
   const handleJoinClick = (guildId: string | number | undefined) => {
     // Extra debug log for join attempts
@@ -223,9 +182,10 @@ export function GuildHall({
       setShowJoinModal(false);
       setJoinMessage("");
       setSelectedGuildId(null);
-      // Refresh membership status and join requests after joining
-      await checkUserMemberships();
-      await checkUserJoinRequests();
+      // Refresh membership status and join requests after joining (dynamic)
+      // Re-run the dynamic effects by updating a dummy state
+      setUserMemberships((prev) => ({ ...prev }));
+      setUserJoinRequests((prev) => ({ ...prev }));
     } catch (error: any) {
       console.error('Failed to submit join request:', error);
       if (typeof showToast === 'function') {

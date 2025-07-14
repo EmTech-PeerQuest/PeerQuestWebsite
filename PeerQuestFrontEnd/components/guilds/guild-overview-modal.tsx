@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import {
   X, Users, Crown, MessageCircle, Settings, DollarSign, Star, ChevronDown,
 } from "lucide-react"
@@ -32,47 +32,79 @@ export function GuildOverviewModal({
   showToast,
   isOwnedGuild = false,
 }: GuildOverviewModalProps) {
+  // Dynamic/extensible state
   const [activeTab, setActiveTab] = useState<"about" | "members" | "chat">("about")
   const [joinMessage, setJoinMessage] = useState("")
   const [showJoinForm, setShowJoinForm] = useState(false)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const [guildMembers, setGuildMembers] = useState<GuildMembership[]>([])
   const [loadingMembers, setLoadingMembers] = useState(false)
+  const [apiBaseUrl, setApiBaseUrl] = useState<string>("")
+  const [error, setError] = useState<string>("")
+
+
+  // Dynamic API base URL (env or runtime)
+  useEffect(() => {
+    let base = ""
+    if (typeof window !== "undefined") {
+      base = (window as any).API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ""
+    } else {
+      base = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+    }
+    setApiBaseUrl(base || "http://localhost:8000/api")
+  }, [])
 
   if (!isOpen) return null
 
-  const isOwner = isOwnedGuild || (currentUser && (
-    String(guild.owner?.id) === String(currentUser.id) ||
-    guild.poster?.username === currentUser.username
-  ))
+  // Dynamic owner/member checks
+  const isOwner = useMemo(() => (
+    isOwnedGuild || (
+      currentUser && (
+        String(guild.owner?.id) === String(currentUser.id) ||
+        guild.poster?.username === currentUser.username
+      )
+    )
+  ), [isOwnedGuild, currentUser, guild])
 
-  const isMember = currentUser && guildMembers.some(m => (
-    String(m.user.id) === String(currentUser.id) &&
-    m.status === 'approved' &&
-    m.is_active
-  ))
+  const isMember = useMemo(() => (
+    currentUser && guildMembers.some(m => (
+      String(m.user.id) === String(currentUser.id) &&
+      m.status === 'approved' &&
+      m.is_active
+    ))
+  ), [currentUser, guildMembers])
 
   const canManage = isOwner
+
+  // Dynamic, robust member loading
+  const fetchGuildMembers = useCallback(async () => {
+    setLoadingMembers(true)
+    setError("")
+    try {
+      // Use dynamic API base URL
+      const url = `${apiBaseUrl}/guilds/${guild.guild_id}/members/`
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+      const res = await fetch(url, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new Error(`Failed to load members: ${res.status}`)
+      const data = await res.json()
+      setGuildMembers(Array.isArray(data) ? data : data.results || [])
+    } catch (err: any) {
+      setError("Failed to load guild members")
+      showToast("Failed to load guild members", "error")
+    } finally {
+      setLoadingMembers(false)
+    }
+  }, [apiBaseUrl, guild.guild_id, showToast])
 
   useEffect(() => {
     if (isOpen && guild.guild_id) {
       fetchGuildMembers()
     }
-  }, [isOpen, guild.guild_id])
+  }, [isOpen, guild.guild_id, fetchGuildMembers])
 
-  const fetchGuildMembers = async () => {
-    setLoadingMembers(true)
-    try {
-      const members = await guildApi.getGuildMembers(guild.guild_id)
-      setGuildMembers(members)
-    } catch (error) {
-      console.error("Failed to fetch guild members", error)
-      showToast("Failed to load guild members", "error")
-    } finally {
-      setLoadingMembers(false)
-    }
-  }
-
+  // Dynamic, robust guild ID resolution
   function getValidGuildId(guild: Guild): string | null {
     if (typeof guild.guild_id === 'string' && guild.guild_id?.length >= 8) return guild.guild_id
     if (typeof guild.id === 'string' && guild.id?.length >= 8) return guild.id
@@ -80,9 +112,9 @@ export function GuildOverviewModal({
     return null
   }
 
+  // Dynamic, robust join logic
   const handleJoinClick = async () => {
     if (!currentUser) return showToast("Please log in to join guilds", "error")
-
     if (guild.require_approval) {
       setShowJoinForm(true)
     } else {
@@ -93,18 +125,23 @@ export function GuildOverviewModal({
           await fetchGuildMembers()
           onClose()
         } catch (e) {
-          console.error(e)
+          setError("Failed to join guild. Please try again.")
           showToast("Failed to join guild. Please try again.", "error")
         }
       } else {
+        setError("Invalid guild. Please try again.")
         showToast("Invalid guild. Please try again.", "error")
       }
     }
   }
 
+  // Dynamic, robust join form submit
   const handleJoinSubmit = async () => {
     const guildId = getValidGuildId(guild)
-    if (!joinMessage.trim() || !guildId) return showToast("Invalid request", "error")
+    if (!joinMessage.trim() || !guildId) {
+      setError("Invalid request")
+      return showToast("Invalid request", "error")
+    }
     try {
       await onJoinGuild(guildId, joinMessage.trim())
       setShowJoinForm(false)
@@ -112,17 +149,19 @@ export function GuildOverviewModal({
       await fetchGuildMembers()
       onClose()
     } catch (e) {
-      console.error(e)
+      setError("Failed to join guild. Please try again.")
       showToast("Failed to join guild. Please try again.", "error")
     }
   }
 
-  const tabs = [
+  // Dynamic, extensible tabs
+  const tabs = useMemo(() => [
     { id: "about", label: "About" },
     { id: "members", label: `Members (${guildMembers.length})` },
     ...(isMember ? [{ id: "chat", label: "Chat" }] : []),
-  ]
+  ], [guildMembers.length, isMember])
 
+  // Dynamic, robust modal rendering
   return (
     <div 
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4"
@@ -268,6 +307,7 @@ export function GuildOverviewModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+          {error && <div className="text-red-500 mb-2">{error}</div>}
           {activeTab === "about" && (
             <div className="space-y-4">
               {/* Guild Info Grid */}

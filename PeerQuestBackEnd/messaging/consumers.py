@@ -75,7 +75,7 @@ def create_message(conversation_id, sender_id, content, message_type="text"):
 def create_message_with_attachment(conversation_id, sender_id, content, message_type, attachment_data):
     """
     Create a message and attach a file (image or generic file).
-    `attachment_data` should include:
+    attachment_data should include:
         - file_url: path or full URL of uploaded file (already handled by frontend HTTP)
         - filename
         - file_size

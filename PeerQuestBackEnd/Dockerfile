@@ -1,4 +1,9 @@
+
 FROM python:3.11-slim
+
+# Railway cache refresher
+ARG CACHEBUST=1
+ENV CACHEBUST=${CACHEBUST}
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -21,6 +26,7 @@ RUN pip install --no-cache-dir -r requirements.txt && pip install watchdog
 # Copy project
 COPY . .
 
+EXPOSE 8000
 # Command to run your Django app with Daphne (ASGI, WebSocket support)
 CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]
 

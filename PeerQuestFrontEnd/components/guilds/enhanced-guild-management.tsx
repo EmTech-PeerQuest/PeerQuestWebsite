@@ -99,33 +99,42 @@ export function EnhancedGuildManagement({
     setLoadingUserGuilds(true)
     try {
       const memberGuilds: Guild[] = [];
-      // Use NEXT_PUBLIC_API_BASE_URL if set, else fallback to default API
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
-      // Debug log for env
+      // Dynamically resolve API base URL from env, window, or fallback
+      let apiBase = '';
       if (typeof window !== 'undefined') {
+        apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
         // eslint-disable-next-line no-console
-        console.debug('[PeerQuest][EnhancedGuildManagement] NEXT_PUBLIC_API_BASE_URL:', apiBase);
+        console.debug('[PeerQuest][EnhancedGuildManagement] Dynamic API base:', apiBase);
+      } else {
+        apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
       }
-      // Check each guild to see if user is a member
+
+      // Check each guild to see if user is a member (dynamic, extensible)
       const membershipChecks = guilds.map(async (guild) => {
         try {
           // Dynamically build endpoint if needed
           const guildId = guild.guild_id;
           let members;
+          let endpoint = '';
           if (apiBase) {
-            // Always use /api/guilds for dynamic API
-            const url = `${apiBase.replace(/\/$/, '')}/api/guilds/${guildId}/members/`;
+            endpoint = `${apiBase.replace(/\/$/, '')}/api/guilds/${guildId}/members/`;
+          }
+          if (endpoint) {
             if (typeof window !== 'undefined') {
               // eslint-disable-next-line no-console
-              console.debug('[PeerQuest][EnhancedGuildManagement] Fetching guild members from:', url);
+              console.debug('[PeerQuest][EnhancedGuildManagement] Fetching guild members from:', endpoint);
             }
-            const res = await fetch(url);
+            const res = await fetch(endpoint);
             members = await res.json();
           } else {
+            // Fallback to static import or default API
             members = await guildApi.getGuildMembers(guildId);
           }
+          // Defensive: fallback to empty array if not array
+          if (!Array.isArray(members)) members = [];
+          // Dynamic, extensible member check
           const isMember = members.some((membership: any) => 
-            String(membership.user.id) === String(currentUser.id) && 
+            String(membership.user?.id) === String(currentUser.id) && 
             membership.status === 'approved' && 
             membership.is_active &&
             membership.role !== 'owner' // Exclude owned guilds
@@ -134,13 +143,20 @@ export function EnhancedGuildManagement({
             memberGuilds.push(guild);
           }
         } catch (error) {
-          console.error(`Failed to check membership for guild ${guild.guild_id}:`, error);
+          // Robust error handling, log and continue
+          if (typeof window !== 'undefined') {
+            // eslint-disable-next-line no-console
+            console.error(`[PeerQuest][EnhancedGuildManagement] Failed to check membership for guild ${guild.guild_id}:`, error);
+          }
         }
       });
       await Promise.all(membershipChecks);
       setUserMemberGuilds(memberGuilds);
     } catch (error) {
-      console.error('Failed to fetch user member guilds:', error);
+      if (typeof window !== 'undefined') {
+        // eslint-disable-next-line no-console
+        console.error('[PeerQuest][EnhancedGuildManagement] Failed to fetch user member guilds:', error);
+      }
     } finally {
       setLoadingUserGuilds(false);
     }

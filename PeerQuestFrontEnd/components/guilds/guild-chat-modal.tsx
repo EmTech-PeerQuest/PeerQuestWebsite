@@ -47,31 +47,52 @@ export function GuildChatModal({
   }
   }, [isOpen, showToast, token])
 
-  const API_BASE = "http://localhost:8000/api"
-  const fetchWithErrorHandling = async (url: string, options: RequestInit = {}) => {
-  try {
-  if (!token) {
-  throw new Error("No authentication token found")
+  // Dynamically resolve API base URL for REST and WebSocket
+  const getApiBase = () => {
+    if (typeof window !== 'undefined') {
+      return process.env.NEXT_PUBLIC_API_BASE_URL || ''
+    }
+    return process.env.NEXT_PUBLIC_API_BASE_URL || ''
   }
-  
-  const response = await fetch(url.startsWith("/api") ? `${API_BASE}${url.replace("/api", "")}` : url, {
-  ...options,
-  headers: {
-  ...options.headers,
-  Authorization: `Bearer ${token}`,
-  "Content-Type": "application/json",
-  },
-  })
 
+  const API_BASE = getApiBase() || 'http://localhost:8000/api'
+
+  // Dynamic WebSocket base (protocol, host, port)
+  const getWsBase = () => {
+    if (typeof window !== 'undefined') {
+      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+      const host = process.env.NEXT_PUBLIC_WS_HOST || window.location.hostname
+      const port = process.env.NEXT_PUBLIC_WS_PORT || (window.location.port || (proto === 'wss' ? '443' : '8000'))
+      return `${proto}://${host}:${port}`
+    }
+    return 'ws://localhost:8000'
+  }
+
+  // Dynamic fetch with error handling and dynamic API base
+  const fetchWithErrorHandling = async (url: string, options: RequestInit = {}) => {
+    try {
+      if (!token) {
+        throw new Error("No authentication token found")
+      }
+      // Support both relative and absolute URLs, always use dynamic API_BASE
+      const fullUrl = url.startsWith("/api")
+        ? `${API_BASE}${url.replace("/api", "")}`
+        : url
+      const response = await fetch(fullUrl, {
+        ...options,
+        headers: {
+          ...options.headers,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      })
       if (response.status === 401) {
         setIsAuthenticated(false)
         throw new Error("Authentication expired. Please log in again.")
       }
-
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
-
       const contentType = response.headers.get("content-type")
       if (!contentType?.includes("application/json")) {
         const text = await response.text()
@@ -84,22 +105,19 @@ export function GuildChatModal({
     }
   }
 
+  // Dynamic WebSocket connection for chat
   const createWebSocketConnection = (guildId: string, token: string) => {
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws"
-  // Use localhost:8000 for backend, matching messaging system
-  const wsUrl = `${protocol}://localhost:8000/ws/guild/${guildId}/?token=${token}`
-  const socket = new WebSocket(wsUrl)
-
+    const wsBase = getWsBase()
+    const wsUrl = `${wsBase}/ws/guild/${guildId}/?token=${token}`
+    const socket = new WebSocket(wsUrl)
     socket.onopen = () => {
       console.log("✅ Connected to guild WebSocket")
       setIsAuthenticated(true)
     }
-    
     socket.onerror = (error) => {
       console.error("❌ WebSocket error:", error)
       showToast("Connection error. Please try again.", "error")
     }
-    
     socket.onclose = (event) => {
       console.log(`🛑 WebSocket closed: ${event.code} - ${event.reason}`)
       if (event.code === 1006 && isOpen) {
@@ -114,7 +132,6 @@ export function GuildChatModal({
         }, 2000)
       }
     }
-
     return socket
   }
 
