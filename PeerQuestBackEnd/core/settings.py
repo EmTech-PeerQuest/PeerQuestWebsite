@@ -399,8 +399,11 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 # EMAIL_FILE_PATH = BASE_DIR / 'sent_emails'  # Directory to save emails
 # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # Shows emails in console
 
+
+# Dynamic Backend and Frontend URLs for email links
+BACKEND_URL = os.environ.get('BACKEND_URL', 'http://localhost:8000')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
 DEFAULT_FROM_EMAIL = 'PeerQuest <noreply@peerquest.com>'
-FRONTEND_URL = 'http://localhost:3000'  # Frontend URL for verification links
 
 # Prevent Django from appending a slash to URLs that don't have one
 # This is often helpful when working with frontends that expect exact API paths.

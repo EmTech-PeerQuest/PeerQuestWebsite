@@ -751,8 +751,8 @@ export default function Home() {
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {[
                     { name: "Jenel Esteron", role: "Full-Stack/Database", avatar: "Jenelpic.jpg", portfolio: "https://jenelportfolio.netlify.app", linkedin: "https://www.linkedin.com/in/jenel-esteron-83459b2a2/", isPhoto: true },
-                    { name: "Amry Judith Gutlay", role: "Full-Stack", avatar: "Amrypic.jpg", portfolio: "https://gutlay-portfolio.vercel.app/", linkedin: "https://www.linkedin.com/in/amry-judith-gutlay-9829962b3/" },
-                    { name: "Michael Liam San Diego", role: "Full-stack/UI/UX", avatar: "Liampic.jpg", portfolio: "https://sandiego-portfolio.vercel.app", linkedin: "https://www.linkedin.com/in/michael-liam-san-diego-5a18b7287/" },
+                    { name: "Amry Judith Gutlay", role: "Full-Stack/Documentation", avatar: "Amrypic.jpg", portfolio: "https://gutlay-portfolio.vercel.app/", linkedin: "https://www.linkedin.com/in/amry-judith-gutlay-9829962b3/", isPhoto: true },
+                    { name: "Michael Liam San Diego", role: "Full-stack/UI/UX", avatar: "Liampic.jpg", portfolio: "https://sandiego-portfolio.vercel.app", linkedin: "https://www.linkedin.com/in/michael-liam-san-diego-5a18b7287/", isPhoto: true },
                     { name: "Mark John Wayne Yabes", role: "Full-Stack/Database", avatar: "MJ", portfolio: "https://markyabesportfolio.netlify.app/", linkedin: "https://www.linkedin.com/in/mark-yabes-602026253/" },
                     { name: "Tristan Von Ceazar Yanoria", role: "Full-Stack/Documentation", avatar: "T", portfolio: "http://insantics.netlify.app/#about", linkedin: "https://www.linkedin.com/in/tristan-von-ceazar-yanoria-57b133302/" },
                     { name: "John Odysseus Lim", role: "Full-Stack/Documentation", avatar: "J", portfolio: "https://odysseus-droid.github.io/limportfolio", linkedin: "https://www.linkedin.com/in/jhndyssslm/" },

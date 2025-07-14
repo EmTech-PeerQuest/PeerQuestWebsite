@@ -22,8 +22,9 @@ def send_verification_email(user):
         user.email_verification_sent_at = timezone.now()
         user.save()
         
-        # Create verification URL - point to backend GET endpoint
-        verification_url = f"http://localhost:8000/api/users/verify-email/?token={verification_token}"
+        # Create verification URL - use BACKEND_URL from settings if available, else fallback to localhost
+        backend_url = getattr(settings, 'BACKEND_URL', None) or 'http://localhost:8000'
+        verification_url = f"{backend_url.rstrip('/')}/api/users/verify-email/?token={verification_token}"
         
         # Email context
         context = {
@@ -55,15 +56,23 @@ def send_verification_email(user):
 def send_password_reset_email(user, reset_url):
     """Send password reset email to user."""
     try:
+        # Use BACKEND_URL from settings if available, else fallback to localhost
+        backend_url = getattr(settings, 'BACKEND_URL', None) or 'http://localhost:8000'
+        # If reset_url is a relative path, prepend backend_url
+        if reset_url and reset_url.startswith('/'):
+            full_reset_url = f"{backend_url.rstrip('/')}{reset_url}"
+        else:
+            full_reset_url = reset_url
+
         context = {
             'user': user,
-            'reset_url': reset_url,
+            'reset_url': full_reset_url,
             'frontend_url': settings.FRONTEND_URL,
         }
-        
+
         html_message = render_to_string('emails/password_reset.html', context)
         plain_message = strip_tags(html_message)
-        
+
         send_mail(
             subject='Reset your PeerQuest password',
             message=plain_message,
@@ -72,10 +81,9 @@ def send_password_reset_email(user, reset_url):
             html_message=html_message,
             fail_silently=False,
         )
-        
+
         return True
-        
+
     except Exception as e:
-        # Error sending password reset email
-        pass
+        print(f"Error sending password reset email to {user.email}: {str(e)}")
         return False
