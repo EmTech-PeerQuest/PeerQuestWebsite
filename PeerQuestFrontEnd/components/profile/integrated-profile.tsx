@@ -36,13 +36,34 @@ function AchievementsSection({ userId }: { userId: string | number }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "owned" | "unowned">("all");
 
+  // Dynamic API base URL getter
+  const getApiBaseUrl = () => {
+    let apiBase = '';
+    if (typeof window !== 'undefined' && (window as any).PEERQUEST_API_BASE_URL) {
+      apiBase = (window as any).PEERQUEST_API_BASE_URL;
+      // eslint-disable-next-line no-console
+      console.debug('[PeerQuest][AchievementsSection] Using window.PEERQUEST_API_BASE_URL:', apiBase);
+    } else if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+      apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+      if (typeof window !== 'undefined') {
+        // eslint-disable-next-line no-console
+        console.debug('[PeerQuest][AchievementsSection] Using NEXT_PUBLIC_API_BASE_URL:', apiBase);
+      }
+    } else {
+      apiBase = '';
+      if (typeof window !== 'undefined') {
+        console.debug('[PeerQuest][AchievementsSection] No API base URL set, using relative path.');
+      }
+    }
+    return apiBase.replace(/\/$/, '');
+  };
+
   useEffect(() => {
     const fetchAchievements = async () => {
       setLoading(true);
       setError(null);
       try {
-        // Use NEXT_PUBLIC_API_BASE_URL if set, else fallback to relative API route
-        const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+        const apiBase = getApiBaseUrl();
         const achievementsUrl = apiBase ? `${apiBase.replace(/\/$/, '')}/users/${userId}/achievements-full/` : `/users/${userId}/achievements-full/`;
         let res;
         try {
