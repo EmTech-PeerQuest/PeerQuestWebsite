@@ -1,3 +1,5 @@
+"use client"
+
 // --- WebSocket Utility for PeerQuest Chat ---
 type WebSocketOptions = {
   roomId: string;
