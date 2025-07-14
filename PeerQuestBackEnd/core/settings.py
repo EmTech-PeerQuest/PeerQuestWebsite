@@ -18,7 +18,9 @@ ALLOWED_HOSTS = [
     'testserver',
     'backend',
     'peerquestadmin.up.railway.app',
-    'https://peerquestadmin.up.railway.app',
+    'www.peerquestadmin.up.railway.app',
+    "peerquest.up.railway.app",   # ✅ Add this
+    "www.peerquest.up.railway.app",
 ]
 
 # Installed Apps
