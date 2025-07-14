@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
+import { useGoldBalance } from '@/context/GoldBalanceContext';
 import { X, Upload, Plus, Trash2, Users, Settings, Palette, Globe, Lock } from "lucide-react"
 import type { User, Guild } from "@/lib/types"
 import { ConfirmationModal } from '@/components/modals/confirmation-modal'
@@ -54,6 +55,8 @@ export function EnhancedCreateGuildModal({
   // Gold state
   const [userGold, setUserGold] = useState<number | null>(null)
   const [loadingGold, setLoadingGold] = useState(false)
+  // Always call the hook (not the function type check)
+  const goldBalance = useGoldBalance();
 
   // Dynamic emblem and specialization options (can be extended)
   const emblems = ["🧪", "🌙", "🔥", "🌿", "🥕", "🍂", "🔮", "💎", "⚔️", "🏰", "🛡️", "🎯", "🎨", "💻", "📚", "🎵"]
@@ -74,11 +77,11 @@ export function EnhancedCreateGuildModal({
     const fetchGold = async () => {
       if (!currentUser || !currentUser.id) {
         setUserGold(null)
+        console.log("[GUILD] No currentUser or user id, cannot fetch gold.")
         return
       }
       setLoadingGold(true)
       try {
-        // Use dynamic API base URL
         let base = ""
         if (typeof window !== "undefined") {
           base = (window as any).API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ""
@@ -87,21 +90,73 @@ export function EnhancedCreateGuildModal({
         }
         const apiBaseUrl = base || "http://localhost:8000/api"
         const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
-        const url = `${apiBaseUrl}/users/${currentUser.id}/gold/`
-        const res = await fetch(url, {
-          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-        })
-        if (!res.ok) throw new Error("Failed to fetch gold")
-        const data = await res.json()
-        setUserGold(typeof data.gold === "number" ? data.gold : 0)
+        // Try /users/{id}/gold/ endpoint first
+        let url = `${apiBaseUrl}/users/${currentUser.id}/gold/`
+        let res, data, goldValue: number | null = null
+        try {
+          console.log(`[GUILD] Fetching gold from: ${url}`)
+          res = await fetch(url, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          })
+          if (res.ok) {
+            data = await res.json()
+            console.log("[GUILD] /gold/ endpoint response:", data)
+            if (typeof data.gold === "number") goldValue = data.gold
+            else if (typeof data.amount === "number") goldValue = data.amount
+            else if (typeof data.balance === "number") goldValue = data.balance
+            else goldValue = null
+          } else if (res.status === 404) {
+            // Try fallback to /users/{id}/ endpoint
+            url = `${apiBaseUrl}/users/${currentUser.id}/`
+            console.log(`[GUILD] /gold/ endpoint 404, trying fallback: ${url}`)
+            res = await fetch(url, {
+              headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+            })
+            if (res.ok) {
+              data = await res.json()
+              console.log("[GUILD] /users/{id}/ endpoint response:", data)
+              if (typeof data.gold === "number") goldValue = data.gold
+              else if (typeof data.amount === "number") goldValue = data.amount
+              else if (typeof data.balance === "number") goldValue = data.balance
+              else goldValue = null
+            } else {
+              console.log(`[GUILD] Fallback /users/{id}/ endpoint failed with status:`, res.status)
+            }
+          } else {
+            console.log(`[GUILD] /gold/ endpoint failed with status:`, res.status)
+          }
+        } catch (err) {
+          console.log(`[GUILD] Error fetching gold:`, err)
+        }
+        if (typeof goldValue === "number") {
+          setUserGold(goldValue)
+          console.log("📊 Gold value set:", goldValue)
+        } else {
+          // Fallback to context gold, then currentUser.gold, then 0
+          let fallbackGold = typeof goldBalance === "number" ? goldBalance
+                            : typeof currentUser.gold === "number" ? currentUser.gold
+                            : 0;
+          setUserGold(fallbackGold)
+          console.log("⚠️ Gold API failed, falling back to context or currentUser.gold:", fallbackGold)
+          if (fallbackGold === 0) {
+            console.log("❗ [GUILD] All gold lookups failed, userGold=0. User may not have gold field in API response or is missing gold.")
+          }
+        }
       } catch (e) {
-        setUserGold(typeof currentUser.gold === "number" ? currentUser.gold : 0)
+        let fallbackGold = typeof goldBalance === "number" ? goldBalance
+                          : typeof currentUser.gold === "number" ? currentUser.gold
+                          : 0;
+        setUserGold(fallbackGold)
+        console.log("⚠️ Gold API error, falling back to context or currentUser.gold:", fallbackGold)
+        if (fallbackGold === 0) {
+          console.log("❗ [GUILD] Exception and fallback gold is 0. User may not have gold field in API response or is missing gold.")
+        }
       } finally {
         setLoadingGold(false)
       }
     }
     if (isOpen) fetchGold()
-  }, [isOpen, currentUser])
+  }, [isOpen, currentUser, goldBalance])
 
   // Dynamic open/close
   if (!isOpen) return null
@@ -183,7 +238,7 @@ export function EnhancedCreateGuildModal({
     }
     // Check if user has enough gold
     if (typeof userGold === "number" && userGold < GUILD_CREATION_COST) {
-      showToast?.(`You need at least ${GUILD_CREATION_COST} gold to create a guild.`, "error")
+      showToast?.(`You need at least ${GUILD_CREATION_COST} gold to create a guild. (You have: ${userGold})`, "error")
       return
     }
     if (!guildForm.name || !guildForm.description || !guildForm.specialization) {
