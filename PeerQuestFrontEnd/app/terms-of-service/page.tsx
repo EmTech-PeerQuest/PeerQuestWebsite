@@ -1,63 +1,45 @@
 export default function TermsOfService() {
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6">Terms of Service</h1>
+    <div className="container mx-auto px-4 py-8 max-w-4xl bg-yellow-50 rounded-lg shadow-lg border-2 border-yellow-200">
+      <h1 className="text-4xl font-extrabold mb-6 text-yellow-900 drop-shadow-lg text-center font-serif">PeerQuest Tavern Terms of Service</h1>
 
-      <div className="prose max-w-none">
-        <p className="mb-4">
-          Welcome to PeerQuest Tavern. By accessing or using our service, you agree to be bound by these Terms of
-          Service.
-        </p>
-
-        <h2 className="text-2xl font-semibold mt-6 mb-4">1. Acceptance of Terms</h2>
-        <p className="mb-4">
-          By accessing or using the PeerQuest Tavern platform, you agree to be bound by these Terms of Service and all
-          applicable laws and regulations. If you do not agree with any of these terms, you are prohibited from using or
-          accessing this site.
+      <div className="prose max-w-none text-yellow-900">
+        <p className="mb-4 italic text-lg">
+          Hail, Adventurer! By entering the PeerQuest Tavern, you agree to abide by the following sacred rules and codes of conduct. May your journey be legendary!
         </p>
 
-        <h2 className="text-2xl font-semibold mt-6 mb-4">2. User Accounts</h2>
+        <h2 className="text-2xl font-bold mt-8 mb-4 text-yellow-800">I. Oath of Entry</h2>
         <p className="mb-4">
-          To use certain features of the platform, you must register for an account. You agree to provide accurate,
-          current, and complete information during the registration process and to update such information to keep it
-          accurate, current, and complete.
-        </p>
-        <p className="mb-4">
-          You are responsible for safeguarding the password that you use to access the platform and for any activities
-          or actions under your password. We encourage you to use "strong" passwords (passwords that use a combination
-          of upper and lower case letters, numbers, and symbols) with your account.
-        </p>
-        <p className="mb-4">
-          You must be at least 18 years of age to create an account. We may require age verification as part of the
-          registration process.
+          By crossing the threshold of PeerQuest Tavern, you accept these Terms of Service and all the laws of the land. If you do not agree, you must leave the Tavern at once.
         </p>
 
-        <h2 className="text-2xl font-semibold mt-6 mb-4">3. User Content</h2>
+        <h2 className="text-2xl font-bold mt-8 mb-4 text-yellow-800">II. Adventurer Accounts</h2>
         <p className="mb-4">
-          Our platform allows you to post, link, store, share and otherwise make available certain information, text,
-          graphics, videos, or other material. You are responsible for the content that you post to the platform,
-          including its legality, reliability, and appropriateness.
+          To unlock the Tavern’s full magic, you must register as an Adventurer. Provide true and current information, and keep your details up to date lest your account be banished.
         </p>
         <p className="mb-4">
-          By posting content to the platform, you grant us the right to use, modify, publicly perform, publicly display,
-          reproduce, and distribute such content on and through the platform. You retain any and all of your rights to
-          any content you submit, post or display on or through the platform and you are responsible for protecting
-          those rights.
+          Guard your password as you would your most precious artifact. You are responsible for all deeds performed under your name. Use a strong password to keep your account safe from rogues and tricksters.
+        </p>
+        <p className="mb-4">
+          Only those of 18 years or older may create an account. Age verification may be required by the Tavern Keepers.
         </p>
 
-        <h2 className="text-2xl font-semibold mt-6 mb-4">4. Quests and Guilds</h2>
+        <h2 className="text-2xl font-bold mt-8 mb-4 text-yellow-800">III. User-Crafted Lore</h2>
         <p className="mb-4">
-          PeerQuest Tavern provides a platform for users to create and participate in quests and guilds. We do not
-          guarantee the quality, accuracy, or legality of quests posted by users.
+          You may post, share, and create content within the Tavern. You are responsible for the legality and honor of your contributions.
         </p>
         <p className="mb-4">
-          Users who create quests are responsible for fulfilling the terms of their quests, including providing the
-          stated rewards. Users who apply for quests are responsible for completing the quest requirements as specified.
+          By sharing your lore, you grant the Tavern the right to use, display, and share it within the realm. You retain your rights, but the Tavern may showcase your deeds.
         </p>
 
-        <h2 className="text-2xl font-semibold mt-6 mb-4">5. Virtual Currency</h2>
+        <h2 className="text-2xl font-bold mt-8 mb-4 text-yellow-800">IV. Quests &amp; Guilds</h2>
         <p className="mb-4">
-          PeerQuest Tavern may include a virtual currency system ("Gold"). Gold has no real-world value and cannot be
+          The Tavern is a place for creating and joining quests and guilds. The Tavern does not guarantee the quality or outcome of any quest. Quest creators must fulfill their promises, and questers must complete their tasks as agreed.
+        </p>
+
+        <h2 className="text-2xl font-bold mt-8 mb-4 text-yellow-800">V. Gold &amp; Virtual Currency</h2>
+        <p className="mb-4">
+          The Tavern’s Gold is a magical currency with no value beyond these walls. It cannot be exchanged for real-world treasure, nor can it be traded outside the Tavern.
           exchanged for real money or items of value outside of the platform. We reserve the right to manage, regulate,
           control, modify, or eliminate Gold at any time, with or without notice.
         </p>

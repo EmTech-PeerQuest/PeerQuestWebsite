@@ -1,62 +1,61 @@
 export default function PrivacyPolicy() {
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6">Privacy Policy</h1>
+    <div className="container mx-auto px-4 py-8 max-w-4xl bg-yellow-50 rounded-lg shadow-lg border-2 border-yellow-200">
+      <h1 className="text-4xl font-extrabold mb-6 text-yellow-900 drop-shadow-lg text-center font-serif">PeerQuest Tavern Privacy Scroll</h1>
 
-      <div className="prose max-w-none">
-        <p className="mb-4">
-          At PeerQuest Tavern, we take your privacy seriously. This Privacy Policy explains how we collect, use,
-          disclose, and safeguard your information when you use our platform.
+      <div className="prose max-w-none text-yellow-900">
+        <p className="mb-4 italic text-lg">
+          Welcome, Adventurer! This enchanted scroll reveals how your secrets are guarded within the halls of PeerQuest Tavern. Read on to learn how your information is gathered, used, and protected as you embark on your quests.
         </p>
 
-        <h2 className="text-2xl font-semibold mt-6 mb-4">1. Information We Collect</h2>
-        <p className="mb-4">We collect information that you provide directly to us when you:</p>
+        <h2 className="text-2xl font-bold mt-8 mb-4 text-yellow-800">I. Lore of Collected Knowledge</h2>
+        <p className="mb-4">We gather the following from brave souls who enter our realm:</p>
         <ul className="list-disc pl-6 mb-4">
-          <li>Register for an account</li>
-          <li>Create or modify your profile</li>
-          <li>Post quests or apply to quests</li>
-          <li>Create or join guilds</li>
-          <li>Communicate with other users</li>
-          <li>Purchase virtual currency</li>
-          <li>Contact our support team</li>
+          <li>Creation of your Adventurer’s Account</li>
+          <li>Forging or updating your Hero Profile</li>
+          <li>Posting or accepting Quests</li>
+          <li>Joining or founding Guilds</li>
+          <li>Sending messages to fellow travelers</li>
+          <li>Purchasing Gold (virtual currency)</li>
+          <li>Summoning the Tavern Keepers (support)</li>
         </ul>
 
-        <p className="mb-4">This information may include:</p>
+        <p className="mb-4">This may include:</p>
         <ul className="list-disc pl-6 mb-4">
-          <li>Name and username</li>
-          <li>Email address</li>
-          <li>Password</li>
-          <li>Profile information (avatar, bio, skills)</li>
+          <li>Adventurer Name &amp; Username</li>
+          <li>Email (for magical correspondence)</li>
+          <li>Password (encrypted with powerful spells)</li>
+          <li>Profile details (avatar, bio, skills)</li>
           <li>Content you post (quests, applications, messages)</li>
-          <li>Payment information (when purchasing virtual currency)</li>
+          <li>Payment info (for Gold purchases)</li>
         </ul>
 
-        <h2 className="text-2xl font-semibold mt-6 mb-4">2. Automatically Collected Information</h2>
+        <h2 className="text-2xl font-bold mt-8 mb-4 text-yellow-800">II. Mystical Tracking Runes</h2>
         <p className="mb-4">
-          When you access or use our platform, we automatically collect certain information, including:
+          As you traverse the Tavern, our magical wards automatically collect:
         </p>
         <ul className="list-disc pl-6 mb-4">
-          <li>Log information (IP address, browser type, pages visited)</li>
-          <li>Device information (hardware model, operating system)</li>
-          <li>Usage data (features used, interactions, time spent)</li>
-          <li>Location information (general location based on IP address)</li>
+          <li>Log details (IP, browser, pages explored)</li>
+          <li>Device traits (your enchanted device type)</li>
+          <li>Usage patterns (features, interactions, time spent questing)</li>
+          <li>Approximate location (gleaned from the winds of the web)</li>
         </ul>
 
-        <h2 className="text-2xl font-semibold mt-6 mb-4">3. How We Use Your Information</h2>
-        <p className="mb-4">We use the information we collect to:</p>
+        <h2 className="text-2xl font-bold mt-8 mb-4 text-yellow-800">III. How We Wield Your Lore</h2>
+        <p className="mb-4">Your information is used to:</p>
         <ul className="list-disc pl-6 mb-4">
-          <li>Provide, maintain, and improve our platform</li>
-          <li>Create and maintain your account</li>
-          <li>Process transactions and send related information</li>
-          <li>Send administrative messages and updates</li>
-          <li>Respond to your comments, questions, and requests</li>
-          <li>Monitor and analyze trends, usage, and activities</li>
-          <li>Detect, investigate, and prevent fraudulent transactions and other illegal activities</li>
-          <li>Personalize your experience</li>
+          <li>Maintain and enhance the Tavern’s magic</li>
+          <li>Create and safeguard your Adventurer’s Account</li>
+          <li>Process Gold transactions and send magical receipts</li>
+          <li>Send important missives and updates</li>
+          <li>Respond to your scrolls, questions, and requests</li>
+          <li>Study trends and improve the Tavern’s experience</li>
+          <li>Detect and banish fraud or dark magic</li>
+          <li>Personalize your journey</li>
         </ul>
 
-        <h2 className="text-2xl font-semibold mt-6 mb-4">4. Sharing of Information</h2>
-        <p className="mb-4">We may share the information we collect in the following circumstances:</p>
+        <h2 className="text-2xl font-bold mt-8 mb-4 text-yellow-800">IV. Sharing Among Guilds &amp; Allies</h2>
+        <p className="mb-4">We may share your lore in these circumstances:</p>
         <ul className="list-disc pl-6 mb-4">
           <li>
             With other users as part of the normal operation of the platform (e.g., your username and profile
