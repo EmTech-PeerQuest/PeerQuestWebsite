@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { X, Upload, Plus, Trash2, Users, Settings, Palette, Globe, Lock } from "lucide-react"
 import type { User, Guild } from "@/lib/types"
 import { ConfirmationModal } from '@/components/modals/confirmation-modal'
@@ -51,6 +51,9 @@ export function EnhancedCreateGuildModal({
   const [currentSocialUrl, setCurrentSocialUrl] = useState<string>("")
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showConfirmation, setShowConfirmation] = useState<boolean>(false)
+  // Gold state
+  const [userGold, setUserGold] = useState<number | null>(null)
+  const [loadingGold, setLoadingGold] = useState(false)
 
   // Dynamic emblem and specialization options (can be extended)
   const emblems = ["🧪", "🌙", "🔥", "🌿", "🥕", "🍂", "🔮", "💎", "⚔️", "🏰", "🛡️", "🎯", "🎨", "💻", "📚", "🎵"]
@@ -65,6 +68,40 @@ export function EnhancedCreateGuildModal({
     { value: "marketing", label: "Marketing", icon: "📢" },
     // Add more dynamically if needed
   ]
+
+  // Fetch user's gold from API when modal opens
+  useEffect(() => {
+    const fetchGold = async () => {
+      if (!currentUser || !currentUser.id) {
+        setUserGold(null)
+        return
+      }
+      setLoadingGold(true)
+      try {
+        // Use dynamic API base URL
+        let base = ""
+        if (typeof window !== "undefined") {
+          base = (window as any).API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ""
+        } else {
+          base = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+        }
+        const apiBaseUrl = base || "http://localhost:8000/api"
+        const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+        const url = `${apiBaseUrl}/users/${currentUser.id}/gold/`
+        const res = await fetch(url, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        })
+        if (!res.ok) throw new Error("Failed to fetch gold")
+        const data = await res.json()
+        setUserGold(typeof data.gold === "number" ? data.gold : 0)
+      } catch (e) {
+        setUserGold(typeof currentUser.gold === "number" ? currentUser.gold : 0)
+      } finally {
+        setLoadingGold(false)
+      }
+    }
+    if (isOpen) fetchGold()
+  }, [isOpen, currentUser])
 
   // Dynamic open/close
   if (!isOpen) return null
@@ -140,14 +177,15 @@ export function EnhancedCreateGuildModal({
       showToast?.("Please log in to create a guild", "error")
       return
     }
-
+    if (loadingGold) {
+      showToast?.("Checking your gold...", "info")
+      return
+    }
     // Check if user has enough gold
-    const userGold = typeof currentUser.gold === "number" ? currentUser.gold : 0
-    if (userGold < GUILD_CREATION_COST) {
+    if (typeof userGold === "number" && userGold < GUILD_CREATION_COST) {
       showToast?.(`You need at least ${GUILD_CREATION_COST} gold to create a guild.`, "error")
       return
     }
-
     if (!guildForm.name || !guildForm.description || !guildForm.specialization) {
       showToast?.("Please fill in all required fields", "error")
       return
