@@ -142,7 +142,8 @@ export function EnhancedCreateGuildModal({
     }
 
     // Check if user has enough gold
-    if (typeof currentUser.gold === "number" && currentUser.gold < GUILD_CREATION_COST) {
+    const userGold = typeof currentUser.gold === "number" ? currentUser.gold : 0
+    if (userGold < GUILD_CREATION_COST) {
       showToast?.(`You need at least ${GUILD_CREATION_COST} gold to create a guild.`, "error")
       return
     }
