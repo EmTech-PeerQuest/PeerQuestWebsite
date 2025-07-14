@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Set environment variables
+# Environment
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
@@ -18,11 +18,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt && pip install watchdog
 
-# Copy project files
+# Copy project
 COPY . .
 
-# Optional: Expose default Django port for local dev (Railway overrides with PORT anyway)
-EXPOSE 8000
+# Command to run your Django app with Daphne (ASGI, WebSocket support)
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "core.asgi:application"]
 
-# Use sh -c with single quotes so $PORT is expanded at runtime
-CMD sh -c 'exec daphne -b 0.0.0.0 -p ${PORT:-8000} core.asgi:application'
