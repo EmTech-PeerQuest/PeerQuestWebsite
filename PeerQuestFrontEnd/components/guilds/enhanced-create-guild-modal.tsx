@@ -22,8 +22,9 @@ export function EnhancedCreateGuildModal({
   onSubmit,
   showToast,
 }: EnhancedCreateGuildModalProps) {
-  const [currentStep, setCurrentStep] = useState(1)
-  const [guildForm, setGuildForm] = useState({
+  // Make all state dynamic and extensible
+  const [currentStep, setCurrentStep] = useState<number>(1)
+  const [guildForm, setGuildForm] = useState(() => ({
     name: "",
     description: "",
     emblem: "🧪",
@@ -35,23 +36,24 @@ export function EnhancedCreateGuildModal({
     customEmblemFile: null as File | null,
     customEmblemPreview: "",
     useCustomEmblem: false,
-    // Settings
     requireApproval: true,
     minimumLevel: 1,
     allowDiscovery: true,
     showOnHomePage: true,
     whoCanPost: "members",
     whoCanInvite: "members",
-  })
+    // Add more dynamic fields here as needed
+  }))
 
-  const [currentTag, setCurrentTag] = useState("")
-  const [currentSocialPlatform, setCurrentSocialPlatform] = useState("")
-  const [currentSocialUrl, setCurrentSocialUrl] = useState("")
+  // Dynamic state for tags, social, file input, confirmation
+  const [currentTag, setCurrentTag] = useState<string>("")
+  const [currentSocialPlatform, setCurrentSocialPlatform] = useState<string>("")
+  const [currentSocialUrl, setCurrentSocialUrl] = useState<string>("")
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [showConfirmation, setShowConfirmation] = useState(false)
+  const [showConfirmation, setShowConfirmation] = useState<boolean>(false)
 
+  // Dynamic emblem and specialization options (can be extended)
   const emblems = ["🧪", "🌙", "🔥", "🌿", "🥕", "🍂", "🔮", "💎", "⚔️", "🏰", "🛡️", "🎯", "🎨", "💻", "📚", "🎵"]
-
   const specializations = [
     { value: "alchemy", label: "Alchemy", icon: "🧪" },
     { value: "protection", label: "Protection", icon: "🛡️" },
@@ -61,8 +63,10 @@ export function EnhancedCreateGuildModal({
     { value: "music", label: "Music", icon: "🎵" },
     { value: "research", label: "Research", icon: "🔍" },
     { value: "marketing", label: "Marketing", icon: "📢" },
+    // Add more dynamically if needed
   ]
 
+  // Dynamic open/close
   if (!isOpen) return null
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {

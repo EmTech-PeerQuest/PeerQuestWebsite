@@ -29,24 +29,41 @@ export function SimpleGuildManagement({
   const [activeTab, setActiveTab] = useState<"owned" | "member">("owned")
   const [memberGuildsData, setMemberGuildsData] = useState<Guild[]>([])
   const [loadingMemberGuilds, setLoadingMemberGuilds] = useState(false)
+  // Dynamic API base URL (env or runtime)
+  const [apiBaseUrl, setApiBaseUrl] = useState<string>("")
 
-  // Fetch user's member guilds when component mounts or user changes
+  useEffect(() => {
+    let base = ""
+    if (typeof window !== "undefined") {
+      base = (window as any).API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ""
+    } else {
+      base = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+    }
+    setApiBaseUrl(base || "http://localhost:8000/api")
+  }, [])
+
+  // Dynamic, robust member guilds loading
   useEffect(() => {
     if (currentUser && activeTab === "member") {
       fetchMemberGuilds()
     }
-  }, [currentUser, activeTab])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, activeTab, apiBaseUrl])
 
   const fetchMemberGuilds = async () => {
     if (!currentUser) return
-    
     setLoadingMemberGuilds(true)
     try {
-      const myGuilds = await guildApi.getMyGuilds()
-      console.log('Fetched member guilds:', myGuilds)
-      setMemberGuildsData(myGuilds)
-    } catch (error) {
-      console.error('Error fetching member guilds:', error)
+      // Use dynamic API base URL
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+      const url = `${apiBaseUrl}/guilds/my/`
+      const res = await fetch(url, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new Error(`Failed to load member guilds: ${res.status}`)
+      const data = await res.json()
+      setMemberGuildsData(Array.isArray(data) ? data : data.results || [])
+    } catch (error: any) {
       showToast('Failed to load member guilds', 'error')
       setMemberGuildsData([])
     } finally {
@@ -69,28 +86,31 @@ export function SimpleGuildManagement({
     )
   }
 
-  // Filter guilds for owned guilds only
+  // Dynamic: Filter guilds for owned guilds only
   const ownedGuilds = guilds.filter((guild) => {
-    const isOwner = guild.owner?.id === currentUser.id || 
-                   guild.poster?.username === currentUser.username
+    const isOwner = String(guild.owner?.id) === String(currentUser.id) ||
+      guild.poster?.username === currentUser.username
     return isOwner
   })
 
-  // Use API data for member guilds instead of filtering the main guild list
+  // Dynamic: Use API data for member guilds instead of filtering the main guild list
   const currentGuilds = activeTab === "owned" ? ownedGuilds : memberGuildsData
 
+  // Dynamic: Calculate guild level based on member count and activity
   const calculateGuildLevel = (guild: Guild) => {
-    // Simple level calculation based on member count
-    return Math.floor((guild.member_count || guild.members || 0) / 10) + 1
+    const memberCount = guild.member_count || guild.members || 0
+    const baseLevel = Math.floor(memberCount / 5) + 1
+    return Math.min(baseLevel, 100)
   }
 
+  // Dynamic: Calculate XP progress
   const getGuildXPProgress = (guild: Guild) => {
-    // Simple progress calculation
     const memberCount = guild.member_count || guild.members || 0
-    const progressInLevel = (memberCount % 10) * 10
+    const progressInLevel = (memberCount % 5) * 20
     return Math.min(progressInLevel, 100)
   }
 
+  // Dynamic, robust UI rendering
   return (
     <section className="bg-[#F4F0E6] min-h-screen py-8">
       <div className="max-w-6xl mx-auto px-6">
@@ -122,9 +142,9 @@ export function SimpleGuildManagement({
           </div>
           {activeTab === "member" && (
             <button
+              className="ml-4 px-4 py-2 bg-[#8B75AA] text-white rounded font-medium"
               onClick={handleRefreshMemberGuilds}
               disabled={loadingMemberGuilds}
-              className="px-4 py-2 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699] transition-colors text-sm font-medium disabled:opacity-50"
             >
               {loadingMemberGuilds ? "Refreshing..." : "Refresh"}
             </button>
@@ -134,7 +154,7 @@ export function SimpleGuildManagement({
         {/* Loading state for member guilds */}
         {activeTab === "member" && loadingMemberGuilds && (
           <div className="bg-white border border-[#CDAA7D] rounded-lg p-8 text-center">
-            <p className="text-[#8B75AA]">Loading member guilds...</p>
+            <span className="text-[#8B75AA]">Loading your member guilds...</span>
           </div>
         )}
 
@@ -142,80 +162,54 @@ export function SimpleGuildManagement({
         {!loadingMemberGuilds && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {currentGuilds.map((guild) => (
-              <div
-                key={guild.guild_id || guild.id}
-                className="bg-white border border-[#CDAA7D] rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
-              >
-                <div className="bg-[#CDAA7D] p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-xl">
-                      {guild.preset_emblem || guild.emblem || "🏆"}
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-[#2C1A1D]">{guild.name}</h3>
-                      <p className="text-sm text-[#2C1A1D]/70">Level {calculateGuildLevel(guild)}</p>
-                    </div>
+              <div key={guild.guild_id || guild.id} className="bg-white border border-[#CDAA7D] rounded-lg p-6 flex flex-col gap-4 shadow-md">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">{guild.emblem || "🛡️"}</span>
+                  <div>
+                    <h3 className="text-xl font-bold text-[#2C1A1D]">{guild.name}</h3>
+                    <div className="text-sm text-gray-500">Level {calculateGuildLevel(guild)}</div>
                   </div>
                 </div>
-
-                <div className="p-4">
-                  <div className="flex justify-between items-center mb-4">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-1">
-                        <Users size={16} className="text-[#8B75AA]" />
-                        <span className="text-sm font-medium text-[#2C1A1D]">
-                          {guild.member_count || guild.members || 0}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <DollarSign size={16} className="text-[#8B75AA]" />
-                        <span className="text-sm font-medium text-[#2C1A1D]">{guild.funds || 0}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Guild Level Progress */}
-                  <div className="mb-4">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs font-medium text-[#2C1A1D]">Level {calculateGuildLevel(guild)}</span>
-                      <span className="text-xs text-[#8B75AA]">{getGuildXPProgress(guild).toFixed(0)}%</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-1.5">
-                      <div
-                        className="bg-[#8B75AA] h-1.5 rounded-full transition-all duration-300"
-                        style={{ width: `${getGuildXPProgress(guild)}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  <p className="text-sm text-[#2C1A1D] mb-4 line-clamp-2">{guild.description}</p>
-
-                  <div className="flex gap-2">
-                    {activeTab === "owned" ? (
-                      <>
-                        <button
-                          onClick={() => onManageGuild(guild)}
-                          className="flex-1 px-4 py-2 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699] transition-colors text-sm font-medium flex items-center justify-center gap-1"
-                        >
-                          <Settings size={14} />
-                          Manage
-                        </button>
-                        <button
-                          onClick={() => onViewGuild(guild)}
-                          className="px-4 py-2 border border-[#CDAA7D] rounded text-[#2C1A1D] hover:bg-[#CDAA7D] hover:text-white transition-colors text-sm font-medium"
-                        >
-                          <Eye size={14} />
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => onViewGuild(guild)}
-                        className="flex-1 px-4 py-2 border border-[#CDAA7D] rounded text-[#2C1A1D] hover:bg-[#CDAA7D] hover:text-white transition-colors text-sm font-medium"
-                      >
-                        View
-                      </button>
-                    )}
-                  </div>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Users size={16} className="inline-block mr-1" />
+                  {guild.member_count || guild.members || 1} members
+                  <DollarSign size={16} className="inline-block ml-4 mr-1" />
+                  {guild.funds || 0} gold
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    className="flex items-center gap-1 px-3 py-1 bg-[#8B75AA] text-white rounded text-sm"
+                    onClick={() => onViewGuild(guild)}
+                  >
+                    <Eye size={16} /> View
+                  </button>
+                  <button
+                    className="flex items-center gap-1 px-3 py-1 bg-[#CDAA7D] text-[#2C1A1D] rounded text-sm"
+                    onClick={() => onManageGuild(guild)}
+                  >
+                    <Settings size={16} /> Manage
+                  </button>
+                  <button
+                    className="flex items-center gap-1 px-3 py-1 bg-[#F4F0E6] text-[#8B75AA] border border-[#8B75AA] rounded text-sm"
+                    onClick={() => onEditGuild(guild)}
+                  >
+                    <Edit size={16} /> Edit
+                  </button>
+                  <button
+                    className="flex items-center gap-1 px-3 py-1 bg-red-100 text-red-600 border border-red-300 rounded text-sm"
+                    onClick={() => {
+                      const id = typeof guild.guild_id === 'string' ? guild.guild_id : (typeof guild.id === 'string' ? guild.id : guild.id?.toString?.() || '')
+                      if (id) onDeleteGuild(id)
+                    }}
+                  >
+                    <Trash2 size={16} /> Delete
+                  </button>
+                </div>
+                <div className="w-full h-2 bg-gray-200 rounded mt-2">
+                  <div
+                    className="h-2 bg-[#8B75AA] rounded"
+                    style={{ width: `${getGuildXPProgress(guild)}%` }}
+                  />
                 </div>
               </div>
             ))}
@@ -226,12 +220,7 @@ export function SimpleGuildManagement({
         {!loadingMemberGuilds && currentGuilds.length === 0 && (
           <div className="bg-white border border-[#CDAA7D] rounded-lg p-8 text-center">
             <Shield size={48} className="mx-auto mb-4 text-[#CDAA7D]" />
-            <h3 className="text-xl font-bold text-[#2C1A1D] mb-2">No Guilds Found</h3>
-            <p className="text-[#8B75AA]">
-              {activeTab === "owned"
-                ? "You don't own any guilds yet. Create a new guild to get started!"
-                : "You're not a member of any guilds yet. Join a guild from the Guild Hall!"}
-            </p>
+            <p className="text-[#8B75AA]">No guilds found in this category.</p>
           </div>
         )}
       </div>

@@ -22,59 +22,73 @@ export function GuildWarningModal({
   const [warnings, setWarnings] = useState<GuildWarning[]>([])
   const [loading, setLoading] = useState(false)
 
+  // Dynamic API base URL (env or runtime)
+  const [apiBaseUrl, setApiBaseUrl] = useState<string>("")
+
   useEffect(() => {
-    console.log('GuildWarningModal useEffect triggered', { isOpen, guild_id: guild.guild_id, currentUser });
+    let base = ""
+    if (typeof window !== "undefined") {
+      base = (window as any).API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ""
+    } else {
+      base = process.env.NEXT_PUBLIC_API_BASE_URL || ""
+    }
+    setApiBaseUrl(base || "http://localhost:8000/api")
+  }, [])
+
+  useEffect(() => {
     if (isOpen && guild.guild_id) {
       fetchWarnings()
     }
-  }, [isOpen, guild.guild_id])
+  }, [isOpen, guild.guild_id, apiBaseUrl])
 
+  // Dynamic, robust warning fetch
   const fetchWarnings = async () => {
-    console.log('Fetching warnings for guild:', guild.guild_id);
     setLoading(true)
     try {
-      const token = localStorage.getItem("access_token")
-      const response = await fetch(`http://localhost:8000/api/guilds/${guild.guild_id}/warnings/`, {
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+      const url = `${apiBaseUrl}/guilds/${guild.guild_id}/warnings/`
+      const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'Content-Type': 'application/json'
         }
       })
-      
-      console.log('Warning fetch response status:', response.status);
-      
       if (response.ok) {
         const data = await response.json()
-        console.log('Warning data received:', data);
         setWarnings(data.active_warnings || [])
       } else {
-        console.error('Failed to fetch warnings, status:', response.status)
-        const errorText = await response.text();
-        console.error('Error response:', errorText);
+        const errorText = await response.text()
+        showToast(`Failed to fetch warnings: ${errorText}`, "error")
       }
-    } catch (error) {
-      console.error('Error fetching warnings:', error)
+    } catch (error: any) {
+      showToast("Error fetching warnings", "error")
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
+  // Dynamic, robust warning dismiss
   const dismissWarning = async (warningId: number) => {
     try {
-      const token = localStorage.getItem("access_token")
-      const response = await fetch(`http://localhost:8000/api/guilds/${guild.guild_id}/warnings/${warningId}/dismiss/`, {
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+      const url = `${apiBaseUrl}/guilds/${guild.guild_id}/warnings/${warningId}/dismiss/`
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'Content-Type': 'application/json'
         }
       })
-      
       if (response.ok) {
         showToast("Warning dismissed successfully", "success")
-        fetchWarnings() // Refresh warnings
+        fetchWarnings()
       } else {
-        const error = await response.json()
-        showToast(error.error || "Failed to dismiss warning", "error")
+        let errorMsg = "Failed to dismiss warning"
+        try {
+          const error = await response.json()
+          errorMsg = error.error || errorMsg
+        } catch {}
+        showToast(errorMsg, "error")
       }
     } catch (error) {
       showToast("Failed to dismiss warning", "error")
