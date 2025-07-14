@@ -2,12 +2,18 @@ import { TokenInvalidError, BannedUserError } from './errors';
 import { refreshToken, clearTokens, saveBanInfo } from './auth';
 import axios from 'axios';
 
+// Debug log for env variable
+console.log('[PeerQuest] NEXT_PUBLIC_API_BASE_URL:', process.env.NEXT_PUBLIC_API_BASE_URL);
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 export const api = axios.create({
   baseURL: API_BASE + '/api/',
   withCredentials: false,
 });
+
+// Debug log for Axios baseURL
+console.log('[PeerQuest] Axios instance baseURL:', api.defaults.baseURL);
 
 // Attach access token to all requests
 api.interceptors.request.use((config) => {
