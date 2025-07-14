@@ -792,8 +792,8 @@ export function AuthModal({ isOpen, mode, setMode, onClose, onLogin, onRegister,
                       />
                     </div>
                     <label htmlFor="terms" className="ml-2 text-sm text-[#8B75AA] leading-relaxed">
-                      BY CLICKING SIGN UP, YOU ARE AGREEING TO THE <span className="underline">TERMS OF USE</span> AND{" "}
-                      <span className="underline">PRIVACY POLICY</span>.
+                      BY CLICKING SIGN UP, YOU ARE AGREEING TO THE <a href="/terms-of-service" target="_blank" rel="noopener noreferrer" className="underline text-[#8B75AA] hover:text-[#CDAA7D]">TERMS OF USE</a> AND {" "}
+                      <a href="/privacy-policy" target="_blank" rel="noopener noreferrer" className="underline text-[#8B75AA] hover:text-[#CDAA7D]">PRIVACY POLICY</a>.
                     </label>
                   </div>
                   {formErrors.agreeToTerms && <p className="text-red-500 text-xs">{formErrors.agreeToTerms}</p>}
