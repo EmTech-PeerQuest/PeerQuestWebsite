@@ -11,6 +11,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'your-secret-key' # IMPORTANT: Change this to a strong, random key in production!
 DEBUG = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
 
 ALLOWED_HOSTS = [
     'localhost',
