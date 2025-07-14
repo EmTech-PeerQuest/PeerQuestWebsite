@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y \
     default-libmysqlclient-dev \
     pkg-config \
     curl \
-    netcat \
+    netcat-openbsd \  # ✅ Replaced 'netcat' with 'netcat-openbsd'
     && rm -rf /var/lib/apt/lists/*
 
 # Environment
@@ -19,13 +19,13 @@ WORKDIR /app
 # Install Python dependencies
 COPY requirements.txt .
 RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt && pip install watchdog gunicorn uvicorn
+RUN pip install --no-cache-dir -r requirements.txt && pip install watchdog gunicorn uvicorn[standard]
 
 # Copy project
 COPY . .
 
-# Expose port (not strictly needed for Railway, but useful for local dev)
+# Expose port
 EXPOSE 8000
 
-# Command to run Django with Gunicorn + Uvicorn worker (ASGI)
+# Run app with Gunicorn and UvicornWorker (for ASGI/Django Channels)
 CMD ["gunicorn", "core.asgi:application", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:${PORT:-8000}"]
