@@ -71,6 +71,29 @@ export function Settings() {
 
   // Load user data only once when component mounts
   useEffect(() => {
+    // Dynamic API base URL getter
+    const getApiBaseUrl = () => {
+      let apiBase = '';
+      // Use window as any to allow dynamic property
+      if (typeof window !== 'undefined' && (window as any).PEERQUEST_API_BASE_URL) {
+        apiBase = (window as any).PEERQUEST_API_BASE_URL;
+        // eslint-disable-next-line no-console
+        console.debug('[PeerQuest][Settings] Using window.PEERQUEST_API_BASE_URL:', apiBase);
+      } else if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+        apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+        if (typeof window !== 'undefined') {
+          // eslint-disable-next-line no-console
+          console.debug('[PeerQuest][Settings] Using NEXT_PUBLIC_API_BASE_URL:', apiBase);
+        }
+      } else {
+        apiBase = '';
+        if (typeof window !== 'undefined') {
+          console.debug('[PeerQuest][Settings] No API base URL set, using relative path.');
+        }
+      }
+      return apiBase.replace(/\/$/, '');
+    };
+
     const loadUserData = async () => {
       // First check if we have tokens
       const accessToken = localStorage.getItem('access_token')
@@ -85,11 +108,11 @@ export function Settings() {
       
       if (!accessToken && refreshToken) {
         try {
-          // Use env var for API base, fallback to relative if not set
-          const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+          // Use dynamic API base URL
+          const apiBase = getApiBaseUrl();
           if (typeof window !== 'undefined') {
             // eslint-disable-next-line no-console
-            console.debug('[PeerQuest][Settings] NEXT_PUBLIC_API_BASE_URL:', apiBase);
+            console.debug('[PeerQuest][Settings] API_BASE_URL:', apiBase);
           }
           const url = `${apiBase.replace(/\/$/, '')}/api/token/refresh/`;
           if (typeof window !== 'undefined') {
