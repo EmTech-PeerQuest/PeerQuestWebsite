@@ -690,10 +690,11 @@ export default function MessagingSystem({
 
     // ✅ Simplified: Always connect to current frontend host
     const buildWsUrl = () => {
-      const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-      const host = window.location.host;
+      const protocol = "wss"; // Always use secure
+      const host = "peerquestadmin.up.railway.app"; // Your backend
       return `${protocol}://${host}/ws/chat/${activeId}/?token=${token}`;
     };
+
 
     const wsUrl = buildWsUrl();
 

@@ -99,24 +99,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core.wsgi.application' # Standard WSGI for HTTP requests
 ASGI_APPLICATION = 'core.asgi.application'
 
-# Channel Layers for WebSocket support (using in-memory for development)
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer'
-    }
-}
-
-# For production with Redis:
-# CHANNEL_LAYERS = {
-#     'default': {
-#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
-#         'CONFIG': {
-#             "hosts": [('127.0.0.1', 6379)],
-#         },
-#     },
-# }
-
-
 # --- Railway/Docker Compose Production-Ready Channel Layers & Celery/Database Config ---
 import dj_database_url
 
