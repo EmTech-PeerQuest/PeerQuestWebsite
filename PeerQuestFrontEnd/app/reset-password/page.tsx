@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { Eye, EyeOff, AlertCircle, CheckCircle, ArrowLeft } from "lucide-react"
 import { resetPasswordConfirm } from "@/lib/api/auth"
+import { PasswordInputWithStrength } from "@/components/ui/password-input-with-strength"
 import Link from "next/link"
 
 export default function ResetPasswordPage() {
@@ -31,45 +32,66 @@ export default function ResetPasswordPage() {
     }
   }, [uid, token])
 
+  // Enhanced password validation logic from auth-modal.tsx
   const validatePassword = (password: string) => {
-    if (password.length < 8) {
-      return "Password must be at least 8 characters long"
+    if (!password) {
+      return "Password is required";
     }
-    return null
+    if (password.length < 8) {
+      return "Password must be at least 8 characters long";
+    }
+    // Add more checks as needed (e.g., complexity)
+    return null;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError("")
+    e.preventDefault();
+    setError("");
 
-    // Validate passwords
-    const passwordError = validatePassword(password)
+    // Validate password
+    const passwordError = validatePassword(password);
     if (passwordError) {
-      setError(passwordError)
-      return
+      setError(passwordError);
+      return;
     }
 
+    // Confirm password
+    if (!confirmPassword) {
+      setError("Please confirm your password");
+      return;
+    }
     if (password !== confirmPassword) {
-      setError("Passwords do not match")
-      return
+      setError("Passwords do not match");
+      return;
     }
 
     if (!uid || !token) {
-      setError("Invalid password reset link")
-      return
+      setError("Invalid password reset link");
+      return;
     }
 
-    setLoading(true)
-    
+    setLoading(true);
     try {
-      await resetPasswordConfirm(uid, token, password)
-      setSuccess(true)
+      await resetPasswordConfirm(uid, token, password);
+      setSuccess(true);
     } catch (err: any) {
-      setError(err.message || "Failed to reset password. Please try again.")
+      // Try to extract backend error details
+      let msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message;
+      if (!msg || typeof msg !== 'string') msg = "Failed to reset password. Please try again.";
+      // Map common backend errors to user-friendly messages
+      if (msg.toLowerCase().includes("token")) {
+        msg = "This password reset link is invalid or has expired. Please request a new password reset.";
+      } else if (msg.toLowerCase().includes("user")) {
+        msg = "User not found or invalid link.";
+      } else if (msg.toLowerCase().includes("password")) {
+        // Show backend password error, but keep it user-friendly
+        msg = msg.replace(/password error:/i, "").trim();
+      }
+      setError(msg);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   if (validLink === false) {
     return (
@@ -142,27 +164,17 @@ export default function ResetPasswordPage() {
             <label htmlFor="password" className="block text-sm font-medium text-[#2C1A1D] mb-2">
               New Password
             </label>
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                id="password"
-                className="w-full px-4 py-3 border border-[#CDAA7D] rounded-lg bg-white text-[#2C1A1D] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#8B75AA] focus:border-transparent"
-                placeholder="Enter your new password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-              <button
-                type="button"
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Password must be at least 8 characters long
-            </p>
+            <PasswordInputWithStrength
+              password={password}
+              onPasswordChange={setPassword}
+              username={""}
+              email={""}
+              placeholder="Enter your new password"
+              className={`${error && error.toLowerCase().includes('password') ? 'border-red-500' : 'border-[#CDAA7D]'} bg-white text-[#2C1A1D] placeholder-gray-400 focus:outline-none focus:border-[#8B75AA]`}
+            />
+            {error && error.toLowerCase().includes('password') && (
+              <p className="text-red-500 text-xs mt-1">{error}</p>
+            )}
           </div>
 
           <div>
@@ -173,7 +185,7 @@ export default function ResetPasswordPage() {
               <input
                 type={showConfirmPassword ? "text" : "password"}
                 id="confirmPassword"
-                className="w-full px-4 py-3 border border-[#CDAA7D] rounded-lg bg-white text-[#2C1A1D] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#8B75AA] focus:border-transparent"
+                className={`w-full px-4 py-3 border ${error && error.toLowerCase().includes('match') ? 'border-red-500' : 'border-[#CDAA7D]'} rounded-lg bg-white text-[#2C1A1D] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#8B75AA] focus:border-transparent`}
                 placeholder="Confirm your new password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -187,6 +199,15 @@ export default function ResetPasswordPage() {
                 {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
+            {error && error.toLowerCase().includes('match') && (
+              <p className="text-red-500 text-xs mt-1">{error}</p>
+            )}
+            {!error && confirmPassword && password !== confirmPassword && (
+              <p className="text-orange-500 text-xs mt-1">Passwords do not match</p>
+            )}
+            {!error && confirmPassword && password === confirmPassword && password.length >= 8 && (
+              <p className="text-green-500 text-xs mt-1">✓ Passwords match</p>
+            )}
           </div>
 
           <button
