@@ -34,6 +34,9 @@ interface ChatWindowProps {
   getOtherParticipant: (conv: Conversation) => User | null;
   isLoading: boolean;
   isOtherUserTyping: boolean;
+  // Mobile/Back button support
+  isMobile?: boolean;
+  onBack?: () => void;
 }
 
 function ChatWindow({
@@ -53,7 +56,20 @@ function ChatWindow({
   activeConversation,
   getOtherParticipant,
   isLoading,
+  isMobile: isMobileProp,
+  onBack,
+  ...rest
 }: ChatWindowProps) {
+  // Use prop if provided, else fallback to local detection (for backward compatibility)
+  const [isMobileState, setIsMobileState] = useState(false);
+  useEffect(() => {
+    if (typeof isMobileProp === 'boolean') return;
+    const checkMobile = () => setIsMobileState(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, [isMobileProp]);
+  const isMobile = typeof isMobileProp === 'boolean' ? isMobileProp : isMobileState;
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -89,7 +105,6 @@ function ChatWindow({
 
   const onlineLabel =
     presence === "online" ? "Online" : presence === "idle" ? "Idle" : "Offline";
-
   return (
     <div
       className="flex flex-col h-[calc(100vh-96px)] relative overflow-hidden"
@@ -97,63 +112,43 @@ function ChatWindow({
     >
       {/* Header */}
       <div
-        className="sticky top-0 z-10 px-4 py-3 border-b"
-        style={{
-          backgroundColor: "var(--tavern-dark)",
-          borderColor: "var(--tavern-gold)",
-        }}
+        className="sticky top-0 z-10 px-2 py-2 border-b flex items-center justify-between md:px-4 md:py-3"
+        style={{ backgroundColor: "var(--tavern-dark)", borderColor: "var(--tavern-gold)" }}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {otherParticipant && renderAvatar(otherParticipant)}
-            <div>
-              <h2
-                className="font-semibold"
-                style={{ color: "var(--tavern-gold)" }}
-              >
-                {otherParticipant?.username || "Unknown User"}
-              </h2>
-              <div
-                className="flex items-center gap-2 text-sm"
-                style={{ color: "var(--tavern-cream)" }}
-              >
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    presence === "online"
-                      ? "bg-green-500"
-                      : presence === "idle"
-                      ? "bg-amber-400"
-                      : "bg-slate-400"
-                  }`}
-                  title={onlineLabel}
-                />
-                <span
-                  className={`font-medium ${
-                    presence === "online"
-                      ? "text-green-400"
-                      : presence === "idle"
-                      ? "text-amber-400"
-                      : "text-slate-300"
-                  }`}
-                >
+        <div className="flex items-center gap-2 min-w-0 w-full">
+          {/* Mobile back button */}
+          {isMobile && onBack && (
+            <button
+              onClick={onBack}
+              className="mr-2 p-2 rounded-lg bg-[var(--tavern-gold)] text-[var(--tavern-dark)] hover:bg-[var(--tavern-cream)]"
+              aria-label="Back to conversation list"
+              style={{ fontWeight: 600 }}
+            >
+              ←
+            </button>
+          )}
+          {otherParticipant && (
+            <>
+              <div className="flex-shrink-0">{renderAvatar(otherParticipant)}</div>
+              <div className="min-w-0 flex flex-col">
+                <span className="block font-semibold text-base text-[var(--tavern-gold)] truncate max-w-[90vw] md:max-w-[300px]" title={otherParticipant.username}>
+                  {otherParticipant.username}
+                </span>
+                <span className="text-xs flex items-center gap-1 text-[var(--tavern-cream)]">
+                  <span className={`w-2 h-2 rounded-full ${presence === "online" ? "bg-green-500" : presence === "idle" ? "bg-amber-400" : "bg-slate-400"}`}></span>
                   {onlineLabel}
                 </span>
-                {wsConnected ? (
-                  <Wifi className="w-4 h-4 text-green-400 ml-2" />
-                ) : (
-                  <WifiOff className="w-4 h-4 text-red-400 ml-2" />
-                )}
               </div>
-            </div>
-          </div>
-          <button
-            onClick={onToggleInfo}
-            className="p-2 rounded-lg transition-colors hover:bg-opacity-20"
-            style={{ backgroundColor: "var(--tavern-gold)" }}
-          >
-            <Info className="w-5 h-5" style={{ color: "var(--tavern-dark)" }} />
-          </button>
+            </>
+          )}
         </div>
+        <button
+          onClick={onToggleInfo}
+          className="p-2 rounded-lg transition-all duration-200 hover:bg-slate-100 text-[var(--tavern-gold)] hover:text-[var(--tavern-cream)] ml-2 flex-shrink-0"
+          aria-label="Toggle conversation info"
+        >
+          <Info className="h-5 w-5" />
+        </button>
       </div>
 
       {/* WebSocket Error */}
@@ -167,11 +162,11 @@ function ChatWindow({
 
       {/* Messages + Typing */}
       <div
-        className="flex-1 overflow-y-auto p-4 space-y-4"
+        className="flex-1 overflow-y-auto p-2 md:p-4 space-y-3 md:space-y-4"
         ref={scrollContainerRef}
         style={{
           backgroundColor: "var(--tavern-cream)",
-          paddingBottom: "140px",
+          paddingBottom: isMobile ? "90px" : "110px",
         }}
       >
         {isLoading ? (
@@ -196,26 +191,20 @@ function ChatWindow({
               return (
                 <div
                   key={message.id}
-                  className={`flex gap-3 ${
-                    isCurrentUser ? "flex-row-reverse" : ""
-                  }`}
+                  className={`flex gap-2 md:gap-3 ${isCurrentUser ? "flex-row-reverse" : ""}`}
                 >
-                  <div className="flex-shrink-0">{renderAvatar(sender)}</div>
-                  <div className="flex-1 max-w-xs lg:max-w-md xl:max-w-lg">
+                  {/* Hide avatar for own messages on mobile */}
+                  {(!isCurrentUser || !isMobile) && (
+                    <div className="flex-shrink-0">{renderAvatar(sender)}</div>
+                  )}
+                  <div className="flex-1 max-w-[90vw] md:max-w-xs lg:max-w-md xl:max-w-lg">
                     <div
-                      className={`px-4 py-2 rounded-2xl shadow-sm ${
-                        isCurrentUser ? "ml-auto" : ""
-                      }`}
+                      className={`px-3 py-2 md:px-4 md:py-2 rounded-2xl shadow-sm ${isCurrentUser ? "ml-auto" : ""}`}
                       style={{
-                        backgroundColor: isCurrentUser
-                          ? "var(--tavern-gold)"
-                          : "white",
+                        backgroundColor: isCurrentUser ? "var(--tavern-gold)" : "white",
                         color: "var(--tavern-dark)",
-                        border: `1px solid ${
-                          isCurrentUser
-                            ? "var(--tavern-purple)"
-                            : "var(--tavern-gold)"
-                        }`,
+                        border: `1px solid ${isCurrentUser ? "var(--tavern-purple)" : "var(--tavern-gold)"}`,
+                        fontSize: isMobile ? "0.95rem" : undefined,
                       }}
                     >
                       {message.content && (
@@ -223,58 +212,45 @@ function ChatWindow({
                           {message.content}
                         </p>
                       )}
-                      {Array.isArray(message.attachments) &&
-                        message.attachments.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {message.attachments.map((att, i) => {
-                              const fileUrl = att.url || att.file_url;
-                              if (!fileUrl) return null;
-
-                              const fullUrl = fileUrl.startsWith("http")
-                                ? fileUrl
-                                : `${process.env.NEXT_PUBLIC_MEDIA_URL}${fileUrl}`;
-
-                              const isImage =
-                                att.is_image ||
-                                att.content_type?.startsWith("image/") ||
-                                /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(
-                                  att.filename
-                                );
-
-                              return isImage ? (
-                                <a
-                                  key={att.id || i}
-                                  href={fullUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="block max-w-[200px] max-h-[200px] rounded overflow-hidden border border-[var(--tavern-gold)]"
-                                >
-                                  <img
-                                    src={fullUrl}
-                                    alt={att.filename}
-                                    className="w-full h-auto object-contain"
-                                  />
-                                </a>
-                              ) : (
-                                <a
-                                  key={att.id || i}
-                                  href={fullUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-[var(--tavern-gold)] underline text-sm font-medium break-words"
-                                >
-                                  📎 {att.filename}
-                                </a>
-                              );
-                            })}
-                          </div>
-                        )}
+                      {Array.isArray(message.attachments) && message.attachments.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {message.attachments.map((att, i) => {
+                            const fileUrl = att.url || att.file_url;
+                            if (!fileUrl) return null;
+                            const fullUrl = fileUrl.startsWith("http") ? fileUrl : `${process.env.NEXT_PUBLIC_MEDIA_URL}${fileUrl}`;
+                            const isImage = att.is_image || att.content_type?.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(att.filename);
+                            return isImage ? (
+                              <a
+                                key={att.id || i}
+                                href={fullUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block max-w-[120px] max-h-[120px] md:max-w-[200px] md:max-h-[200px] rounded overflow-hidden border border-[var(--tavern-gold)]"
+                              >
+                                <img
+                                  src={fullUrl}
+                                  alt={att.filename}
+                                  className="w-full h-auto object-contain"
+                                />
+                              </a>
+                            ) : (
+                              <a
+                                key={att.id || i}
+                                href={fullUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[var(--tavern-gold)] underline text-xs md:text-sm font-medium break-words"
+                              >
+                                📎 {att.filename}
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                     <div
-                      className={`mt-1 text-xs font-medium flex items-center gap-2 ${
-                        isCurrentUser ? "justify-end" : ""
-                      }`}
-                      style={{ color: "var(--tavern-dark)" }}
+                      className={`mt-1 text-xs font-medium flex items-center gap-2 ${isCurrentUser ? "justify-end" : ""}`}
+                      style={{ color: "var(--tavern-dark)", fontSize: isMobile ? "0.8rem" : undefined }}
                     >
                       <span>
                         {new Date(message.timestamp).toLocaleTimeString([], {
@@ -306,9 +282,11 @@ function ChatWindow({
                               />
                             </svg>
                           )}
-                          {["sent", "delivered", "read"].includes(
-                            message.status
-                          ) && (
+                          {[
+                            "sent",
+                            "delivered",
+                            "read"
+                          ].includes(message.status) && (
                             <span style={{ color: "var(--tavern-purple)" }}>
                               {message.status === "read" ? "Read" : "Sent"}
                             </span>
@@ -320,7 +298,6 @@ function ChatWindow({
                 </div>
               );
             })}
-
             {/* Typing Indicator */}
             {typingUsers.length > 0 && (
               <>
@@ -340,30 +317,83 @@ function ChatWindow({
           </>
         )}
       </div>
-
-      {/* Fixed Input */}
       <div
-        className="fixed bottom-0 left-[300px] z-10 border-t p-4 bg-[var(--tavern-dark)]"
+        className="fixed bottom-0 left-0 z-10 border-t p-2 bg-[var(--tavern-dark)] w-full md:left-[300px] md:w-[calc(100%-300px)]"
         style={{
           borderColor: "var(--tavern-gold)",
-          minHeight: "90px",
-          width: "calc(100% - 300px)",
+          minHeight: isMobile ? "56px" : "70px",
+          bottom: 0, // Fill the very bottom of the window
         }}
       >
-        <MessageInput
-          newMessage={newMessage}
-          setNewMessage={setNewMessage}
-          onSend={handleSendMessage}
-          onTyping={onTyping}
-          disabled={!wsConnected || isSending}
-          handleFileSelect={handleFileSelect}
-          removeFile={removeFile}
-          selectedFiles={selectedFiles}
-          isSending={isSending}
-          fileInputRef={fileInputRef}
-          wsConnected={wsConnected}
-        />
+        <div className={isMobile ? "flex items-end" : undefined} style={isMobile ? {width: "100%"} : undefined}>
+          <MessageInput
+            newMessage={newMessage}
+            setNewMessage={setNewMessage}
+            onSend={handleSendMessage}
+            onTyping={onTyping}
+            disabled={!wsConnected || isSending}
+            handleFileSelect={handleFileSelect}
+            removeFile={removeFile}
+            selectedFiles={selectedFiles}
+            isSending={isSending}
+            fileInputRef={fileInputRef}
+            wsConnected={wsConnected}
+          />
+        </div>
       </div>
+
+      {/* Inline style for mobile responsiveness */}
+      <style jsx global>{`
+        @media (max-width: 768px) {
+          .fixed.bottom-0.left-0 {
+            left: 0 !important;
+            width: 100% !important;
+            padding: 0.5rem !important;
+            min-height: 60px !important;
+          }
+          .sticky.top-0 {
+            left: 0 !important;
+            width: 100% !important;
+            padding: 0.5rem 0.5rem !important;
+          }
+          .flex.flex-col.h-[calc(100vh-96px)].relative.overflow-hidden {
+            height: calc(100vh - 48px) !important;
+          }
+          .p-4, .p-2 {
+            padding: 0.5rem !important;
+          }
+          .max-w-xs, .md\:max-w-xs, .lg\:max-w-md, .xl\:max-w-lg {
+            max-width: 95vw !important;
+          }
+          .rounded-2xl {
+            border-radius: 1rem !important;
+          }
+          /* Move the submit button to the right in the chat input on mobile */
+          .message-input-form {
+            display: flex !important;
+            align-items: flex-end !important;
+            width: 100% !important;
+          }
+          .message-input-inner {
+            width: 100% !important;
+            box-sizing: border-box !important;
+          }
+          .message-input-form button[type="submit"] {
+            margin-left: 0 !important;
+            margin-right: 100px !important;
+            position: relative !important;
+            right: 0 !important;
+          }
+          }
+          }
+        }
+        @media (max-width: 480px) {
+          .block.max-w-[120px], .block.max-h-[120px] {
+            max-width: 80vw !important;
+            max-height: 80vw !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

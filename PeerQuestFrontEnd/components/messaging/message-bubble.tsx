@@ -105,14 +105,21 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   const sender = message.sender || fallbackUser;
 
   return (
-    <div className={cn("flex mb-4 group", isOwnMessage ? "justify-end" : "justify-start")}>
+    <div
+      className={cn(
+        "flex mb-4 group",
+        isOwnMessage ? "justify-end" : "justify-start"
+      )}
+      style={{ width: "100%" }}
+    >
+      {/* Avatar (left for others, right for own) */}
       {!isOwnMessage && showAvatar && (
         <div className="mr-3 flex-shrink-0 self-end">{Avatar(sender, "md")}</div>
       )}
 
       <div
         className={cn(
-          "relative max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-lg transition-all group-hover:shadow-xl",
+          "relative max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-lg transition-all group-hover:shadow-xl message-bubble-container",
           isOwnMessage ? "rounded-br-md" : "rounded-bl-md"
         )}
         style={{
@@ -156,6 +163,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                     alt={a.filename || "image"}
                     className="rounded-lg max-w-xs max-h-64 object-cover cursor-pointer"
                     onClick={() => onAttachmentClick?.(a)}
+                    style={{ maxWidth: '90vw', height: 'auto' }}
                   />
                 </div>
               );
@@ -207,6 +215,40 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       {isOwnMessage && showAvatar && (
         <div className="ml-3 flex-shrink-0 self-end">{Avatar(sender, "md")}</div>
       )}
+
+      {/* Mobile styles for message bubble */}
+      <style jsx global>{`
+        @media (max-width: 768px) {
+          .message-bubble-container {
+            max-width: 95vw !important;
+            padding-left: 0.8rem !important;
+            padding-right: 0.8rem !important;
+            padding-top: 0.7rem !important;
+            padding-bottom: 0.7rem !important;
+            font-size: 0.97rem !important;
+            border-radius: 1.1rem !important;
+            box-shadow: 0 1.5px 6px 0 rgba(44,26,29,0.10) !important;
+          }
+          .message-bubble-container img {
+            max-width: 80vw !important;
+            max-height: 40vw !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .message-bubble-container {
+            max-width: 99vw !important;
+            font-size: 0.93rem !important;
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+            padding-top: 0.5rem !important;
+            padding-bottom: 0.5rem !important;
+          }
+          .message-bubble-container img {
+            max-width: 96vw !important;
+            max-height: 36vw !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useRef, useCallback, useMemo } from "react"
+import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { createPeerQuestWebSocket } from "@/components/auth/auth-modal";
 import Avatar from "@/components/ui/avatar";
 import type {
@@ -35,6 +35,14 @@ export default function MessagingSystem({
   showToast,
   onlineUsers = new Map(),
 }: MessagingSystemProps) {
+  // Mobile detection
+  const [isMobile, setIsMobile] = React.useState(false);
+  React.useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
   // API error state for debug display
   const [apiError, setApiError] = useState<string | null>(null)
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -856,76 +864,61 @@ export default function MessagingSystem({
     [activeId, conversations]
   )
 
+
   return (
     <div className="flex h-full w-full overflow-hidden">
-      {/* Sidebar */}
-      <div className="w-[300px] flex flex-col border-r border-slate-200">
-        <ConversationList
-          conversations={conversations}
-          currentUserId={currentUser.id}
-          selectedConversationId={activeId}
-          onSelectConversation={handleSelectConversation}
-          userMap={userMap}
-          onlineStatusMap={onlineMap}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          showUserSearch={showUserSearch}
-          setShowUserSearch={setShowUserSearch}
-          userSearchQuery={userSearchQuery}
-          setUserSearchQuery={setUserSearchQuery}
-          userSearchResults={userSearchResults}
-          isSearchingUsers={isSearchingUsers}
-          startConversation={async (u) => {
-            const res = await API.post<Conversation>(
-              "/conversations/start/",
-              { participant_id: u.id }
-            )
-            setConversations((prev) =>
-              prev.find((x) => x.id === res.data.id)
-                ? prev
-                : [res.data, ...prev]
-            )
-            setActiveId(res.data.id)
-          }}
-          getOtherParticipant={getOtherParticipant}
-          renderAvatar={renderAvatar}
-          unreadConversations={unreadConversations}
-          markConversationAsRead={(id) =>
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === id && c.last_message
-                  ? { ...c, last_message: { ...c.last_message, read: true } }
-                  : c
-              )
-            )
-          }
-        />
-        {/* API error display for debug */}
-        {apiError && (
-          <div className="bg-red-100 text-red-700 p-2 text-xs border-t border-red-300">
-            <b>API Error:</b> {apiError}
-          </div>
-        )}
-      </div>
-
-      {/* Main chat */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {activeConv ? (
-          <>
-            {(wsStatus === "disconnected" || wsStatus === "reconnecting") && (
-              <div className="bg-yellow-100 text-yellow-800 p-2 text-center text-xs border-b border-yellow-300">
-                {wsStatus === "reconnecting"
-                  ? `Connection lost. Trying to reconnect... (Attempt ${reconnectAttempt})`
-                  : "Disconnected from tavern. "}
-                <button
-                  className="ml-2 px-2 py-1 bg-yellow-200 rounded text-xs border border-yellow-400 hover:bg-yellow-300"
-                  onClick={handleManualReconnect}
-                  disabled={wsStatus === "reconnecting"}
-                >
-                  Reconnect
-                </button>
+      {/* MOBILE: Only show conversation list if no active conversation, else show chat window */}
+      {isMobile ? (
+        !activeConv ? (
+          <div className="w-full h-full">
+            <ConversationList
+              conversations={conversations}
+              currentUserId={currentUser.id}
+              selectedConversationId={activeId}
+              onSelectConversation={handleSelectConversation}
+              userMap={userMap}
+              onlineStatusMap={onlineMap}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              showUserSearch={showUserSearch}
+              setShowUserSearch={setShowUserSearch}
+              userSearchQuery={userSearchQuery}
+              setUserSearchQuery={setUserSearchQuery}
+              userSearchResults={userSearchResults}
+              isSearchingUsers={isSearchingUsers}
+              startConversation={async (u) => {
+                const res = await API.post<Conversation>(
+                  "/conversations/start/",
+                  { participant_id: u.id }
+                )
+                setConversations((prev) =>
+                  prev.find((x) => x.id === res.data.id)
+                    ? prev
+                    : [res.data, ...prev]
+                )
+                setActiveId(res.data.id)
+              }}
+              getOtherParticipant={getOtherParticipant}
+              renderAvatar={renderAvatar}
+              unreadConversations={unreadConversations}
+              markConversationAsRead={(id) =>
+                setConversations((prev) =>
+                  prev.map((c) =>
+                    c.id === id && c.last_message
+                      ? { ...c, last_message: { ...c.last_message, read: true } }
+                      : c
+                  )
+                )
+              }
+            />
+            {apiError && (
+              <div className="bg-red-100 text-red-700 p-2 text-xs border-t border-red-300">
+                <b>API Error:</b> {apiError}
               </div>
             )}
+          </div>
+        ) : (
+          <div className="w-full h-full">
             <ChatWindow
               messages={messages}
               currentUser={currentUser}
@@ -955,14 +948,118 @@ export default function MessagingSystem({
               getOtherParticipant={getOtherParticipant}
               isLoading={isLoadingMessages}
               isOtherUserTyping={isOtherUserTyping}
+              onBack={() => setActiveId(null)}
+              isMobile={true}
             />
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center p-8">
-            <p>Select a conversation to start chatting!</p>
           </div>
-        )}
-      </div>
+        )
+      ) : (
+        <>
+          {/* Desktop: Sidebar and chat window side by side */}
+          <div className="w-[300px] flex flex-col border-r border-slate-200">
+            <ConversationList
+              conversations={conversations}
+              currentUserId={currentUser.id}
+              selectedConversationId={activeId}
+              onSelectConversation={handleSelectConversation}
+              userMap={userMap}
+              onlineStatusMap={onlineMap}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              showUserSearch={showUserSearch}
+              setShowUserSearch={setShowUserSearch}
+              userSearchQuery={userSearchQuery}
+              setUserSearchQuery={setUserSearchQuery}
+              userSearchResults={userSearchResults}
+              isSearchingUsers={isSearchingUsers}
+              startConversation={async (u) => {
+                const res = await API.post<Conversation>(
+                  "/conversations/start/",
+                  { participant_id: u.id }
+                )
+                setConversations((prev) =>
+                  prev.find((x) => x.id === res.data.id)
+                    ? prev
+                    : [res.data, ...prev]
+                )
+                setActiveId(res.data.id)
+              }}
+              getOtherParticipant={getOtherParticipant}
+              renderAvatar={renderAvatar}
+              unreadConversations={unreadConversations}
+              markConversationAsRead={(id) =>
+                setConversations((prev) =>
+                  prev.map((c) =>
+                    c.id === id && c.last_message
+                      ? { ...c, last_message: { ...c.last_message, read: true } }
+                      : c
+                  )
+                )
+              }
+            />
+            {apiError && (
+              <div className="bg-red-100 text-red-700 p-2 text-xs border-t border-red-300">
+                <b>API Error:</b> {apiError}
+              </div>
+            )}
+          </div>
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {activeConv ? (
+              <>
+                {(wsStatus === "disconnected" || wsStatus === "reconnecting") && (
+                  <div className="bg-yellow-100 text-yellow-800 p-2 text-center text-xs border-b border-yellow-300">
+                    {wsStatus === "reconnecting"
+                      ? `Connection lost. Trying to reconnect... (Attempt ${reconnectAttempt})`
+                      : "Disconnected from tavern. "}
+                    <button
+                      className="ml-2 px-2 py-1 bg-yellow-200 rounded text-xs border border-yellow-400 hover:bg-yellow-300"
+                      onClick={handleManualReconnect}
+                      disabled={wsStatus === "reconnecting"}
+                    >
+                      Reconnect
+                    </button>
+                  </div>
+                )}
+                <ChatWindow
+                  messages={messages}
+                  currentUser={currentUser}
+                  onSendMessage={onSendMessage}
+                  onTyping={onTyping}
+                  typingUsers={typingUsers.filter(u => u.user_id !== currentUser.id)}
+                  wsConnected={wsStatus === "connected"}
+                  wsError={wsStatus === "disconnected" ? "Disconnected" : undefined}
+                  newMessage={newMessage}
+                  setNewMessage={setNewMessage}
+                  renderAvatar={renderAvatar}
+                  handleFileSelect={(e) => {
+                    const fs = e.target.files
+                    e.target.value = ""
+                    if (fs && fs.length > 0) {
+                      setSelectedFiles(Array.from(fs))
+                    }
+                  } }
+                  removeFile={(i) => setSelectedFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                  selectedFiles={selectedFiles}
+                  onToggleInfo={() => setInfoOpen((v) => !v)}
+                  onlineUsers={onlineMap}
+                  isSending={isSending}
+                  fileInputRef={fileInputRef}
+                  activeConversation={activeConv}
+                  conversations={conversations}
+                  getOtherParticipant={getOtherParticipant}
+                  isLoading={isLoadingMessages}
+                  isOtherUserTyping={isOtherUserTyping}
+                  isMobile={false}
+                />
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center p-8">
+                <p>Select a conversation to start chatting!</p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Info panel */}
       <AnimatePresence>

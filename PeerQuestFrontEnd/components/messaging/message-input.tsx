@@ -161,13 +161,18 @@ export default function MessageInput({
       </AnimatePresence>
 
       {/* Input area */}
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="message-input-form">
         <div
-          className="flex items-center gap- p-3 rounded-2xl transition-all focus-within:shadow-lg"
+          className="flex items-center gap-2 p-3 rounded-2xl transition-all focus-within:shadow-lg message-input-inner"
           style={{
-            background: "white",
-            border: "2px solid #cdaa7d",
-            boxShadow: "0 2px 8px rgba(44, 26, 29, 0.1)",
+            background: "#fdf8f3",
+            border: "3px solid #cdaa7d",
+            boxShadow: "0 2px 20px 0 rgba(44,26,29,0.13)",
+            width: '100%',
+            minHeight: '56px',
+            position: 'relative',
+            borderRadius: '1rem',
+            overflow: 'hidden',
           }}
         >
           {/* Emoji button */}
@@ -241,32 +246,60 @@ export default function MessageInput({
           <button
             type="submit"
             disabled={isDisabled}
-            className="p-2 rounded-full transition-all flex items-center justify-center"
+            className="p-2 rounded-full transition-all flex items-center justify-center message-input-submit"
             style={{
-              marginRight: "100px",
-              background: isDisabled ? "#9e9e9e" : "linear-gradient(135deg, #cdaa7d 0%, #e6c78a 100%)",
-              color: "#2c1a1d",
-              border: "2px solid #8b75aa",
-              width: "40px",
-              height: "40px",
-              cursor: isDisabled ? "not-allowed" : "pointer",
-            }}
-            onMouseEnter={(e) => {
-              if (!isDisabled) {
-                e.currentTarget.style.transform = "scale(1.1)"
-                e.currentTarget.style.background = "linear-gradient(135deg, #e6c78a 0%, #cdaa7d 100%)"
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isDisabled) {
-                e.currentTarget.style.transform = "scale(1)"
-                e.currentTarget.style.background = "linear-gradient(135deg, #cdaa7d 0%, #e6c78a 100%)"
-              }
+              marginRight: '100px',
+              background: isDisabled ? '#9e9e9e' : 'linear-gradient(135deg, #cdaa7d 0%, #e6c78a 100%)',
+              color: '#2c1a1d',
+              border: '2px solid #8b75aa',
+              width: '40px',
+              height: '40px',
+              cursor: isDisabled ? 'not-allowed' : 'pointer',
             }}
             aria-label="Send message"
           >
             {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
           </button>
+      {/* Mobile styles for message input */}
+      <style jsx global>{`
+        @media (max-width: 768px) {
+          .message-input-form {
+            width: 100% !important;
+          }
+          .message-input-inner {
+            padding: 0.5rem !important;
+            border-radius: 1rem !important;
+            gap: 0.5rem !important;
+            width: 100% !important;
+          }
+          .message-input-submit {
+            margin-left: 1rem !important;
+            margin-right: 0 !important;
+            position: relative !important;
+            left: 0 !important;
+            right: auto !important;
+          }
+          .message-input-inner input[type="text"] {
+            font-size: 1rem !important;
+            padding-left: 0.2rem !important;
+            padding-right: 0.2rem !important;
+          }
+          .message-input-inner button {
+            width: 36px !important;
+            height: 36px !important;
+            min-width: 36px !important;
+            min-height: 36px !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .message-input-inner {
+            gap: 0.3rem !important;
+          }
+          .message-input-inner input[type="text"] {
+            font-size: 0.95rem !important;
+          }
+        }
+      `}</style>
         </div>
       </form>
 
