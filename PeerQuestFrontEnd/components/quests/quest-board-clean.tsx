@@ -298,8 +298,8 @@ export function QuestBoard({
             <div className="max-w-5xl w-full">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-3xl sm:text-4xl font-bold text-amber-900 font-serif">Quest Board</h2>
-                  <p className="mt-2 font-medium text-purple-600">
+                  <h2 className="text-3xl sm:text-4xl font-bold text-[#2C1A1D] font-serif">Quest Board</h2>
+                  <p className="mt-2 font-medium text-[#8B75AA]">
                     Discover opportunities to showcase your skills and collaborate
                   </p>
                 </div>
@@ -311,7 +311,7 @@ export function QuestBoard({
                         setEditingQuest(null)
                         setShowQuestForm(true)
                       }}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md transition-colors bg-purple-600 hover:bg-purple-700"
+                      className="flex items-center gap-2 px-6 py-3 text-sm font-medium bg-[#8B75AA] text-white rounded font-medium hover:bg-[#7A6699] transition-colors"
                     >
                       <Edit className="w-4 h-4" />
                       Post a Quest
