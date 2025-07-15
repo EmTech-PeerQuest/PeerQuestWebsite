@@ -1,19 +1,18 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Users, Shield, DollarSign, Activity, BarChart3, UserPlus, CheckCircle, XCircle, AlertTriangle } from "lucide-react"
+import { Search, Users, Shield, DollarSign, Activity, BarChart3, UserPlus, CheckCircle, XCircle } from "lucide-react"
 import type { Guild, User, GuildJoinRequest, GuildMembership } from "@/lib/types"
 import { GuildAuditLog } from '@/components/admin/guild-audit-log'
 import { GuildPayouts } from '@/components/guilds/guild-payouts'
 import { GuildRolesConfig } from '@/components/guilds/guild-roles-config'
-import { GuildWarningModal } from '@/components/guilds/guild-warning-modal'
 import { guildApi } from '@/lib/api/guilds'
+import { useRouter } from "next/navigation"
 
 interface EnhancedGuildManagementProps {
   guilds: Guild[]
   guildApplications: GuildJoinRequest[]
   currentUser: User
-  selectedGuild?: Guild | null
   showToast: (message: string, type?: string) => void
   onViewGuild: (guild: Guild) => void
   onEditGuild: (guild: Guild) => void
@@ -29,7 +28,6 @@ export function EnhancedGuildManagement({
   guilds,
   guildApplications,
   currentUser,
-  selectedGuild: propSelectedGuild,
   showToast,
   onViewGuild,
   onEditGuild,
@@ -40,6 +38,7 @@ export function EnhancedGuildManagement({
   onBack,
   onDataChanged,
 }: EnhancedGuildManagementProps) {
+  const router = useRouter();
   // Early return if user is not authenticated
   if (!currentUser) {
     return (
@@ -61,7 +60,7 @@ export function EnhancedGuildManagement({
   }
 
   const [activeTab, setActiveTab] = useState<"owned" | "member" | "applications">("owned")
-  const [selectedGuild, setSelectedGuild] = useState<Guild | null>(propSelectedGuild || null)
+  const [selectedGuild, setSelectedGuild] = useState<Guild | null>(null) // Only local state
   const [managementView, setManagementView] = useState<
     "overview" | "members" | "requests" | "roles" | "audit" | "payouts"
   >("overview")
@@ -79,7 +78,6 @@ export function EnhancedGuildManagement({
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null)
   const [updatingRole, setUpdatingRole] = useState(false)
   const [pendingRoleChange, setPendingRoleChange] = useState<string | null>(null)
-  const [showWarningModal, setShowWarningModal] = useState(false)
 
   // Fetch guild data when selectedGuild changes
   useEffect(() => {
@@ -98,145 +96,77 @@ export function EnhancedGuildManagement({
   const fetchUserMemberGuilds = async () => {
     setLoadingUserGuilds(true)
     try {
-      const memberGuilds: Guild[] = [];
-      // Dynamically resolve API base URL from env, window, or fallback
-      let apiBase = '';
-      if (typeof window !== 'undefined') {
-        apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
-        // eslint-disable-next-line no-console
-        console.debug('[PeerQuest][EnhancedGuildManagement] Dynamic API base:', apiBase);
-      } else {
-        apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
-      }
-
-      // Check each guild to see if user is a member (dynamic, extensible)
+      const memberGuilds: Guild[] = []
+      
+      // Check each guild to see if user is a member
       const membershipChecks = guilds.map(async (guild) => {
         try {
-          // Dynamically build endpoint if needed
-          const guildId = guild.guild_id;
-          let members;
-          let endpoint = '';
-          if (apiBase) {
-            endpoint = `${apiBase.replace(/\/$/, '')}/api/guilds/${guildId}/members/`;
-          }
-          if (endpoint) {
-            if (typeof window !== 'undefined') {
-              // eslint-disable-next-line no-console
-              console.debug('[PeerQuest][EnhancedGuildManagement] Fetching guild members from:', endpoint);
-            }
-            const res = await fetch(endpoint);
-            members = await res.json();
-          } else {
-            // Fallback to static import or default API
-            members = await guildApi.getGuildMembers(guildId);
-          }
-          // Defensive: fallback to empty array if not array
-          if (!Array.isArray(members)) members = [];
-          // Dynamic, extensible member check
-          const isMember = members.some((membership: any) => 
-            String(membership.user?.id) === String(currentUser.id) && 
+          const members = await guildApi.getGuildMembers(guild.guild_id)
+          const isMember = members.some(membership => 
+            String(membership.user.id) === String(currentUser.id) && 
             membership.status === 'approved' && 
             membership.is_active &&
             membership.role !== 'owner' // Exclude owned guilds
-          );
+          )
           if (isMember) {
-            memberGuilds.push(guild);
+            memberGuilds.push(guild)
           }
         } catch (error) {
-          // Robust error handling, log and continue
-          if (typeof window !== 'undefined') {
-            // eslint-disable-next-line no-console
-            console.error(`[PeerQuest][EnhancedGuildManagement] Failed to check membership for guild ${guild.guild_id}:`, error);
-          }
+          console.error(`Failed to check membership for guild ${guild.guild_id}:`, error)
         }
-      });
-      await Promise.all(membershipChecks);
-      setUserMemberGuilds(memberGuilds);
+      })
+      
+      await Promise.all(membershipChecks)
+      setUserMemberGuilds(memberGuilds)
     } catch (error) {
-      if (typeof window !== 'undefined') {
-        // eslint-disable-next-line no-console
-        console.error('[PeerQuest][EnhancedGuildManagement] Failed to fetch user member guilds:', error);
-      }
+      console.error('Failed to fetch user member guilds:', error)
     } finally {
-      setLoadingUserGuilds(false);
+      setLoadingUserGuilds(false)
     }
   }
 
   const fetchGuildData = async () => {
-    if (!selectedGuild) return;
+    if (!selectedGuild) return
 
     // Fetch members first
-    setLoadingMembers(true);
+    setLoadingMembers(true)
     try {
-      // Use NEXT_PUBLIC_API_BASE_URL if set, else fallback to default API
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
-      if (typeof window !== 'undefined') {
-        // eslint-disable-next-line no-console
-        console.debug('[PeerQuest][EnhancedGuildManagement] NEXT_PUBLIC_API_BASE_URL:', apiBase);
-      }
-      let members;
-      if (apiBase) {
-        // Always use /api/guilds for dynamic API
-        const url = `${apiBase.replace(/\/$/, '')}/api/guilds/${selectedGuild.guild_id}/members/`;
-        if (typeof window !== 'undefined') {
-          // eslint-disable-next-line no-console
-          console.debug('[PeerQuest][EnhancedGuildManagement] Fetching guild members from:', url);
-        }
-        const res = await fetch(url);
-        members = await res.json();
-      } else {
-        members = await guildApi.getGuildMembers(selectedGuild.guild_id);
-      }
-      setGuildMembers(members);
-
+      const members = await guildApi.getGuildMembers(selectedGuild.guild_id)
+      setGuildMembers(members)
+      
       // After members are loaded, check permissions and fetch requests if needed
-      const isOwner = String(selectedGuild.owner?.id) === String(currentUser.id) ||
-        selectedGuild.poster?.username === currentUser.username;
-
+      const isOwner = String(selectedGuild.owner?.id) === String(currentUser.id) || 
+                     selectedGuild.poster?.username === currentUser.username
+      
       // Check if user is an admin in this guild
-      const userMembership = members.find((membership: any) =>
+      const userMembership = members.find(membership => 
         String(membership.user.id) === String(currentUser.id) && membership.is_active
-      );
-      const isAdmin = userMembership?.role === 'admin';
-      const isOwnerOrAdmin = isOwner || isAdmin;
-
+      )
+      const isAdmin = userMembership?.role === 'admin'
+      const isOwnerOrAdmin = isOwner || isAdmin
+      
       // Fetch join requests if user has permissions
       if (isOwnerOrAdmin) {
-        setLoadingRequests(true);
+        setLoadingRequests(true)
         try {
           // Fetch both pending and processed requests
-          let pendingRequests, processedRequestsData;
-          if (apiBase) {
-            const pendingUrl = `${apiBase.replace(/\/$/, '')}/api/guilds/${selectedGuild.guild_id}/join-requests/?status=pending`;
-            const processedUrl = `${apiBase.replace(/\/$/, '')}/api/guilds/${selectedGuild.guild_id}/join-requests/?status=processed`;
-            if (typeof window !== 'undefined') {
-              // eslint-disable-next-line no-console
-              console.debug('[PeerQuest][EnhancedGuildManagement] Fetching join requests from:', pendingUrl, processedUrl);
-            }
-            const [pendingRes, processedRes] = await Promise.all([
-              fetch(pendingUrl),
-              fetch(processedUrl)
-            ]);
-            pendingRequests = await pendingRes.json();
-            processedRequestsData = await processedRes.json();
-          } else {
-            [pendingRequests, processedRequestsData] = await Promise.all([
-              guildApi.getGuildJoinRequests(selectedGuild.guild_id, 'pending'),
-              guildApi.getGuildJoinRequests(selectedGuild.guild_id, 'processed')
-            ]);
-          }
-          setJoinRequests(pendingRequests);
-          setProcessedRequests(processedRequestsData);
+          const [pendingRequests, processedRequestsData] = await Promise.all([
+            guildApi.getGuildJoinRequests(selectedGuild.guild_id, 'pending'),
+            guildApi.getGuildJoinRequests(selectedGuild.guild_id, 'processed')
+          ]);
+          
+          setJoinRequests(pendingRequests)
+          setProcessedRequests(processedRequestsData)
         } catch (error) {
-          console.error('Failed to fetch join requests:', error);
+          console.error('Failed to fetch join requests:', error)
         } finally {
-          setLoadingRequests(false);
+          setLoadingRequests(false)
         }
       }
     } catch (error) {
-      console.error('Failed to fetch guild members:', error);
+      console.error('Failed to fetch guild members:', error)
     } finally {
-      setLoadingMembers(false);
+      setLoadingMembers(false)
     }
   }
 
@@ -316,13 +246,14 @@ export function EnhancedGuildManagement({
     }
   }
 
-  // Get guilds where the current user is the owner
-  const ownedGuilds = guilds.filter((guild) => 
-    String(guild.owner?.id) === String(currentUser.id) || 
-    guild.poster?.username === currentUser.username
-  )
-  
-  // Use the real member guilds data from API
+
+  // Get owned guilds from API data (no mock/static)
+  const ownedGuilds = guilds.filter((guild) => {
+    return String(guild.owner?.id) === String(currentUser.id) ||
+      guild.poster?.username === currentUser.username
+  })
+
+  // Member guilds: always use API-driven data (no mock/static)
   const memberGuilds = userMemberGuilds
 
   const relevantApplications = guildApplications.filter((app) => {
@@ -375,7 +306,6 @@ export function EnhancedGuildManagement({
   if (selectedGuild) {
     const isOwner = selectedGuild.owner?.id === currentUser.id || 
                    selectedGuild.poster?.username === currentUser.username
-    
     // Check if user is an admin in this guild
     const userMembership = guildMembers.find(membership => 
       String(membership.user.id) === String(currentUser.id) && membership.is_active
@@ -387,9 +317,11 @@ export function EnhancedGuildManagement({
       <section className="bg-[#F4F0E6] min-h-screen py-8">
         <div className="max-w-6xl mx-auto px-6">
           <div className="flex items-center gap-4 mb-6">
-            <button 
-              onClick={() => onBack ? onBack() : setSelectedGuild(null)} 
+            <button
+              type="button"
+              aria-label="Back to Guild Management"
               className="text-[#8B75AA] hover:text-[#7A6699] font-medium"
+              onClick={() => setSelectedGuild(null)}
             >
               ← Back to Guild Management
             </button>
@@ -408,47 +340,6 @@ export function EnhancedGuildManagement({
               <div>
                 <h2 className="text-2xl font-bold text-[#2C1A1D]">{selectedGuild.name}</h2>
                 <p className="text-[#8B75AA]">Level {calculateGuildLevel(selectedGuild)} Guild</p>
-                
-                {/* Warning notifications */}
-                {selectedGuild.is_disabled && (
-                  <div className="mt-2 bg-red-100 border border-red-400 text-red-700 px-3 py-2 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle size={16} />
-                      <span className="font-semibold">Guild Disabled</span>
-                    </div>
-                    <p className="text-sm mt-1">Your guild has been disabled due to multiple warnings.</p>
-                  </div>
-                )}
-                
-                {!selectedGuild.is_disabled && selectedGuild.warning_count > 0 && (
-                  <div className="mt-2 bg-yellow-100 border border-yellow-400 text-yellow-700 px-3 py-2 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle size={16} />
-                        <span className="font-semibold">
-                          {selectedGuild.warning_count} Active Warning{selectedGuild.warning_count > 1 ? 's' : ''}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => {
-                          console.log('🚨 REAL WARNING BANNER: View Details clicked!');
-                          console.log('🚨 Guild:', selectedGuild?.name, 'Warning count:', selectedGuild?.warning_count);
-                          console.log('TEST: Opening warning modal for guild:', selectedGuild.name);
-                          setShowWarningModal(true);
-                        }}
-                        className="text-yellow-800 hover:text-yellow-900 underline text-sm font-medium px-3 py-1 bg-yellow-200 rounded hover:bg-yellow-300 transition-colors"
-                      >
-                        View Details
-                      </button>
-                    </div>
-                    <p className="text-sm mt-1">
-                      {selectedGuild.warning_count >= 2 ? 
-                        'One more warning will disable your guild!' : 
-                        'Please review the warning and take appropriate action.'
-                      }
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -987,12 +878,12 @@ export function EnhancedGuildManagement({
             <p className="text-[#8B75AA] mt-2">Loading member guilds...</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 min-w-0">
             {(activeTab === "owned" ? ownedGuilds : memberGuilds).length > 0 ? (
               (activeTab === "owned" ? ownedGuilds : memberGuilds).map((guild) => (
                 <div
                   key={guild.guild_id || guild.id}
-                  className="bg-white border border-[#CDAA7D] rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
+                  className="bg-white border border-[#CDAA7D] rounded-lg overflow-hidden hover:shadow-lg transition-shadow min-w-0 overflow-x-hidden flex flex-col"
                 >
                   <div className="bg-[#CDAA7D] p-4">
                     <div className="flex items-center gap-3">
@@ -1044,19 +935,32 @@ export function EnhancedGuildManagement({
 
                     <p className="text-sm text-[#2C1A1D] mb-4 line-clamp-2">{guild.description}</p>
 
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setSelectedGuild(guild)}
-                        className="flex-1 px-4 py-2 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699] transition-colors text-sm font-medium"
-                      >
-                        Manage
-                      </button>
-                      <button
-                        onClick={() => onViewGuild(guild)}
-                        className="px-4 py-2 border border-[#CDAA7D] rounded text-[#2C1A1D] hover:bg-[#CDAA7D] hover:text-white transition-colors text-sm font-medium"
-                      >
-                        View
-                      </button>
+                    {/* Responsive Action Buttons: No Overflow, Always Wrap */}
+                    <div className="w-full min-w-0">
+                      <div className="flex flex-wrap gap-2 w-full justify-center items-center min-h-[44px] min-w-0 overflow-x-hidden">
+                        <button
+                          onClick={() => setSelectedGuild(guild)}
+                          className="w-auto px-3 py-1 bg-[#CDAA7D] text-[#2C1A1D] rounded text-sm flex items-center gap-1 justify-center min-w-[80px]"
+                        >
+                          Manage
+                        </button>
+                        {onEditGuild && (
+                          <button
+                            onClick={() => onEditGuild(guild)}
+                            className="w-auto px-3 py-1 bg-[#F4F0E6] text-[#8B75AA] border border-[#8B75AA] rounded text-sm flex items-center gap-1 justify-center min-w-[80px]"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {onDeleteGuild && (
+                          <button
+                            onClick={() => onDeleteGuild(String(guild.guild_id || guild.id))}
+                            className="w-auto px-3 py-1 bg-red-100 text-red-600 border border-red-300 rounded text-sm flex items-center gap-1 justify-center min-w-[80px]"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1073,20 +977,6 @@ export function EnhancedGuildManagement({
               </div>
             )}
           </div>
-        )}
-        
-        {/* Warning Modal */}
-        {selectedGuild && showWarningModal && (
-          <GuildWarningModal
-            isOpen={showWarningModal}
-            onClose={() => {
-              console.log('🚨 GUILD MANAGEMENT: Closing warning modal');
-              setShowWarningModal(false);
-            }}
-            guild={selectedGuild}
-            currentUser={currentUser}
-            showToast={showToast}
-          />
         )}
       </div>
     </section>

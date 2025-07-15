@@ -619,69 +619,39 @@ export default function Home() {
         )}
 
         {activeSection === "guild-management" && currentUser && (
-          <>
-            {!showDetailedGuildManagement ? (
-              <SimpleGuildManagement
-                guilds={guildData}
-                currentUser={currentUser}
-                showToast={showToast}
-                onViewGuild={(guild) => {
-                  // Check if this is an owned guild to determine management capabilities
-                  const isOwned = guild.owner?.id === currentUser?.id || 
-                                 guild.poster?.username === currentUser?.username
-                  setViewingGuild(guild)
-                  setIsViewingOwnedGuild(isOwned)
-                  setShowGuildOverviewModal(true)
-                }}
-                onManageGuild={(guild) => {
-                  setManagingGuild(guild)
-                  setShowDetailedGuildManagement(true)
-                }}
-                onEditGuild={(guild) => {
-                  setSelectedGuild(guild)
-                  // Edit guild functionality - could open edit modal
-                }}
-                onDeleteGuild={(guildId) => {
-                  // Delete guild functionality
-                  console.log('Delete guild:', guildId)
-                }}
-              />
-            ) : (
-              <EnhancedGuildManagement
-                guilds={guildData}
-                guildApplications={guildApplications}
-                currentUser={currentUser}
-                selectedGuild={managingGuild}
-                showToast={showToast}
-                onViewGuild={(guild) => {
-                  setSelectedGuild(guild)
-                }}
-                onEditGuild={(guild) => {
-                  setSelectedGuild(guild)
-                }}
-                onDeleteGuild={(guildId) => {
-                  console.log('Delete guild:', guildId)
-                }}
-                onApproveApplication={(applicationId) => {
-                  console.log('Approve application:', applicationId)
-                }}
-                onRejectApplication={(applicationId) => {
-                  console.log('Reject application:', applicationId)
-                }}
-                onManageMembers={(guild) => {
-                  console.log('Manage members for guild:', guild.name)
-                }}
-                onBack={() => {
-                  setShowDetailedGuildManagement(false)
-                  setManagingGuild(null)
-                }}
-                onDataChanged={async () => {
-                  // Refresh guild data when join requests are processed
-                  await refetchGuilds()
-                }}
-              />
-            )}
-          </>
+          <EnhancedGuildManagement
+            guilds={guildData}
+            guildApplications={guildApplications}
+            currentUser={currentUser}
+            selectedGuild={managingGuild}
+            showToast={showToast}
+            onViewGuild={(guild) => {
+              setSelectedGuild(guild)
+            }}
+            onEditGuild={(guild) => {
+              setSelectedGuild(guild)
+            }}
+            onDeleteGuild={(guildId) => {
+              console.log('Delete guild:', guildId)
+            }}
+            onApproveApplication={(applicationId) => {
+              console.log('Approve application:', applicationId)
+            }}
+            onRejectApplication={(applicationId) => {
+              console.log('Reject application:', applicationId)
+            }}
+            onManageMembers={(guild) => {
+              console.log('Manage members for guild:', guild.name)
+            }}
+            onBack={() => {
+              setShowDetailedGuildManagement(false)
+              setManagingGuild(null)
+            }}
+            onDataChanged={async () => {
+              // Refresh guild data when join requests are processed
+              await refetchGuilds()
+            }}
+          />
         )}
 
         {activeSection === "admin" && (

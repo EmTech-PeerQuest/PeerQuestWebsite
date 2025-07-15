@@ -77,24 +77,75 @@ class GuildCreateView(generics.CreateAPIView):
     permission_classes = [permissions.AllowAny]  # Temporarily allow any for frontend testing
     
     def perform_create(self, serializer):
-        # For testing, use the first available user or create a default user
+        # Use the authenticated user, or fallback to a test user for development
         user = None
         if self.request.user.is_authenticated:
             user = self.request.user
         else:
-            # For testing purposes, use the first available user
             User = get_user_model()
             user = User.objects.first()
             if not user:
-                # Create a test user if none exists
                 user = User.objects.create_user(
                     username='frontend_test',
                     email='frontend@test.com',
                     first_name='Frontend',
                     password='testpass123'
                 )
-        
-        serializer.save(owner=user)
+
+        from django.db import transaction
+        from rest_framework.exceptions import ValidationError
+        GUILD_CREATION_COST = 100
+
+
+
+        with transaction.atomic():
+            # Lock user row for update to prevent race conditions
+            user_refresh = user.__class__.objects.select_for_update().get(pk=user.pk)
+            from rest_framework.exceptions import ValidationError
+            gold_transaction = None
+            # --- GOLD DEDUCTION SYSTEM: Always use UserBalance ---
+            # Try to get or create the user's UserBalance row
+            userbalance_obj = None
+            try:
+                from transactions.models import UserBalance
+                userbalance_obj, created = UserBalance.objects.select_for_update().get_or_create(user=user_refresh)
+            except Exception as e:
+                raise ValidationError({'error': f'UserBalance model error: {str(e)}'})
+
+            # Check and deduct gold from UserBalance.balance
+            if not hasattr(userbalance_obj, 'gold_balance'):
+                raise ValidationError({'error': 'Your account is missing a gold balance. Please contact support.'})
+            from decimal import Decimal
+            try:
+                gold_available = float(userbalance_obj.gold_balance)
+            except Exception:
+                raise ValidationError({'error': 'Your gold balance could not be read. Please contact support.'})
+            if gold_available < GUILD_CREATION_COST:
+                raise ValidationError({'error': f'You need at least {GUILD_CREATION_COST} gold to create a guild. (You have: {gold_available})'})
+            userbalance_obj.gold_balance = Decimal(userbalance_obj.gold_balance) - Decimal(GUILD_CREATION_COST)
+            userbalance_obj.save(update_fields=["gold_balance"])
+
+            # Create a gold transaction record if available
+            try:
+                from transactions.models import GoldTransaction
+                gold_transaction = GoldTransaction.objects.create(
+                    user=user_refresh,
+                    amount=-GUILD_CREATION_COST,
+                    reason='Guild creation',
+                    related_object_type='guild',
+                    # related_object_id will be set after guild is created
+                )
+            except Exception:
+                gold_transaction = None
+
+            # Save the guild
+            guild = serializer.save(owner=user_refresh)
+            # If transaction exists, link to guild
+            if gold_transaction:
+                gold_transaction.related_object_id = guild.id
+                gold_transaction.save()
+            # Attach gold_transaction to serializer for response if needed
+            serializer._gold_transaction = gold_transaction
 
 
 class GuildUpdateView(generics.UpdateAPIView):

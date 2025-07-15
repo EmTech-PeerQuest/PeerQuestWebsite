@@ -52,13 +52,17 @@ async function handleResponse<T>(response: Response): Promise<T> {
       // If reading response fails
     }
     
-    console.error('API Error Response:', {
-      status: response.status,
-      statusText: response.statusText,
-      url: response.url,
-      errorData,
-      rawText
-    });
+    // Suppress console.error for user-facing validation errors
+    if (response.status >= 500) {
+      // Only log server errors
+      console.error('API Error Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url,
+        errorData,
+        rawText
+      });
+    }
     
     // More defensive error message handling
     let errorMessage = 'Unknown error';

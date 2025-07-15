@@ -128,7 +128,7 @@ export function EnhancedCreateGuildModal({
     if (currentTag.trim() && !guildForm.tags.includes(currentTag.trim()) && guildForm.tags.length < 5) {
       setGuildForm((prev) => ({
         ...prev,
-        tags: [...prev.tags, currentTag.trim()],
+        tags: [...(prev.tags || []), currentTag.trim()],
       }))
       setCurrentTag("")
     }
@@ -137,7 +137,7 @@ export function EnhancedCreateGuildModal({
   const removeTag = (index: number) => {
     setGuildForm((prev) => ({
       ...prev,
-      tags: prev.tags.filter((_, i) => i !== index),
+      tags: (prev.tags || []).filter((_: string, i: number) => i !== index),
     }))
   }
 
@@ -205,7 +205,7 @@ export function EnhancedCreateGuildModal({
       members: 1,
       membersList: currentUser ? [Number(currentUser.id)] : [],
       welcome_message: guildForm.welcomeMessage,
-      tags: guildForm.tags.map((tag, index) => ({ 
+      tags: (guildForm.tags || []).map((tag: string, index: number) => ({ 
         id: index + 1,
         tag: tag,
         name: tag 
@@ -217,7 +217,6 @@ export function EnhancedCreateGuildModal({
       })),
     };
 
-    let success = true;
     let errorMsg = '';
     try {
       // Actually create the guild and deduct gold on backend
@@ -227,43 +226,73 @@ export function EnhancedCreateGuildModal({
         const goldAmount = (result.gold_transaction as any).amount ?? null;
         if (goldAmount !== null && showToast) showToast(`-${Math.abs(goldAmount)} Gold spent!`, 'success');
       }
+      // Show success toast and close modal after successful creation
+      showToast?.('Guild created successfully!', 'success');
+      // Refresh gold balance if context provides a refreshBalance function
+      if (goldBalance && typeof goldBalance === 'object' && typeof goldBalance.refreshBalance === 'function') {
+        goldBalance.refreshBalance();
+      }
+      // Reset form and close modal
+      setGuildForm({
+        name: "",
+        description: "",
+        emblem: "🧪",
+        specialization: "",
+        privacy: "public",
+        welcomeMessage: "",
+        tags: [],
+        socialLinks: [],
+        customEmblemFile: null,
+        customEmblemPreview: "",
+        useCustomEmblem: false,
+        requireApproval: true,
+        minimumLevel: 1,
+        allowDiscovery: true,
+        showOnHomePage: true,
+        whoCanPost: "members",
+        whoCanInvite: "members",
+      });
+      setCurrentStep(1);
+      setShowConfirmation(false);
+      onClose?.();
+      return;
     } catch (err: any) {
-      success = false;
-      errorMsg = (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string') ? err.message : 'Failed to create guild or deduct gold.';
-    }
-
-    if (!success) {
+      // Prevent any error from reaching the console
+      // Try to parse and humanize backend error
+      if (err && typeof err === 'object') {
+        if (err.message && typeof err.message === 'string') {
+          try {
+            // Try to parse JSON error
+            const parsed = JSON.parse(err.message);
+            if (parsed && typeof parsed === 'object') {
+              if (parsed.error) {
+                errorMsg = parsed.error;
+              } else if (parsed.name && Array.isArray(parsed.name) && parsed.name[0]) {
+                errorMsg = `A guild with this name already exists. Please choose a different name.`;
+              } else {
+                errorMsg = Object.values(parsed).flat().join(' ') || err.message;
+              }
+            } else {
+              errorMsg = err.message;
+            }
+          } catch {
+            // Not JSON, fallback to string
+            if (err.message.includes('guild with this name already exists')) {
+              errorMsg = 'A guild with this name already exists. Please choose a different name.';
+            } else {
+              errorMsg = err.message;
+            }
+          }
+        } else {
+          errorMsg = 'Failed to create guild or deduct gold.';
+        }
+      } else {
+        errorMsg = 'Failed to create guild or deduct gold.';
+      }
+      // Only show toast, never log or throw
       showToast?.(errorMsg, 'error');
       return;
     }
-
-    // Refresh gold balance if context provides a refreshBalance function
-    if (goldBalance && typeof goldBalance === 'object' && typeof goldBalance.refreshBalance === 'function') {
-      goldBalance.refreshBalance();
-    }
-
-    // Reset form
-    setGuildForm({
-      name: "",
-      description: "",
-      emblem: "🧪",
-      specialization: "",
-      privacy: "public",
-      welcomeMessage: "",
-      tags: [],
-      socialLinks: [],
-      customEmblemFile: null,
-      customEmblemPreview: "",
-      useCustomEmblem: false,
-      requireApproval: true,
-      minimumLevel: 1,
-      allowDiscovery: true,
-      showOnHomePage: true,
-      whoCanPost: "members",
-      whoCanInvite: "members",
-    })
-    setCurrentStep(1)
-    setShowConfirmation(false)
   }
 
   const nextStep = () => {
@@ -506,7 +535,7 @@ export function EnhancedCreateGuildModal({
                   <button
                     type="button"
                     onClick={addTag}
-                    disabled={guildForm.tags.length >= 5}
+                    disabled={(guildForm.tags || []).length >= 5}
                     className="px-4 py-2 bg-[#8B75AA] text-white rounded hover:bg-[#7A6699] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     <Plus size={16} />
@@ -514,7 +543,7 @@ export function EnhancedCreateGuildModal({
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {guildForm.tags.map((tag, index) => (
+                  {(guildForm.tags || []).map((tag: string, index: number) => (
                     <span
                       key={index}
                       className="bg-[#8B75AA]/10 text-[#8B75AA] px-3 py-1 rounded-full text-sm flex items-center gap-2"
