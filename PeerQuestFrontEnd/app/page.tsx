@@ -623,7 +623,6 @@ export default function Home() {
             guilds={guildData}
             guildApplications={guildApplications}
             currentUser={currentUser}
-            selectedGuild={managingGuild}
             showToast={showToast}
             onViewGuild={(guild) => {
               setSelectedGuild(guild)
