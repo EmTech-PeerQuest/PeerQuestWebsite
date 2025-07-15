@@ -160,8 +160,8 @@ export function PostQuestModal({ isOpen, onClose, currentUser, onSubmit, guilds 
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#F4F0E6] rounded-xl w-full max-w-2xl relative max-h-[90vh] overflow-y-auto shadow-2xl">
+    <div className="fixed inset-0 bg-black bg-opacity-90 backdrop-blur-lg flex items-center justify-center z-[2147483647]">
+      <div className="bg-[#F4F0E6] rounded-xl w-full max-w-2xl relative max-h-[90vh] overflow-y-auto shadow-2xl p-4">
         {/* Header */}
         <div className="bg-gradient-to-r from-[#8B75AA] to-[#CDAA7D] px-8 py-6 rounded-t-xl">
           <div className="flex justify-between items-center">

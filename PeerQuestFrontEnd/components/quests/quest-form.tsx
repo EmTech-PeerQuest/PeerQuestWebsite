@@ -670,7 +670,24 @@ export function QuestForm({ quest, isOpen, onClose, onSuccess, isEditing = false
   const isGoldBudgetLocked = isEditing && !!quest
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <div
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        minHeight: '100vh',
+        minWidth: '100vw',
+        margin: 0,
+        padding: 0,
+        zIndex: 9999,
+        boxSizing: 'border-box',
+      }}
+    >
       {/* Confirmation Modal */}
       <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl relative max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-[#8B75AA] to-[#FBBF24] rounded-t-2xl">

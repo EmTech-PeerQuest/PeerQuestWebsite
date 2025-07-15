@@ -39,7 +39,24 @@ export function ConfirmationModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60 p-4">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        minHeight: '100vh',
+        minWidth: '100vw',
+        margin: 0,
+        padding: 0,
+        zIndex: 9999,
+        boxSizing: 'border-box',
+      }}
+    >
       <div className="bg-white rounded-lg w-full max-w-md p-6 border-2 border-orange-200">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2">
