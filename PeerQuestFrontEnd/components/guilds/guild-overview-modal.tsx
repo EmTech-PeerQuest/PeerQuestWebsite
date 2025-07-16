@@ -1,4 +1,20 @@
+
 "use client"
+
+// Helper to dynamically resolve API base URL at runtime
+function getDynamicApiBaseUrl() {
+  let base = "";
+  if (typeof window !== "undefined") {
+    base = (window as any).API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "";
+  } else {
+    base = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+  }
+  // Fallback to backend default if not set or if it's a frontend port
+  if (!base || base.includes('localhost:3000') || base.startsWith('http://localhost:3000') || base.startsWith('https://localhost:3000')) {
+    base = "http://localhost:8000";
+  }
+  return base.replace(/\/?$/, '');
+}
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import {
@@ -39,20 +55,10 @@ export function GuildOverviewModal({
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const [guildMembers, setGuildMembers] = useState<GuildMembership[]>([])
   const [loadingMembers, setLoadingMembers] = useState(false)
-  const [apiBaseUrl, setApiBaseUrl] = useState<string>("")
   const [error, setError] = useState<string>("")
 
 
-  // Dynamic API base URL (env or runtime)
-  useEffect(() => {
-    let base = ""
-    if (typeof window !== "undefined") {
-      base = (window as any).API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ""
-    } else {
-      base = process.env.NEXT_PUBLIC_API_BASE_URL || ""
-    }
-    setApiBaseUrl(base || "http://localhost:8000/api")
-  }, [])
+  // No useEffect or state needed for API base URL
 
   if (!isOpen) return null
 
@@ -81,22 +87,25 @@ export function GuildOverviewModal({
     setLoadingMembers(true)
     setError("")
     try {
-      // Use dynamic API base URL
-      const url = `${apiBaseUrl}/guilds/${guild.guild_id}/members/`
-      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null
+      // Use dynamic API base URL helper
+      const base = getDynamicApiBaseUrl();
+      const url = base.match(/\/api$/)
+        ? `${base}/guilds/${guild.guild_id}/members/`
+        : `${base}/api/guilds/${guild.guild_id}/members/`;
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
       const res = await fetch(url, {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-      })
-      if (!res.ok) throw new Error(`Failed to load members: ${res.status}`)
-      const data = await res.json()
-      setGuildMembers(Array.isArray(data) ? data : data.results || [])
+      });
+      if (!res.ok) throw new Error(`Failed to load members: ${res.status}`);
+      const data = await res.json();
+      setGuildMembers(Array.isArray(data) ? data : data.results || []);
     } catch (err: any) {
-      setError("Failed to load guild members")
-      showToast("Failed to load guild members", "error")
+      setError("Failed to load guild members");
+      showToast("Failed to load guild members", "error");
     } finally {
-      setLoadingMembers(false)
+      setLoadingMembers(false);
     }
-  }, [apiBaseUrl, guild.guild_id, showToast])
+  }, [guild.guild_id, showToast]);
 
   useEffect(() => {
     if (isOpen && guild.guild_id) {
@@ -324,7 +333,9 @@ export function GuildOverviewModal({
                   <h4 className="font-semibold text-gray-700 mb-2 text-sm">Guild Funds</h4>
                   <div className="flex items-center gap-1">
                     <DollarSign size={16} className="text-yellow-500" />
-                    <span className="text-green-600 font-semibold">{guild.funds || 1250} Gold</span>
+                    <span className="text-green-600 font-semibold">
+                      {typeof guild.funds === 'number' && !isNaN(guild.funds) ? guild.funds : 0} Gold
+                    </span>
                   </div>
                 </div>
                 <div className="bg-white p-4 rounded-lg border border-gray-200">
@@ -343,7 +354,9 @@ export function GuildOverviewModal({
                 </div>
                 <div className="bg-yellow-50 p-3 rounded border-l-4 border-yellow-400">
                   <p className="text-gray-700 text-sm leading-relaxed">
-                    {guild.welcome_message || "Welcome to the Mystic Brewers Guild! We're currently working on a new health potion recipe. Check out our latest guild quest!"}
+                    {guild.welcome_message
+                      ? guild.welcome_message
+                      : `Welcome to the ${guild.name || 'Guild'}! We're excited to have you here. Check out our latest guild quest!`}
                   </p>
                   <p className="text-xs text-gray-500 mt-2">
                     by {guild.owner?.username || "MysticBrewer"} • {new Date().toLocaleDateString()}

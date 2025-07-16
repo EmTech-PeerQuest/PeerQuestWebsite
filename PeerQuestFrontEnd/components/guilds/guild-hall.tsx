@@ -53,10 +53,10 @@ export function GuildHall({
         const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
         for (const g of guilds) {
           // Dynamic API base
-          const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
-          const url = apiBase
-            ? `${apiBase.replace(/\/$/, '')}/api/guilds/${g.guild_id}/members/`
-            : `/api/guilds/${g.guild_id}/members/`;
+        const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+        const url = apiBase
+          ? `${apiBase.replace(/\/$/, '')}/api/guilds/${g.guild_id}/members/`
+          : `/api/guilds/${g.guild_id}/members/`;
           try {
             const res = await fetch(url, {
               headers: token ? { 'Authorization': `Bearer ${token}` } : {},

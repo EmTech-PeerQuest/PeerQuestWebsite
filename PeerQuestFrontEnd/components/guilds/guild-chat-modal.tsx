@@ -6,6 +6,7 @@ import EmojiPicker from "emoji-picker-react"
 import { X, Send, Smile, Loader2 } from "lucide-react"
 import type { Guild, User, GuildChatMessage } from "@/lib/types"
 
+
 interface GuildChatModalProps {
   isOpen: boolean
   onClose: () => void
@@ -13,17 +14,18 @@ interface GuildChatModalProps {
   currentUser: User | null
   showToast: (message: string, type?: string) => void
   userMemberships?: { [guildId: string]: boolean }
+  token: string
 }
-
-export function GuildChatModal({
-  isOpen,
-  onClose,
-  guild,
-  currentUser,
-  showToast,
-  userMemberships = {},
-  token,
-}: GuildChatModalProps & { token: string }) {
+export function GuildChatModal(props: GuildChatModalProps) {
+  const {
+    isOpen,
+    onClose,
+    guild,
+    currentUser,
+    showToast,
+    userMemberships = {},
+    token,
+  } = props;
   const [onlineUsers, setOnlineUsers] = useState<Map<string, "online" | "idle" | "offline">>(new Map());
   const [messages, setMessages] = useState<GuildChatMessage[]>([])
   const [newMessage, setNewMessage] = useState("")
